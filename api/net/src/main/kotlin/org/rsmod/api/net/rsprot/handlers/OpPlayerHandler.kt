@@ -31,6 +31,9 @@ constructor(
                 3 -> InteractionOp.Op3
                 4 -> InteractionOp.Op4
                 5 -> InteractionOp.Op5
+                6 -> InteractionOp.Op6
+                7 -> InteractionOp.Op7
+                8 -> InteractionOp.Op8
                 else -> throw NotImplementedError("Unhandled `op` conversion: $this")
             }
 

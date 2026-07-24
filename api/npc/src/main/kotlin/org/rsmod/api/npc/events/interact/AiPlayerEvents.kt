@@ -16,6 +16,12 @@ public class AiPlayerEvents {
 
     public class Op5(target: Player, npc: Npc) : Op(target, npc)
 
+    public class Op6(target: Player, npc: Npc) : Op(target, npc)
+
+    public class Op7(target: Player, npc: Npc) : Op(target, npc)
+
+    public class Op8(target: Player, npc: Npc) : Op(target, npc)
+
     public sealed class Ap(public val target: Player, npc: Npc) : ApEvent(npc.id.toLong())
 
     public class Ap1(target: Player, npc: Npc) : Ap(target, npc)
@@ -27,6 +33,12 @@ public class AiPlayerEvents {
     public class Ap4(target: Player, npc: Npc) : Ap(target, npc)
 
     public class Ap5(target: Player, npc: Npc) : Ap(target, npc)
+
+    public class Ap6(target: Player, npc: Npc) : Ap(target, npc)
+
+    public class Ap7(target: Player, npc: Npc) : Ap(target, npc)
+
+    public class Ap8(target: Player, npc: Npc) : Ap(target, npc)
 }
 
 public class AiPlayerDefaultEvents {
@@ -42,6 +54,12 @@ public class AiPlayerDefaultEvents {
 
     public class Op5(target: Player) : Op(target)
 
+    public class Op6(target: Player) : Op(target)
+
+    public class Op7(target: Player) : Op(target)
+
+    public class Op8(target: Player) : Op(target)
+
     public sealed class Ap(public val target: Player) : ApDefaultEvent()
 
     public class Ap1(target: Player) : Ap(target)
@@ -53,4 +71,10 @@ public class AiPlayerDefaultEvents {
     public class Ap4(target: Player) : Ap(target)
 
     public class Ap5(target: Player) : Ap(target)
+
+    public class Ap6(target: Player) : Ap(target)
+
+    public class Ap7(target: Player) : Ap(target)
+
+    public class Ap8(target: Player) : Ap(target)
 }

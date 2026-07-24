@@ -144,6 +144,9 @@ constructor(
             InteractionOp.Op3 -> NpcEvents.Op3(this)
             InteractionOp.Op4 -> NpcEvents.Op4(this)
             InteractionOp.Op5 -> NpcEvents.Op5(this)
+            InteractionOp.Op6,
+            InteractionOp.Op7,
+            InteractionOp.Op8 -> unsupportedNpcOp(op)
         }
 
     private fun Npc.toContentOp(contentGroup: Int, op: InteractionOp): NpcContentEvents.Op =
@@ -153,6 +156,9 @@ constructor(
             InteractionOp.Op3 -> NpcContentEvents.Op3(this, contentGroup)
             InteractionOp.Op4 -> NpcContentEvents.Op4(this, contentGroup)
             InteractionOp.Op5 -> NpcContentEvents.Op5(this, contentGroup)
+            InteractionOp.Op6,
+            InteractionOp.Op7,
+            InteractionOp.Op8 -> unsupportedNpcOp(op)
         }
 
     private fun Npc.toUnimplementedOp(op: InteractionOp): NpcUnimplementedEvents.Op =
@@ -162,6 +168,9 @@ constructor(
             InteractionOp.Op3 -> NpcUnimplementedEvents.Op3(this)
             InteractionOp.Op4 -> NpcUnimplementedEvents.Op4(this)
             InteractionOp.Op5 -> NpcUnimplementedEvents.Op5(this)
+            InteractionOp.Op6,
+            InteractionOp.Op7,
+            InteractionOp.Op8 -> unsupportedNpcOp(op)
         }
 
     private fun Npc.toDefaultOp(op: InteractionOp): NpcDefaultEvents.Op =
@@ -171,6 +180,9 @@ constructor(
             InteractionOp.Op3 -> NpcDefaultEvents.Op3(this)
             InteractionOp.Op4 -> NpcDefaultEvents.Op4(this)
             InteractionOp.Op5 -> NpcDefaultEvents.Op5(this)
+            InteractionOp.Op6,
+            InteractionOp.Op7,
+            InteractionOp.Op8 -> unsupportedNpcOp(op)
         }
 
     private fun Npc.toAp(op: InteractionOp): NpcEvents.Ap =
@@ -180,6 +192,9 @@ constructor(
             InteractionOp.Op3 -> NpcEvents.Ap3(this)
             InteractionOp.Op4 -> NpcEvents.Ap4(this)
             InteractionOp.Op5 -> NpcEvents.Ap5(this)
+            InteractionOp.Op6,
+            InteractionOp.Op7,
+            InteractionOp.Op8 -> unsupportedNpcOp(op)
         }
 
     private fun Npc.toContentAp(contentGroup: Int, op: InteractionOp): NpcContentEvents.Ap =
@@ -189,6 +204,9 @@ constructor(
             InteractionOp.Op3 -> NpcContentEvents.Ap3(this, contentGroup)
             InteractionOp.Op4 -> NpcContentEvents.Ap4(this, contentGroup)
             InteractionOp.Op5 -> NpcContentEvents.Ap5(this, contentGroup)
+            InteractionOp.Op6,
+            InteractionOp.Op7,
+            InteractionOp.Op8 -> unsupportedNpcOp(op)
         }
 
     private fun Npc.toDefaultAp(op: InteractionOp): NpcDefaultEvents.Ap =
@@ -198,6 +216,9 @@ constructor(
             InteractionOp.Op3 -> NpcDefaultEvents.Ap3(this)
             InteractionOp.Op4 -> NpcDefaultEvents.Ap4(this)
             InteractionOp.Op5 -> NpcDefaultEvents.Ap5(this)
+            InteractionOp.Op6,
+            InteractionOp.Op7,
+            InteractionOp.Op8 -> unsupportedNpcOp(op)
         }
 
     private fun UnpackedNpcType.multiVarValue(vars: VarPlayerIntMap): Int? {
@@ -221,3 +242,6 @@ constructor(
         return npc.visType.hasOp(op)
     }
 }
+
+private fun unsupportedNpcOp(op: InteractionOp): Nothing =
+    throw IllegalStateException("Npcs do not support op: $op")

@@ -107,6 +107,9 @@ constructor(private val npcTypes: NpcTypeList, private val eventBus: EventBus) {
             InteractionOp.Op3 -> AiNpcEvents.Op3(this)
             InteractionOp.Op4 -> AiNpcEvents.Op4(this)
             InteractionOp.Op5 -> AiNpcEvents.Op5(this)
+            InteractionOp.Op6,
+            InteractionOp.Op7,
+            InteractionOp.Op8 -> unsupportedNpcOp(op)
         }
 
     private fun Npc.toContentOp(contentGroup: Int, op: InteractionOp): AiNpcContentEvents.Op =
@@ -116,6 +119,9 @@ constructor(private val npcTypes: NpcTypeList, private val eventBus: EventBus) {
             InteractionOp.Op3 -> AiNpcContentEvents.Op3(this, contentGroup)
             InteractionOp.Op4 -> AiNpcContentEvents.Op4(this, contentGroup)
             InteractionOp.Op5 -> AiNpcContentEvents.Op5(this, contentGroup)
+            InteractionOp.Op6,
+            InteractionOp.Op7,
+            InteractionOp.Op8 -> unsupportedNpcOp(op)
         }
 
     private fun Npc.toUnimplementedOp(op: InteractionOp): AiNpcUnimplementedEvents.Op =
@@ -125,6 +131,9 @@ constructor(private val npcTypes: NpcTypeList, private val eventBus: EventBus) {
             InteractionOp.Op3 -> AiNpcUnimplementedEvents.Op3(this)
             InteractionOp.Op4 -> AiNpcUnimplementedEvents.Op4(this)
             InteractionOp.Op5 -> AiNpcUnimplementedEvents.Op5(this)
+            InteractionOp.Op6,
+            InteractionOp.Op7,
+            InteractionOp.Op8 -> unsupportedNpcOp(op)
         }
 
     private fun Npc.toDefaultOp(op: InteractionOp): AiNpcDefaultEvents.Op =
@@ -134,6 +143,9 @@ constructor(private val npcTypes: NpcTypeList, private val eventBus: EventBus) {
             InteractionOp.Op3 -> AiNpcDefaultEvents.Op3(this)
             InteractionOp.Op4 -> AiNpcDefaultEvents.Op4(this)
             InteractionOp.Op5 -> AiNpcDefaultEvents.Op5(this)
+            InteractionOp.Op6,
+            InteractionOp.Op7,
+            InteractionOp.Op8 -> unsupportedNpcOp(op)
         }
 
     private fun Npc.toAp(op: InteractionOp): AiNpcEvents.Ap =
@@ -143,6 +155,9 @@ constructor(private val npcTypes: NpcTypeList, private val eventBus: EventBus) {
             InteractionOp.Op3 -> AiNpcEvents.Ap3(this)
             InteractionOp.Op4 -> AiNpcEvents.Ap4(this)
             InteractionOp.Op5 -> AiNpcEvents.Ap5(this)
+            InteractionOp.Op6,
+            InteractionOp.Op7,
+            InteractionOp.Op8 -> unsupportedNpcOp(op)
         }
 
     private fun Npc.toContentAp(contentGroup: Int, op: InteractionOp): AiNpcContentEvents.Ap =
@@ -152,6 +167,9 @@ constructor(private val npcTypes: NpcTypeList, private val eventBus: EventBus) {
             InteractionOp.Op3 -> AiNpcContentEvents.Ap3(this, contentGroup)
             InteractionOp.Op4 -> AiNpcContentEvents.Ap4(this, contentGroup)
             InteractionOp.Op5 -> AiNpcContentEvents.Ap5(this, contentGroup)
+            InteractionOp.Op6,
+            InteractionOp.Op7,
+            InteractionOp.Op8 -> unsupportedNpcOp(op)
         }
 
     private fun Npc.toDefaultAp(op: InteractionOp): AiNpcDefaultEvents.Ap =
@@ -161,7 +179,13 @@ constructor(private val npcTypes: NpcTypeList, private val eventBus: EventBus) {
             InteractionOp.Op3 -> AiNpcDefaultEvents.Ap3(this)
             InteractionOp.Op4 -> AiNpcDefaultEvents.Ap4(this)
             InteractionOp.Op5 -> AiNpcDefaultEvents.Ap5(this)
+            InteractionOp.Op6,
+            InteractionOp.Op7,
+            InteractionOp.Op8 -> unsupportedNpcOp(op)
         }
 
     public fun hasOp(target: Npc, op: InteractionOp): Boolean = target.visType.hasOp(op)
 }
+
+private fun unsupportedNpcOp(op: InteractionOp): Nothing =
+    throw IllegalStateException("Npcs do not support op: $op")

@@ -84,6 +84,9 @@ constructor(private val eventBus: EventBus, private val playerList: PlayerList) 
             InteractionOp.Op3 -> AiPlayerEvents.Op3(this, npc)
             InteractionOp.Op4 -> AiPlayerEvents.Op4(this, npc)
             InteractionOp.Op5 -> AiPlayerEvents.Op5(this, npc)
+            InteractionOp.Op6 -> AiPlayerEvents.Op6(this, npc)
+            InteractionOp.Op7 -> AiPlayerEvents.Op7(this, npc)
+            InteractionOp.Op8 -> AiPlayerEvents.Op8(this, npc)
         }
 
     private fun Player.toAp(npc: Npc, op: InteractionOp): AiPlayerEvents.Ap =
@@ -93,6 +96,9 @@ constructor(private val eventBus: EventBus, private val playerList: PlayerList) 
             InteractionOp.Op3 -> AiPlayerEvents.Ap3(this, npc)
             InteractionOp.Op4 -> AiPlayerEvents.Ap4(this, npc)
             InteractionOp.Op5 -> AiPlayerEvents.Ap5(this, npc)
+            InteractionOp.Op6 -> AiPlayerEvents.Ap6(this, npc)
+            InteractionOp.Op7 -> AiPlayerEvents.Ap7(this, npc)
+            InteractionOp.Op8 -> AiPlayerEvents.Ap8(this, npc)
         }
 
     private fun Player.toDefaultOp(op: InteractionOp): AiPlayerDefaultEvents.Op =
@@ -102,6 +108,9 @@ constructor(private val eventBus: EventBus, private val playerList: PlayerList) 
             InteractionOp.Op3 -> AiPlayerDefaultEvents.Op3(this)
             InteractionOp.Op4 -> AiPlayerDefaultEvents.Op4(this)
             InteractionOp.Op5 -> AiPlayerDefaultEvents.Op5(this)
+            InteractionOp.Op6 -> AiPlayerDefaultEvents.Op6(this)
+            InteractionOp.Op7 -> AiPlayerDefaultEvents.Op7(this)
+            InteractionOp.Op8 -> AiPlayerDefaultEvents.Op8(this)
         }
 
     private fun Player.toDefaultAp(op: InteractionOp): AiPlayerDefaultEvents.Ap =
@@ -111,6 +120,9 @@ constructor(private val eventBus: EventBus, private val playerList: PlayerList) 
             InteractionOp.Op3 -> AiPlayerDefaultEvents.Ap3(this)
             InteractionOp.Op4 -> AiPlayerDefaultEvents.Ap4(this)
             InteractionOp.Op5 -> AiPlayerDefaultEvents.Ap5(this)
+            InteractionOp.Op6 -> AiPlayerDefaultEvents.Ap6(this)
+            InteractionOp.Op7 -> AiPlayerDefaultEvents.Ap7(this)
+            InteractionOp.Op8 -> AiPlayerDefaultEvents.Ap8(this)
         }
 
     public fun resolvePlayer(uid: PlayerUid?): Player? {

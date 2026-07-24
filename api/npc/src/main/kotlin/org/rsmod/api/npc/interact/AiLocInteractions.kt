@@ -120,6 +120,9 @@ constructor(
             InteractionOp.Op3 -> AiLocEvents.Op3(this, type)
             InteractionOp.Op4 -> AiLocEvents.Op4(this, type)
             InteractionOp.Op5 -> AiLocEvents.Op5(this, type)
+            InteractionOp.Op6,
+            InteractionOp.Op7,
+            InteractionOp.Op8 -> unsupportedLocOp(op)
         }
 
     private fun BoundLocInfo.toContentOp(
@@ -133,6 +136,9 @@ constructor(
             InteractionOp.Op3 -> AiLocContentEvents.Op3(this, type, contentGroup)
             InteractionOp.Op4 -> AiLocContentEvents.Op4(this, type, contentGroup)
             InteractionOp.Op5 -> AiLocContentEvents.Op5(this, type, contentGroup)
+            InteractionOp.Op6,
+            InteractionOp.Op7,
+            InteractionOp.Op8 -> unsupportedLocOp(op)
         }
 
     private fun BoundLocInfo.toUnimplementedOp(
@@ -145,6 +151,9 @@ constructor(
             InteractionOp.Op3 -> AiLocUnimplementedEvents.Op3(this, type)
             InteractionOp.Op4 -> AiLocUnimplementedEvents.Op4(this, type)
             InteractionOp.Op5 -> AiLocUnimplementedEvents.Op5(this, type)
+            InteractionOp.Op6,
+            InteractionOp.Op7,
+            InteractionOp.Op8 -> unsupportedLocOp(op)
         }
 
     private fun BoundLocInfo.toDefaultOp(
@@ -157,6 +166,9 @@ constructor(
             InteractionOp.Op3 -> AiLocDefaultEvents.Op3(this, type)
             InteractionOp.Op4 -> AiLocDefaultEvents.Op4(this, type)
             InteractionOp.Op5 -> AiLocDefaultEvents.Op5(this, type)
+            InteractionOp.Op6,
+            InteractionOp.Op7,
+            InteractionOp.Op8 -> unsupportedLocOp(op)
         }
 
     private fun BoundLocInfo.toAp(type: UnpackedLocType, op: InteractionOp): AiLocEvents.Ap =
@@ -166,6 +178,9 @@ constructor(
             InteractionOp.Op3 -> AiLocEvents.Ap3(this, type)
             InteractionOp.Op4 -> AiLocEvents.Ap4(this, type)
             InteractionOp.Op5 -> AiLocEvents.Ap5(this, type)
+            InteractionOp.Op6,
+            InteractionOp.Op7,
+            InteractionOp.Op8 -> unsupportedLocOp(op)
         }
 
     private fun BoundLocInfo.toContentAp(
@@ -179,6 +194,9 @@ constructor(
             InteractionOp.Op3 -> AiLocContentEvents.Ap3(this, type, contentGroup)
             InteractionOp.Op4 -> AiLocContentEvents.Ap4(this, type, contentGroup)
             InteractionOp.Op5 -> AiLocContentEvents.Ap5(this, type, contentGroup)
+            InteractionOp.Op6,
+            InteractionOp.Op7,
+            InteractionOp.Op8 -> unsupportedLocOp(op)
         }
 
     private fun BoundLocInfo.toDefaultAp(
@@ -191,7 +209,13 @@ constructor(
             InteractionOp.Op3 -> AiLocDefaultEvents.Ap3(this, type)
             InteractionOp.Op4 -> AiLocDefaultEvents.Ap4(this, type)
             InteractionOp.Op5 -> AiLocDefaultEvents.Ap5(this, type)
+            InteractionOp.Op6,
+            InteractionOp.Op7,
+            InteractionOp.Op8 -> unsupportedLocOp(op)
         }
 
     public fun hasOp(type: UnpackedLocType, op: InteractionOp): Boolean = type.hasOp(op)
 }
+
+private fun unsupportedLocOp(op: InteractionOp): Nothing =
+    throw IllegalStateException("Locs do not support op: $op")

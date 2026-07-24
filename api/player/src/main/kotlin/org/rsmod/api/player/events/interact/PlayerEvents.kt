@@ -18,6 +18,12 @@ public class PlayerEvents {
 
     public class Op5(target: Player) : Op(target)
 
+    public class Op6(target: Player) : Op(target)
+
+    public class Op7(target: Player) : Op(target)
+
+    public class Op8(target: Player) : Op(target)
+
     public sealed class Ap(public val target: Player) : ApDefaultEvent()
 
     public class Ap1(target: Player) : Ap(target)
@@ -29,6 +35,12 @@ public class PlayerEvents {
     public class Ap4(target: Player) : Ap(target)
 
     public class Ap5(target: Player) : Ap(target)
+
+    public class Ap6(target: Player) : Ap(target)
+
+    public class Ap7(target: Player) : Ap(target)
+
+    public class Ap8(target: Player) : Ap(target)
 }
 
 public class PlayerTEvents {

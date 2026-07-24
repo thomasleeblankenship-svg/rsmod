@@ -109,6 +109,9 @@ constructor(private val objTypes: ObjTypeList, private val eventBus: EventBus) {
             InteractionOp.Op3 -> AiObjEvents.Op3(this)
             InteractionOp.Op4 -> AiObjEvents.Op4(this)
             InteractionOp.Op5 -> AiObjEvents.Op5(this)
+            InteractionOp.Op6,
+            InteractionOp.Op7,
+            InteractionOp.Op8 -> unsupportedObjOp(op)
         }
 
     private fun Obj.toContentOp(contentGroup: Int, op: InteractionOp): AiObjContentEvents.Op =
@@ -118,6 +121,9 @@ constructor(private val objTypes: ObjTypeList, private val eventBus: EventBus) {
             InteractionOp.Op3 -> AiObjContentEvents.Op3(this, contentGroup)
             InteractionOp.Op4 -> AiObjContentEvents.Op4(this, contentGroup)
             InteractionOp.Op5 -> AiObjContentEvents.Op5(this, contentGroup)
+            InteractionOp.Op6,
+            InteractionOp.Op7,
+            InteractionOp.Op8 -> unsupportedObjOp(op)
         }
 
     private fun Obj.toDefaultOp(op: InteractionOp): AiObjDefaultEvents.Op =
@@ -127,6 +133,9 @@ constructor(private val objTypes: ObjTypeList, private val eventBus: EventBus) {
             InteractionOp.Op3 -> AiObjDefaultEvents.Op3(this)
             InteractionOp.Op4 -> AiObjDefaultEvents.Op4(this)
             InteractionOp.Op5 -> AiObjDefaultEvents.Op5(this)
+            InteractionOp.Op6,
+            InteractionOp.Op7,
+            InteractionOp.Op8 -> unsupportedObjOp(op)
         }
 
     private fun Obj.toAp(op: InteractionOp): AiObjEvents.Ap =
@@ -136,6 +145,9 @@ constructor(private val objTypes: ObjTypeList, private val eventBus: EventBus) {
             InteractionOp.Op3 -> AiObjEvents.Ap3(this)
             InteractionOp.Op4 -> AiObjEvents.Ap4(this)
             InteractionOp.Op5 -> AiObjEvents.Ap5(this)
+            InteractionOp.Op6,
+            InteractionOp.Op7,
+            InteractionOp.Op8 -> unsupportedObjOp(op)
         }
 
     private fun Obj.toContentAp(contentGroup: Int, op: InteractionOp): AiObjContentEvents.Ap =
@@ -145,14 +157,23 @@ constructor(private val objTypes: ObjTypeList, private val eventBus: EventBus) {
             InteractionOp.Op3 -> AiObjContentEvents.Ap3(this, contentGroup)
             InteractionOp.Op4 -> AiObjContentEvents.Ap4(this, contentGroup)
             InteractionOp.Op5 -> AiObjContentEvents.Ap5(this, contentGroup)
+            InteractionOp.Op6,
+            InteractionOp.Op7,
+            InteractionOp.Op8 -> unsupportedObjOp(op)
         }
 
     private fun Obj.toDefaultAp(op: InteractionOp): AiObjDefaultEvents.Ap =
         when (op) {
             InteractionOp.Op1 -> AiObjDefaultEvents.Ap1(this)
-            InteractionOp.Op2 -> AiObjDefaultEvents.Ap1(this)
-            InteractionOp.Op3 -> AiObjDefaultEvents.Ap1(this)
-            InteractionOp.Op4 -> AiObjDefaultEvents.Ap1(this)
-            InteractionOp.Op5 -> AiObjDefaultEvents.Ap1(this)
+            InteractionOp.Op2 -> AiObjDefaultEvents.Ap2(this)
+            InteractionOp.Op3 -> AiObjDefaultEvents.Ap3(this)
+            InteractionOp.Op4 -> AiObjDefaultEvents.Ap4(this)
+            InteractionOp.Op5 -> AiObjDefaultEvents.Ap5(this)
+            InteractionOp.Op6,
+            InteractionOp.Op7,
+            InteractionOp.Op8 -> unsupportedObjOp(op)
         }
 }
+
+private fun unsupportedObjOp(op: InteractionOp): Nothing =
+    throw IllegalStateException("Objs do not support op: $op")
