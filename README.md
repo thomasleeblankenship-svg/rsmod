@@ -11,7 +11,7 @@ _Check out the [Installing Java](#installing-java) section for setup instruction
 ## Installation
 - ### IntelliJ
     - On the top-left toolbar: _File → New → Project from Version Control_ ([reference](docs/images/setup1.png))
-    - In the **Clone Repository** window: _URL → `https://github.com/rsmod/rsmod.git`_ ([reference](docs/images/setup2.png))
+    - In the **Clone Repository** window: _URL → `[https://github.com/thomasleeblankenship-svg/rsmod.git)`_ ([reference](docs/images/setup2.png))
     - In the **Open Project** pop-up that appears: _This Window_ or _New Window_ (personal choice) ([reference](docs/images/setup3.png))
     - Once the project loads, you'll see a **Load Gradle Project** option: ([reference](docs/images/setup4.png))
     - Click on **Load Gradle Project** and wait for the process to finish
