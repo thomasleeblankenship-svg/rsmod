@@ -62,6 +62,14 @@ fun main() {
             objEntries += entry(id, type.name, objSymbols[id], null, null)
         }
 
+        val opFrequency = mutableMapOf<String, Int>()
+        for (type in npcs.values) {
+            for (op in type.op.filterNotNull()) opFrequency.merge(op, 1, Int::plus)
+        }
+        for (type in locs.values) {
+            for (op in type.op.filterNotNull()) opFrequency.merge(op, 1, Int::plus)
+        }
+
         val output =
             mapOf(
                 "npcs" to npcEntries,
@@ -70,6 +78,10 @@ fun main() {
                 "npcCount" to npcEntries.size,
                 "locCount" to locEntries.size,
                 "objCount" to objEntries.size,
+                "allOps" to
+                    opFrequency.entries
+                        .sortedByDescending { it.value }
+                        .associate { it.key to it.value },
                 "notes" to
                     mapOf(
                         "symbolName" to
@@ -81,7 +93,13 @@ fun main() {
                             "The human-readable name shown in-game - NOT the same as symbolName.",
                         "categories" to
                             "woodcutting, mining, fishing, thieving, farming, agility, crafting, " +
-                                "construction, runecrafting - inferred from the cache's own op text.",
+                                "construction, runecrafting, slayer, hunter - inferred from the " +
+                                "cache's own op text.",
+                        "fletchingAndHerblore" to
+                            ("Verified absent from allOps: neither skill has any loc/npc op in " +
+                                "the cache (both are purely inventory-item interactions - e.g. " +
+                                "knife+logs, vial+ingredient - with no world loc/npc counterpart), " +
+                                "so there is nothing for this exporter to find for them."),
                     ),
             )
 
@@ -149,8 +167,14 @@ private val skillVerbs =
         "balance" to "agility",
         "cross" to "agility",
         "spin" to "crafting",
+        "shear" to "crafting",
+        "tan-hides" to "crafting",
         "craft-rune" to "runecrafting",
         "build" to "construction",
+        "assignment" to "slayer",
+        "catch" to "hunter",
+        "dismantle" to "hunter",
+        "set-trap" to "hunter",
     )
 
 private fun categorize(ops: Array<String?>?): String? {
