@@ -777,7 +777,22 @@ object BaseObjs : ObjReferences() {
     val avas_assembler = find("avas_assembler")
 
     val shortbow = find("shortbow")
+    val oak_shortbow = find("oak_shortbow")
+    val willow_shortbow = find("willow_shortbow")
+    val maple_shortbow = find("maple_shortbow")
+    val yew_shortbow = find("yew_shortbow")
     val magic_shortbow = find("magic_shortbow")
+
+    val unstrung_shortbow = find("unstrung_shortbow")
+    val unstrung_oak_shortbow = find("unstrung_oak_shortbow")
+    val unstrung_willow_shortbow = find("unstrung_willow_shortbow")
+    val unstrung_maple_shortbow = find("unstrung_maple_shortbow")
+    val unstrung_yew_shortbow = find("unstrung_yew_shortbow")
+    val unstrung_magic_shortbow = find("unstrung_magic_shortbow")
+
+    val arrow_shaft = find("arrow_shaft")
+    val headless_arrow = find("headless_arrow")
+    val feather = find("feather")
 
     val dark_bow = find("darkbow")
     val dark_bow_green = find("darkbow_green")
