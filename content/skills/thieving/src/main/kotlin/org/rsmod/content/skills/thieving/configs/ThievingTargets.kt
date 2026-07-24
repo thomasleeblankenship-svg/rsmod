@@ -44,11 +44,18 @@ internal object PickpocketNpcEditor : NpcEditor() {
  */
 object StealLocs : LocReferences() {
     val tea_stall = find("tea_stall")
+    val bakers_stall = find("cakethiefstall")
 }
 
 internal object StealLocEditor : LocEditor() {
     init {
         edit(steal_locs.tea_stall) {
+            param[params.levelrequire] = 5
+            param[params.skill_xp] = PlayerStatMap.toFineXP(16.0).toInt()
+            param[params.respawn_time_low] = 3
+            param[params.respawn_time_high] = 5
+        }
+        edit(steal_locs.bakers_stall) {
             param[params.levelrequire] = 5
             param[params.skill_xp] = PlayerStatMap.toFineXP(16.0).toInt()
             param[params.respawn_time_low] = 3

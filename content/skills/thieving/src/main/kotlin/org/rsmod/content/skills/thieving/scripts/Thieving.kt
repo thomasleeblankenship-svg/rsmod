@@ -8,6 +8,8 @@ import org.rsmod.api.config.npcXpParam
 import org.rsmod.api.config.refs.objs
 import org.rsmod.api.config.refs.params
 import org.rsmod.api.config.refs.stats
+import org.rsmod.api.player.diary.LumbridgeDraynorDiary.TASK_STEAL_BAKERS_STALL
+import org.rsmod.api.player.diary.LumbridgeDraynorDiary.completeEasyTask
 import org.rsmod.api.player.protect.ProtectedAccess
 import org.rsmod.api.player.stat.thievingLvl
 import org.rsmod.api.repo.loc.LocRepository
@@ -47,6 +49,7 @@ constructor(
         onOpNpc3(pickpocket_npcs.guard) { pickpocket(it.npc, it.npc.visType) }
 
         onOpLoc2(steal_locs.tea_stall) { steal(it.loc, it.type) }
+        onOpLoc2(steal_locs.bakers_stall) { steal(it.loc, it.type) }
     }
 
     private suspend fun ProtectedAccess.pickpocket(npc: Npc, type: UnpackedNpcType) {
@@ -87,6 +90,9 @@ constructor(
         spam("You steal from the stall.")
         statAdvance(stats.thieving, xp)
         invAddOrDrop(objRepo, objs.coins, gp)
+        if (type.id == steal_locs.bakers_stall.id) {
+            completeEasyTask(TASK_STEAL_BAKERS_STALL)
+        }
 
         val respawnTime = random.of(type.stealRespawnLow, type.stealRespawnHigh)
         locRepo.del(loc, respawnTime)

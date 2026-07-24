@@ -4,6 +4,8 @@ import jakarta.inject.Inject
 import org.rsmod.api.config.refs.objs
 import org.rsmod.api.config.refs.seqs
 import org.rsmod.api.config.refs.stats
+import org.rsmod.api.player.diary.LumbridgeDraynorDiary.TASK_SPIN_BOWSTRING
+import org.rsmod.api.player.diary.LumbridgeDraynorDiary.completeEasyTask
 import org.rsmod.api.player.protect.ProtectedAccess
 import org.rsmod.api.player.stat.craftingLvl
 import org.rsmod.api.script.onOpHeldU
@@ -89,6 +91,9 @@ constructor(private val objTypes: ObjTypeList, private val xpMods: XpModifiers) 
         val name = objTypes[raw].name.lowercase()
         spam("You spin the $name into something more useful.")
         statAdvance(stats.crafting, xp * xpMods.get(player, stats.crafting))
+        if (product == objs.bow_string) {
+            completeEasyTask(TASK_SPIN_BOWSTRING)
+        }
     }
 
     private suspend fun ProtectedAccess.cutGem(gem: ObjType, cut: ObjType) {

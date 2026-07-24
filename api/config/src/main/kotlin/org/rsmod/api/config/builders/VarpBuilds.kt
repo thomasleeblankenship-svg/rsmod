@@ -13,6 +13,7 @@ internal object VarpBuilds : VarpBuilder() {
         build("bankpin")
         build("slayer_task_id")
         build("slayer_task_count")
+        build("diary_lumbridge_easy_progress")
 
         build("pk_prey1") { temporary = true }
         build("pk_prey2") { temporary = true }

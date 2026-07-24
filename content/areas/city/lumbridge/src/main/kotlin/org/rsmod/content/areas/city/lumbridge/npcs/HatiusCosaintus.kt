@@ -1,7 +1,11 @@
 package org.rsmod.content.areas.city.lumbridge.npcs
 
 import org.rsmod.api.config.constants
+import org.rsmod.api.config.refs.objs
 import org.rsmod.api.player.dialogue.Dialogue
+import org.rsmod.api.player.diary.LumbridgeDraynorDiary.hasClaimedEasyReward
+import org.rsmod.api.player.diary.LumbridgeDraynorDiary.hasCompletedEasyTasks
+import org.rsmod.api.player.diary.LumbridgeDraynorDiary.markEasyRewardClaimed
 import org.rsmod.api.player.output.ClientScripts.toplevelSidebuttonSwitch
 import org.rsmod.api.player.protect.ProtectedAccess
 import org.rsmod.api.script.onOpNpc1
@@ -169,14 +173,29 @@ class HatiusCosaintus : PluginScript() {
         chatPlayer(happy, "Thanks!")
     }
 
+    /**
+     * Grants the easy-tier ring for the subset of tasks tracked by
+     * [org.rsmod.api.player.diary.LumbridgeDraynorDiary] - not the full official easy-tier list.
+     * See that class's doc for why the real diary-completion varbits aren't used here.
+     */
     private suspend fun Dialogue.claimingRewards() {
         chatPlayer(quiz, "How do I claim the rewards?")
-        chatNpc(
-            neutral,
-            "One should complete the tasks in Lumbridge and " +
-                "Draynor so they're ticked off, then speak to me to be " +
-                "rewarded.",
-        )
+        when {
+            access.hasClaimedEasyReward() ->
+                chatNpc(neutral, "You've already claimed your easy diary reward.")
+            access.hasCompletedEasyTasks() -> {
+                access.invAdd(access.inv, objs.lumbridge_ring_easy)
+                access.markEasyRewardClaimed()
+                chatNpc(happy, "Well done! Here is your Explorer's ring.")
+            }
+            else ->
+                chatNpc(
+                    neutral,
+                    "One should complete the tasks in Lumbridge and " +
+                        "Draynor so they're ticked off, then speak to me to be " +
+                        "rewarded.",
+                )
+        }
         mainMenu()
     }
 

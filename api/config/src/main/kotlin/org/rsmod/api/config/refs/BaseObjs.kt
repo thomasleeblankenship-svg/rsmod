@@ -34,6 +34,7 @@ object BaseObjs : ObjReferences() {
     val hammer = find("hammer")
     val rake = find("rake")
     val net = find("net")
+    val lumbridge_ring_easy = find("lumbridge_ring_easy")
 
     val impling_jar_baby = find("ii_captured_impling_1")
     val impling_jar_young = find("ii_captured_impling_2")

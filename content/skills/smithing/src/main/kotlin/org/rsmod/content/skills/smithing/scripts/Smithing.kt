@@ -4,6 +4,8 @@ import jakarta.inject.Inject
 import org.rsmod.api.config.refs.objs
 import org.rsmod.api.config.refs.seqs
 import org.rsmod.api.config.refs.stats
+import org.rsmod.api.player.diary.LumbridgeDraynorDiary.TASK_SMITH_BRONZE_BAR
+import org.rsmod.api.player.diary.LumbridgeDraynorDiary.completeEasyTask
 import org.rsmod.api.player.protect.ProtectedAccess
 import org.rsmod.api.player.stat.smithingLvl
 import org.rsmod.api.script.onOpLoc1
@@ -56,6 +58,9 @@ constructor(private val objTypes: ObjTypeList, private val xpMods: XpModifiers) 
         invAdd(inv, recipe.bar)
         val xp = SmeltingRecipes.fineXp(recipe) * xpMods.get(player, stats.smithing)
         statAdvance(stats.smithing, xp)
+        if (recipe.bar == objs.bronze_bar) {
+            completeEasyTask(TASK_SMITH_BRONZE_BAR)
+        }
     }
 
     private fun ProtectedAccess.canSmelt(recipe: SmeltingRecipe): Boolean {

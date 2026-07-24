@@ -80,6 +80,7 @@ object BaseVarps : VarpReferences() {
     val bankpin = find("bankpin")
     val slayer_task_id = find("slayer_task_id")
     val slayer_task_count = find("slayer_task_count")
+    val diary_lumbridge_easy_progress = find("diary_lumbridge_easy_progress")
     val pk_prey1 = find("pk_prey1")
     val pk_prey2 = find("pk_prey2")
     val pk_predator1 = find("pk_predator1")
