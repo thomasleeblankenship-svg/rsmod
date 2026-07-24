@@ -66,6 +66,19 @@ tasks.register<JavaExec>("packCache") {
     doLast { logger.lifecycle("Cache-packing process completed.") }
 }
 
+tasks.register<JavaExec>("exportSkillData") {
+    group = "cache"
+    description =
+        "Scans the full decoded cache for npc/loc ops and tool-named objs relevant to skill " +
+            "training, and writes skill_data.json to speed up building new skills."
+
+    mainClass.set("org.rsmod.server.install.SkillDataExporterKt")
+    classpath = sourceSets["main"].runtimeClasspath
+
+    doFirst { logger.lifecycle("Scanning cache for skill-relevant data...") }
+    doLast { logger.lifecycle("skill_data.json written to project root.") }
+}
+
 tasks.register<JavaExec>("generateRsa") {
     group = "security"
     description = "Runs the rsa-key generation task."
