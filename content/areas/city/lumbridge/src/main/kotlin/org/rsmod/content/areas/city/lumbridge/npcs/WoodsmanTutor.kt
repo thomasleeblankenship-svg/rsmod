@@ -23,11 +23,55 @@ class WoodsmanTutor : PluginScript() {
 
     private suspend fun Dialogue.woodsmanDialogue() {
         when {
-            player.baseWoodcuttingLvl >= 99 -> TODO("Mastery dialogue")
+            player.baseWoodcuttingLvl >= 99 -> masteryMenu()
             player.baseWoodcuttingLvl in 29..98 -> highLevelMenu()
             player.baseWoodcuttingLvl in 20..28 -> intermediateLevelMenu()
             else -> lowLevelMenu()
         }
+    }
+
+    private suspend fun Dialogue.masteryMenu() {
+        val choice =
+            choice4(
+                "I've mastered Woodcutting - any last advice?",
+                1,
+                "Tell me about different trees and axes.",
+                2,
+                "What is that cape you're wearing?",
+                3,
+                "Goodbye.",
+                4,
+            )
+        when (choice) {
+            1 -> masteryAdvice()
+            2 -> treeAndAxeInquiry()
+            3 -> capeExplanationMastery()
+            4 -> goodbye()
+        }
+    }
+
+    private suspend fun Dialogue.masteryAdvice() {
+        chatPlayer(quiz, "I've mastered Woodcutting - any last advice?")
+        chatNpc(
+            happy,
+            "Level 99! I don't have much left to teach someone of your skill - you " +
+                "could probably teach me a thing or two by now.",
+        )
+        chatNpc(
+            happy,
+            "Keep an eye out for redwoods and the rarer birds' nests - even at the " +
+                "top there's always something new to chop.",
+        )
+        masteryMenu()
+    }
+
+    private suspend fun Dialogue.capeExplanationMastery() {
+        chatPlayer(happy, "What is that cape you're wearing?")
+        chatNpc(
+            neutral,
+            "Ah, you'd know all about that now, wouldn't you? A Skillcape of " +
+                "Woodcutting, same as the one you could wear yourself. Wear it with pride.",
+        )
     }
 
     private suspend fun Dialogue.lowLevelMenu() {
