@@ -13,4 +13,10 @@ object BaseInvs : InvReferences() {
     val bank = find("bank", 1135478129)
 
     val generalshop1 = find("generalshop1", 62547837000)
+
+    val armourshop = find("armourshop")
+    val staffshop = find("staffshop")
+    val runeshop = find("runeshop")
+    val archeryshop = find("archeryshop")
+    val swordshop = find("swordshop")
 }

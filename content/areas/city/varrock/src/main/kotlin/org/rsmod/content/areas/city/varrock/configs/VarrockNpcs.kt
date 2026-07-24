@@ -13,6 +13,18 @@ object VarrockNpcs : NpcReferences() {
     val shop_keeper = find("generalshopkeeper2")
     val shop_assistant = find("generalassistant2")
     val granny = find("varrock_granny_1")
+
+    // Real shopkeepers found in the cache (verified via SkillDataExporter): all have Talk-to at
+    // op1 and Trade at op3.
+    val horvik = find("horvik_the_armourer")
+    val zaff = find("zaff")
+    val lowe = find("lowe")
+    val swordshop1 = find("swordshop1")
+    val swordshop2 = find("swordshop2")
+
+    // "aubury" alone has no ops at all in the cache; "aubury_3op" is the real interactive variant
+    // (Talk-to/Trade/Teleport).
+    val aubury = find("aubury_3op")
 }
 
 internal object VarrockNpcEditor : NpcEditor() {
