@@ -12,7 +12,7 @@ import org.rsmod.api.player.protect.ProtectedAccess
 import org.rsmod.api.player.stat.thievingLvl
 import org.rsmod.api.repo.loc.LocRepository
 import org.rsmod.api.repo.obj.ObjRepository
-import org.rsmod.api.script.onOpLoc1
+import org.rsmod.api.script.onOpLoc2
 import org.rsmod.api.script.onOpNpc3
 import org.rsmod.api.stats.levelmod.InvisibleLevels
 import org.rsmod.api.stats.xpmod.XpModifiers
@@ -46,7 +46,7 @@ constructor(
         onOpNpc3(pickpocket_npcs.woman) { pickpocket(it.npc, it.npc.visType) }
         onOpNpc3(pickpocket_npcs.guard) { pickpocket(it.npc, it.npc.visType) }
 
-        onOpLoc1(steal_locs.tea_stall) { steal(it.loc, it.type) }
+        onOpLoc2(steal_locs.tea_stall) { steal(it.loc, it.type) }
     }
 
     private suspend fun ProtectedAccess.pickpocket(npc: Npc, type: UnpackedNpcType) {
