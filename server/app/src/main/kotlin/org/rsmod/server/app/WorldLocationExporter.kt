@@ -98,16 +98,19 @@ object WorldLocationExporter {
         )
     }
 
+    // Note: `name` is the human-readable *display* name decoded from the cache (e.g. "Bank
+    // booth"), not the internal symbol name (e.g. "fai_varrock_bankbooth") - an earlier version of
+    // this function mistakenly matched internal-symbol-style patterns ("bankbooth", "copperrock1")
+    // against display names and silently found nothing for entire categories. Patterns below were
+    // corrected against real decoded display names via a targeted diagnostic scan.
     private fun categorizeLoc(name: String): String? {
         val lower = name.lowercase()
         return when {
             lower == "furnace" || lower == "anvil" -> "smithing"
-            Regex("^[a-z]+rock[12]$").matches(lower) || lower.endsWith("_rocks") -> "mining_rock"
-            lower.contains("bankbooth") ||
-                lower.contains("bank_booth") ||
-                lower == "bank" ||
-                lower.contains("bankchest") ||
-                lower.contains("bank_chest") -> "bank"
+            lower == "rocks" || lower.contains("rocks") -> "mining_rock"
+            lower.contains("bank booth") ||
+                lower.contains("bank deposit box") ||
+                lower.contains("bank chest") -> "bank"
             lower.contains("patch") -> "farming_patch"
             (lower.contains("dungeon") || lower.contains("cave")) &&
                 (lower.contains("entrance") ||
