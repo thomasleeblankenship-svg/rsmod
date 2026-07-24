@@ -6,6 +6,7 @@ import org.rsmod.api.config.refs.seqs
 import org.rsmod.api.config.refs.stats
 import org.rsmod.api.config.refs.synths
 import org.rsmod.api.player.protect.ProtectedAccess
+import org.rsmod.api.player.randomevent.RandomEventTrigger
 import org.rsmod.api.script.onOpNpc1
 import org.rsmod.api.stats.levelmod.InvisibleLevels
 import org.rsmod.api.stats.xpmod.XpModifiers
@@ -23,8 +24,11 @@ import org.rsmod.plugin.scripts.ScriptContext
  */
 class Fishing
 @Inject
-constructor(private val xpMods: XpModifiers, private val invisibleLvls: InvisibleLevels) :
-    PluginScript() {
+constructor(
+    private val xpMods: XpModifiers,
+    private val invisibleLvls: InvisibleLevels,
+    private val randomEvents: RandomEventTrigger,
+) : PluginScript() {
     override fun ScriptContext.startup() {
         onOpNpc1(fishing_npcs.newbie_net_spot) { attempt(it.npc) }
     }
@@ -61,6 +65,7 @@ constructor(private val xpMods: XpModifiers, private val invisibleLvls: Invisibl
         anim(seqs.human_fish_onspot)
         statAdvance(stats.fishing, xp)
         invAdd(inv, catch)
+        with(randomEvents) { tryTriggerMysteriousOldMan() }
 
         opNpc1(spot)
     }

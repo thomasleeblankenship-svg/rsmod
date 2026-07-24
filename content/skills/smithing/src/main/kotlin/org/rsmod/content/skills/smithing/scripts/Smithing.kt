@@ -7,6 +7,7 @@ import org.rsmod.api.config.refs.stats
 import org.rsmod.api.player.diary.LumbridgeDraynorDiary.TASK_SMITH_BRONZE_BAR
 import org.rsmod.api.player.diary.LumbridgeDraynorDiary.completeEasyTask
 import org.rsmod.api.player.protect.ProtectedAccess
+import org.rsmod.api.player.randomevent.RandomEventTrigger
 import org.rsmod.api.player.stat.smithingLvl
 import org.rsmod.api.script.onOpLoc1
 import org.rsmod.api.stats.xpmod.XpModifiers
@@ -25,7 +26,11 @@ import org.rsmod.plugin.scripts.ScriptContext
  */
 class Smithing
 @Inject
-constructor(private val objTypes: ObjTypeList, private val xpMods: XpModifiers) : PluginScript() {
+constructor(
+    private val objTypes: ObjTypeList,
+    private val xpMods: XpModifiers,
+    private val randomEvents: RandomEventTrigger,
+) : PluginScript() {
     override fun ScriptContext.startup() {
         onOpLoc1(smithing_locs.furnace) { smelt() }
         onOpLoc1(smithing_locs.anvil) { smith() }
@@ -61,6 +66,7 @@ constructor(private val objTypes: ObjTypeList, private val xpMods: XpModifiers) 
         if (recipe.bar == objs.bronze_bar) {
             completeEasyTask(TASK_SMITH_BRONZE_BAR)
         }
+        with(randomEvents) { tryTriggerMysteriousOldMan() }
     }
 
     private fun ProtectedAccess.canSmelt(recipe: SmeltingRecipe): Boolean {

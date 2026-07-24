@@ -10,6 +10,7 @@ import org.rsmod.api.config.refs.params
 import org.rsmod.api.config.refs.stats
 import org.rsmod.api.config.refs.synths
 import org.rsmod.api.player.protect.ProtectedAccess
+import org.rsmod.api.player.randomevent.RandomEventTrigger
 import org.rsmod.api.player.righthand
 import org.rsmod.api.player.stat.miningLvl
 import org.rsmod.api.repo.loc.LocRepository
@@ -41,6 +42,7 @@ constructor(
     private val xpMods: XpModifiers,
     private val invisibleLvls: InvisibleLevels,
     private val mapClock: MapClock,
+    private val randomEvents: RandomEventTrigger,
 ) : PluginScript() {
     override fun ScriptContext.startup() {
         onOpLoc1(content.ore) { attempt(it.loc, it.type) }
@@ -85,6 +87,7 @@ constructor(
         spam("You manage to mine some ${product.name.lowercase()}.")
         statAdvance(stats.mining, xp)
         invAdd(inv, product)
+        with(randomEvents) { tryTriggerMysteriousOldMan() }
 
         val respawnTime = random.of(type.oreRespawnLow, type.oreRespawnHigh)
         locRepo.del(rock, respawnTime)
