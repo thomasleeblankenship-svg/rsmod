@@ -1,6 +1,8 @@
 package org.rsmod.content.skills.farming.scripts
 
 import jakarta.inject.Inject
+import org.rsmod.api.config.refs.objs
+import org.rsmod.api.config.refs.seqs
 import org.rsmod.api.config.refs.stats
 import org.rsmod.api.player.protect.ProtectedAccess
 import org.rsmod.api.script.onOpLoc1
@@ -26,6 +28,11 @@ class Farming @Inject constructor(private val xpMods: XpModifiers) : PluginScrip
     }
 
     private suspend fun ProtectedAccess.weed() {
+        if (objs.rake !in inv) {
+            mes("You need a rake to clear these weeds.")
+            return
+        }
+        anim(seqs.human_farming)
         spam("You clear the weeds from the patch.")
         statAdvance(stats.farming, WEED_XP * xpMods.get(player, stats.farming))
     }

@@ -32,6 +32,7 @@ object BaseObjs : ObjReferences() {
     val chisel = find("chisel")
     val spade = find("spade")
     val hammer = find("hammer")
+    val rake = find("rake")
     val net = find("net")
 
     val impling_jar_baby = find("ii_captured_impling_1")
