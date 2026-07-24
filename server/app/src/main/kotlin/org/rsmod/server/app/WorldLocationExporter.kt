@@ -3,10 +3,14 @@ package org.rsmod.server.app
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.google.inject.Injector
 import java.io.File
+import org.rsmod.api.player.interact.LocInteractions
+import org.rsmod.api.player.interact.NpcInteractions
 import org.rsmod.api.repo.loc.LocRepository
 import org.rsmod.game.entity.NpcList
+import org.rsmod.game.loc.BoundLocInfo
 import org.rsmod.game.map.LocZoneStorage
 import org.rsmod.game.type.loc.LocTypeList
+import org.rsmod.game.vars.VarPlayerIntMap
 import org.rsmod.map.zone.ZoneGrid
 import org.rsmod.map.zone.ZoneKey
 
@@ -21,21 +25,33 @@ object WorldLocationExporter {
         val locZones = injector.getInstance(LocZoneStorage::class.java)
         val locRepo = injector.getInstance(LocRepository::class.java)
         val locTypes = injector.getInstance(LocTypeList::class.java)
+        val locInteractions = injector.getInstance(LocInteractions::class.java)
+        val npcInteractions = injector.getInstance(NpcInteractions::class.java)
         val npcList = injector.getInstance(NpcList::class.java)
+
+        // A default (all-zero) var map resolves the visual variant a brand-new character with no
+        // quest/world-state flags set would see - the same fallback the interaction code itself
+        // uses when `multiVarValue` is unset. This is what lets categorization see the *visible*
+        // loc (e.g. the real bank booth model) instead of the placeholder base type the raw map
+        // data references.
+        val defaultVars = VarPlayerIntMap()
 
         val locEntries = mutableListOf<Map<String, Any?>>()
         for (packed in locZones.mapLocs.zoneKeys()) {
             val zoneKey = ZoneKey(packed)
             for (loc in locRepo.findAll(zoneKey)) {
-                val type = locTypes[loc.id] ?: continue
-                val category = categorizeLoc(type.name) ?: continue
+                val baseType = locTypes[loc.id] ?: continue
+                val bound = BoundLocInfo(loc, baseType)
+                val visLoc = locInteractions.multiLoc(bound, baseType, defaultVars)
+                val visType = visLoc?.let { locTypes[it.id] } ?: baseType
+                val category = categorizeLoc(visType.name) ?: continue
                 val regionX = zoneKey.x / (64 / ZoneGrid.LENGTH)
                 val regionZ = zoneKey.z / (64 / ZoneGrid.LENGTH)
                 locEntries +=
                     mapOf(
                         "category" to category,
-                        "name" to type.name,
-                        "locId" to loc.id,
+                        "name" to visType.name,
+                        "locId" to (visLoc?.id ?: loc.id),
                         "regionId" to ((regionX shl 8) or regionZ),
                         "chunkId" to packed,
                         "x" to loc.coords.x,
@@ -47,7 +63,7 @@ object WorldLocationExporter {
 
         val npcEntries = mutableListOf<Map<String, Any?>>()
         for (npc in npcList) {
-            val type = npc.visType
+            val type = npcInteractions.multiNpc(npc.visType, defaultVars) ?: npc.visType
             val category = categorizeNpc(type.name, type.op) ?: continue
             val zoneKey = ZoneKey.from(npc.coords)
             val regionX = zoneKey.x / (64 / ZoneGrid.LENGTH)
@@ -56,7 +72,7 @@ object WorldLocationExporter {
                 mapOf(
                     "category" to category,
                     "name" to type.name,
-                    "npcId" to npc.id,
+                    "npcId" to type.id,
                     "regionId" to ((regionX shl 8) or regionZ),
                     "chunkId" to zoneKey.packed,
                     "x" to npc.coords.x,
