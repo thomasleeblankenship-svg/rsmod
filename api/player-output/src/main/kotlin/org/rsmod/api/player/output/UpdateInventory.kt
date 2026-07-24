@@ -10,12 +10,41 @@ import org.rsmod.game.inv.InvObj
 import org.rsmod.game.inv.Inventory
 
 public object UpdateInventory {
+    /**
+     * Inventory ids sent with this flag refer to "another player's" copy of the inventory. Used by
+     * interfaces such as trade, where the client renders both the local player's offer and their
+     * partner's offer from the same inventory type.
+     */
+    private const val OTHER_INV_FLAG: Int = 0x8000
+
     /** @see [UpdateInvFull] */
     public fun updateInvFull(player: Player, inv: Inventory) {
         val highestSlot = inv.lastOccupiedSlot()
         val provider = RspObjProvider(inv.objs)
         val message = UpdateInvFull(-(1234 + inv.type.id), inv.type.id, highestSlot, provider)
         player.client.write(message)
+    }
+
+    /**
+     * Sends [inv] to [player] as an "other player's" inventory - i.e., the copy belonging to
+     * another player, such as a trade partner's offer.
+     *
+     * @see [UpdateInvFull]
+     */
+    public fun updateInvOtherFull(player: Player, inv: Inventory) {
+        val highestSlot = inv.lastOccupiedSlot()
+        val provider = RspObjProvider(inv.objs)
+        val flagged = inv.type.id or OTHER_INV_FLAG
+        val message = UpdateInvFull(-(1234 + flagged), flagged, highestSlot, provider)
+        player.client.write(message)
+    }
+
+    /**
+     * Stops transmission of an "other player's" inventory previously sent through
+     * [updateInvOtherFull].
+     */
+    public fun updateInvOtherStopTransmit(player: Player, inv: Inventory) {
+        player.client.write(UpdateInvStopTransmit(inv.type.id or OTHER_INV_FLAG))
     }
 
     /** @see [UpdateInvPartial] */
