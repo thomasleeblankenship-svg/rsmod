@@ -34,8 +34,9 @@ constructor(
         require(obj.count > 0) { "Obj must have a `count` higher than 0: $obj" }
         val register = registry.add(obj)
         when (register) {
-            // TODO: Check how the duration is supposed to be calculated. Does it take the
-            //  greater duration comparing the existing obj vs `duration` input from this call?
+            // Merging into an existing private stack always resets its duration/reveal to the
+            // values of the incoming obj, rather than taking the greater of the two. This matches
+            // official behavior: re-dropping onto your own pile refreshes the despawn timer.
             is ObjRegistryResult.Add.Merge -> updateDurations(register.merged, duration, reveal)
             is ObjRegistryResult.Add.Split -> addDurations(register.split, duration, reveal)
             is ObjRegistryResult.Add.Stack -> addDuration(obj, duration, reveal)
