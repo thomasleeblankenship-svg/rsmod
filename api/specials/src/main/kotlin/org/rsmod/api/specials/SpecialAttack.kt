@@ -7,9 +7,11 @@ import org.rsmod.api.specials.combat.MagicSpecialAttack
 import org.rsmod.api.specials.combat.MeleeSpecialAttack
 import org.rsmod.api.specials.combat.RangedSpecialAttack
 import org.rsmod.api.specials.instant.InstantSpecialAttack
+import org.rsmod.api.specials.shield.ShieldSpecialAttack
 import org.rsmod.game.entity.Npc
 import org.rsmod.game.entity.PathingEntity
 import org.rsmod.game.entity.Player
+import org.rsmod.game.inv.InvObj
 
 public sealed class SpecialAttack {
     public data class Instant(val energyInHundreds: Int, val special: InstantSpecialAttack) :
@@ -73,6 +75,28 @@ public sealed class SpecialAttack {
             }
     }
 
+    /**
+     * Shield specials do not use standard special attack energy; costs (such as item charges) are
+     * managed by the [special] implementation itself.
+     */
+    public data class Shield(public val special: ShieldSpecialAttack) : SpecialAttack() {
+        public suspend fun attack(access: ProtectedAccess, target: Npc, shield: InvObj): Unit =
+            special.attack(access, target, shield)
+
+        public suspend fun attack(access: ProtectedAccess, target: Player, shield: InvObj): Unit =
+            special.attack(access, target, shield)
+
+        public suspend fun attack(
+            access: ProtectedAccess,
+            target: PathingEntity,
+            shield: InvObj,
+        ): Unit =
+            when (target) {
+                is Npc -> attack(access, target, shield)
+                is Player -> attack(access, target, shield)
+            }
+    }
+
     public data class Magic(
         public val energyInHundreds: Int,
         public val special: MagicSpecialAttack,
@@ -102,6 +126,18 @@ public sealed class SpecialAttack {
 }
 
 private suspend fun InstantSpecialAttack.activate(access: ProtectedAccess) = access.activate()
+
+private suspend fun ShieldSpecialAttack.attack(
+    access: ProtectedAccess,
+    target: Npc,
+    shield: InvObj,
+) = access.attack(target, shield)
+
+private suspend fun ShieldSpecialAttack.attack(
+    access: ProtectedAccess,
+    target: Player,
+    shield: InvObj,
+) = access.attack(target, shield)
 
 private suspend fun <T : CombatAttack> CombatSpecialAttack<T>.attack(
     access: ProtectedAccess,

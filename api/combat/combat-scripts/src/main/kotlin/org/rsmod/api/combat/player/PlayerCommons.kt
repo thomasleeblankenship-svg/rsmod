@@ -226,7 +226,15 @@ internal suspend fun ProtectedAccess.activateShieldSpecial(
     target: PathingEntity,
     shield: InvObj?,
     specials: SpecialAttackRegistry,
-): Boolean = TODO()
+): Boolean {
+    val equipped = shield ?: return false
+    val special = specials[equipped] ?: return false
+    if (special !is SpecialAttack.Shield) {
+        return false
+    }
+    special.attack(this, target, equipped)
+    return true
+}
 
 internal fun ProtectedAccess.setPkVars(target: Player) {
     // TODO(combat): Set pk skull when applicable.

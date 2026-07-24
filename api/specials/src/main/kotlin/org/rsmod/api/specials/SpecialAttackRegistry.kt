@@ -5,6 +5,7 @@ import org.rsmod.api.specials.combat.MagicSpecialAttack
 import org.rsmod.api.specials.combat.MeleeSpecialAttack
 import org.rsmod.api.specials.combat.RangedSpecialAttack
 import org.rsmod.api.specials.instant.InstantSpecialAttack
+import org.rsmod.api.specials.shield.ShieldSpecialAttack
 import org.rsmod.api.specials.weapon.SpecialAttackWeapons
 import org.rsmod.game.inv.InvObj
 import org.rsmod.game.type.obj.ObjType
@@ -50,6 +51,19 @@ public class SpecialAttackRegistry @Inject constructor(private val weapons: Spec
         }
         val energy = weapons.getSpecialEnergy(obj) ?: return Result.Add.SpecialEnergyNotMapped
         val special = SpecialAttack.Magic(energy, spec)
+        specials[obj.id] = special
+        return Result.Add.Success
+    }
+
+    /**
+     * Shield specials are not bound to the special attack energy system, so [obj] does not require
+     * a special energy mapping.
+     */
+    public fun add(obj: ObjType, spec: ShieldSpecialAttack): Result.Add {
+        if (obj.id in specials) {
+            return Result.Add.AlreadyAdded
+        }
+        val special = SpecialAttack.Shield(spec)
         specials[obj.id] = special
         return Result.Add.Success
     }

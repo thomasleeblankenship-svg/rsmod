@@ -279,6 +279,9 @@ constructor(
         when (specialReg[righthand]) {
             is SpecialAttack.Combat -> activateCombatSpecial()
             is SpecialAttack.Instant -> attemptInstantSpecial()
+            // Shield specials cannot be activated through the special attack orb or bar; they
+            // are enabled by operating the associated shield item.
+            is SpecialAttack.Shield,
             null -> {
                 resetSpecialType()
                 mes("This weapon does not have a special attack.")
