@@ -2,6 +2,7 @@ package org.rsmod.content.skills.runecrafting.scripts
 
 import jakarta.inject.Inject
 import org.rsmod.api.config.refs.objs
+import org.rsmod.api.config.refs.seqs
 import org.rsmod.api.config.refs.stats
 import org.rsmod.api.player.protect.ProtectedAccess
 import org.rsmod.api.player.stat.runecraftingLvl
@@ -56,6 +57,7 @@ class Runecrafting @Inject constructor(private val xpMods: XpModifiers) : Plugin
         }
 
         invAdd(inv, recipe.rune, essenceCount)
+        anim(seqs.human_runecraft)
 
         val xp = recipe.xp * essenceCount * xpMods.get(player, stats.runecrafting)
         spam(

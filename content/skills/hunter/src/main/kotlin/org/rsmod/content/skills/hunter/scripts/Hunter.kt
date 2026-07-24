@@ -2,6 +2,7 @@ package org.rsmod.content.skills.hunter.scripts
 
 import jakarta.inject.Inject
 import org.rsmod.api.config.refs.objs
+import org.rsmod.api.config.refs.seqs
 import org.rsmod.api.config.refs.stats
 import org.rsmod.api.player.protect.ProtectedAccess
 import org.rsmod.api.player.stat.hunterLvl
@@ -54,6 +55,7 @@ constructor(
             return
         }
 
+        anim(seqs.human_catch)
         val caught = statRandom(stats.hunter, CATCH_LOW, CATCH_HIGH, invisibleLvls)
         if (!caught) {
             mes("The impling dodges past you.")

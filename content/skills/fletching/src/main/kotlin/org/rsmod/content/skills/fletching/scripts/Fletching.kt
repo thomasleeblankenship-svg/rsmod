@@ -2,6 +2,7 @@ package org.rsmod.content.skills.fletching.scripts
 
 import jakarta.inject.Inject
 import org.rsmod.api.config.refs.objs
+import org.rsmod.api.config.refs.seqs
 import org.rsmod.api.config.refs.stats
 import org.rsmod.api.player.protect.ProtectedAccess
 import org.rsmod.api.player.stat.fletchingLvl
@@ -21,7 +22,8 @@ import org.rsmod.plugin.scripts.ScriptContext
  * [org.rsmod.server.install.SkillDataExporter], so there is nothing real to wire it to.
  *
  * Level requirements are standard, well-known values; xp amounts are simplified approximations, not
- * verified against official per-item numbers.
+ * verified against official per-item numbers. Stringing reuses the cutting animation
+ * (`human_fletching`) since no distinct real stringing animation was found.
  */
 class Fletching @Inject constructor(private val xpMods: XpModifiers) : PluginScript() {
     override fun ScriptContext.startup() {
@@ -43,6 +45,7 @@ class Fletching @Inject constructor(private val xpMods: XpModifiers) : PluginScr
             return
         }
         invAdd(inv, recipe.unstrung)
+        anim(seqs.human_fletching)
         spam("You cut the wood into an unstrung shortbow.")
         statAdvance(stats.fletching, recipe.cutXp * xpMods.get(player, stats.fletching))
     }
@@ -57,6 +60,7 @@ class Fletching @Inject constructor(private val xpMods: XpModifiers) : PluginScr
             return
         }
         invAdd(inv, recipe.strung)
+        anim(seqs.human_fletching)
         spam("You add a string to the shortbow.")
         statAdvance(stats.fletching, recipe.stringXp * xpMods.get(player, stats.fletching))
     }
@@ -68,6 +72,7 @@ class Fletching @Inject constructor(private val xpMods: XpModifiers) : PluginScr
         }
         invDel(inv, objs.arrow_shaft, count, objs.feather, count)
         invAdd(inv, objs.headless_arrow, count)
+        anim(seqs.human_fletching_add_feather)
         spam("You attach feathers to the arrow shafts.")
         statAdvance(stats.fletching, count * ARROW_XP * xpMods.get(player, stats.fletching))
     }

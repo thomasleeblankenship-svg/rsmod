@@ -2,16 +2,15 @@ package org.rsmod.content.skills.crafting.scripts
 
 import jakarta.inject.Inject
 import org.rsmod.api.config.refs.objs
+import org.rsmod.api.config.refs.seqs
 import org.rsmod.api.config.refs.stats
 import org.rsmod.api.player.protect.ProtectedAccess
 import org.rsmod.api.player.stat.craftingLvl
 import org.rsmod.api.script.onOpHeldU
 import org.rsmod.api.script.onOpLocU
-import org.rsmod.api.script.onOpNpc1
 import org.rsmod.api.script.onOpNpc3
 import org.rsmod.api.stats.xpmod.XpModifiers
 import org.rsmod.content.skills.crafting.configs.crafting_locs
-import org.rsmod.content.skills.crafting.configs.sheep_npcs
 import org.rsmod.content.skills.crafting.configs.tanner_npcs
 import org.rsmod.game.type.obj.ObjType
 import org.rsmod.game.type.obj.ObjTypeList
@@ -19,9 +18,11 @@ import org.rsmod.plugin.scripts.PluginScript
 import org.rsmod.plugin.scripts.ScriptContext
 
 /**
- * Covers shearing sheep, spinning wool/flax, tanning cowhide, gem cutting, and leathercrafting.
- * Real OSRS gives no xp for shearing (xp comes from spinning) or for tanning, so those two steps
- * award none here either.
+ * Covers spinning wool/flax, tanning cowhide, gem cutting, and leathercrafting. Shearing sheep is
+ * **not** covered here - a real, complete implementation already exists at
+ * [org.rsmod.content.generic.npcs.sheep.Sheep] (found after this skill's first pass already
+ * duplicated it; the duplicate has been removed). Real OSRS gives no xp for tanning, so that step
+ * awards none here either.
  *
  * Tanning is simplified to a flat 1gp-per-hide conversion of every cowhide in the inventory at
  * once, rather than the real quantity-selection interface. Gem cutting has no fail chance here
@@ -36,9 +37,6 @@ class Crafting
 @Inject
 constructor(private val objTypes: ObjTypeList, private val xpMods: XpModifiers) : PluginScript() {
     override fun ScriptContext.startup() {
-        for (sheep in SHEEP) {
-            onOpNpc1(sheep) { shear() }
-        }
         onOpNpc3(tanner_npcs.eodan) { tan() }
 
         onOpLocU(crafting_locs.spinning_wheel, objs.wool) {
@@ -53,19 +51,6 @@ constructor(private val objTypes: ObjTypeList, private val xpMods: XpModifiers) 
         }
 
         onOpHeldU(objs.needle, objs.leather) { craftLeather() }
-    }
-
-    private suspend fun ProtectedAccess.shear() {
-        if (objs.shears !in inv) {
-            mes("You need a pair of shears to shear this sheep.")
-            return
-        }
-        if (inv.isFull()) {
-            mes("Your inventory is too full to hold any more wool.")
-            return
-        }
-        spam("You shear the sheep.")
-        invAdd(inv, objs.wool)
     }
 
     private suspend fun ProtectedAccess.tan() {
@@ -100,6 +85,7 @@ constructor(private val objTypes: ObjTypeList, private val xpMods: XpModifiers) 
             return
         }
         invAdd(inv, product)
+        anim(seqs.human_spinningwheel)
         val name = objTypes[raw].name.lowercase()
         spam("You spin the $name into something more useful.")
         statAdvance(stats.crafting, xp * xpMods.get(player, stats.crafting))
@@ -116,6 +102,7 @@ constructor(private val objTypes: ObjTypeList, private val xpMods: XpModifiers) 
             return
         }
         invAdd(inv, cut)
+        anim(seqs.human_crafting)
         spam("You cut the gem.")
         statAdvance(stats.crafting, recipe.xp * xpMods.get(player, stats.crafting))
     }
@@ -136,6 +123,7 @@ constructor(private val objTypes: ObjTypeList, private val xpMods: XpModifiers) 
             return
         }
         invAdd(inv, product)
+        anim(seqs.human_crafting)
         spam("You craft the leather into shape.")
         statAdvance(stats.crafting, data.xp * xpMods.get(player, stats.crafting))
     }
@@ -146,23 +134,6 @@ constructor(private val objTypes: ObjTypeList, private val xpMods: XpModifiers) 
 
     companion object {
         private const val TAN_COST_PER_HIDE = 1
-
-        private val SHEEP by lazy {
-            listOf(
-                sheep_npcs.plain,
-                sheep_npcs.plain2,
-                sheep_npcs.plain3,
-                sheep_npcs.grey,
-                sheep_npcs.grey2,
-                sheep_npcs.grey3,
-                sheep_npcs.white,
-                sheep_npcs.white2,
-                sheep_npcs.white3,
-                sheep_npcs.shaggy,
-                sheep_npcs.shaggy2,
-                sheep_npcs.quest,
-            )
-        }
 
         private val GEMS: Map<ObjType, ObjType> by lazy {
             mapOf(

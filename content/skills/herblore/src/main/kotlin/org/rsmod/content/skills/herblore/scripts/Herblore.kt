@@ -2,6 +2,7 @@ package org.rsmod.content.skills.herblore.scripts
 
 import jakarta.inject.Inject
 import org.rsmod.api.config.refs.objs
+import org.rsmod.api.config.refs.seqs
 import org.rsmod.api.config.refs.stats
 import org.rsmod.api.player.protect.ProtectedAccess
 import org.rsmod.api.player.stat.herbloreLvl
@@ -55,6 +56,7 @@ class Herblore @Inject constructor(private val xpMods: XpModifiers) : PluginScri
             return
         }
         invAdd(inv, objs.unicorn_horn_dust)
+        anim(seqs.human_herbing_grind)
         spam("You grind the unicorn horn into dust.")
     }
 
@@ -73,6 +75,7 @@ class Herblore @Inject constructor(private val xpMods: XpModifiers) : PluginScri
         }
         invDel(inv, objs.vial_water, 1)
         invAdd(inv, recipe.potion)
+        anim(seqs.human_herbing_vial)
         spam("You mix the ingredients into a potion.")
         statAdvance(stats.herblore, recipe.xp * xpMods.get(player, stats.herblore))
     }
