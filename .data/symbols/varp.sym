@@ -2310,3 +2310,5 @@
 65533	emote_counters
 65534	emote_clock_premier_shield
 65503	bankpin
+65502	slayer_task_id
+65501	slayer_task_count

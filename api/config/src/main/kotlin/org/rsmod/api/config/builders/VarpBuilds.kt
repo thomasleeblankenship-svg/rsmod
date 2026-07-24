@@ -11,6 +11,8 @@ internal object VarpBuilds : VarpBuilder() {
 
         build("gameframe")
         build("bankpin")
+        build("slayer_task_id")
+        build("slayer_task_count")
 
         build("pk_prey1") { temporary = true }
         build("pk_prey2") { temporary = true }
