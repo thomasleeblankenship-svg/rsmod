@@ -36,6 +36,22 @@ object BaseSeqs : SeqReferences() {
     val toa_sot_cast_b = find("toa_sot_cast_b", 7616097885210147991)
 
     val human_woodcutting_bronze_axe = find("human_woodcutting_bronze_axe", 1396217663673896270)
+
+    val human_mining_bronze_pickaxe = find("human_mining_bronze_pickaxe")
+    val human_mining_iron_pickaxe = find("human_mining_iron_pickaxe")
+    val human_mining_steel_pickaxe = find("human_mining_steel_pickaxe")
+    val human_mining_black_pickaxe = find("human_mining_black_pickaxe")
+    val human_mining_mithril_pickaxe = find("human_mining_mithril_pickaxe")
+    val human_mining_adamant_pickaxe = find("human_mining_adamant_pickaxe")
+    val human_mining_rune_pickaxe = find("human_mining_rune_pickaxe")
+    val human_mining_dragon_pickaxe_pretty = find("human_mining_dragon_pickaxe_pretty")
+
+    val human_createfire = find("human_createfire")
+    val human_cooking = find("human_cooking")
+    val human_firecooking = find("human_firecooking")
+    val human_smithing = find("human_smithing")
+    val human_fishing_casting = find("human_fishing_casting")
+    val human_fish_onspot = find("human_fish_onspot")
     val human_woodcutting_iron_axe = find("human_woodcutting_iron_axe", 1396217661984703666)
     val human_woodcutting_steel_axe = find("human_woodcutting_steel_axe", 1396217665363088868)
     val human_woodcutting_black_axe = find("human_woodcutting_black_axe", 1396217672119859274)
