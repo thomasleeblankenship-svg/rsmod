@@ -25,6 +25,13 @@ object VarrockNpcs : NpcReferences() {
     // "aubury" alone has no ops at all in the cache; "aubury_3op" is the real interactive variant
     // (Talk-to/Trade/Teleport).
     val aubury = find("aubury_3op")
+
+    // Real flavor npcs with a confirmed Talk-to op. fai_varrock_guard/guard_captain/
+    // guard_training and fai_varrock_cleaner are intentionally excluded - none of them have a
+    // Talk-to op in the cache (guards are Attack/Pickpocket only; the cleaner has no ops at all).
+    val guard_trainer = find("fai_varrock_guard_trainer")
+    val woman1 = find("varrock_woman1")
+    val granny2 = find("varrock_granny_2")
 }
 
 internal object VarrockNpcEditor : NpcEditor() {
