@@ -40,6 +40,9 @@ public value class ZoneLocMap(private val entries: Int2ObjectMap<Byte2IntOpenHas
     public val zoneCount: Int
         get() = entries.size
 
+    /** All zone keys ([ZoneKey.packed] values) that currently have at least one loc stored. */
+    public fun zoneKeys(): IntArray = entries.keys.toIntArray()
+
     public constructor() : this(Int2ObjectOpenHashMap())
 
     public fun locCount(): Int = entries.values.sumOf { it.size }

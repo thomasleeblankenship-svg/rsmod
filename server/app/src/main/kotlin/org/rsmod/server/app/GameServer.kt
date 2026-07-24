@@ -86,6 +86,18 @@ class GameServer(private val skipTypeVerificationOverride: Boolean? = null) :
         val injector = createInjector()
         try {
             prepareGame(injector)
+            if (System.getProperty("rsmod.exportWorldLocations") != null) {
+                // Static npc spawns are queued via `NpcRepository.addDelayed` and only flushed by
+                // the running game loop's tick processing, so we let the server boot normally and
+                // export a few ticks later, once npcs have been spawned into the world.
+                Thread {
+                        Thread.sleep(5000)
+                        WorldLocationExporter.export(injector)
+                        kotlin.system.exitProcess(0)
+                    }
+                    .apply { isDaemon = true }
+                    .start()
+            }
             startupGame(injector)
         } catch (_: ServerRestartException) {}
     }
