@@ -2,6 +2,7 @@ package org.rsmod.content.skills.slayer.scripts
 
 import org.rsmod.api.config.refs.varps
 import org.rsmod.api.player.protect.ProtectedAccess
+import org.rsmod.api.player.stat.slayerLvl
 import org.rsmod.api.player.vars.intVarp
 import org.rsmod.api.script.onOpNpc3
 import org.rsmod.content.skills.slayer.configs.slayer_masters
@@ -35,6 +36,15 @@ class Slayer : PluginScript() {
     private suspend fun ProtectedAccess.assign(master: NpcType) {
         val tier = MASTERS.getValue(master)
 
+        if (player.combatLevel < tier.combatLevelReq) {
+            mes("You need a combat level of ${tier.combatLevelReq} to get a task from this master.")
+            return
+        }
+        if (player.slayerLvl < tier.slayerLevelReq) {
+            mes("You need a Slayer level of ${tier.slayerLevelReq} to get a task from this master.")
+            return
+        }
+
         val taskIndex = random.of(0, tier.tasks.size - 1)
         val task = tier.tasks[taskIndex]
         val count = random.of(task.minCount, task.maxCount)
@@ -45,7 +55,11 @@ class Slayer : PluginScript() {
 
     private data class SlayerTask(val name: String, val minCount: Int, val maxCount: Int)
 
-    private data class MasterTier(val tasks: List<SlayerTask>)
+    private data class MasterTier(
+        val combatLevelReq: Int,
+        val slayerLevelReq: Int,
+        val tasks: List<SlayerTask>,
+    )
 
     companion object {
         private var Player.slayerTaskId: Int by intVarp(varps.slayer_task_id)
@@ -53,79 +67,100 @@ class Slayer : PluginScript() {
 
         private val NOVICE =
             MasterTier(
-                listOf(
-                    SlayerTask("Crawling Hands", 15, 50),
-                    SlayerTask("Cave bugs", 15, 50),
-                    SlayerTask("Cave slimes", 15, 50),
-                    SlayerTask("Banshees", 15, 50),
-                    SlayerTask("Rock slugs", 15, 50),
-                    SlayerTask("Vampyres", 10, 20),
-                )
+                combatLevelReq = 3,
+                slayerLevelReq = 1,
+                tasks =
+                    listOf(
+                        SlayerTask("Crawling Hands", 15, 50),
+                        SlayerTask("Cave bugs", 15, 50),
+                        SlayerTask("Cave slimes", 15, 50),
+                        SlayerTask("Banshees", 15, 50),
+                        SlayerTask("Rock slugs", 15, 50),
+                        SlayerTask("Vampyres", 10, 20),
+                    ),
             )
 
         private val APPRENTICE =
             MasterTier(
-                listOf(
-                    SlayerTask("Cockroach soldiers", 15, 50),
-                    SlayerTask("Cave bats", 15, 50),
-                    SlayerTask("Wall beasts", 10, 20),
-                    SlayerTask("Barbarian spirits", 15, 50),
-                )
+                combatLevelReq = 20,
+                slayerLevelReq = 1,
+                tasks =
+                    listOf(
+                        SlayerTask("Cockroach soldiers", 15, 50),
+                        SlayerTask("Cave bats", 15, 50),
+                        SlayerTask("Wall beasts", 10, 20),
+                        SlayerTask("Barbarian spirits", 15, 50),
+                    ),
             )
 
         private val ADEPT =
             MasterTier(
-                listOf(
-                    SlayerTask("Hill giants", 20, 90),
-                    SlayerTask("Moss giants", 20, 90),
-                    SlayerTask("Ogres", 20, 90),
-                    SlayerTask("Lesser demons", 20, 90),
-                    SlayerTask("Hobgoblins", 20, 90),
-                )
+                combatLevelReq = 40,
+                slayerLevelReq = 1,
+                tasks =
+                    listOf(
+                        SlayerTask("Hill giants", 20, 90),
+                        SlayerTask("Moss giants", 20, 90),
+                        SlayerTask("Ogres", 20, 90),
+                        SlayerTask("Lesser demons", 20, 90),
+                        SlayerTask("Hobgoblins", 20, 90),
+                    ),
             )
 
         private val EXPERT =
             MasterTier(
-                listOf(
-                    SlayerTask("Bloodveld", 30, 90),
-                    SlayerTask("Turoth", 30, 90),
-                    SlayerTask("Basilisks", 30, 90),
-                    SlayerTask("Jellies", 30, 90),
-                    SlayerTask("Aberrant spectres", 30, 90),
-                )
+                combatLevelReq = 70,
+                slayerLevelReq = 5,
+                tasks =
+                    listOf(
+                        SlayerTask("Bloodveld", 30, 90),
+                        SlayerTask("Turoth", 30, 90),
+                        SlayerTask("Basilisks", 30, 90),
+                        SlayerTask("Jellies", 30, 90),
+                        SlayerTask("Aberrant spectres", 30, 90),
+                    ),
             )
 
         private val MASTER =
             MasterTier(
-                listOf(
-                    SlayerTask("Black demons", 40, 140),
-                    SlayerTask("Greater demons", 40, 140),
-                    SlayerTask("Dust devils", 40, 140),
-                    SlayerTask("Kalphites", 40, 140),
-                    SlayerTask("Trolls", 40, 140),
-                    SlayerTask("Dagannoth", 40, 140),
-                )
+                combatLevelReq = 85,
+                slayerLevelReq = 1,
+                tasks =
+                    listOf(
+                        SlayerTask("Black demons", 40, 140),
+                        SlayerTask("Greater demons", 40, 140),
+                        SlayerTask("Dust devils", 40, 140),
+                        SlayerTask("Kalphites", 40, 140),
+                        SlayerTask("Trolls", 40, 140),
+                        SlayerTask("Dagannoth", 40, 140),
+                    ),
             )
 
         private val ELITE =
             MasterTier(
-                listOf(
-                    SlayerTask("Abyssal demons", 60, 190),
-                    SlayerTask("Dark beasts", 60, 190),
-                    SlayerTask("Nechryael", 60, 190),
-                    SlayerTask("Gargoyles", 60, 190),
-                    SlayerTask("Cave krakens", 60, 190),
-                )
+                combatLevelReq = 100,
+                slayerLevelReq = 50,
+                tasks =
+                    listOf(
+                        SlayerTask("Abyssal demons", 60, 190),
+                        SlayerTask("Dark beasts", 60, 190),
+                        SlayerTask("Nechryael", 60, 190),
+                        SlayerTask("Gargoyles", 60, 190),
+                        SlayerTask("Cave krakens", 60, 190),
+                    ),
             )
 
         private val WILDERNESS =
             MasterTier(
-                listOf(
-                    SlayerTask("Chaos druids", 10, 30),
-                    SlayerTask("Skeletons", 10, 30),
-                    SlayerTask("Spiders", 10, 30),
-                    SlayerTask("Revenants", 10, 30),
-                )
+                combatLevelReq = 0,
+                slayerLevelReq = 0,
+                tasks =
+                    listOf(
+                        SlayerTask("Chaos druids", 10, 30),
+                        SlayerTask("Skeletons", 10, 30),
+                        SlayerTask("Spiders", 10, 30),
+                        SlayerTask("Revenants", 10, 30),
+                    ),
             )
 
         private val MASTERS: Map<NpcType, MasterTier> by lazy {
