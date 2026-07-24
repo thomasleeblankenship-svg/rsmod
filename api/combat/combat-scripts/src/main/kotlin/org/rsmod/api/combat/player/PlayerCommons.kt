@@ -13,7 +13,9 @@ import org.rsmod.api.combat.commons.types.AttackType
 import org.rsmod.api.combat.commons.types.MeleeAttackType
 import org.rsmod.api.combat.commons.types.RangedAttackType
 import org.rsmod.api.combat.manager.MagicRuneManager
+import org.rsmod.api.config.constants
 import org.rsmod.api.config.refs.params
+import org.rsmod.api.config.refs.timers
 import org.rsmod.api.player.protect.ProtectedAccess
 import org.rsmod.api.player.righthand
 import org.rsmod.api.specials.SpecialAttack
@@ -236,8 +238,15 @@ internal suspend fun ProtectedAccess.activateShieldSpecial(
     return true
 }
 
+/**
+ * The duration of a pk skull, in game cycles. (20 minutes)
+ *
+ * Note: Re-applying a skull refreshes the timer back to this full duration.
+ */
+private const val PK_SKULL_DURATION = 2000
+
 internal fun ProtectedAccess.setPkVars(target: Player) {
-    // TODO(combat): Set pk skull when applicable.
+    applyPkSkull(target)
     pkPrey2 = pkPrey1
     pkPrey1 = target.uid
 
@@ -248,4 +257,21 @@ internal fun ProtectedAccess.setPkVars(target: Player) {
     target.lastCombat = mapClock
     target.lastCombatPvp = mapClock
     target.aggressiveNpc = null
+}
+
+/**
+ * Skulls the player unless the attack is retaliation - that is, unless [target] is one of the
+ * players currently tracked as this player's predators (they attacked the player first).
+ */
+private fun ProtectedAccess.applyPkSkull(target: Player) {
+    val retaliation =
+        target.uid == player.pkPredator1 ||
+            target.uid == player.pkPredator2 ||
+            target.uid == player.pkPredator3
+    if (retaliation) {
+        return
+    }
+    player.skullIcon = constants.skullicon_default
+    timer(timers.pk_skull, PK_SKULL_DURATION)
+    rebuildAppearance()
 }
