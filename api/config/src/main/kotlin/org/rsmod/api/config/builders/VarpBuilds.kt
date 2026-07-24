@@ -10,6 +10,7 @@ internal object VarpBuilds : VarpBuilder() {
         build("music_temp_state_1") { temporary = true }
 
         build("gameframe")
+        build("bankpin")
 
         build("pk_prey1") { temporary = true }
         build("pk_prey2") { temporary = true }

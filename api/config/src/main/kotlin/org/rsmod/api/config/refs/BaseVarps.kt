@@ -77,6 +77,7 @@ object BaseVarps : VarpReferences() {
     val music_temp_state_2 = find("music_temp_state_2")
     val music_temp_state_1 = find("music_temp_state_1")
     val gameframe = find("gameframe")
+    val bankpin = find("bankpin")
     val pk_prey1 = find("pk_prey1")
     val pk_prey2 = find("pk_prey2")
     val pk_predator1 = find("pk_predator1")
