@@ -22,4 +22,19 @@ public final class Rs2Combat
 		return Rs2Player.waitFor(() -> getSpecState() == enabled, 1800);
 	}
 	public static boolean setSpecState(boolean enabled) { return setSpecState(enabled, 0); }
+
+	/**
+	 * Whether the local player is fighting: interacting with an actor that has a combat level, and
+	 * either animating or still interacting. False when logged out or without a player.
+	 */
+	public static boolean inCombat()
+	{
+		return MobileActions.read(() ->
+		{
+			net.runelite.api.Player player = Microbot.getClient().getLocalPlayer();
+			net.runelite.api.Actor target = player == null ? null : player.getInteracting();
+			return target != null && target.getCombatLevel() >= 1
+				&& (player.getAnimation() != -1 || player.isInteracting());
+		}, false);
+	}
 }

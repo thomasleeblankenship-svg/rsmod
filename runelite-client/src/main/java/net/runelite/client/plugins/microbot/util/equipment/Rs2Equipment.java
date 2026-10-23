@@ -84,4 +84,57 @@ public final class Rs2Equipment
 			return false;
 		}, false);
 	}
+
+	/** The first equipped item accepted by {@code predicate}, or {@code null}. */
+	public static net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel get(
+		Predicate<net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel> predicate)
+	{
+		return MobileActions.read(() ->
+		{
+			ItemContainer equipment = Microbot.getClient().getItemContainer(InventoryID.EQUIPMENT);
+			Item[] items = equipment == null ? null : equipment.getItems();
+			for (int slot = 0; items != null && slot < items.length; slot++)
+			{
+				net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel model = model(items[slot], slot);
+				if (model != null && predicate.test(model))
+				{
+					return model;
+				}
+			}
+			return null;
+		}, null);
+	}
+
+	/** The item worn in the first of {@code slots} that holds one, or {@code null}. */
+	public static net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel get(EquipmentInventorySlot... slots)
+	{
+		return MobileActions.read(() ->
+		{
+			ItemContainer equipment = Microbot.getClient().getItemContainer(InventoryID.EQUIPMENT);
+			Item[] items = equipment == null ? null : equipment.getItems();
+			for (EquipmentInventorySlot slot : slots)
+			{
+				int index = slot.getSlotIdx();
+				if (items != null && index < items.length)
+				{
+					net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel model = model(items[index], index);
+					if (model != null)
+					{
+						return model;
+					}
+				}
+			}
+			return null;
+		}, null);
+	}
+
+	private static net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel model(Item item, int slot)
+	{
+		if (item == null || item.getId() < 0 || item.getQuantity() <= 0)
+		{
+			return null;
+		}
+		return new net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel(
+			item, Microbot.getClient().getItemDefinition(item.getId()), null, slot);
+	}
 }

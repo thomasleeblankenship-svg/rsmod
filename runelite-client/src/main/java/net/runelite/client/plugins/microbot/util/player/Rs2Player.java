@@ -535,6 +535,24 @@ public final class Rs2Player
 		return players.stream().filter(predicate);
 	}
 
+	/** Whether boosted hitpoints are at least the real hitpoints level. */
+	public static boolean isFullHealth()
+	{
+		return getBoostedSkillLevel(net.runelite.api.Skill.HITPOINTS) >= getRealSkillLevel(net.runelite.api.Skill.HITPOINTS);
+	}
+
+	/**
+	 * Tiles from the player to {@code endpoint} ({@link net.runelite.api.coords.WorldPoint#distanceTo}:
+	 * Chebyshev, {@code Integer.MAX_VALUE} on another floor or without a player). Adaptation:
+	 * upstream measures the walking path; RuneMobile uses the straight distance, which upstream
+	 * itself falls back to in instances.
+	 */
+	public static int distanceTo(net.runelite.api.coords.WorldPoint endpoint)
+	{
+		net.runelite.api.coords.WorldPoint location = getWorldLocation();
+		return location == null || endpoint == null ? Integer.MAX_VALUE : location.distanceTo(endpoint);
+	}
+
 	/** The local player as a snapshot model, or {@code null} without one. */
 	public static Rs2PlayerModel getLocalPlayer()
 	{
