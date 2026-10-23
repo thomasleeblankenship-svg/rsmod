@@ -82,6 +82,12 @@ public abstract class Overlay implements LayoutableRenderableEntity
 	private boolean resettable = true;
 
 	/**
+	 * Microbot fork (chsami/Microbot e01e0d77): marks an overlay that upstream hides from
+	 * screenshots. On mobile it is recorded only; no screenshot hook reads it.
+	 */
+	private boolean naughtyNaughty = false;
+
+	/**
 	 * Whether this overlay can be dragged onto other overlays &amp; have
 	 * other overlays dragged onto it.
 	 */
@@ -293,5 +299,17 @@ public abstract class Overlay implements LayoutableRenderableEntity
 	public void removeMenuEntry(MenuAction action, String option, String target)
 	{
 		menuEntries.remove(new OverlayMenuEntry(action, option, target));
+	}
+
+	/** Microbot fork: see {@link #naughtyNaughty}. */
+	public boolean getNaughty()
+	{
+		return this.naughtyNaughty;
+	}
+
+	/** Microbot fork: see {@link #naughtyNaughty}. */
+	public void setNaughty()
+	{
+		this.naughtyNaughty = true;
 	}
 }
