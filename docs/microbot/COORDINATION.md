@@ -44,7 +44,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
-| Claude 2 | `microbot/util/inventory/Rs2Inventory.java` (**read methods only**, appended in a block at the end of the class, away from `drop`), new `test/.../microbot/util/inventory/Rs2InventoryHubReadTest.java`; pouch reads may add new files under `util/inventory/` (named in the log) | Hub read APIs item (2): `hasItem` overloads, `itemQuantity`, `hasItemAmount`, `isEmpty`, `onlyContains`, `getInventory`, `getInventoryFood`, `getBones`, pouch reads | this commit |
+| Claude 2 | `microbot/util/inventory/Rs2Inventory.java` (**read methods only**, appended in a block at the end of the class, away from `drop`), new `test/.../microbot/util/inventory/Rs2InventoryHubReadTest.java`; pouch reads may add new files under `util/inventory/` (named in the log) | Hub read APIs item (2): `hasItem` overloads, `itemQuantity`, `hasItemAmount`, `isEmpty`, `onlyContains`, `getInventory`, `getInventoryFood`, `getBones`, pouch reads. **Paused**: Claude 2's session needs the user's go-ahead before continuing; nothing in these files has changed yet | this commit |
 
 ## Requests
 
