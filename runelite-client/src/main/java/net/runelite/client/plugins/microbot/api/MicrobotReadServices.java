@@ -19,6 +19,7 @@ import net.runelite.api.WorldView;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.AnimationChanged;
 import net.runelite.api.events.GameStateChanged;
+import net.runelite.api.events.HitsplatApplied;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.VarbitChanged;
 import net.runelite.api.events.WorldViewLoaded;
@@ -48,10 +49,12 @@ import net.runelite.client.plugins.microbot.util.player.Rs2Player;
  * <p>
  * Event handlers mirror upstream {@code MicrobotPlugin}: world-view ids,
  * {@code Rs2Inventory.storeInventoryItemsInMemory} and
- * {@code Rs2Player.handleAnimationChanged}. Additionally, any game-state or
- * world-view change invalidates every snapshot, and any state other than
- * {@code LOGGED_IN} or {@code LOADING} (logout, hop, connection loss, login)
- * clears world-view ids, inventory and animation state.
+ * {@code Rs2Player.handleAnimationChanged}, {@code Rs2Player.handlePotionTimers}
+ * (stamina only) and the hitsplat cases behind {@code Rs2Player.isInCombat}.
+ * Additionally, any game-state or world-view change invalidates every snapshot,
+ * and any state other than {@code LOGGED_IN} or {@code LOADING} (logout, hop,
+ * connection loss, login) clears world-view ids, inventory and the
+ * {@code Rs2Player} animation, stamina and combat state.
  */
 @Singleton
 public final class MicrobotReadServices implements MicrobotReadApi, MicrobotRuntimeService
@@ -282,6 +285,13 @@ public final class MicrobotReadServices implements MicrobotReadApi, MicrobotRunt
 	public void onVarbitChanged(VarbitChanged event)
 	{
 		playerStateCache.onVarbitChanged(event);
+		Rs2Player.handlePotionTimers(event);
+	}
+
+	@Subscribe
+	public void onHitsplatApplied(HitsplatApplied event)
+	{
+		Rs2Player.handleHitsplatApplied(event);
 	}
 
 	@Subscribe
