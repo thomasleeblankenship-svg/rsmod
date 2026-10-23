@@ -23,6 +23,24 @@ in the published debug APK. Do not claim otherwise. The requested behavior
 supersedes statements later in this file that describe cancellation in the old
 implementation.
 
+## AFK logout while a script runs — fixed in source, not yet in an APK
+
+User report 2026-10-23: kicked to the login screen mid-script and the client
+did not log back in. Cause: script actions are exact menu dispatches, and the
+pinned injected client counts only canvas mouse/key events toward its idle
+counter (`tk.mouseMoved` zeroes it; `client.getMouseIdleTicks` has no setter;
+`setIdleTimeout` clamps to 15000..90000 ticks). Five minutes after the last
+real touch the engine logs out straight to LOGIN_SCREEN with no
+CONNECTION_LOST, so HeadlessLogin's reconnect never re-arms.
+
+Fix: `JavaBridge.refreshScriptIdleTimer()`, called from `MobileActions.perform`
+after each dispatched action. Once the mouse has been idle for one minute it
+posts one MOUSE_MOVED at the pointer's existing point (or the engine cursor if
+there was no touch yet). No new coordinates, no manual-input mark, nothing
+while a button is held. Tests: four new cases in JavaBridgePointerStreamTest.
+The focused suite (237 tests), checkstyle and PMD pass. Not phone-tested, and
+this does not cover a script that dispatches nothing for 4+ minutes.
+
 ## Walking investigation in progress — preserve this work
 
 Latest user log summary: client started three times around 06:04–06:05, then

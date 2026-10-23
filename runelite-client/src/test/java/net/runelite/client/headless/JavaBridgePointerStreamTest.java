@@ -179,7 +179,82 @@ public class JavaBridgePointerStreamTest
 		assertEquals("and the release with it", TAP_X, cap.first(MouseEvent.MOUSE_RELEASED).getX());
 	}
 
+	/**
+	 * Script actions are menu dispatches the idle-logout counter never sees. Once the pointer has been still past
+	 * the refresh threshold, the bridge re-posts a move to the point the pointer already rests on, and nothing else.
+	 */
+	@Test
+	public void aStillPointerIsRefreshedInPlaceForAScript() throws Exception
+	{
+		JavaBridge.onMove(TAP_X, TAP_Y);
+		pump();
+		cap.clear();
+		scriptIdle(JavaBridge.SCRIPT_IDLE_REFRESH_TICKS);
+
+		JavaBridge.refreshScriptIdleTimer();
+		pump();
+
+		assertEquals("one move resets the idle counter", 1, cap.count(MouseEvent.MOUSE_MOVED));
+		assertEquals("to the point the pointer rests on (x)", TAP_X, cap.first(MouseEvent.MOUSE_MOVED).getX());
+		assertEquals("to the point the pointer rests on (y)", TAP_Y, cap.first(MouseEvent.MOUSE_MOVED).getY());
+		assertEquals("and never a button", 0, cap.count(MouseEvent.MOUSE_PRESSED));
+	}
+
+	/** A pointer that moved recently needs no refresh, so scripts add no events between real activity. */
+	@Test
+	public void aRecentlyMovedPointerIsLeftAlone() throws Exception
+	{
+		JavaBridge.onMove(TAP_X, TAP_Y);
+		pump();
+		cap.clear();
+		scriptIdle(JavaBridge.SCRIPT_IDLE_REFRESH_TICKS - 1);
+
+		JavaBridge.refreshScriptIdleTimer();
+		pump();
+
+		assertEquals(0, cap.all().size());
+	}
+
+	/** With no touch yet this session, the refresh uses the engine's own cursor rather than inventing a point. */
+	@Test
+	public void anUntouchedSessionRefreshesAtTheEngineCursor() throws Exception
+	{
+		when(client.getMouseCanvasPosition()).thenReturn(new Point(390, 95));
+		scriptIdle(JavaBridge.SCRIPT_IDLE_REFRESH_TICKS);
+
+		JavaBridge.refreshScriptIdleTimer();
+		pump();
+
+		assertEquals(1, cap.count(MouseEvent.MOUSE_MOVED));
+		assertEquals(390, cap.first(MouseEvent.MOUSE_MOVED).getX());
+		assertEquals(95, cap.first(MouseEvent.MOUSE_MOVED).getY());
+	}
+
+	/** Off the client thread the counter cannot be read safely, so nothing is posted. */
+	@Test
+	public void theRefreshIsClientThreadOnly() throws Exception
+	{
+		JavaBridge.onMove(TAP_X, TAP_Y);
+		pump();
+		cap.clear();
+		scriptIdle(JavaBridge.SCRIPT_IDLE_REFRESH_TICKS);
+		when(client.isClientThread()).thenReturn(false);
+
+		JavaBridge.refreshScriptIdleTimer();
+		pump();
+
+		assertEquals(0, cap.all().size());
+	}
+
 	// ---- harness ---------------------------------------------------------------------------------------
+
+	private void scriptIdle(int mouseIdleTicks)
+	{
+		when(client.isClientThread()).thenReturn(true);
+		when(client.getCanvasWidth()).thenReturn(765);
+		when(client.getCanvasHeight()).thenReturn(503);
+		when(client.getMouseIdleTicks()).thenReturn(mouseIdleTicks);
+	}
 
 	private void settleUntilArmed() throws Exception
 	{
@@ -254,6 +329,7 @@ public class JavaBridgePointerStreamTest
 		set("tapState", enumValue("TapState", "IDLE"));
 		set("tapUncommitted", false);
 		set("queuedTap", false);
+		set("pressed", false);
 		set("entered", false);
 		set("focused", false);
 		set("lastPointerX", -1);
