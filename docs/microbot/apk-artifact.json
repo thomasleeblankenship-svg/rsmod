@@ -1,7 +1,7 @@
 {
-  "file": "/workspace/artifacts/runemobile-woodcutting-ce1baea-arm64.apk",
-  "bytes": 107622038,
-  "sha256": "4b76dc5892ae7a5fdb3f8c595bcb984d46e36556fd3a479ec464b0b2f0ac9233",
+  "file": "/workspace/artifacts/runemobile-woodcutting-debug-024f387-arm64.apk",
+  "bytes": 117855166,
+  "sha256": "5957ed9940c084fa8db0962bbb9911eec3cbbbe70f63f5f92f25782b9cf1058e",
   "package": "dev.audaro.runemobile",
   "version_name": "0.2.6",
   "version_code": 206,
@@ -10,21 +10,22 @@
   "target_sdk": 35,
   "signing": "local Android Debug certificate, APK v2 verified",
   "zip_alignment": "16 KB native-library alignment verified",
-  "packaged_classes_verified": 131,
+  "packaged_classes_verified": 133,
   "collision_map_verified": true,
-  "source_commit": "ce1baea802a7c0adc29f47f51d2d39ab54ba19cc",
+  "source_commit": "024f3872c04ca9c8ce3eaa077903f349d459c8a8",
   "device_install_launch": "unrun",
   "focused_client_tests": {
-    "tests": 211,
+    "tests": 222,
     "failures": 0,
     "errors": 0,
     "skipped": 0
   },
   "auto_hop": "disabled, legacy Hop key not read",
   "bank_selection": "automatic only",
-  "github_download_build": "https://github.com/thomasleeblankenship-svg/rsmod/actions/runs/39902376810",
-  "github_artifact_name": "runemobile-mobile-test-arm64",
+  "github_download_build": "https://github.com/thomasleeblankenship-svg/rsmod/actions/runs/39908268468",
+  "github_artifact_name": "runemobile-mobile-debug-arm64",
   "github_artifact_identity": "separate build; do not assume same hash or signing certificate",
-  "github_download_status": "checks, build, verify, and upload succeeded; artifact visible on run page",
-  "github_artifact_url": "https://github.com/thomasleeblankenship-svg/rsmod/actions/runs/39902376810/artifacts/12479551976"
+  "github_download_status": "in progress; local debug APK verified",
+  "debuggable": true,
+  "tokens_json_bundled": false
 }

@@ -1,20 +1,20 @@
 # Android validation
 
-Latest mobile woodcutting APK built from `ce1baea802a7c0adc29f47f51d2d39ab54ba19cc`.
-Auto-hop is disabled and bank selection is automatic, including Lumbridge
-stairs and the Draynor/Falador/Varrock bank catalogue. Full loading instructions,
-ported workflows and limitations: [WOODCUTTING_MOBILE.md](WOODCUTTING_MOBILE.md).
+The debug build from `024f3872` fixes full-batch dropping, independent axe
+protection and Lumbridge floor/stair resolution. Auto-hop remains disabled and
+bank selection remains automatic. Loading and log extraction instructions:
+[WOODCUTTING_MOBILE.md](WOODCUTTING_MOBILE.md).
 
-Latest checks passed: 211 focused client tests (zero failures/errors/skips),
-Checkstyle, PMD and bridge/auth contract preflight; fresh Android release assembly,
-APK v2 signature and ZIP alignment. All 131 selected Microbot/mobile/input classes
-(including the actual JavaBridge) match compiled client classes, the collision map
-matches the pinned resource, and the packaged commit is `ce1baea`.
+Source validation: 222 focused client tests, zero failures/errors/skips,
+Checkstyle and PMD passed. The bridge/auth contract preflight passed.
+[Focused check log](build-logs/drop-stairs-checks.log).
 
-Local artifact: `/workspace/artifacts/runemobile-woodcutting-ce1baea-arm64.apk`.
-The browser download is a separate GitHub build of the same source; its APK hash
-and test signing key can differ from this cloud artifact. No phone/live-game test
-has run. Artifact metadata: [apk-artifact.json](apk-artifact.json).
+User phone testing exposed the original drop/stair bugs. The new fixes require
+phone acceptance; cloud tests do not demonstrate live-game success.
+Local debug APK verification passed: signature v2, 16 KB native-library ZIP
+alignment, debuggable flag, no bundled tokens, all 133 selected compiled
+Microbot/mobile/input classes, collision resource and source commit match.
+Artifact identity and APK verification: [apk-artifact.json](apk-artifact.json).
 
 The original baseline checks below describe earlier validation unless repeated above.
 
@@ -41,16 +41,16 @@ Artifact identity: [apk-artifact.json](apk-artifact.json).
 ```bash
 cd /workspace/rsmod
 source scripts/activate-java.sh
-./scripts/build-android.sh /workspace/rsmod
+./scripts/build-android.sh /workspace/rsmod --debug
 ```
 
 The helper performs the upstream documented ordered stages: JRE, shadowJar,
-probes, GPU, 117HD, runtime tag, then Android assembleRelease. It selects the
+probes, GPU, 117HD, runtime tag, then Android assembleDebug (`--debug`); the default remains assembleRelease. It selects the
 pinned Lombok from the active writable Gradle cache. Retain upstream checksum
 verification; see [Android README](../../android/README.md) for architecture.
 Use the saved environment install script to provision tools in a fresh machine.
 
-## Device acceptance remaining (all unrun)
+## Device acceptance remaining for this build
 
 - Install and launch on ARM64 Android 9+, verify login/render/input and plugin discovery.
 - Explicit start/stop, script swap, exception cleanup, disable and rapid enable/disable.
