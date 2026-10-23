@@ -44,7 +44,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
-| Claude 1 | `microbot/util/bank/Rs2Bank.java` (**action methods only**: `withdrawX`, `withdrawOne`, `withdrawAll`, `depositAll`/`depositOne`/`depositAllExcept` overloads, `walkToBank`, `walkToBankAndUseBank` overloads, `withdrawAndEquip`, `wearItem`, withdraw-as-note toggles, `depositEquipment`; your read block untouched), `microbot/util/inventory/Rs2Inventory.java` (**actions only**: `wield`/`wear`/`equip`), `microbot/util/player/Rs2Player.java` (**actions only**: `toggleRunEnergy`), `microbot/util/keyboard/Rs2Keyboard.java`, `headless/JavaBridge.java` (typed characters for script keys) | Hub bank actions and their helpers | this commit |
+| Claude 1 | new `microbot/util/walker/enums/**` (copied unchanged), `microbot/util/walker/Rs2Walker.java` (`isInArea`), `microbot/util/prayer/Rs2Prayer.java` (**toggles only**, appended after your reads), `microbot/util/combat/Rs2Combat.java` (**actions only**: `setAutoRetaliate`, `enableAutoRetialiate`), `microbot/util/player/Rs2Player.java` (**actions only**: `eatAt`, `useFood`, `drinkPrayerPotionAt`) | Hub action gaps, round 3 | this commit |
 
 ## Requests
 
