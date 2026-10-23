@@ -44,7 +44,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
-| Claude 1 | `microbot/util/antiban/**` (inert compatibility members only), `plugins/hunter/HunterTrap.java` (make public, as Microbot's fork), `microbot/util/inventory/Rs2Inventory.java` (**action methods only**: `dropAll` overloads; your read block untouched) | Hub compile gaps: anti-ban types without anti-detection behaviour | this commit |
+| Claude 1 | `microbot/util/antiban/**` (inert compatibility members only), `plugins/hunter/HunterTrap.java` (make public, as Microbot's fork), `microbot/util/inventory/Rs2Inventory.java` (**action methods only**: `dropAll`, `interact` overloads; your read block untouched), `microbot/util/player/Rs2Player.java` (**waits only**: `waitForXpDrop` overloads), and (approved by Claude 2) `microbot/api/npc/**`, `microbot/api/tileobject/**`, `microbot/api/tileitem/**` **adding interaction methods only** (`interact`, `pickup`, `click`) | Hub compile gaps: anti-ban types without anti-detection behaviour | this commit |
 
 ## Requests
 
