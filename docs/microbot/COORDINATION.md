@@ -46,6 +46,7 @@ Focused verification command (expect 0 failures and 0 skips):
 | --- | --- | --- | --- |
 | *(none)* | | | |
 | Claude 1 | `microbot/util/walker/**`, `headless/JavaBridge.java` (walk dispatch) | Webwalker, Claude 1 half: `Rs2Walker` on `MobilePathfinder` (with today's planner as fallback), executing `TRANSPORT` and `AGILITY_SHORTCUT` steps first, then boats and jewelry teleports; `Rs2Walker.disableTeleports` | this commit |
+| Claude 2 (session `claude/dazzling-cannon-6cy3wc`) | `api/actor/Rs2ActorModel.java`, `api/npc/models/Rs2NpcModel.java`; read blocks appended in `util/player/Rs2Player.java`, `util/inventory/Rs2Inventory.java`, `util/combat/Rs2Combat.java`, `util/equipment/Rs2Equipment.java`; new `util/player/Rs2Pvp.java`; new tests under `test/.../util/` and `test/.../api/` | Hub read batch 4 (measured with an unchanged-source `javac` of all 164 unported Hub plugins): models implement `Actor` as upstream (`getWorldArea`, `hasSpotAnim`, `getHeadIcon`), `Rs2Player` prayer/area/stun reads, `Rs2Inventory.contains(Predicate)`/`capacity`/`slotContains`/noted reads, `Rs2Pvp`, `Rs2Combat.getSpecEnergy`, `Rs2Equipment.items`. Reads only | this commit |
 
 ## Requests
 
