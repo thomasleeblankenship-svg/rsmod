@@ -57,4 +57,24 @@ public final class Rs2RunePouch
 			return result;
 		}, 0);
 	}
+
+	/**
+	 * Runes held in the carried rune pouch, keyed by {@link net.runelite.client.plugins.microbot.util.magic.Runes}
+	 * (empty without a pouch). Same pouch detection and slot varbits as {@link #getQuantity(int)}.
+	 */
+	public static java.util.Map<net.runelite.client.plugins.microbot.util.magic.Runes, Integer> getRunes()
+	{
+		java.util.Map<net.runelite.client.plugins.microbot.util.magic.Runes, Integer> runes = new java.util.HashMap<>();
+		for (int i = 1; i < RUNES.length; i++)
+		{
+			int quantity = getQuantity(RUNES[i]);
+			net.runelite.client.plugins.microbot.util.magic.Runes rune =
+				net.runelite.client.plugins.microbot.util.magic.Runes.byItemId(RUNES[i]);
+			if (quantity > 0 && rune != null)
+			{
+				runes.put(rune, quantity);
+			}
+		}
+		return runes;
+	}
 }
