@@ -237,6 +237,22 @@ public final class Rs2Player
 			timeoutMillis);
 	}
 
+	/**
+	 * As upstream: turns run on ({@code true}) or off; {@code true} once run is in that state.
+	 * Mobile: taps the minimap run orb through {@code MobileActions} and waits up to 2 seconds for the
+	 * run varp to change. Turning run on with no run energy is not attempted.
+	 */
+	public static boolean toggleRunEnergy(boolean toggle)
+	{
+		if (isRunEnabled() == toggle) { return true; }
+		if (toggle && net.runelite.client.plugins.microbot.mobile.MobileActions.read(() ->
+			net.runelite.client.plugins.microbot.Microbot.getClient().getEnergy(), 0) < 100) { return false; }
+		int orb = net.runelite.api.gameval.InterfaceID.Orbs.RUNBUTTON;
+		return net.runelite.client.plugins.microbot.util.Global.sleepUntil(() ->
+				net.runelite.client.plugins.microbot.mobile.MobileActions.widget(orb, -1, ""), 2_000)
+			&& net.runelite.client.plugins.microbot.util.Global.sleepUntil(() -> isRunEnabled() == toggle, 2_000);
+	}
+
 	public static boolean isStandingOnGameObject()
 	{
 		return net.runelite.client.plugins.microbot.mobile.MobileActions.read(() ->

@@ -24,6 +24,7 @@ import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.gameval.InventoryID;
 import net.runelite.client.plugins.microbot.Microbot;
 import net.runelite.client.plugins.microbot.mobile.MobileActions;
+import net.runelite.client.plugins.microbot.util.equipment.Rs2Equipment;
 import net.runelite.client.plugins.microbot.api.MicrobotReadServices;
 
 /**
@@ -224,6 +225,49 @@ public final class Rs2Inventory
 	public static boolean interact(Predicate<Rs2ItemModel> filter, String action)
 	{
 		return interact(items(filter).findFirst().orElse(null), action);
+	}
+
+	/**
+	 * As upstream: equips the first listed item present in the inventory; {@code true} when one is
+	 * present (dispatched, or already worn). Mobile uses whichever of Wield, Wear or Equip the item offers.
+	 */
+	public static boolean wield(String... names)
+	{
+		String name = Arrays.stream(names).filter(Rs2Inventory::hasItem).findFirst().orElse(null);
+		if (name == null) return false;
+		return Rs2Equipment.isWearing(name, true) || equip(items(i -> matches(i.getName(), name, false)).findFirst().orElse(null));
+	}
+
+	public static boolean wield(int... ids)
+	{
+		int id = Arrays.stream(ids).filter(Rs2Inventory::hasItem).findFirst().orElse(-1);
+		if (id < 0) return false;
+		return Rs2Equipment.isWearing(id) || equip(get(id));
+	}
+
+	public static boolean wear(String... names) { return wield(names); }
+
+	public static boolean equip(int... ids) { return wield(ids); }
+
+	/** As upstream: {@code false} when the item is missing or already worn. */
+	public static boolean wear(int id)
+	{
+		return hasItem(id) && !Rs2Equipment.isWearing(id) && equip(get(id));
+	}
+
+	/** Dispatches the item's equip action (Wield, Wear or Equip, whichever it offers). */
+	public static boolean equip(Rs2ItemModel item)
+	{
+		if (item == null) return false;
+		String action = MobileActions.read(() ->
+		{
+			ItemComposition definition = Microbot.getClient().getItemDefinition(item.getId());
+			String[] actions = definition == null ? null : definition.getInventoryActions();
+			return actions == null ? null : Arrays.stream(actions)
+				.filter(a -> "Wield".equalsIgnoreCase(a) || "Wear".equalsIgnoreCase(a) || "Equip".equalsIgnoreCase(a))
+				.findFirst().orElse(null);
+		}, null);
+		return action != null && MobileActions.inventory(item.getSlot(), item.getId(), action);
 	}
 
 	private static String firstAction(int id)
