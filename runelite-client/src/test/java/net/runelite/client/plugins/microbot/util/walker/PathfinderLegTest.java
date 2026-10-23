@@ -150,4 +150,24 @@ public class PathfinderLegTest
 		assertTrue(leg.stairs.travel);
 		assertEquals(List.of("Charter", "Travel"), Rs2Walker.npcOptions(leg.stairs));
 	}
+
+	@Test
+	public void teleportItemsAreMatchedByIdWhenTheCatalogueListsThem()
+	{
+		ObjectTransports.Step byIds = new ObjectTransports.Step(A, GOAL, -1, "", "", 8, false, "Games necklace: Burthorpe", true,
+			java.util.Set.of(3853, 3855));
+		net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel necklace =
+			org.mockito.Mockito.mock(net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel.class);
+		org.mockito.Mockito.when(necklace.getId()).thenReturn(3855);
+		org.mockito.Mockito.when(necklace.getName()).thenReturn("Games necklace(7)");
+		net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel other =
+			org.mockito.Mockito.mock(net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel.class);
+		org.mockito.Mockito.when(other.getId()).thenReturn(3867);
+		org.mockito.Mockito.when(other.getName()).thenReturn("Games necklace(1)");
+		assertTrue(Rs2Walker.teleportItem(byIds, "Games necklace").test(necklace));
+		assertFalse("ids, not the name, decide", Rs2Walker.teleportItem(byIds, "Games necklace").test(other));
+
+		ObjectTransports.Step byName = new ObjectTransports.Step(A, GOAL, -1, "", "", 8, false, "Games necklace: Burthorpe", true);
+		assertTrue(Rs2Walker.teleportItem(byName, "Games necklace").test(other));
+	}
 }

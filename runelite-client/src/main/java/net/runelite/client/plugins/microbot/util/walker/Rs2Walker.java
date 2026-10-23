@@ -586,7 +586,7 @@ public final class Rs2Walker
 				// A teleport item is used where the route reaches it (usually where the player stands).
 				WorldPoint from = tiles.get(i);
 				ObjectTransports.Step step = new ObjectTransports.Step(from, transport.getDestination(), -1, "",
-					transport.getName(), TELEPORT_ARRIVAL_TILES, false, transport.getDisplayInfo(), true);
+					transport.getName(), TELEPORT_ARRIVAL_TILES, false, transport.getDisplayInfo(), true, transport.getItemIds());
 				return new WalkLeg(from, 1, step, new ArrayList<>(tiles.subList(0, i + 1)), true);
 			}
 			boolean travel = TRAVEL_TRANSPORTS.contains(transport.getType());
@@ -801,7 +801,7 @@ public final class Rs2Walker
 			else if (!dispatched || System.currentTimeMillis() - lastAttempt >= 6_000)
 			{
 				lastAttempt = System.currentTimeMillis();
-				if (dispatchTeleportItem(itemName, place))
+				if (dispatchTeleportItem(teleportItem(step, itemName), place))
 				{
 					dispatched = true;
 				}
@@ -833,11 +833,21 @@ public final class Rs2Walker
 		return colon < 0 ? "" : step.destinationText.substring(colon + 1).trim();
 	}
 
-	/** One use of the item: worn first (its destination option), then carried. */
-	private static boolean dispatchTeleportItem(String itemName, String place)
+	/** The step's item: by the catalogue's ids when it lists them, else by the label's item name. */
+	static java.util.function.Predicate<Rs2ItemModel> teleportItem(ObjectTransports.Step step, String itemName)
 	{
+		if (!step.itemIds.isEmpty())
+		{
+			return item -> step.itemIds.contains(item.getId());
+		}
 		String prefix = itemName.toLowerCase(java.util.Locale.ROOT);
-		Rs2ItemModel worn = Rs2Equipment.get(item -> item.getName() != null && item.getName().toLowerCase(java.util.Locale.ROOT).startsWith(prefix));
+		return item -> item.getName() != null && item.getName().toLowerCase(java.util.Locale.ROOT).startsWith(prefix);
+	}
+
+	/** One use of the item: worn first (its destination option), then carried. */
+	private static boolean dispatchTeleportItem(java.util.function.Predicate<Rs2ItemModel> isItem, String place)
+	{
+		Rs2ItemModel worn = Rs2Equipment.get(isItem);
 		Integer widget = worn == null ? null : WORN_SLOT_WIDGETS.get(worn.getSlot());
 		if (widget != null)
 		{
@@ -854,8 +864,7 @@ public final class Rs2Walker
 				return true;
 			}
 		}
-		Rs2ItemModel carried = Rs2Inventory.items(item -> item.getName() != null
-			&& item.getName().toLowerCase(java.util.Locale.ROOT).startsWith(prefix)).findFirst().orElse(null);
+		Rs2ItemModel carried = Rs2Inventory.items(isItem).findFirst().orElse(null);
 		if (carried == null || carried.getInventoryActions() == null)
 		{
 			return false;
