@@ -78,3 +78,15 @@ Claude 1 acts (every click, tap, key and transport interaction).**
 - The five route tests pass, and the walker tests pass with the new pathfinder switched on.
 - A phone walk from the Lumbridge upstairs bank to the trees and back, and one Draynor bank cycle,
   each with long steps, no stall retries, and observed arrival at both staircases.
+
+## Progress (Claude 1, execution)
+
+- Done: minimap walking and longer steps; `PathResult` execution behind the *Use pathfinder*
+  setting (default on, same-plane planner as fallback); stairs, doors and shortcuts; boats,
+  ships, travel NPCs and charter ships; teleport items (worn or carried, by catalogue ids);
+  teleport spells; fairy rings (Dramen or Lunar staff wielded unless the Lumbridge elite diary is
+  done, then the previous weapon again; "last-destination" when it names the code, else the three
+  dials and Confirm); spirit trees ("Travel", then the menu entry, else its shortcut key).
+- Next: canoes, gnome gliders, minecarts, quetzals, levers, portals, then POH (routing is off on
+  Claude 2's side until then).
+- None of these transports has been tried on a phone yet.

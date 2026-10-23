@@ -48,6 +48,8 @@ final class ObjectTransports
 		final Set<Integer> itemIds;
 		/** A teleport spell: {@link #destinationText} is the spell's name. */
 		final boolean spell;
+		/** A fairy ring: {@link #destinationText} is the three-letter code, {@link #origin} the ring. */
+		final boolean fairyRing;
 
 		Step(WorldPoint origin, WorldPoint arrival, int objectId, String action, String target)
 		{
@@ -80,6 +82,13 @@ final class ObjectTransports
 		Step(WorldPoint origin, WorldPoint arrival, int objectId, String action, String target, int arrivalRadius,
 			boolean travel, String destinationText, boolean item, Set<Integer> itemIds, boolean spell)
 		{
+			this(origin, arrival, objectId, action, target, arrivalRadius, travel, destinationText, item, itemIds, spell, false);
+		}
+
+		Step(WorldPoint origin, WorldPoint arrival, int objectId, String action, String target, int arrivalRadius,
+			boolean travel, String destinationText, boolean item, Set<Integer> itemIds, boolean spell, boolean fairyRing)
+		{
+			this.fairyRing = fairyRing;
 			this.spell = spell;
 			this.item = item;
 			this.itemIds = itemIds == null ? Set.of() : Set.copyOf(itemIds);

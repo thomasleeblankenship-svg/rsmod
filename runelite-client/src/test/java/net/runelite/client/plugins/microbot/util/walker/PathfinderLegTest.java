@@ -63,7 +63,7 @@ public class PathfinderLegTest
 	public void routesNeedingATransportTheWalkerCannotExecuteFallBack()
 	{
 		assertNull(legFor(result(PathResult.Status.FOUND, TILES,
-			Map.of(1, transport(B, GOAL, TransportType.FAIRY_RING, "Use", "Fairy ring", 29495)))));
+			Map.of(1, transport(B, GOAL, TransportType.GNOME_GLIDER, "Glider", "Captain Errdo", 10467)))));
 	}
 
 	@Test
@@ -191,5 +191,59 @@ public class PathfinderLegTest
 		{
 			Rs2Walker.disableTeleports = false;
 		}
+	}
+
+	@Test
+	public void aFairyRingBecomesADialStepAtTheRing()
+	{
+		Rs2Walker.WalkLeg leg = legFor(result(PathResult.Status.FOUND, TILES,
+			Map.of(1, transport(B, GOAL, TransportType.FAIRY_RING, null, "AIR DLR DJQ AJS", -1))));
+		assertNotNull(leg);
+		assertTrue(leg.stairs.fairyRing);
+		assertFalse(leg.stairs.travel);
+		assertEquals(B, leg.destination);
+		assertEquals(List.of(A, B), leg.route);
+		assertEquals("the first code is dialled", "AIR", leg.stairs.destinationText);
+		assertEquals(2, leg.stairs.arrivalRadius);
+		assertNull("no code, no fairy ring leg", legFor(result(PathResult.Status.FOUND, TILES,
+			Map.of(1, transport(B, GOAL, TransportType.FAIRY_RING, null, "", -1)))));
+	}
+
+	@Test
+	public void fairyRingCodesOptionsAndDialTurns()
+	{
+		assertEquals("CKS", Rs2Walker.fairyRingCode(" cks "));
+		assertNull(Rs2Walker.fairyRingCode("Zanaris"));
+		assertNull("letters out of each dial's range", Rs2Walker.fairyRingCode("IAP"));
+
+		String[] lastAiq = {"Configure", "Last-destination (AIQ)", null, null, "Examine"};
+		assertEquals("Last-destination (AIQ)", Rs2Walker.fairyRingOption(lastAiq, "AIQ"));
+		assertEquals("another last destination means configuring", "Configure", Rs2Walker.fairyRingOption(lastAiq, "CKS"));
+		assertEquals("Ring-last-destination (DJR)",
+			Rs2Walker.fairyRingOption(new String[]{"Tree", "Ring-configure", "Ring-last-destination (DJR)"}, "DJR"));
+		assertNull(Rs2Walker.fairyRingOption(new String[]{"Examine"}, "AIQ"));
+
+		assertEquals(0, Rs2Walker.fairyRingRotation('i'));
+		assertEquals(1024, Rs2Walker.fairyRingRotation('K'));
+		assertEquals(1536, Rs2Walker.fairyRingRotation('S'));
+		assertEquals(-1, Rs2Walker.fairyRingRotation('Z'));
+		assertTrue("A to D is one quarter clockwise", Rs2Walker.fairyRingTurnsClockwise(0, 1536));
+		assertFalse("A to B is one quarter anticlockwise", Rs2Walker.fairyRingTurnsClockwise(0, 512));
+		assertTrue("half a turn goes clockwise, as upstream", Rs2Walker.fairyRingTurnsClockwise(0, 1024));
+	}
+
+	@Test
+	public void aSpiritTreeIsATravelStepWithItsMenuEntry()
+	{
+		Rs2Walker.WalkLeg leg = legFor(result(PathResult.Status.FOUND, TILES,
+			Map.of(1, transport(B, GOAL, TransportType.SPIRIT_TREE, "Travel", "4: Grand Exchange", 1293))));
+		assertNotNull(leg);
+		assertTrue(leg.stairs.travel);
+		assertEquals("Travel", leg.stairs.action);
+		assertEquals("4: Grand Exchange", leg.stairs.destinationText);
+		assertEquals("Grand Exchange", Rs2Walker.menuDestinationName(leg.stairs.destinationText));
+		assertEquals('4', Rs2Walker.menuShortcut(leg.stairs.destinationText));
+		assertEquals('a', Rs2Walker.menuShortcut("A: Port Piscarilius"));
+		assertEquals(0, Rs2Walker.menuShortcut("Grand Exchange"));
 	}
 }

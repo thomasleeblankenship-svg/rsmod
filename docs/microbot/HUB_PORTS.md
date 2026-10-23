@@ -138,8 +138,10 @@ Known differences from desktop:
 - **Overlay-heavy plugins** (theatre, zulrah, parts of others) draw desktop overlays, which may not
   suit the phone screen.
 - **Inventory setups** match by item totals, not slot order; the rune pouch is checked, not filled.
-- **Anti-ban settings** are inert. **Walking** follows the mobile webwalker's limits (no teleport
-  spells, fairy rings, spirit trees or POH yet).
+- **Anti-ban settings** are inert. **Walking** (with the pathfinder setting on) executes stairs,
+  doors, shortcuts, boats, ships, travel NPCs, charter ships, teleport items, teleport spells,
+  fairy rings and spirit trees; not yet canoes, gliders, minecarts, quetzals, levers, portals or
+  POH. None of the transports has been tried on a phone.
 
 ## Policy for anti-detection features (applies to every port)
 

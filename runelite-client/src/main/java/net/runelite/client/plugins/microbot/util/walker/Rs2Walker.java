@@ -273,7 +273,8 @@ public final class Rs2Walker
 				}
 				if (arrived(scene.player, leg.destination, leg.radius) && leg.stairs != null)
 				{
-					if (!(leg.stairs.spell ? useTeleportSpell(leg.stairs, generation, deadline)
+					if (!(leg.stairs.fairyRing ? useFairyRing(leg.stairs, generation, deadline)
+						: leg.stairs.spell ? useTeleportSpell(leg.stairs, generation, deadline)
 						: leg.stairs.item ? useTeleportItem(leg.stairs, generation, deadline)
 						: leg.stairs.travel ? useTravel(leg.stairs, generation, deadline)
 						: useStairs(leg.stairs, generation, deadline)))
@@ -490,7 +491,7 @@ public final class Rs2Walker
 
 	/** Rides on an NPC or vehicle: interact, answer the destination dialogue, wait for the landing. */
 	static final Set<TransportType> TRAVEL_TRANSPORTS = EnumSet.of(TransportType.BOAT, TransportType.SHIP, TransportType.NPC,
-		TransportType.CHARTER_SHIP);
+		TransportType.CHARTER_SHIP, TransportType.SPIRIT_TREE);
 
 	/** The charter-ship destination map (upstream: widget 885, child 4). */
 	private static final int CHARTER_GROUP = 885;
@@ -499,7 +500,22 @@ public final class Rs2Walker
 	/** Transport types the walker can execute; the pathfinder is told to admit only these. */
 	static final Set<TransportType> EXECUTABLE_TRANSPORTS = EnumSet.of(TransportType.TRANSPORT, TransportType.AGILITY_SHORTCUT,
 		TransportType.BOAT, TransportType.SHIP, TransportType.NPC, TransportType.CHARTER_SHIP, TransportType.TELEPORTATION_ITEM,
-		TransportType.TELEPORTATION_SPELL);
+		TransportType.TELEPORTATION_SPELL, TransportType.SPIRIT_TREE, TransportType.FAIRY_RING);
+
+	/** The spirit tree destination menu (upstream {@code ADVENTURE_LOG_CONTAINER}, 187) and its option list (187:3). */
+	private static final int DESTINATION_MENU_GROUP = 187;
+	private static final int DESTINATION_MENU_OPTIONS = 3;
+
+	/** Staves that open fairy rings until the Lumbridge elite diary is done. */
+	private static final int[] FAIRY_RING_STAVES = {net.runelite.api.gameval.ItemID.DRAMEN_STAFF,
+		net.runelite.api.gameval.ItemID.LUNAR_MOONCLAN_LIMINAL_STAFF};
+	/** Each dial's model, clockwise and anticlockwise buttons (upstream {@code SLOT_ONE} ... {@code SLOT_THREE_ACW_ROTATION}). */
+	private static final int[][] FAIRY_RING_DIALS = {
+		{InterfaceID.Fairyrings.ROOT_MODEL3, InterfaceID.Fairyrings._1_CLOCKWISE, InterfaceID.Fairyrings._1_ANTICLOCKWISE},
+		{InterfaceID.Fairyrings.ROOT_MODEL4, InterfaceID.Fairyrings._2_CLOCKWISE, InterfaceID.Fairyrings._2_ANTICLOCKWISE},
+		{InterfaceID.Fairyrings.ROOT_MODEL5, InterfaceID.Fairyrings._3_CLOCKWISE, InterfaceID.Fairyrings._3_ANTICLOCKWISE}};
+	/** A fairy ring lands on the destination ring. */
+	private static final int FAIRY_RING_ARRIVAL_TILES = 2;
 
 	/** A home teleport channels for about ten seconds before the landing. */
 	private static final long SPELL_TELEPORT_MILLIS = 30_000;
@@ -580,7 +596,7 @@ public final class Rs2Walker
 			}
 			if (!EXECUTABLE_TRANSPORTS.contains(transport.getType())
 				|| (transport.getAction() == null && transport.getType() != TransportType.TELEPORTATION_ITEM
-					&& transport.getType() != TransportType.TELEPORTATION_SPELL))
+					&& transport.getType() != TransportType.TELEPORTATION_SPELL && transport.getType() != TransportType.FAIRY_RING))
 			{
 				LOG.info("Mobile walk: route needs {} ({}); using the same-plane planner", transport.getType(), transport);
 				return null;
@@ -609,6 +625,18 @@ public final class Rs2Walker
 				ObjectTransports.Step step = new ObjectTransports.Step(from, transport.getDestination(), -1, "",
 					transport.getName(), TELEPORT_ARRIVAL_TILES, false, transport.getDisplayInfo(), true, transport.getItemIds());
 				return new WalkLeg(from, 1, step, new ArrayList<>(tiles.subList(0, i + 1)), true);
+			}
+			if (transport.getType() == TransportType.FAIRY_RING)
+			{
+				String code = fairyRingCode(transport.getDisplayInfo());
+				if (code == null)
+				{
+					LOG.info("Mobile walk: route needs fairy ring {} without a code; using the same-plane planner", transport);
+					return null;
+				}
+				ObjectTransports.Step step = new ObjectTransports.Step(transport.getOrigin(), transport.getDestination(), -1, "",
+					"Fairy ring", FAIRY_RING_ARRIVAL_TILES, false, code, false, Set.of(), false, true);
+				return new WalkLeg(transport.getOrigin(), 1, step, new ArrayList<>(tiles.subList(0, i + 1)), true);
 			}
 			boolean travel = TRAVEL_TRANSPORTS.contains(transport.getType());
 			ObjectTransports.Step step = new ObjectTransports.Step(transport.getOrigin(), transport.getDestination(),
@@ -734,6 +762,16 @@ public final class Rs2Walker
 			if (dispatched && step.observedArrival(scene.player))
 			{
 				return true;
+			}
+			if (destinationMenuVisible())
+			{
+				if (!chooseMenuDestination(step.destinationText))
+				{
+					lastStatus = "destination menu does not offer " + step.destinationText;
+					return false;
+				}
+				Thread.sleep(600);
+				continue;
 			}
 			if (charterMapVisible())
 			{
@@ -950,6 +988,254 @@ public final class Rs2Walker
 			.filter(candidate -> Arrays.stream(carried.getInventoryActions()).anyMatch(candidate::equalsIgnoreCase))
 			.findFirst().orElse(null);
 		return option != null && Global.sleepUntil(() -> Rs2Inventory.interact(carried, option), 2_000);
+	}
+
+	/**
+	 * Uses a fairy ring as upstream does: wields a Dramen or Lunar staff unless the Lumbridge elite
+	 * diary is done (and wields the previous weapon again afterwards), takes the ring's
+	 * "last-destination" option when it names this code, else configures it (each dial turned to
+	 * the code, then Confirm), and requires an observed landing.
+	 */
+	private static boolean useFairyRing(ObjectTransports.Step step, long generation, long walkDeadline) throws InterruptedException
+	{
+		String code = step.destinationText;
+		lastStatus = "Fairy ring: " + code;
+		int previousWeapon = -1;
+		if (Microbot.getVarbitValue(net.runelite.api.gameval.VarbitID.LUMBRIDGE_DIARY_ELITE_COMPLETE) != 1
+			&& !Rs2Equipment.isWearing(FAIRY_RING_STAVES))
+		{
+			Rs2ItemModel weapon = Rs2Equipment.get(net.runelite.api.EquipmentInventorySlot.WEAPON);
+			if (!Global.sleepUntil(() -> Rs2Inventory.wield(FAIRY_RING_STAVES), 2_000)
+				|| !Global.sleepUntil(() -> Rs2Equipment.isWearing(FAIRY_RING_STAVES), 3_000))
+			{
+				lastStatus = "no Dramen or Lunar staff for the fairy ring";
+				return false;
+			}
+			previousWeapon = weapon == null ? -1 : weapon.getId();
+		}
+		try
+		{
+			return dialAndUseFairyRing(step, code, generation, Math.min(walkDeadline, System.currentTimeMillis() + TELEPORT_MILLIS));
+		}
+		finally
+		{
+			int weapon = previousWeapon;
+			if (weapon >= 0 && MobileActions.active() && GENERATION.get() == generation)
+			{
+				Global.sleepUntil(() -> Rs2Inventory.wield(weapon), 2_000);
+			}
+		}
+	}
+
+	private static boolean dialAndUseFairyRing(ObjectTransports.Step step, String code, long generation, long deadline)
+		throws InterruptedException
+	{
+		long lastAttempt = 0;
+		boolean dispatched = false;
+		while (System.currentTimeMillis() < deadline && GENERATION.get() == generation
+			&& MobileActions.active() && !Thread.currentThread().isInterrupted())
+		{
+			MobileRoutePlanner.Scene scene = awaitSnapshot(generation, deadline);
+			if (scene == null)
+			{
+				lastStatus = "no collision snapshot, loading timed out or game state changed";
+				return false;
+			}
+			if (dispatched && step.observedArrival(scene.player))
+			{
+				return true;
+			}
+			if (fairyRingInterfaceVisible())
+			{
+				if (!dialFairyRing(code))
+				{
+					lastStatus = "fairy ring dials did not reach " + code;
+					return false;
+				}
+				dispatched |= Global.sleepUntil(() -> MobileActions.widget(InterfaceID.Fairyrings.CONFIRM, -1, ""), 2_000);
+				Thread.sleep(600);
+				continue;
+			}
+			if (!dispatched && scene.player.getPlane() == step.origin.getPlane() && scene.player.distanceTo(step.origin) <= 3
+				&& System.currentTimeMillis() - lastAttempt >= 6_000)
+			{
+				lastAttempt = System.currentTimeMillis();
+				Object[] ring = MobileActions.read(() ->
+				{
+					Rs2TileObjectModel model = MicrobotReadServices.require().getRs2TileObjectCache().query()
+						.where(candidate -> step.origin.equals(candidate.getWorldLocation()) && candidate.getObjectComposition() != null)
+						.nearest();
+					String option = model == null ? null : fairyRingOption(model.getObjectComposition().getActions(), code);
+					return option == null ? null : new Object[]{model.getId(), model.getWorldLocation(), option};
+				}, null);
+				if (ring == null)
+				{
+					lastStatus = "no fairy ring with a usable option at " + step.origin;
+					return false;
+				}
+				String option = (String) ring[2];
+				if (Global.sleepUntil(() -> MobileActions.objectAt((int) ring[0], (WorldPoint) ring[1], option), 2_000)
+					&& !isFairyRingConfigure(option))
+				{
+					dispatched = true;
+				}
+			}
+			long remaining = deadline - System.currentTimeMillis();
+			if (remaining > 0) { Thread.sleep(Math.min(300, remaining)); }
+		}
+		lastStatus = !MobileActions.active() || GENERATION.get() != generation
+			? "fairy ring cancelled" : dispatched ? "fairy ring landing was not observed" : "fairy ring was not used";
+		return false;
+	}
+
+	/** "AIQ" from the catalogue's display info ("AIQ", or several codes, the first used); null when it has none. */
+	static String fairyRingCode(String displayInfo)
+	{
+		if (displayInfo == null)
+		{
+			return null;
+		}
+		String first = displayInfo.trim().split("\\s+")[0].toUpperCase(java.util.Locale.ROOT);
+		return first.matches("[A-D][I-L][P-S]") ? first : null;
+	}
+
+	/** The ring's "last-destination (CODE)" option for this code, else its configure option; null when neither. */
+	static String fairyRingOption(String[] actions, String code)
+	{
+		if (actions == null)
+		{
+			return null;
+		}
+		for (String action : actions)
+		{
+			String text = action == null ? "" : Text.removeTags(action).trim();
+			if (text.equalsIgnoreCase("last-destination (" + code + ")") || text.equalsIgnoreCase("Ring-last-destination (" + code + ")"))
+			{
+				return action;
+			}
+		}
+		return Arrays.stream(actions).filter(Rs2Walker::isFairyRingConfigure).findFirst().orElse(null);
+	}
+
+	private static boolean isFairyRingConfigure(String action)
+	{
+		return "Configure".equalsIgnoreCase(action) || "Ring-configure".equalsIgnoreCase(action);
+	}
+
+	private static boolean fairyRingInterfaceVisible()
+	{
+		return MobileActions.read(() ->
+		{
+			net.runelite.api.widgets.Widget confirm = Microbot.getClient().getWidget(InterfaceID.Fairyrings.CONFIRM);
+			return confirm != null && !confirm.isHidden();
+		}, false);
+	}
+
+	/** Turns each dial to its letter, one press per quarter turn, the shorter way round; true when all three read right. */
+	private static boolean dialFairyRing(String code)
+	{
+		for (int i = 0; i < 3; i++)
+		{
+			int dial = FAIRY_RING_DIALS[i][0];
+			int desired = fairyRingRotation(code.charAt(i));
+			for (int turn = 0; turn < 3; turn++)
+			{
+				int current = dialRotation(dial);
+				if (current < 0 || current == desired)
+				{
+					break;
+				}
+				int button = fairyRingTurnsClockwise(current, desired) ? FAIRY_RING_DIALS[i][1] : FAIRY_RING_DIALS[i][2];
+				if (!Global.sleepUntil(() -> MobileActions.widget(button, -1, ""), 2_000))
+				{
+					return false;
+				}
+				Global.sleepUntil(() -> dialRotation(dial) != current && dialRotation(dial) % 512 == 0, 2_000);
+			}
+			if (!Global.sleepUntil(() -> dialRotation(dial) == desired, 3_000))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	private static int dialRotation(int dial)
+	{
+		return MobileActions.read(() ->
+		{
+			net.runelite.api.widgets.Widget widget = Microbot.getClient().getWidget(dial);
+			return widget == null || widget.isHidden() ? -1 : widget.getRotationY();
+		}, -1);
+	}
+
+	/** As upstream: a letter's dial rotation (A, I, P 0; B, J, Q 512; C, K, R 1024; D, L, S 1536), or -1. */
+	static int fairyRingRotation(char letter)
+	{
+		switch (Character.toUpperCase(letter))
+		{
+			case 'A': case 'I': case 'P': return 0;
+			case 'B': case 'J': case 'Q': return 512;
+			case 'C': case 'K': case 'R': return 1024;
+			case 'D': case 'L': case 'S': return 1536;
+			default: return -1;
+		}
+	}
+
+	/** As upstream: clockwise when that way round is no longer than anticlockwise. */
+	static boolean fairyRingTurnsClockwise(int current, int desired)
+	{
+		int anticlockwise = (desired - current + 2048) % 2048;
+		int clockwise = (current - desired + 2048) % 2048;
+		return clockwise <= anticlockwise;
+	}
+
+	private static boolean destinationMenuVisible()
+	{
+		return MobileActions.read(() ->
+		{
+			net.runelite.api.widgets.Widget menu = Microbot.getClient().getWidget(DESTINATION_MENU_GROUP, DESTINATION_MENU_OPTIONS);
+			return menu != null && !menu.isHidden();
+		}, false);
+	}
+
+	/**
+	 * As upstream: the spirit tree menu's entry naming the destination ("4: Grand Exchange" names
+	 * "Grand Exchange"), else the entry's shortcut key (the character before the colon).
+	 */
+	private static boolean chooseMenuDestination(String displayInfo)
+	{
+		if (displayInfo == null || displayInfo.isBlank())
+		{
+			return false;
+		}
+		String needle = menuDestinationName(displayInfo).toLowerCase(java.util.Locale.ROOT);
+		int[] entry = MobileActions.read(() ->
+		{
+			net.runelite.api.widgets.Widget root = Microbot.getClient().getWidget(DESTINATION_MENU_GROUP, DESTINATION_MENU_OPTIONS);
+			net.runelite.api.widgets.Widget match = root == null || needle.isEmpty() ? null : findCharterEntry(root, needle);
+			return match == null ? null : new int[]{match.getId(), match.getIndex()};
+		}, null);
+		if (entry != null && Global.sleepUntil(() -> MobileActions.widget(entry[0], entry[1], ""), 2_000))
+		{
+			return true;
+		}
+		char key = menuShortcut(displayInfo);
+		return key != 0 && Global.sleepUntil(() -> MobileActions.type(key), 2_000);
+	}
+
+	/** "4: Grand Exchange" gives "Grand Exchange"; text without a shortcut prefix is returned trimmed. */
+	static String menuDestinationName(String displayInfo)
+	{
+		return displayInfo.trim().replaceAll("^[0-9A-Za-z]:\\s*", "").trim();
+	}
+
+	/** "4: Grand Exchange" gives '4', "A: Port Piscarilius" gives 'a'; 0 without a shortcut prefix. */
+	static char menuShortcut(String displayInfo)
+	{
+		String text = displayInfo.trim();
+		return text.length() > 1 && text.charAt(1) == ':' && Character.isLetterOrDigit(text.charAt(0))
+			? Character.toLowerCase(text.charAt(0)) : 0;
 	}
 
 	private static boolean charterMapVisible()
