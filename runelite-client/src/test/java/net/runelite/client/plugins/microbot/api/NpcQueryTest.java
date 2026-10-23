@@ -193,5 +193,13 @@ public class NpcQueryTest
 		assertEquals(0, f.services.getRs2NpcCache().getStream().count());
 		f.eventBus.post(new WorldViewLoaded(boat));
 		assertEquals("Deckhand", f.services.getRs2NpcCache().query().first().getName());
+
+		// A region load keeps loaded sub-world-views; a login transition forgets them.
+		f.gameState(GameState.LOADING);
+		f.gameState(GameState.LOGGED_IN);
+		assertEquals(1, f.services.getRs2NpcCache().getStream().count());
+		f.gameState(GameState.LOGGING_IN);
+		f.gameState(GameState.LOGGED_IN);
+		assertEquals(0, f.services.getRs2NpcCache().getStream().count());
 	}
 }

@@ -25,11 +25,11 @@ held, and the multi-tile/boat tile-loop gotchas.
 | Path in this repo | Upstream path at `e01e0d7` | Git blob | SHA-256 |
 | --- | --- | --- | --- |
 | `runelite-client/src/main/java/net/runelite/client/plugins/microbot/statemachineexample/StateMachineExampleConfig.java` | same path | `adae6de7c4acb389aaa1b191787f00374737ac8a` | `2f0f5e970bc48b1462a8a0ec1bd8d425ae17246ec9e823b33e5d40cf59473373` |
-| `runelite-client/src/microbot-upstream/java/net/runelite/client/plugins/microbot/statemachineexample/StateMachineExampleScript.java` | `runelite-client/src/main/java/…/statemachineexample/StateMachineExampleScript.java` | `eb4cea2dbe6036fc90d4ccc4564a5af6ac374940` | `aed85889b184231d2c910c719720c87ad129ca38a25dd0bfd99964750c245dbd` |
+| `runelite-client/src/main/java/net/runelite/client/plugins/microbot/statemachineexample/StateMachineExampleScript.java` | same path | `eb4cea2dbe6036fc90d4ccc4564a5af6ac374940` | `aed85889b184231d2c910c719720c87ad129ca38a25dd0bfd99964750c245dbd` |
 
-Both are BSD 2-Clause, the same as this repository. The script sits in a source
-directory Gradle does not compile until Claude 1's runtime exists. Moving it to
-`src/main/java` unchanged is the integration step. `TileObjectType.java` was
+Both are BSD 2-Clause, the same as this repository. The script was first staged
+outside the compiled tree; Claude 1 moved it into `src/main/java` unchanged once
+the runtime and cache getters existed (hash re-checked on `91b7304`). `TileObjectType.java` was
 also copied unchanged with a provenance header added. All other ported files are
 adaptations and carry an `Adapted from …e01e0d7…` header that names the upstream file.
 
@@ -122,8 +122,12 @@ Status values: `native` (upstream semantics, same signature), `adapted`
   upstream. Lootable means ownership is not `OWNERSHIP_OTHER`. `getWorldView()`
   is the world view the item was scanned from, whereas upstream always returns
   the top-level view.
-- **Logout state.** `Rs2Inventory` and the `Rs2Player` animation history are
-  cleared on `LOGIN_SCREEN`, `HOPPING` and `CONNECTION_LOST`. Upstream keeps them.
+- **Logout state.** World-view ids, `Rs2Inventory` and the `Rs2Player` animation
+  history are cleared on every game state except `LOGGED_IN` and `LOADING`
+  (logout, hop, connection loss, login). Upstream keeps inventory and animation
+  history. `LOADING` (a region load while logged in) only invalidates snapshots:
+  clearing there would drop loaded boat world views that get no new
+  `WorldViewLoaded`, and empty the inventory on every region crossing.
 - **Boat projection.** Actor locations on a sub-world view are projected to the
   main world at plane 0, as upstream does. This path is not covered by tests.
 - **No lookalikes.** Actions (`click`, `interact`, `pickup`) and `isReachable`
@@ -132,7 +136,7 @@ Status values: `native` (upstream semantics, same signature), `adapted`
 
 ## Integration interface
 
-### For Claude 1 (`Microbot.java`), proposed patch, not applied
+### For Claude 1 (`Microbot.java`): applied by Claude 1 in `d6ce8a0`/`311d064`
 
 `isLoggedIn()` already exists in Claude 1's `Microbot`. Add only the three cache
 getters. They return `null` when the runtime is not installed, like Claude 1's
@@ -162,7 +166,7 @@ The caches are created by `MicrobotReadServices` and are not separately
 injectable, so delegate rather than adding fields. Do not create cache
 instances in `Microbot`.
 
-### For Codex (mobile plugin lifecycle), proposed registration, not applied
+### For Codex (mobile plugin lifecycle): applied by Codex in `adc4e7d`
 
 ```java
 @Inject private EventBus eventBus;
@@ -175,8 +179,9 @@ MicrobotRuntime.install(client, clientThread, eventBus, configManager, List.of(r
 MicrobotRuntime.uninstall();
 ```
 
-Once the three getters exist, move the staged script to `src/main/java`
-unchanged and rerun `:client:compileJava`.
+Codex's version installs on the client thread in `startUp()` and uninstalls
+after `stopActive(...)` in `shutDown()`. The example is selectable through
+`ScriptKind` and runs via Claude 1's `MicrobotScriptAdapter`.
 
 ## Commands executed (this checkout, JDK 21.0.12 system install)
 
@@ -186,7 +191,8 @@ unchanged and rerun `:client:compileJava`.
 | `./gradlew --no-daemon --max-workers=2 :client:compileJava` (with changes; retried after 429s) | exit 0 on attempt 3; only pre-existing RuneMobile warnings |
 | `./gradlew … :client:test --tests 'net.runelite.client.plugins.microbot.*' --tests 'net.runelite.client.plugins.mobilemicrobot.*'` (before Claude 1's runtime) | exit 0; NpcQueryTest 9/9, SceneQueryTest 6/6, PlayerInventoryReadTest 11/11, MobileMicrobotPluginTest 9/9 |
 | Same plus `--tests 'net.runelite.client.callback.*' --tests 'net.runelite.client.headless.*'`, on `feat/android-microbot-compat` `2558ad2` with the runtime-lifecycle change | exit 0; NpcQueryTest 9/9, SceneQueryTest 6/6, PlayerInventoryReadTest 10/10 (installed through the real `MicrobotRuntime` and `EventBus`), Claude 1's suites 55/55, MobileMicrobotPluginTest 17/17, headless bridge suites all passing |
-| `javac` of the unchanged `StateMachineExampleScript.java` against the built client only | exit 1; the only unresolved symbols are `Microbot`, `statemachine.StateMachineScript` and `statemachine.Transition` (Claude 1). Every read-API import resolved |
+| Same suites on `91b7304` (Claude 1 getters, Codex plugin wiring) plus the `LOADING` fix | exit 0; 115 tests, 0 failures/errors/skips, including Claude 1's `StateMachineExampleIntegrationTest` 2/2 and Codex's `UpstreamExampleIntegrationTest` 3/3, which compile and run the unchanged example against mocked interfaces |
+| `javac` of the unchanged `StateMachineExampleScript.java` against the built client only (before the runtime landed) | exit 1; the only unresolved symbols are `Microbot`, `statemachine.StateMachineScript` and `statemachine.Transition` (Claude 1). Every read-API import resolved |
 | `javac` of the unchanged script against the built client plus a **scratch, uncommitted** harness (the adapter above, plus `Script`/`StateMachineScript`/`Transition` signatures copied from upstream) | exit 0. This type-checks the script body against the real read APIs only. It is not runtime evidence, and the harness is not part of the repository |
 
 Test notes: `NpcQueryTest` and `SceneQueryTest` run reads from the JUnit thread
@@ -194,13 +200,13 @@ against a dedicated fake client thread. The mocks throw if live game state is
 read off that thread. `ClientThread` is a real instance (Mockito spy) bound to a
 mocked `Client`, so the production `runOnClientThreadOptional` runs. Covered cases: logout, hop, scene load, stale entities,
 concurrent background readers, a stalled client thread (empty result, no hang),
-and a sub-world-view load.
+a sub-world-view load, and a region load (`LOADING`) that keeps inventory,
+animation history and sub-world views while a login transition clears them.
 
 ## Blockers
 
-1. The example cannot compile in-tree until `Microbot` gains the three cache
-   getters above. Claude 1 owns that file. `Script`, `StateMachineScript` and
-   `Transition` have landed.
+1. Resolved: the unchanged example compiles in-tree and runs in mocked-interface
+   integration tests.
 2. No live game or device run has been done. The cache refresh cost per tick on
    ARM64 is not measured.
 3. The RuneMobile SHA is taken from Codex's report, not from Git history.
@@ -214,5 +220,5 @@ and a sub-world-view load.
   rows as unsupported.
 - `SCRIPT_COMPATIBILITY.md`: for `StateMachineExampleScript`, change "Not
   ported or compiled" to "Copied unchanged (sha256 `aed85889…`); read-API
-  closure type-checks; in-tree compile blocked on the runtime port". Leave
-  Execution as "Not run".
+  closure and in-tree compile pass; runs end to end in mocked-interface
+  integration tests". Keep live-game Execution as "Not run".
