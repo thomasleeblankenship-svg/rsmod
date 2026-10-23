@@ -490,21 +490,19 @@ public final class Rs2Player
 	}
 
 	/**
-	 * Other players matching {@code predicate}. Deprecated upstream in favour of
-	 * {@code Rs2PlayerCache}; adaptation: it reads that cache, so it covers every loaded world view
-	 * rather than only the top-level one.
+	 * Other players matching {@code predicate}, as {@link Rs2PlayerModel} snapshots captured now on
+	 * the client thread. Deprecated upstream in favour of {@code Rs2PlayerCache}; adaptation: every
+	 * loaded world view is scanned, not only the top-level one.
 	 */
 	@Deprecated
-	public static java.util.stream.Stream<net.runelite.client.plugins.microbot.api.player.models.Rs2PlayerModel> getPlayers(
-		java.util.function.Predicate<net.runelite.client.plugins.microbot.api.player.models.Rs2PlayerModel> predicate)
+	public static java.util.stream.Stream<Rs2PlayerModel> getPlayers(java.util.function.Predicate<Rs2PlayerModel> predicate)
 	{
 		return getPlayers(predicate, false);
 	}
 
 	/** {@link #getPlayers(java.util.function.Predicate)}, optionally including the local player. */
 	@Deprecated
-	public static java.util.stream.Stream<net.runelite.client.plugins.microbot.api.player.models.Rs2PlayerModel> getPlayers(
-		java.util.function.Predicate<net.runelite.client.plugins.microbot.api.player.models.Rs2PlayerModel> predicate,
+	public static java.util.stream.Stream<Rs2PlayerModel> getPlayers(java.util.function.Predicate<Rs2PlayerModel> predicate,
 		boolean includeLocalPlayer)
 	{
 		MicrobotReadServices services = MicrobotReadServices.current();
@@ -512,14 +510,33 @@ public final class Rs2Player
 		{
 			return java.util.stream.Stream.empty();
 		}
-		Player local = services.read(() -> services.getClient().getLocalPlayer()).orElse(null);
-		return services.getRs2PlayerCache().getStream()
-			.filter(player -> includeLocalPlayer || player.getPlayer() != local)
-			.filter(predicate);
+		Client client = services.getClient();
+		java.util.List<Rs2PlayerModel> players = services.read(() ->
+		{
+			java.util.List<Rs2PlayerModel> result = new java.util.ArrayList<>();
+			Player local = client.getLocalPlayer();
+			for (int id : services.getWorldViewIds())
+			{
+				net.runelite.api.WorldView view = client.getWorldView(id);
+				if (view == null)
+				{
+					continue;
+				}
+				for (Player player : view.players())
+				{
+					if (player != null && (includeLocalPlayer || player != local))
+					{
+						result.add(new Rs2PlayerModel(client, player));
+					}
+				}
+			}
+			return result;
+		}).orElse(java.util.Collections.emptyList());
+		return players.stream().filter(predicate);
 	}
 
 	/** The local player as a snapshot model, or {@code null} without one. */
-	public static net.runelite.client.plugins.microbot.api.player.models.Rs2PlayerModel getLocalPlayer()
+	public static Rs2PlayerModel getLocalPlayer()
 	{
 		MicrobotReadServices services = MicrobotReadServices.current();
 		if (services == null)
@@ -530,7 +547,7 @@ public final class Rs2Player
 		return services.read(() ->
 		{
 			Player player = client.getLocalPlayer();
-			return player == null ? null : new net.runelite.client.plugins.microbot.api.player.models.Rs2PlayerModel(client, player);
+			return player == null ? null : new Rs2PlayerModel(client, player);
 		}).orElse(null);
 	}
 
