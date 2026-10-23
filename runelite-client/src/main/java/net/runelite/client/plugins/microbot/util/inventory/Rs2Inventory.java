@@ -185,10 +185,55 @@ public final class Rs2Inventory
 			: candidate.toLowerCase(Locale.ROOT).contains(search.trim().toLowerCase(Locale.ROOT));
 	}
 
-	public static boolean interact(int id, String action)
+	/**
+	 * As upstream: one inventory action on {@code item}; a blank action means the item's first
+	 * inventory action. {@code true} means dispatched.
+	 */
+	public static boolean interact(Rs2ItemModel item, String action)
 	{
-		Rs2ItemModel item = get(id);
-		return item != null && MobileActions.inventory(item.getSlot(), item.getId(), action);
+		if (item == null) return false;
+		String resolved = action == null || action.trim().isEmpty() ? firstAction(item.getId()) : action;
+		return resolved != null && MobileActions.inventory(item.getSlot(), item.getId(), resolved);
+	}
+
+	public static boolean interact(Rs2ItemModel item) { return interact(item, ""); }
+	public static boolean interact(int id) { return interact(id, ""); }
+	public static boolean interact(int id, String action) { return interact(get(id), action); }
+	public static boolean interact(String name) { return interact(name, "", false); }
+	public static boolean interact(String name, String action) { return interact(name, action, false); }
+
+	public static boolean interact(String name, String action, boolean exact)
+	{
+		return interact(items(i -> matches(i.getName(), name, exact)).findFirst().orElse(null), action);
+	}
+
+	/** As upstream: tries each id in order until one dispatches. */
+	public static boolean interact(int[] ids, String action)
+	{
+		return Arrays.stream(ids).anyMatch(id -> interact(id, action));
+	}
+
+	public static boolean interact(String[] names, String action)
+	{
+		return Arrays.stream(names).anyMatch(name -> interact(name, action));
+	}
+
+	/** As upstream, the predicate-only form uses the item. */
+	public static boolean interact(Predicate<Rs2ItemModel> filter) { return interact(filter, "Use"); }
+
+	public static boolean interact(Predicate<Rs2ItemModel> filter, String action)
+	{
+		return interact(items(filter).findFirst().orElse(null), action);
+	}
+
+	private static String firstAction(int id)
+	{
+		return MobileActions.read(() ->
+		{
+			ItemComposition definition = Microbot.getClient().getItemDefinition(id);
+			String[] actions = definition == null ? null : definition.getInventoryActions();
+			return actions == null ? null : Arrays.stream(actions).filter(a -> a != null && !a.trim().isEmpty()).findFirst().orElse(null);
+		}, null);
 	}
 
 	public static boolean use(String name)
