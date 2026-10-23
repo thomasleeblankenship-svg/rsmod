@@ -196,4 +196,13 @@ public class Rs2TileObjectModel implements IEntity
 	{
 		return worldView;
 	}
+
+	/**
+	 * The object's clickable outline on the canvas, read now on the client thread; {@code null}
+	 * when it is off screen or not rendered.
+	 */
+	public java.awt.Shape getClickbox()
+	{
+		return services.read(tileObject::getClickbox).orElse(null);
+	}
 }

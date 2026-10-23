@@ -7,7 +7,9 @@ package net.runelite.client.plugins.microbot.api;
 
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -261,6 +263,89 @@ public abstract class AbstractEntityQueryable<
 	public int count()
 	{
 		return (int) source.count();
+	}
+
+	// ---- Reachability and client-thread variants (Hub read APIs) ----
+
+	/**
+	 * Furthest reachability search, in tiles from the player: the mobile walker's scene search is
+	 * bounded to this radius.
+	 */
+	static final int MAX_REACHABLE_DISTANCE = 32;
+
+	@Override
+	public E firstReachable()
+	{
+		Set<WorldPoint> reachable = reachableTiles(MAX_REACHABLE_DISTANCE);
+		return source.filter(entity -> isReachable(entity, reachable)).findFirst().orElse(null);
+	}
+
+	@Override
+	public E nearestReachable()
+	{
+		return nearestReachable(Integer.MAX_VALUE);
+	}
+
+	/**
+	 * Nearest entity whose tile, or a tile beside it, the player can walk to without crossing a
+	 * wall. Only the current floor is searched, up to {@link #MAX_REACHABLE_DISTANCE} tiles.
+	 */
+	@Override
+	public E nearestReachable(int maxDistance)
+	{
+		Set<WorldPoint> reachable = reachableTiles(Math.min(maxDistance, MAX_REACHABLE_DISTANCE));
+		source = source.filter(entity -> isReachable(entity, reachable));
+		return nearest(maxDistance);
+	}
+
+	/**
+	 * Same result as {@link #first()}. Mobile queries already read a client-thread snapshot, so
+	 * the client-thread variants only exist for upstream compatibility.
+	 */
+	@Override
+	public E firstOnClientThread()
+	{
+		return first();
+	}
+
+	@Override
+	public E nearestOnClientThread()
+	{
+		return nearest();
+	}
+
+	@Override
+	public E nearestOnClientThread(int maxDistance)
+	{
+		return nearest(maxDistance);
+	}
+
+	@Override
+	public E nearestOnClientThread(WorldPoint anchor, int maxDistance)
+	{
+		return nearest(anchor, maxDistance);
+	}
+
+	@Override
+	public List<E> toListOnClientThread()
+	{
+		return toList();
+	}
+
+	private static Set<WorldPoint> reachableTiles(int radius)
+	{
+		return new HashSet<>(net.runelite.client.plugins.microbot.util.walker.Rs2Walker.getWalkableTilesAroundPlayer(radius));
+	}
+
+	private static boolean isReachable(IEntity entity, Set<WorldPoint> reachable)
+	{
+		WorldPoint loc = entity.getWorldLocation();
+		if (loc == null)
+		{
+			return false;
+		}
+		return reachable.contains(loc) || reachable.contains(loc.dx(1)) || reachable.contains(loc.dx(-1))
+			|| reachable.contains(loc.dy(1)) || reachable.contains(loc.dy(-1));
 	}
 
 	private static final class EntityDistance<E>

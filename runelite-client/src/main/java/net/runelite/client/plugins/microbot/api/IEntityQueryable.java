@@ -48,4 +48,23 @@ public interface IEntityQueryable<Q extends IEntityQueryable<Q, E>, E extends IE
 	List<E> toList();
 
 	int count();
+
+	/** First entity the local player can walk to (or stand next to). */
+	E firstReachable();
+
+	/** Nearest entity the local player can walk to (or stand next to). */
+	E nearestReachable();
+
+	/** {@link #nearestReachable()} within {@code maxDistance} tiles. */
+	E nearestReachable(int maxDistance);
+
+	E firstOnClientThread();
+
+	E nearestOnClientThread();
+
+	E nearestOnClientThread(int maxDistance);
+
+	E nearestOnClientThread(WorldPoint anchor, int maxDistance);
+
+	List<E> toListOnClientThread();
 }
