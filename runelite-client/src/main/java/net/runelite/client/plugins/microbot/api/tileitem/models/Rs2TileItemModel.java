@@ -137,6 +137,30 @@ public class Rs2TileItemModel implements IEntity
 		return ownership == TileItem.OWNERSHIP_SELF;
 	}
 
+	/**
+	 * As upstream: {@code "Take"}. Mobile dispatches only {@code Take} on ground items; other
+	 * actions return {@code false}. A blank action means {@code Take}.
+	 */
+	@Override
+	public boolean click(String action)
+	{
+		String resolved = action == null ? null : action.trim().isEmpty() ? "Take" : action;
+		return resolved != null
+			&& net.runelite.client.plugins.microbot.mobile.MobileActions.groundItem(id, worldLocation, resolved);
+	}
+
+	@Override
+	public boolean click()
+	{
+		return click("");
+	}
+
+	/** As upstream: picks this item up ({@code Take}). */
+	public boolean pickup()
+	{
+		return click("Take");
+	}
+
 	@Override
 	public WorldPoint getWorldLocation()
 	{

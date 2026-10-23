@@ -172,4 +172,17 @@ public class MobileDropWorkflowTest
 		assertTrue(Rs2Inventory.dropAll(false, "Log"));
 		assertEquals(27, drops);
 	}
+
+	@Test
+	public void interactWithBlankActionUsesTheFirstInventoryAction()
+	{
+		visible.set(true); // interact, unlike the drop batch, does not open the inventory tab
+		visible.set(true); // interact, unlike the drop batch, does not open the inventory tab
+		assertTrue(Rs2Inventory.interact(1511));
+		assertEquals(1, drops);
+		assertTrue(Rs2Inventory.interact("logs", "Drop", true));
+		assertEquals(2, drops);
+		assertFalse(Rs2Inventory.interact((Rs2ItemModel) null, "Drop"));
+		assertFalse(Rs2Inventory.interact(new int[]{9999}, "Drop"));
+	}
 }

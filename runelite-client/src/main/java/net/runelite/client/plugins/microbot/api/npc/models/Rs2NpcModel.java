@@ -68,9 +68,24 @@ public class Rs2NpcModel extends Rs2ActorModel implements IEntity
 	{
 		return net.runelite.client.plugins.microbot.mobile.MobileActions.read(npc::getOverheadText, null);
 	}
+	@Override
 	public boolean click(String action)
 	{
 		return net.runelite.client.plugins.microbot.mobile.MobileActions.npcAt(id, index, action);
+	}
+
+	/** As upstream, the first action; mobile reads it from the NPC's (transformed) definition. */
+	@Override
+	public boolean click()
+	{
+		String action = net.runelite.client.plugins.microbot.mobile.MobileActions.read(() ->
+		{
+			net.runelite.api.NPCComposition c = npc.getTransformedComposition();
+			if (c == null || c.getActions() == null) { return null; }
+			for (String a : c.getActions()) { if (a != null && !a.isEmpty()) { return a; } }
+			return null;
+		}, null);
+		return action != null && click(action);
 	}
 
 	public int getCombatLevel()

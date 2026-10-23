@@ -212,10 +212,28 @@ public final class Rs2Player
 
 	public static boolean waitForXpDrop(net.runelite.api.Skill skill, int timeoutMillis)
 	{
+		return waitForXpDrop(skill, timeoutMillis, false);
+	}
+
+	/** As upstream: waits up to 5 seconds. */
+	public static boolean waitForXpDrop(net.runelite.api.Skill skill)
+	{
+		return waitForXpDrop(skill, 5000, false);
+	}
+
+	public static boolean waitForXpDrop(net.runelite.api.Skill skill, boolean inventoryFullCheck)
+	{
+		return waitForXpDrop(skill, 5000, inventoryFullCheck);
+	}
+
+	/** As upstream: also stops waiting, returning {@code true}, once the inventory is full when {@code inventoryFullCheck}. */
+	public static boolean waitForXpDrop(net.runelite.api.Skill skill, int timeoutMillis, boolean inventoryFullCheck)
+	{
 		int before = net.runelite.client.plugins.microbot.mobile.MobileActions.read(() ->
 			net.runelite.client.plugins.microbot.Microbot.getClient().getSkillExperience(skill), -1);
 		return before >= 0 && waitFor(() -> net.runelite.client.plugins.microbot.mobile.MobileActions.read(() ->
-			net.runelite.client.plugins.microbot.Microbot.getClient().getSkillExperience(skill), -1) > before,
+			net.runelite.client.plugins.microbot.Microbot.getClient().getSkillExperience(skill), -1) > before
+			|| (inventoryFullCheck && net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory.isFull()),
 			timeoutMillis);
 	}
 

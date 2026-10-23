@@ -16,8 +16,8 @@ import net.runelite.client.plugins.microbot.api.actor.Rs2ActorModel;
  * <p>
  * Adaptation: upstream hops to the client thread on each relationship and overhead getter. Like
  * the other mobile models, these values are captured once on the client thread when the snapshot
- * is built. Upstream's {@code click} overloads always return {@code false}; following
- * {@code IEntity}, they are omitted so a call fails to compile. Sailing salvage detection and the
+ * is built. As upstream, the {@code click} overloads always return {@code false}:
+ * player-to-player interactions are not implemented. Sailing salvage detection and the
  * no-argument local-player constructor are not ported.
  */
 public class Rs2PlayerModel extends Rs2ActorModel implements IEntity
@@ -98,5 +98,19 @@ public class Rs2PlayerModel extends Rs2ActorModel implements IEntity
 	public HeadIcon getOverheadIcon()
 	{
 		return overheadIcon;
+	}
+
+	/** As upstream: not implemented, always {@code false}. */
+	@Override
+	public boolean click()
+	{
+		return false;
+	}
+
+	/** As upstream: not implemented, always {@code false}. */
+	@Override
+	public boolean click(String action)
+	{
+		return false;
 	}
 }

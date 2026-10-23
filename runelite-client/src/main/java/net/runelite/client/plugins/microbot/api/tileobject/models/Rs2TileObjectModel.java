@@ -162,11 +162,13 @@ public class Rs2TileObjectModel implements IEntity
 		}).orElse(null);
 	}
 
+	@Override
 	public boolean click(String action)
 	{
 		return net.runelite.client.plugins.microbot.mobile.MobileActions.objectAt(id, worldLocation, action);
 	}
 
+	@Override
 	public boolean click()
 	{
 		String action = services.read(() ->
