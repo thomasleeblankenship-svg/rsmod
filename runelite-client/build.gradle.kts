@@ -199,7 +199,7 @@ tasks.pmdMain {
     exclude("**/net/runelite/client/headless/TimeTrackingBridge.java")
     // Microbot Hub plugins, byte-identical to chsami/Microbot-Hub: style-only PMD flags (printStackTrace,
     // missing @Override, System.out) are upstream's. Listed per plugin so new code stays covered.
-    for (hub in listOf("autochompykiller", "fishingtrawler", "birdhunter", "toweroflife_creaturecreation", "salamanders", "HueycoatlPrayer", "sandcrabs")) {
+    for (hub in listOf("autochompykiller", "fishingtrawler", "birdhunter", "toweroflife_creaturecreation", "salamanders", "HueycoatlPrayer", "sandcrabs", "AmmoniteCrabs", "animatedarmour", "anonymous", "autogauntletprayer", "baggedplants", "blessedwine", "butterflycatcher", "chillRunecraft", "colosseumprayer", "delveprayerhelper", "gauntlethelper", "goldrush", "hunterKabbits", "jad", "lunartablets", "minnowsfishing", "pumper", "theatre", "varrockanvil", "zeroprayer", "zulrah")) {
         exclude("**/net/runelite/client/plugins/microbot/$hub/**")
     }
 }

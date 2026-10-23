@@ -3,13 +3,6 @@ package net.runelite.client.plugins.mobilemicrobot;
 import java.util.List;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
-import net.runelite.client.plugins.microbot.autochompykiller.AutoChompyKillerPlugin;
-import net.runelite.client.plugins.microbot.birdhunter.BirdHunterPlugin;
-import net.runelite.client.plugins.microbot.HueycoatlPrayer.HueyPrayerPlugin;
-import net.runelite.client.plugins.microbot.fishingtrawler.FishingTrawlerPlugin;
-import net.runelite.client.plugins.microbot.salamanders.SalamanderPlugin;
-import net.runelite.client.plugins.microbot.sandcrabs.SandCrabPlugin;
-import net.runelite.client.plugins.microbot.toweroflife_creaturecreation.TowerOfLifeCCPlugin;
 import org.junit.Test;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -23,29 +16,61 @@ public class HubPortedPluginsTest
 		System.setProperty("runelite.bridge", "true");
 	}
 
-	private static final List<Class<? extends Plugin>> PORTED = List.of(
-		AutoChompyKillerPlugin.class, FishingTrawlerPlugin.class, BirdHunterPlugin.class,
-		TowerOfLifeCCPlugin.class, SalamanderPlugin.class, HueyPrayerPlugin.class, SandCrabPlugin.class);
+	/** Every ported Hub plugin (see docs/microbot/HUB_PORTS.md). */
+	private static final List<String> PORTED = List.of(
+		"net.runelite.client.plugins.microbot.autochompykiller.AutoChompyKillerPlugin",
+		"net.runelite.client.plugins.microbot.fishingtrawler.FishingTrawlerPlugin",
+		"net.runelite.client.plugins.microbot.birdhunter.BirdHunterPlugin",
+		"net.runelite.client.plugins.microbot.toweroflife_creaturecreation.TowerOfLifeCCPlugin",
+		"net.runelite.client.plugins.microbot.salamanders.SalamanderPlugin",
+		"net.runelite.client.plugins.microbot.HueycoatlPrayer.HueyPrayerPlugin",
+		"net.runelite.client.plugins.microbot.sandcrabs.SandCrabPlugin",
+		"net.runelite.client.plugins.microbot.AmmoniteCrabs.AmmoniteCrabPlugin",
+		"net.runelite.client.plugins.microbot.animatedarmour.AnimatedArmourPlugin",
+		"net.runelite.client.plugins.microbot.anonymous.AnonymousPlugin",
+		"net.runelite.client.plugins.microbot.autogauntletprayer.AutoGauntletPrayerPlugin",
+		"net.runelite.client.plugins.microbot.baggedplants.BaggedPlantsPlugin",
+		"net.runelite.client.plugins.microbot.blessedwine.BlessedWinePlugin",
+		"net.runelite.client.plugins.microbot.butterflycatcher.ButterflyCatcherPlugin",
+		"net.runelite.client.plugins.microbot.chillRunecraft.AutoRunecraftPlugin",
+		"net.runelite.client.plugins.microbot.colosseumprayer.ColosseumPrayerPlugin",
+		"net.runelite.client.plugins.microbot.delveprayerhelper.DelvePrayerHelperPlugin",
+		"net.runelite.client.plugins.microbot.gauntlethelper.GauntletHelperPlugin",
+		"net.runelite.client.plugins.microbot.goldrush.GabulhasGoldRushPlugin",
+		"net.runelite.client.plugins.microbot.hunterKabbits.HunterKebbitsPlugin",
+		"net.runelite.client.plugins.microbot.jad.JadPlugin",
+		"net.runelite.client.plugins.microbot.lunartablets.LunarTabletsPlugin",
+		"net.runelite.client.plugins.microbot.minnowsfishing.MinnowsPlugin",
+		"net.runelite.client.plugins.microbot.pumper.PumperPlugin",
+		"net.runelite.client.plugins.microbot.theatre.TheatrePlugin",
+		"net.runelite.client.plugins.microbot.varrockanvil.VarrockAnvilPlugin",
+		"net.runelite.client.plugins.microbot.zeroprayer.AttackTimerMetronomePlugin",
+		"net.runelite.client.plugins.microbot.zulrah.ZulrahPlugin");
+
+	private static Plugin instance(String name) throws Exception
+	{
+		return Class.forName(name).asSubclass(Plugin.class).getDeclaredConstructor().newInstance();
+	}
 
 	@Test
 	public void portedPluginsAreHubPluginsAndDisabledByDefault() throws Exception
 	{
-		for (Class<? extends Plugin> type : PORTED)
+		for (String name : PORTED)
 		{
-			PluginDescriptor descriptor = type.getAnnotation(PluginDescriptor.class);
-			assertNotNull(type.getName(), descriptor);
-			assertFalse(type.getName(), descriptor.enabledByDefault());
-			assertTrue(type.getName(), HubPluginHost.isHubPlugin(type.getDeclaredConstructor().newInstance()));
+			PluginDescriptor descriptor = Class.forName(name).getAnnotation(PluginDescriptor.class);
+			assertNotNull(name, descriptor);
+			assertFalse(name, descriptor.enabledByDefault());
+			assertTrue(name, HubPluginHost.isHubPlugin(instance(name)));
 		}
 	}
 
 	@Test
 	public void hostNamesDropTheAuthorTag() throws Exception
 	{
-		for (Class<? extends Plugin> type : PORTED)
+		for (String name : PORTED)
 		{
-			String name = HubPluginHost.name(type.getDeclaredConstructor().newInstance());
-			assertFalse(name, name.isEmpty() || name.contains("<") || name.startsWith("["));
+			String shown = HubPluginHost.name(instance(name));
+			assertFalse(name + ": " + shown, shown.isEmpty() || shown.contains("<") || shown.startsWith("["));
 		}
 	}
 }

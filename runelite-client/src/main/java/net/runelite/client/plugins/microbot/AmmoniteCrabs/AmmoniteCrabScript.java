@@ -1,0 +1,300 @@
+package net.runelite.client.plugins.microbot.AmmoniteCrabs;
+
+import net.runelite.api.GameState;
+import net.runelite.api.Player;
+import net.runelite.api.coords.WorldArea;
+import net.runelite.api.coords.WorldPoint;
+import net.runelite.client.plugins.microbot.Microbot;
+import net.runelite.client.plugins.microbot.Script;
+import net.runelite.client.plugins.microbot.AmmoniteCrabs.enums.AmmoniteCrabState;
+import net.runelite.client.plugins.microbot.util.bank.Rs2Bank;
+import net.runelite.client.plugins.microbot.util.bank.enums.BankLocation;
+import net.runelite.client.plugins.microbot.util.combat.Rs2Combat;
+import net.runelite.client.plugins.microbot.util.grounditem.LootingParameters;
+import net.runelite.client.plugins.microbot.util.grounditem.Rs2GroundItem;
+import net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory;
+import net.runelite.client.plugins.microbot.api.npc.models.Rs2NpcModel;
+import net.runelite.client.plugins.microbot.util.player.Rs2Player;
+import net.runelite.client.plugins.microbot.util.player.Rs2PlayerModel;
+import net.runelite.client.plugins.microbot.util.security.Login;
+import net.runelite.client.plugins.microbot.util.walker.Rs2Walker;
+
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+
+import static net.runelite.client.plugins.microbot.AmmoniteCrabs.enums.AmmoniteCrabState.FIGHT;
+
+public class AmmoniteCrabScript extends Script {
+
+    public int afkTimer = 0;
+    public int hijackTimer = 0;
+    public AmmoniteCrabState ammoniteCrabState = AmmoniteCrabState.SCANNING_WORLD;
+    public int timesHopped = 0;
+
+    public boolean run(AmmoniteCrabConfig config) {
+        initialPlayerLocation = null;
+        ammoniteCrabState = AmmoniteCrabState.SCANNING_WORLD;
+        mainScheduledFuture = scheduledExecutorService.scheduleWithFixedDelay(() -> {
+            try {
+                if (!Microbot.isLoggedIn()) return;
+                if (!super.run()) return;
+                long startTime = System.currentTimeMillis();
+                if (ammoniteCrabState != AmmoniteCrabState.SCANNING_WORLD) {
+                    preStateChecks(config);
+                }
+
+                switch (ammoniteCrabState) {
+                    case FIGHT:
+                        if (!Rs2Player.isInteracting() && !Rs2Combat.inCombat()) {
+                            Rs2Combat.enableAutoRetialiate();
+                        }
+
+                        WorldPoint fightPlayerLocation = Rs2Player.getWorldLocation();
+                        if (fightPlayerLocation != null && fightPlayerLocation.distanceTo(config.crabLocation().getFightLocation()) > 0) {
+                            Rs2Walker.walkFastCanvas(config.crabLocation().getFightLocation());
+                        }
+
+                        if (!isNpcAggressive() || afkTimer >= 10) {
+                            ammoniteCrabState = AmmoniteCrabState.AFK;
+                        }
+                        if (config.lootSeaweedSpores()) {
+                            LootingParameters valueParams = new LootingParameters(
+                                    15,
+                                    1,
+                                    1,
+                                    1,
+                                    false,
+                                    true,
+                                    "Seaweed spore"
+                            );
+                            if (Rs2GroundItem.lootItemsBasedOnNames(valueParams)) {
+                                Microbot.pauseAllScripts.compareAndSet(true, false);
+                            }
+                        }
+                        break;
+                    case AFK:
+                        if (afkTimer < 10) {
+                            afkTimer++;
+                        }
+
+                        if (Rs2Combat.inCombat()) {
+                            resetAfkTimer();
+                        }
+                        if (afkTimer >= 10) {
+                            if (otherPlayerDetected(config.crabLocation().getFightLocation())) {
+                                Rs2Walker.walkTo(config.crabLocation().getWorldhopLocation());
+                                ammoniteCrabState = AmmoniteCrabState.HOP_WORLD;
+                            } else {
+                                // If no other players detected, reset aggro
+                                ammoniteCrabState = AmmoniteCrabState.RESET_AGGRO;
+                            }
+                        }
+                        break;
+                    case RESET_AGGRO:
+                        resetAggro(config);
+                        break;
+                    case WALK_BACK:
+                        walkBack(config);
+                        break;
+                    case HOP_WORLD:
+                        int world = Login.getRandomWorld(true, null);
+                        if (!Microbot.hopToWorld(world)) {
+                            Microbot.log("World hop to " + world + " refused, retrying next loop");
+                            break;
+                        }
+                        timesHopped++;
+                        sleepUntil(() -> Microbot.getClient().getGameState() == GameState.LOGGED_IN);
+                        sleep(1200, 2000);
+                        // After successful hop, reset counters and scan the area
+                        hijackTimer = 0;
+                        ammoniteCrabState = AmmoniteCrabState.SCANNING_WORLD;
+                        break;
+                    case SCANNING_WORLD:
+                        scanAmmoniteCrabLocation(config);
+                        break;
+                }
+            } catch (Exception ex) {
+                Microbot.logStackTrace(this.getClass().getSimpleName(), ex);
+            }
+        }, 0, 1000, TimeUnit.MILLISECONDS);
+        return true;
+    }
+
+    private void preStateChecks(AmmoniteCrabConfig config) {
+        Rs2Combat.enableAutoRetialiate();
+        if (otherPlayerDetected() && !Rs2Combat.inCombat()) {
+            hijackTimer++;
+        } else {
+            hijackTimer = 0;
+        }
+
+        if (hijackTimer > 6) {
+            ammoniteCrabState = AmmoniteCrabState.HOP_WORLD;
+        }
+
+        WorldPoint playerLocation = Rs2Player.getWorldLocation();
+        if (playerLocation != null && playerLocation.distanceTo(config.crabLocation().getWorldhopLocation()) > 10 && (ammoniteCrabState != AmmoniteCrabState.RESET_AGGRO && ammoniteCrabState != AmmoniteCrabState.WALK_BACK && ammoniteCrabState != AmmoniteCrabState.BANK)) {
+            ammoniteCrabState = AmmoniteCrabState.WALK_BACK;
+            resetAggro(config);
+            resetAfkTimer();
+        }
+
+        if (Rs2Combat.inCombat() && ammoniteCrabState != AmmoniteCrabState.AFK && ammoniteCrabState != AmmoniteCrabState.FIGHT) {
+            // If already in combat, ensure we're in FIGHT state
+            ammoniteCrabState = AmmoniteCrabState.FIGHT;
+        }
+        // Only scan if we're not already doing something else important and not in combat
+        else if (ammoniteCrabState != AmmoniteCrabState.RESET_AGGRO &&
+                ammoniteCrabState != AmmoniteCrabState.WALK_BACK &&
+                ammoniteCrabState != AmmoniteCrabState.HOP_WORLD &&
+                ammoniteCrabState != AmmoniteCrabState.BANK &&
+                ammoniteCrabState != AmmoniteCrabState.FIGHT &&
+                ammoniteCrabState != AmmoniteCrabState.AFK) {
+            ammoniteCrabState = AmmoniteCrabState.SCANNING_WORLD;
+        }
+
+        if (config.useFood() || config.usePotions()) {
+            if (config.useFood()) {
+                Rs2Player.eatAt(50);
+            }
+            if (config.usePotions()) {
+                usePotions(config);
+            }
+            if ((config.useFood() && Rs2Inventory.getInventoryFood().isEmpty()) || (config.usePotions() && Rs2Inventory.getFilteredPotionItemsInInventory(config.potions().getPotionName()).isEmpty())) {
+                ammoniteCrabState = AmmoniteCrabState.BANK;
+                Rs2Bank.walkToBank(BankLocation.FOSSIL_ISLAND);
+                if (Rs2Bank.openBank()) {
+                    if (config.usePotions()) {
+                        Rs2Bank.withdrawX(config.potions().getPotionName() + "(4)", config.withdrawNumber());
+                    }
+                    Rs2Bank.withdrawAll(config.food().getName(), true);
+                    ammoniteCrabState = AmmoniteCrabState.WALK_BACK;
+                }
+            }
+        }
+    }
+
+    private void scanAmmoniteCrabLocation(AmmoniteCrabConfig config) {
+        if (Rs2Player.isInCombat()) {
+            ammoniteCrabState = AmmoniteCrabState.FIGHT;
+            return;
+        }
+        WorldPoint playerLocation = Rs2Player.getWorldLocation();
+        if (playerLocation == null) {
+            return;
+        }
+        if (config.crabLocation().getWorldhopLocation().distanceTo(playerLocation) > 2) {
+            Rs2Walker.walkTo(config.crabLocation().getWorldhopLocation());
+            return;
+        }
+
+        if (otherPlayerDetected(config.crabLocation().getFightLocation())) {
+            ammoniteCrabState = AmmoniteCrabState.HOP_WORLD;
+            return;
+        } else {
+            Rs2Walker.walkTo(config.crabLocation().getFightLocation(), 0);
+            if (isWithin(Rs2Player.getWorldLocation(), config.crabLocation().getFightLocation(), 3)) {
+                resetAfkTimer();
+                ammoniteCrabState = AmmoniteCrabState.FIGHT;
+            } else {
+                Rs2Walker.walkFastCanvas(config.crabLocation().getFightLocation());
+            }
+        }
+    }
+
+    private void usePotions(AmmoniteCrabConfig config) {
+        if (config.usePotions()) {
+            var potions = Rs2Inventory.getFilteredPotionItemsInInventory(config.potions().getPotionName());
+            if (Rs2Player.getBoostedSkillLevel(config.potions().getBoostedSkill()) - Rs2Player.getRealSkillLevel(config.potions().getBoostedSkill()) < 3 && !potions.isEmpty()) {
+                Rs2Inventory.interact(potions.get(0), "Drink");
+            }
+        }
+    }
+
+    private void walkBack(AmmoniteCrabConfig config) {
+        Rs2Walker.walkTo(config.crabLocation().getFightLocation());
+        if (isWithin(Rs2Player.getWorldLocation(), config.crabLocation().getFightLocation(), 3)) {
+            attackScatteredCrabs(config);
+            resetAfkTimer();
+            ammoniteCrabState = AmmoniteCrabState.FIGHT;
+        }
+    }
+
+    private void attackScatteredCrabs(AmmoniteCrabConfig config) {
+        var ammoniteCrabs = Microbot.getRs2NpcCache().query().withName("Ammonite Crab")
+                .where(x -> x.getNpc() != null && !x.getNpc().isDead() && x.getWorldLocation().distanceTo(config.crabLocation().getFightLocation()) > 1 && x.getWorldLocation().distanceTo(config.crabLocation().getFightLocation()) < 15)
+                .toList();
+        for (Rs2NpcModel ammoniteCrab : ammoniteCrabs) {
+            if (ammoniteCrab != null && !ammoniteCrab.getNpc().isDead()) {
+                ammoniteCrab.click("Attack");
+                Rs2Player.waitForAnimation(1600);
+                sleep(1600, 2400);
+            }
+        }
+    }
+
+    /**
+     * Checks if there are fossil rocks spawned next to the player
+     * This is used to know if the aggro timer has ran out
+     *
+     * @return true if npc is aggressive
+     */
+    private boolean isNpcAggressive() {
+        List<Rs2NpcModel> npcs = Microbot.getRs2NpcCache().query().withName("Fossil Rock").toListOnClientThread();
+        if (npcs.isEmpty()) {
+            return true;
+        }
+        return Microbot.getClientThread().runOnClientThreadOptional(() -> {
+            Player localPlayer = Microbot.getClient().getLocalPlayer();
+            if (localPlayer == null) {
+                return true;
+            }
+            WorldArea playerArea = localPlayer.getWorldArea();
+            for (Rs2NpcModel ammoniteRock : npcs) {
+                if (ammoniteRock.getNpc().getWorldArea().isInMeleeDistance(playerArea)) {
+                    return false;
+                }
+            }
+            return true;
+        }).orElse(true);
+    }
+
+    private void resetAggro(AmmoniteCrabConfig config) {
+        Rs2Walker.walkTo(config.crabLocation().getResetLocation());
+        if (isWithin(Rs2Player.getWorldLocation(), config.crabLocation().getResetLocation(), 3)) {
+            ammoniteCrabState = AmmoniteCrabState.WALK_BACK;
+        }
+    }
+
+    /**
+     * Reset afk timer and sets state back to fight
+     */
+    private void resetAfkTimer() {
+        afkTimer = 0;
+        // Only change state if we're currently in AFK state
+        if (ammoniteCrabState == AmmoniteCrabState.AFK) {
+            ammoniteCrabState = AmmoniteCrabState.FIGHT;
+        }
+    }
+
+    private boolean otherPlayerDetected() {
+        return otherPlayerDetected(Rs2Player.getWorldLocation());
+    }
+
+    static boolean isWithin(WorldPoint location, WorldPoint target, int distance) {
+        return location != null && location.distanceTo(target) <= distance;
+    }
+
+    static boolean otherPlayerDetected(WorldPoint worldPoint) {
+        if (worldPoint == null) {
+            return false;
+        }
+        for (Rs2PlayerModel player : Rs2Player.getPlayers(player -> true).collect(Collectors.toList())) {
+            if (player.getWorldLocation().distanceTo(worldPoint) > 3)
+                continue;
+            return true;
+        }
+        return false;
+    }
+}
