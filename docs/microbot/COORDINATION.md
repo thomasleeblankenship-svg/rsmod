@@ -45,6 +45,7 @@ Focused verification command (expect 0 failures and 0 skips):
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
 | *(none)* | | | |
+| Claude 2 (session `claude/dazzling-cannon-6cy3wc`) | `shortestpath/PathResult.java`, `shortestpath/ShortestPathPlugin.java`, `shortestpath/pathfinder/PathfinderConfig.java`, tests under `test/.../shortestpath/` | Claude 1's step-3 requests: `TransportStep.getItemIds()`; teleport switch back to `Rs2Walker.disableTeleports` | this commit |
 | Claude 1 | `microbot/util/walker/**`, `headless/JavaBridge.java` (walk dispatch) | Webwalker, Claude 1 half: step 4, charter ships and remaining transport types | this commit |
 
 ## Requests
