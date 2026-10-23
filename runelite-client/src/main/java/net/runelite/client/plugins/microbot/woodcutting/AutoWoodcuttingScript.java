@@ -48,6 +48,12 @@ import static net.runelite.client.plugins.microbot.util.player.Rs2Player.getReal
 
 @Slf4j
 public class AutoWoodcuttingScript extends Script {
+    /** Axes with a woodcutting special attack, checked in the weapon slot. */
+    private static final Set<Integer> SPEC_AXES = Set.of(ItemID.DRAGON_AXE, ItemID.DRAGON_AXE_2H,
+            ItemID.CRYSTAL_AXE, ItemID.CRYSTAL_AXE_2H, ItemID.INFERNAL_AXE, ItemID.TRAILBLAZER_AXE);
+    /** Pre-flight checks at least this slow are logged. */
+    private static final long SLOW_CHECKS_MILLIS = 500;
+
 
     public static final List<Integer> BURNING_ANIMATION_IDS = List.of(
             FORESTRY_CAMPFIRE_BURNING_LOGS,
@@ -146,7 +152,15 @@ public class AutoWoodcuttingScript extends Script {
         }
         mainScheduledFuture = scheduledExecutorService.scheduleWithFixedDelay(() -> {
             try {
-                if (preFlightChecks(config)) return;
+                long checksStart = System.nanoTime();
+                boolean skip = preFlightChecks(config);
+                // Diagnostics (phone report: slow between actions): these checks only read state,
+                // so a slow one points at client-thread round trips rather than game actions.
+                long checksMillis = (System.nanoTime() - checksStart) / 1_000_000L;
+                if (checksMillis >= SLOW_CHECKS_MILLIS) {
+                    log.info("Woodcutting checks took {} ms (state {})", checksMillis, woodcuttingScriptState);
+                }
+                if (skip) return;
                 switch (woodcuttingScriptState) {
                     case WOODCUTTING:
                         if (beforeCuttingTreesChecks(config)) return;
@@ -203,9 +217,9 @@ public class AutoWoodcuttingScript extends Script {
     private boolean beforeCuttingTreesChecks(AutoWoodcuttingConfig config) {
         WoodcuttingTree treeType = getActiveTree();
 
-        if (Rs2Equipment.isWearing(ItemID.DRAGON_AXE) || Rs2Equipment.isWearing(ItemID.DRAGON_AXE_2H) || Rs2Equipment.isWearing(ItemID.CRYSTAL_AXE) ||
-                Rs2Equipment.isWearing(ItemID.CRYSTAL_AXE_2H) || Rs2Equipment.isWearing(ItemID.INFERNAL_AXE) ||
-                Rs2Equipment.isWearing(ItemID.TRAILBLAZER_AXE))
+        // One weapon-slot read instead of six (each read waits for the client thread).
+        var weapon = Rs2Equipment.get(net.runelite.api.EquipmentInventorySlot.WEAPON);
+        if (weapon != null && SPEC_AXES.contains(weapon.getId()))
             Rs2Combat.setSpecState(true, 1000);
         boolean willBank = willBankItems(config);
         int currentLogCountBeforeFill = Rs2Inventory.count(treeType.getLogID());

@@ -270,5 +270,22 @@ public class MobileWalkerIntegrationTest
 		assertTrue(actions.toString(), actions.contains("stairs:2>1"));
 		assertFalse(Rs2GameObject.interact((Rs2TileObjectModel) null, "Climb-down", false));
 	}
-}
 
+	@Test
+	public void walkStepUsesTheMinimapForLongStepsAndSceneTilesForShortOnes()
+	{
+		position.set(new WorldPoint(3209, 3220, 0));
+		try (org.mockito.MockedStatic<MobileActions> stub = org.mockito.Mockito.mockStatic(MobileActions.class, org.mockito.Mockito.CALLS_REAL_METHODS))
+		{
+			stub.when(() -> MobileActions.walkMinimap(any())).thenReturn(true);
+			stub.clearInvocations();
+			assertEquals(WalkerState.MOVING, Rs2Walker.walkStep(new WorldPoint(3224, 3220, 0), 0));
+			stub.verify(() -> MobileActions.walkMinimap(new WorldPoint(3219, 3220, 0)));
+			assertFalse("a minimap step dispatches no scene walk", actions.contains("walk:0"));
+
+			stub.clearInvocations();
+			assertEquals(WalkerState.MOVING, Rs2Walker.walkStep(new WorldPoint(3211, 3220, 0), 0));
+			stub.verify(() -> MobileActions.walkMinimap(any()), org.mockito.Mockito.never());
+		}
+	}
+}

@@ -324,6 +324,12 @@ public final class MobileActions
 		});
 	}
 
+	/** Walks by tapping {@code destination} on the minimap; false when it is not safely on the minimap. */
+	public static boolean walkMinimap(WorldPoint destination)
+	{
+		return perform(() -> JavaBridge.onScriptMinimapWalk(destination, permission));
+	}
+
 	public static boolean groundItem(int id, WorldPoint position, String action)
 	{
 		return perform(() ->

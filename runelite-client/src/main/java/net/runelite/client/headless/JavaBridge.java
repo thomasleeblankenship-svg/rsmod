@@ -948,6 +948,68 @@ public final class JavaBridge
 		return true;
 	}
 
+	/**
+	 * Script walk by tapping {@code destination} on the minimap, which stays visible however the
+	 * camera is placed (scene-tile walks need the tile on screen, so they are short on a phone).
+	 * Refused unless the point lies well inside the minimap disc: a tap outside it could hit the
+	 * game view or an orb, so the walker then falls back to a scene-tile walk. Same input guards as
+	 * {@link #onScriptClick}.
+	 */
+	public static boolean onScriptMinimapWalk(net.runelite.api.coords.WorldPoint destination, ScriptInputSession owner)
+	{
+		final Client c = client;
+		if (c == null || !c.isClientThread() || destination == null || c.getTopLevelWorldView() == null || c.getLocalPlayer() == null
+			|| destination.getPlane() != c.getLocalPlayer().getWorldLocation().getPlane())
+		{
+			scriptWalkStatus = "Minimap walk rejected: client or floor unavailable";
+			return false;
+		}
+		final net.runelite.api.coords.LocalPoint local = net.runelite.api.coords.LocalPoint.fromWorld(c.getTopLevelWorldView(), destination.getX(), destination.getY());
+		final net.runelite.api.Point point = local == null ? null : net.runelite.api.Perspective.localToMinimap(c, local);
+		final Widget minimap = minimapDrawArea(c);
+		final Rectangle bounds = minimap == null || minimap.isHidden() ? null : minimap.getBounds();
+		if (point == null || bounds == null || bounds.width <= 0 || bounds.height <= 0)
+		{
+			scriptWalkStatus = "Minimap walk unavailable";
+			return false;
+		}
+		if (!insideMinimapDisc(bounds, point.getX(), point.getY()))
+		{
+			scriptWalkStatus = "Minimap point is outside the safe disc";
+			return false;
+		}
+		if (!onScriptClick(point.getX(), point.getY(), owner))
+		{
+			scriptWalkStatus = "Walk input is busy or cancelled";
+			return false;
+		}
+		scriptWalkStatus = "Minimap walk to " + destination;
+		return true;
+	}
+
+	/** Fraction of the minimap's half-size treated as safe to tap (keeps clear of the rim and orbs). */
+	private static final double MINIMAP_SAFE_RADIUS = 0.75;
+
+	/** Whether {@code (x, y)} lies within the safe disc of a minimap drawn in {@code bounds}. */
+	static boolean insideMinimapDisc(Rectangle bounds, int x, int y)
+	{
+		final double dx = x - bounds.getCenterX();
+		final double dy = y - bounds.getCenterY();
+		final double safeRadius = Math.min(bounds.width, bounds.height) / 2.0 * MINIMAP_SAFE_RADIUS;
+		return dx * dx + dy * dy <= safeRadius * safeRadius;
+	}
+
+	private static Widget minimapDrawArea(Client c)
+	{
+		if (!c.isResized())
+		{
+			return c.getWidget(net.runelite.api.widgets.ComponentID.FIXED_VIEWPORT_MINIMAP_DRAW_AREA);
+		}
+		return c.getWidget(c.getVarbitValue(net.runelite.api.Varbits.SIDE_PANELS) == 1
+			? net.runelite.api.widgets.ComponentID.RESIZABLE_VIEWPORT_BOTTOM_LINE_MINIMAP_DRAW_AREA
+			: net.runelite.api.widgets.ComponentID.RESIZABLE_VIEWPORT_MINIMAP_DRAW_AREA);
+	}
+
 	public static String getScriptWalkStatus() { return scriptWalkStatus; }
 
 	/** Called on the client thread before exact script menu actions. */
