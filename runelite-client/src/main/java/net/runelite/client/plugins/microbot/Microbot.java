@@ -113,6 +113,14 @@ public class Microbot {
         worldService = service;
     }
 
+    private static final net.runelite.client.plugins.microbot.util.mouse.Mouse MOUSE =
+            new net.runelite.client.plugins.microbot.util.mouse.Mouse();
+
+    /** As upstream: script mouse clicks, as session-gated taps on mobile. */
+    public static net.runelite.client.plugins.microbot.util.mouse.Mouse getMouse() {
+        return MOUSE;
+    }
+
     private static volatile net.runelite.client.game.ItemManager itemManager;
 
     /** As upstream: RuneLite's item manager (prices, item compositions); bound by the mobile plugin. */

@@ -423,6 +423,12 @@ public final class MobileActions
 		});
 	}
 
+	/** One script tap at a canvas point (upstream mouse clicks); one script action. */
+	public static boolean tap(int x, int y)
+	{
+		return perform(() -> JavaBridge.onScriptClick(x, y, permission));
+	}
+
 	/** Walks by tapping {@code destination} on the minimap; false when it is not safely on the minimap. */
 	public static boolean walkMinimap(WorldPoint destination)
 	{

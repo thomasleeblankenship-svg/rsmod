@@ -243,4 +243,25 @@ public class Rs2BankActionTest
 			assertFalse("nothing to deposit", Rs2Bank.depositItems(9999));
 		}
 	}
+
+	@Test
+	public void theDepositBoxDepositsEachMatchingStackOnceItLeaves()
+	{
+		Widget box = mock(Widget.class);
+		when(client.getWidget(192, 0)).thenReturn(box);
+		inventory(new Item(LOBSTER, 1), new Item(COINS, 3));
+		try (MockedStatic<MobileActions> actions = mockStatic(MobileActions.class, CALLS_REAL_METHODS))
+		{
+			actions.when(MobileActions::active).thenReturn(true);
+			actions.when(() -> MobileActions.widget(InterfaceID.BankDepositbox.INVENTORY, 0, "Deposit-All")).thenAnswer(call ->
+			{
+				inventory(new Item(-1, 0), new Item(COINS, 3));
+				return true;
+			});
+			assertTrue(net.runelite.client.plugins.microbot.util.depositbox.Rs2DepositBox.isOpen());
+			assertTrue(net.runelite.client.plugins.microbot.util.depositbox.Rs2DepositBox.depositAll(LOBSTER));
+			assertEquals(3, Rs2Inventory.itemQuantity(COINS));
+			actions.verify(() -> MobileActions.widget(eq(InterfaceID.BankDepositbox.INVENTORY), eq(1), anyString()), never());
+		}
+	}
 }
