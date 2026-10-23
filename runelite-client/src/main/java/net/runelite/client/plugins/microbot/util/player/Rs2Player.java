@@ -628,4 +628,11 @@ public final class Rs2Player
 			return player == null ? null : player.getInteracting();
 		}, null);
 	}
+
+	/** As upstream: the top-level scene is an instance (for example a player-owned house). */
+	public static boolean IsInInstance()
+	{
+		return net.runelite.client.plugins.microbot.mobile.MobileActions.read(() ->
+			net.runelite.client.plugins.microbot.Microbot.getClient().getTopLevelWorldView().getScene().isInstance(), false);
+	}
 }

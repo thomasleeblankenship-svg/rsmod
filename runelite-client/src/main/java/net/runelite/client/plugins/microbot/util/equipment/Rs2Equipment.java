@@ -128,6 +128,40 @@ public final class Rs2Equipment
 		}, null);
 	}
 
+	/** As upstream: every equipped item, read once on the client thread. */
+	public static java.util.stream.Stream<net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel> all()
+	{
+		java.util.List<net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel> worn = MobileActions.read(() ->
+		{
+			ItemContainer equipment = Microbot.getClient().getItemContainer(InventoryID.EQUIPMENT);
+			Item[] items = equipment == null ? null : equipment.getItems();
+			java.util.List<net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel> result = new java.util.ArrayList<>();
+			for (int slot = 0; items != null && slot < items.length; slot++)
+			{
+				net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel model = model(items[slot], slot);
+				if (model != null)
+				{
+					result.add(model);
+				}
+			}
+			return result;
+		}, java.util.Collections.emptyList());
+		return worn.stream();
+	}
+
+	/** As upstream: the first equipped item whose id is one of {@code ids}, or {@code null}. */
+	public static net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel get(int... ids)
+	{
+		if (ids == null || ids.length == 0) return null;
+		return get(item -> java.util.Arrays.stream(ids).anyMatch(id -> id == item.getId()));
+	}
+
+	/** As upstream: any of {@code ids} is equipped. */
+	public static boolean isWearing(int... ids)
+	{
+		return get(ids) != null;
+	}
+
 	private static net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel model(Item item, int slot)
 	{
 		if (item == null || item.getId() < 0 || item.getQuantity() <= 0)

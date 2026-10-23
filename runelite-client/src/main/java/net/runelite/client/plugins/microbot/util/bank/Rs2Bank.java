@@ -681,4 +681,28 @@ public final class Rs2Bank
 	{
 		return getBankItem(itemName, false);
 	}
+
+	/** As upstream: the remembered bank contents (see {@link #bankItems()}) as a stream. */
+	public static java.util.stream.Stream<Rs2ItemModel> getAll()
+	{
+		return bankItems().stream();
+	}
+
+	public static java.util.stream.Stream<Rs2ItemModel> getAll(Predicate<Rs2ItemModel> filter)
+	{
+		return getAll().filter(filter);
+	}
+
+	/** As upstream: quantity of the first remembered stack matching {@code name}, else 0. */
+	public static int count(String name, boolean exact)
+	{
+		Rs2ItemModel bankItem = getBankItem(name, exact);
+		return bankItem == null ? 0 : bankItem.getQuantity();
+	}
+
+	/** As upstream: {@link #count(String, boolean)} with a partial, case-insensitive name. */
+	public static int count(String name)
+	{
+		return count(name, false);
+	}
 }
