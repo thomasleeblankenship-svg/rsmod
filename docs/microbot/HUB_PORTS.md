@@ -37,6 +37,30 @@ reporting every error. The numbers below are compile errors after the shared Hub
 | 14 | drofirecape | 13,403 | 278 | prayer, thralls, inventory setups, input arbiter, minimap |
 | 15 | barrows | 3,830 | 291 | prayer, magic, combat spells, inventory setups, path API |
 
+## Batch 2 (user request: 10 more recently updated user-submitted scripts plus AI Wintertodt)
+
+Every Hub plugin is user-submitted, so these are Hub ranks 16–25 by last update, plus
+`mke_wintertodt`, which the Hub lists as "AI-Wintertodt" ("Advanced Wintertodt bot with
+human-like behavior"). Errors were measured the same way, after the shared base.
+
+| Plugin | Last update | Java lines | Errors |
+| --- | --- | --- | --- |
+| mining | 2026-10-18 | 1,633 | 32 |
+| toweroflife_creaturecreation | 2026-10-18 | 620 | 47 |
+| cluesolver | 2026-10-19 | 2,757 | 53 |
+| sulphurnaguafigther | 2026-10-19 | 1,262 | 71 |
+| shootingstar | 2026-10-17 | 3,333 | 78 |
+| nmz | 2026-10-21 | 854 | 90 |
+| drokbd | 2026-10-18 | 2,997 | 168 |
+| mke_wintertodt (AI-Wintertodt) | 2026-10-13 | 11,810 | 254 |
+| drozulrah | 2026-10-18 | 7,513 | 273 |
+| aiofighter | 2026-10-21 | 5,258 | 385 |
+| slayer | 2026-10-20 | 7,164 | 408 |
+
+`mke_wintertodt`'s "human-like behavior" is anti-detection and falls under the policy below.
+Batch 2 is ported after batch 1, in order of fewest errors; ports that share APIs with batch 1
+come almost for free.
+
 ## Policy for anti-detection features (applies to every port)
 
 Claude 1 does **not** port anti-ban or "human-like input" machinery: the `Rs2Antiban`
@@ -64,3 +88,4 @@ unchanged.
 | Hub base | Done (`PluginDescriptor` metadata, `PluginConstants`, `Overlay.setNaughty`) |
 | autochompykiller | Claude 1 half done; 5 compile errors left, all Claude 2 reads |
 | the other 14 | Not started |
+| batch 2 (11) | Queued after batch 1 |
