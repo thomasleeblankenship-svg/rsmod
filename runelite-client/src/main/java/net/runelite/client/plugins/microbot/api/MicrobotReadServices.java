@@ -12,7 +12,11 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
+import net.runelite.api.Player;
+import net.runelite.api.Scene;
+import net.runelite.api.Tile;
 import net.runelite.api.WorldView;
+import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.AnimationChanged;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.ItemContainerChanged;
@@ -193,6 +197,29 @@ public final class MicrobotReadServices implements MicrobotReadApi, MicrobotRunt
 		}
 		ids.addAll(worldViewIds);
 		return ids;
+	}
+
+	/**
+	 * Floor to scan in {@code worldView}: the local player's floor when the player
+	 * is in that view (the view's plane can lag a stair or ladder transition),
+	 * otherwise the view's plane. Call on the client thread.
+	 */
+	public int scanPlane(WorldView worldView)
+	{
+		Player player = client.getLocalPlayer();
+		WorldPoint location = player == null ? null : player.getWorldLocation();
+		if (location != null && player.getWorldView() == worldView)
+		{
+			return location.getPlane();
+		}
+		return worldView.getPlane();
+	}
+
+	/** The scene tiles of {@code plane}, or {@code null} when that floor is not loaded. */
+	public static Tile[][] planeTiles(Scene scene, int plane)
+	{
+		Tile[][][] tiles = scene.getTiles();
+		return tiles == null || plane < 0 || plane >= tiles.length ? null : tiles[plane];
 	}
 
 	@Subscribe

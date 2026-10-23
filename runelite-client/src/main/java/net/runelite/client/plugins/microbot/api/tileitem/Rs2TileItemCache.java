@@ -19,7 +19,8 @@ import net.runelite.client.plugins.microbot.api.TickSnapshotCache;
 import net.runelite.client.plugins.microbot.api.tileitem.models.Rs2TileItemModel;
 
 /**
- * Ground items on each loaded world view's current plane, polled once per tick
+ * Ground items on each loaded world view's scanned floor (the local player's floor
+ * when the player is in that view; see MicrobotReadServices#scanPlane), polled once per tick
  * on the client thread (upstream does not rely on ItemSpawned/ItemDespawned).
  * Obtain it through {@code Microbot.getRs2TileItemCache()}; only
  * {@link MicrobotReadServices} constructs it.
@@ -64,7 +65,12 @@ public final class Rs2TileItemCache
 				continue;
 			}
 
-			for (Tile[] tileRow : scene.getTiles()[worldView.getPlane()])
+			Tile[][] tiles = MicrobotReadServices.planeTiles(scene, services.scanPlane(worldView));
+			if (tiles == null)
+			{
+				continue;
+			}
+			for (Tile[] tileRow : tiles)
 			{
 				for (Tile tile : tileRow)
 				{

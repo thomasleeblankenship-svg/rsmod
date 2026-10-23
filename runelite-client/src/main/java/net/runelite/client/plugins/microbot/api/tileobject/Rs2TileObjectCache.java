@@ -12,7 +12,6 @@ import java.util.stream.Stream;
 import net.runelite.api.Client;
 import net.runelite.api.GameObject;
 import net.runelite.api.Scene;
-import net.runelite.api.Player;
 import net.runelite.api.Tile;
 import net.runelite.api.WorldView;
 import net.runelite.client.plugins.microbot.api.MicrobotReadServices;
@@ -20,8 +19,9 @@ import net.runelite.client.plugins.microbot.api.TickSnapshotCache;
 import net.runelite.client.plugins.microbot.api.tileobject.models.Rs2TileObjectModel;
 
 /**
- * Game, ground, wall and decorative objects on each loaded world view's current
- * plane, as a per-tick client-thread snapshot. A multi-tile game object is
+ * Game, ground, wall and decorative objects on each loaded world view's scanned
+ * floor (the local player's floor when the player is in that view; see
+ * {@link MicrobotReadServices#scanPlane}), as a per-tick client-thread snapshot. A multi-tile game object is
  * listed once, from its scene-min tile (upstream rule). Obtain it through
  * {@code Microbot.getRs2TileObjectCache()}; only {@link MicrobotReadServices}
  * constructs it.
@@ -66,18 +66,12 @@ public final class Rs2TileObjectCache
 				continue;
 			}
 
-			Player player = client.getLocalPlayer();
-			int plane = worldView.getPlane();
-			if (player != null && player.getWorldLocation() != null && player.getWorldView() == worldView)
-			{
-				plane = player.getWorldLocation().getPlane();
-			}
-			Tile[][][] tiles = scene.getTiles();
-			if (tiles == null || plane < 0 || plane >= tiles.length || tiles[plane] == null)
+			Tile[][] tiles = MicrobotReadServices.planeTiles(scene, services.scanPlane(worldView));
+			if (tiles == null)
 			{
 				continue;
 			}
-			for (Tile[] tileRow : tiles[plane])
+			for (Tile[] tileRow : tiles)
 			{
 				for (Tile tile : tileRow)
 				{
