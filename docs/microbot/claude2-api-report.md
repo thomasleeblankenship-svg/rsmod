@@ -7,6 +7,17 @@ live-game, device or APK evidence.
 
 ## Current status (read this first)
 
+**Update 2026-10-23 (M6).** Two more upstream caches are ported, both owned by
+`MicrobotReadServices` and listed in the coverage table below:
+
+- `Rs2PlayerStateCache` (varbits/varps), `7afa391`. Claude 1 switched
+  `Microbot.getVarbitValue`/`getVarbitPlayerValue` to it in `38887ac`.
+- `Rs2PlayerCache`/`Rs2PlayerModel` (other players), `609ac9e`. It waits for
+  Claude 1's `Microbot.getRs2PlayerCache()` getter.
+
+Cross-session claims and change notes are in [COORDINATION.md](COORDINATION.md).
+Everything below this update describes the original read-only stage.
+
 Base: `feat/android-microbot-compat` `239cdf5` plus this review. The rest of
 this report records the read-only stage. Where it differs, this section and
 [CODEX_HANDOFF_CURRENT.md](CODEX_HANDOFF_CURRENT.md) take precedence.
@@ -121,7 +132,13 @@ Status values: `native` (upstream semantics, same signature), `adapted`
     {"api": "Rs2Inventory.items()/items(Predicate)/all()/storeInventoryItemsInMemory", "status": "adapted", "note": "snapshot cleared on logout/hop/connection loss", "tests": ["PlayerInventoryReadTest.emptySnapshotFallsBackToTheLiveContainerWhenLoggedIn", "PlayerInventoryReadTest.otherContainersAreIgnored"]},
     {"api": "Rs2Inventory (all interactions, selection, drop, bank)", "status": "unsupported"},
     {"api": "Rs2ItemModel read getters", "status": "adapted", "note": "constructor takes linked composition; no lazy load, no setQuantity"},
-    {"api": "Rs2PlayerCache/Rs2PlayerModel/Rs2PlayerStateCache/Rs2BoatCache/Rs2Reachable", "status": "unsupported"}
+    {"api": "Rs2PlayerStateCache.getVarbitValue/getVarpValue", "status": "native", "note": "cached only while LOGGED_IN (zero included); VarbitChanged updates; login screen, hop and connection loss flush; LOADING keeps; unreachable client thread returns 0", "tests": ["Rs2PlayerStateCacheTest.*"]},
+    {"api": "Rs2PlayerStateCache quest states / local-player position", "status": "unsupported", "note": "quests need the Quest Helper module, which mobile does not ship"},
+    {"api": "MicrobotReadApi.getRs2PlayerStateCache()", "status": "adapted", "note": "Microbot.getVarbitValue/getVarbitPlayerValue delegate here (Claude 1, 38887ac)", "tests": ["Rs2PlayerStateCacheTest.servicesExposeOneCache"]},
+    {"api": "Rs2PlayerCache.query()/getStream()", "status": "adapted", "note": "per-tick snapshot across loaded world views, local player included", "tests": ["PlayerQueryTest.*"]},
+    {"api": "Rs2PlayerModel.getId/getName/getCombatLevel/getAnimation/isFriend/isClanMember/isFriendsChatMember/getSkullIcon/getOverheadIcon/getPlayer + actor getters", "status": "adapted", "note": "captured on the client thread at snapshot; upstream hops per call", "tests": ["PlayerQueryTest.modelCapturesRelationshipAndOverheadStateOnTheClientThread"]},
+    {"api": "Rs2PlayerModel.click/isSalvaging, Rs2PlayerCache.getPlayersStream (deprecated static)", "status": "unsupported", "note": "upstream click always returns false; omitted per IEntity"},
+    {"api": "Rs2BoatCache/Rs2Reachable", "status": "unsupported"}
   ]
 }
 ```
@@ -167,6 +184,12 @@ Status values: `native` (upstream semantics, same signature), `adapted`
   `WorldViewLoaded`, and empty the inventory on every region crossing.
 - **Boat projection.** Actor locations on a sub-world view are projected to the
   main world at plane 0, as upstream does. This path is not covered by tests.
+- **Player-state cache.** Same rules as upstream, routed by
+  `MicrobotReadServices` instead of self-registering on the event bus, and cleared
+  on `shutDown()`. A miss reads through `services.read`, so it has the same bounded
+  wait; on timeout it returns 0 and caches nothing.
+- **Player cache.** Same snapshot rules as the NPC cache. Relationship and overhead
+  state is captured once per snapshot rather than read live on each call.
 - **No lookalikes.** Actions (`click`, `interact`, `pickup`) and `isReachable`
   are removed from the interfaces rather than stubbed, so a script that needs
   them fails to compile instead of silently doing nothing.
