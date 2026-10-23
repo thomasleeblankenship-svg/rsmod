@@ -110,7 +110,12 @@ Implementation commit `024f3872` addresses these:
 5. Build helper accepts `--debug`; GitHub mobile workflow builds/uploads a
    debuggable APK and checks its debug flag and absence of bundled tokens.json.
 
-**These fixes have not been retested on a phone. Do not claim live-game success.**
+**Phone retest, user-reported 2026-10-23:** with the `024f387` debug APK, the user
+reports that dropping a full inventory now works (fix 1). This is the user's report; no
+logs or recording were attached. The user did not separately report whether the axe was
+kept (fix 3) or how the upstairs Lumbridge bank start behaved (fix 4), so both remain
+unconfirmed on a phone. Later walking-stall reports are tracked in the walking
+investigation above.
 
 ## Validation completed
 
