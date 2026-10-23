@@ -12,6 +12,7 @@ import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.events.ConfigChanged;
+import net.runelite.client.events.PluginChanged;
 import net.runelite.client.headless.ScriptInputSession;
 import net.runelite.client.plugins.microbot.MicrobotRuntime;
 import net.runelite.client.plugins.microbot.MicrobotScriptAdapter;
@@ -57,6 +58,7 @@ public class MobileMicrobotPlugin extends Plugin
 	private MobileScript current;
 	private ScriptKind activeKind;
 	private int tickCount;
+	private final HubPluginHost hub = new HubPluginHost(net.runelite.client.plugins.microbot.Microbot::stopPlugin);
 
 	@Provides
 	MobileMicrobotConfig provideConfig(ConfigManager manager)
@@ -85,12 +87,28 @@ public class MobileMicrobotPlugin extends Plugin
 				runtimeInstalled = true;
 				setRun(false);
 				enabled = true;
+				// RuneLite remembers enabled plugins; a Hub plugin back on after a restart was not
+				// explicitly started this session, so turn it off (no silent auto-start).
+				for (Plugin plugin : pluginManager == null ? java.util.List.<Plugin>of() : pluginManager.getPlugins())
+				{
+					if (HubPluginHost.isHubPlugin(plugin) && pluginManager.isPluginActive(plugin))
+					{
+						net.runelite.client.plugins.microbot.Microbot.stopPlugin(plugin);
+					}
+				}
 				MobileScriptBridge.attach(this);
 				MobileScriptBridge.update("Choose a script and enable Run script", "", false);
 			}
 			catch (RuntimeException exception)
 			{
 				cancelInput();
+				enabled = false;
+				if (runtimeInstalled)
+				{
+					// Never leave a half-started runtime installed behind a failed start.
+					MicrobotRuntime.uninstall();
+					runtimeInstalled = false;
+				}
 				setRun(false);
 				LOG.error("Mobile runtime initialization failed", exception);
 				MobileScriptBridge.update("Runtime initialization failed: " + exception.getClass().getSimpleName(), "", false);
@@ -109,6 +127,7 @@ public class MobileMicrobotPlugin extends Plugin
 		commandGeneration.incrementAndGet();
 		setRun(false);
 		MobileScriptBridge.detach(this);
+		hub.end(true);
 		clientThread.invokeLater(() ->
 		{
 			try
@@ -146,6 +165,8 @@ public class MobileMicrobotPlugin extends Plugin
 				{
 					commandGeneration.incrementAndGet();
 					cancelInput();
+					// One script at a time: a mobile script start turns off an active Hub plugin.
+					hub.end(true);
 					inputSession = new ScriptInputSession();
 					restartRequested = true;
 				}
@@ -161,10 +182,45 @@ public class MobileMicrobotPlugin extends Plugin
 		{
 			commandGeneration.incrementAndGet();
 			stopActive("Stopped: signed out, hopping or disconnected");
+			if (hub.end(true))
+			{
+				MobileScriptBridge.update("Hub plugin stopped: signed out, hopping or disconnected", "", false);
+			}
 			// This avoids a surprise restart after RuneMobile's automatic relogin.
 			if (config.runScript())
 			{
 				setRun(false);
+			}
+		}
+	}
+
+	/** Hub plugins: enabling one in the plugin list is the explicit start; see {@link HubPluginHost}. */
+	@Subscribe
+	public void onPluginChanged(PluginChanged event)
+	{
+		Plugin plugin = event.getPlugin();
+		if (!HubPluginHost.isHubPlugin(plugin))
+		{
+			return;
+		}
+		if (event.isLoaded())
+		{
+			if (enabled && runtimeInstalled && config.runScript())
+			{
+				commandGeneration.incrementAndGet();
+				setRun(false);
+				clientThread.invokeLater(() -> stopActive("Stopped: a Hub plugin was started"));
+			}
+			String status = hub.started(plugin, enabled && runtimeInstalled);
+			MobileScriptBridge.update(status, HubPluginHost.name(plugin), hub.isRunning());
+		}
+		else
+		{
+			boolean wasActive = hub.activePlugin() == plugin;
+			hub.stopped(plugin);
+			if (wasActive)
+			{
+				MobileScriptBridge.update("Hub plugin stopped: " + HubPluginHost.name(plugin), "", false);
 			}
 		}
 	}
@@ -175,6 +231,10 @@ public class MobileMicrobotPlugin extends Plugin
 		if (!enabled)
 		{
 			return;
+		}
+		if (hub.checkSession())
+		{
+			MobileScriptBridge.update("Hub plugin stopped: input session cancelled (app backgrounded or input fault)", "", false);
 		}
 		if (!config.runScript())
 		{
@@ -325,6 +385,7 @@ public class MobileMicrobotPlugin extends Plugin
 		}
 		final long generation = commandGeneration.incrementAndGet();
 		cancelInput();
+		hub.end(true);
 		final ScriptInputSession permission = new ScriptInputSession();
 		clientThread.invokeLater(() ->
 		{
