@@ -105,6 +105,24 @@ not ported.
 World hopping is done (2026-10-23): `Microbot.hopToWorld` and `Login.getRandomWorld`/`getNextWorld`.
 `new Login(...)` (auto-login with stored credentials) is not ported.
 
+## Free-to-play test set (2026-10-23)
+
+For testing on a free account, in rough order of simplicity. All are Hub copies unless noted, and
+none has run on a phone yet.
+
+| Plugin | Where / what | Needs |
+| --- | --- | --- |
+| Auto Woodcutting (built in, Microbot Mobile → Script) | Any F2P trees; drop or bank | An axe |
+| barbarianvillagefisher | Fly or bait fishing at Barbarian Village | Rod and feathers or bait |
+| autofishing | Fishing with banking (choose an F2P fish) | The tool and bait for that fish |
+| smelting | Furnace smelting (bronze, iron, steel and so on) | Ores in the bank, near a furnace |
+| gefiremaker | Firemaking on the campfires around the Grand Exchange | Logs and a tinderbox |
+| varrockanvil | Smithing at the Varrock West anvils | Bars and a hammer |
+| chillRunecraft | F2P runecrafting | Essence, and Rune Mysteries for the altars |
+
+`banksbankstander` (bank-standing skills) follows once Claude 2's `calculateInteractOrder` lands.
+`autoessencemining` needs the API's `ObjectID1` public and slot-to-slot item moves.
+
 ## How "mobile" the ported plugins are (2026-10-23)
 
 Compiling unchanged is not the same as working on a phone. Every ported plugin runs under the mobile
@@ -150,7 +168,7 @@ unchanged.
 | Plugin | Status |
 | --- | --- |
 | Hub base | Done (`PluginDescriptor` metadata, `PluginConstants`, `Overlay.setNaughty`) |
-| **Ported (28)** | autochompykiller, fishingtrawler, birdhunter, toweroflife_creaturecreation, salamanders, HueycoatlPrayer, sandcrabs, AmmoniteCrabs, animatedarmour, anonymous, autogauntletprayer, baggedplants, blessedwine, butterflycatcher, chillRunecraft, colosseumprayer, delveprayerhelper, gauntlethelper, goldrush, hunterKabbits, jad, lunartablets, minnowsfishing, pumper, theatre, varrockanvil, zeroprayer, zulrah. Hub sources copied byte-identical (Hub `ee6e066`) into `plugins/microbot/<name>/` with their resources; hosted by `HubPluginHost`, disabled by default (`HubPortedPluginsTest`). Style-only checkstyle/PMD exemptions are scoped to these directories. None run on a phone yet |
+| **Ported (32)** | smelting, gefiremaker, autofishing, barbarianvillagefisher, autochompykiller, fishingtrawler, birdhunter, toweroflife_creaturecreation, salamanders, HueycoatlPrayer, sandcrabs, AmmoniteCrabs, animatedarmour, anonymous, autogauntletprayer, baggedplants, blessedwine, butterflycatcher, chillRunecraft, colosseumprayer, delveprayerhelper, gauntlethelper, goldrush, hunterKabbits, jad, lunartablets, minnowsfishing, pumper, theatre, varrockanvil, zeroprayer, zulrah. Hub sources copied byte-identical (Hub `ee6e066`) into `plugins/microbot/<name>/` with their resources; hosted by `HubPluginHost`, disabled by default (`HubPortedPluginsTest`). Style-only checkstyle/PMD exemptions are scoped to these directories. None run on a phone yet |
 | Compile but not ported | `chatbot` (AI-written replies to other players in chat: presents the bot as a person to them), `microbotdashboardplus` (desktop Swing window and Discord webhooks; no phone equivalent), `actions` (library, no plugin), `playermonitor` (anti-detection policy) |
 | woodcutting (Hub) | Compiles unchanged, **not copied**: `plugins/microbot/woodcutting` is our mobile-adapted AutoWoodcutting (phone-tested), which a copy would overwrite. Batch 3's tenth slot passes to the next eligible plugin |
 | shared Hub APIs | Done: `@ConfigInformation`, break-handler lock state, camera, `Rs2Random`, plugin control, `interact`/`isWearing`, `waitForWalking`, inert anti-ban types, `dropAll`, `Rs2Inventory.interact`/`wield`/`wear`, `waitForXpDrop`, `IEntity.click`/queryable `interact`, public `HunterTrap`, `Rs2Bank` withdraw/deposit/walk overloads, `Rs2Keyboard.typeString`, `Rs2Tab`, `InterfaceTab`, walker location enums, `isInArea`, prayer toggles, auto retaliate, `eatAt`/`useFood`, `toggleRunEnergy` |
