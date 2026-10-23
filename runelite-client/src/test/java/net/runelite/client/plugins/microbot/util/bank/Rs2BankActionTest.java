@@ -30,6 +30,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyChar;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /** Upstream bank action overloads: chosen menu option, typed amounts and observed transfers. */
@@ -221,6 +222,25 @@ public class Rs2BankActionTest
 			assertFalse(Rs2Bank.withdrawOne("Shark"));
 			assertFalse(Rs2Bank.withdrawAll(9999));
 			actions.verify(() -> MobileActions.bank(anyInt(), anyInt(), anyString()), never());
+		}
+	}
+
+	@Test
+	public void depositItemsDepositsOneOfEachAndAFishBarrelIsEmptied()
+	{
+		inventory(new Item(LOBSTER, 1), new Item(COINS, 3), new Item(net.runelite.api.gameval.ItemID.FISH_BARREL_OPEN, 1));
+		try (MockedStatic<MobileActions> actions = mockStatic(MobileActions.class, CALLS_REAL_METHODS))
+		{
+			actions.when(MobileActions::active).thenReturn(true);
+			actions.when(() -> MobileActions.inventory(0, LOBSTER, "Deposit-1")).thenAnswer(call ->
+			{
+				inventory(new Item(-1, 0), new Item(COINS, 3), new Item(net.runelite.api.gameval.ItemID.FISH_BARREL_OPEN, 1));
+				return true;
+			});
+			actions.when(() -> MobileActions.inventory(eq(2), eq(net.runelite.api.gameval.ItemID.FISH_BARREL_OPEN), eq("Empty"))).thenReturn(true);
+			assertTrue(Rs2Bank.depositItems(LOBSTER));
+			assertTrue(Rs2Bank.emptyFishBarrel());
+			assertFalse("nothing to deposit", Rs2Bank.depositItems(9999));
 		}
 	}
 }

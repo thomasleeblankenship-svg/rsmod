@@ -113,6 +113,17 @@ public class Microbot {
         worldService = service;
     }
 
+    private static volatile net.runelite.client.game.ItemManager itemManager;
+
+    /** As upstream: RuneLite's item manager (prices, item compositions); bound by the mobile plugin. */
+    public static net.runelite.client.game.ItemManager getItemManager() {
+        return itemManager;
+    }
+
+    static void bindItemManager(net.runelite.client.game.ItemManager manager) {
+        itemManager = manager;
+    }
+
     /** As upstream: the game is between worlds. */
     public static boolean isHopping() {
         return MobileActions.read(() -> client.getGameState() == GameState.HOPPING, false);
@@ -291,6 +302,7 @@ public class Microbot {
         bind(null, null, null, null, null, null);
         pluginManager = null;
         worldService = null;
+        itemManager = null;
         pauseAllScripts.set(false);
         status = "IDLE";
     }

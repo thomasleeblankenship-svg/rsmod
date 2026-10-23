@@ -45,7 +45,11 @@ public class HubPortedPluginsTest
 		"net.runelite.client.plugins.microbot.theatre.TheatrePlugin",
 		"net.runelite.client.plugins.microbot.varrockanvil.VarrockAnvilPlugin",
 		"net.runelite.client.plugins.microbot.zeroprayer.AttackTimerMetronomePlugin",
-		"net.runelite.client.plugins.microbot.zulrah.ZulrahPlugin");
+		"net.runelite.client.plugins.microbot.zulrah.ZulrahPlugin",
+		"net.runelite.client.plugins.microbot.smelting.AutoSmeltingPlugin",
+		"net.runelite.client.plugins.microbot.gefiremaker.GEFiremakerPlugin",
+		"net.runelite.client.plugins.microbot.autofishing.AutoFishingPlugin",
+		"net.runelite.client.plugins.microbot.barbarianvillagefisher.BarbarianVillageFisherPlugin");
 
 	private static Plugin instance(String name) throws Exception
 	{

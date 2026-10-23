@@ -64,4 +64,28 @@ public final class Rs2Npc
 		return reachable.contains(location) || reachable.contains(location.dx(1)) || reachable.contains(location.dx(-1))
 			|| reachable.contains(location.dy(1)) || reachable.contains(location.dy(-1));
 	}
+
+	// ---- Actions (Claude 1) ----
+
+	/** As upstream: walks to the NPC and turns the camera to it; the same model, or null. */
+	public static Rs2NpcModel validateInteractable(Rs2NpcModel npc)
+	{
+		if (npc == null)
+		{
+			return null;
+		}
+		WorldPoint location = npc.getWorldLocation();
+		if (location != null)
+		{
+			Rs2Walker.walkTo(location);
+		}
+		net.runelite.client.plugins.microbot.util.camera.Rs2Camera.turnTo(npc);
+		return npc;
+	}
+
+	/** As upstream, for a live NPC. */
+	public static NPC validateInteractable(NPC npc)
+	{
+		return npc == null || validateInteractable(new Rs2NpcModel(npc)) == null ? null : npc;
+	}
 }
