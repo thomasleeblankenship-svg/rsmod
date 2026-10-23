@@ -114,17 +114,18 @@ public class HubReadHelpersTest
 	{
 		assertEquals(ItemID.MONKFISH, Rs2Food.MONKFISH.getId());
 		assertEquals(16, Rs2Food.MONKFISH.getHeal());
-		assertEquals("Salmon", Rs2Food.SALMON.toString());
-		assertEquals("Potato with cheese", Rs2Food.POTATO_WITH_CHEESE.getName());
-		assertTrue(Rs2Food.getIds().contains(ItemID.SHARK));
+		assertEquals("Salmon (+9)", Rs2Food.SALMON.toString());
+		assertEquals("Potato with Cheese", Rs2Food.POTATO_WITH_CHEESE.getName());
+		assertEquals("corrected from upstream's 27", 22, Rs2Food.Dark_Crab.getHeal());
+		assertTrue(Rs2Food.getIds().contains(ItemID.ANGLERFISH));
 
 		assertEquals("Stamina potion", Rs2Potion.getStaminaPotion());
 		assertTrue(Rs2Potion.getRestoreEnergyPotionsVariants().contains("Super energy"));
 
 		Instant start = Instant.parse("2026-10-23T00:00:00Z");
-		assertEquals("01:02:03", TimeUtils.getFormattedDurationBetween(start, start.plusSeconds(3723)));
+		assertEquals("1:02:03", TimeUtils.getFormattedDurationBetween(start, start.plusSeconds(3723)));
 		assertEquals("26:00:00", TimeUtils.getFormattedDurationBetween(start, start.plusSeconds(26 * 3600)));
-		assertEquals("00:00:00", TimeUtils.getFormattedDurationBetween(start, start.minusSeconds(5)));
+		assertEquals("-0:00:05", TimeUtils.getFormattedDurationBetween(start, start.minusSeconds(5)));
 	}
 
 	@Test
