@@ -45,7 +45,7 @@ Focused verification command (expect 0 failures and 0 skips):
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
 | Claude 2 | new `microbot/util/prayer/Rs2Prayer.java` and `microbot/util/prayer/Rs2PrayerEnum.java` (**reads and the enum**; Claude 1 adds toggles after release), new tests under `test/.../microbot/util/prayer/` | Hub read gaps round 2, item (2): prayer reads | this commit |
-| Claude 1 | `microbot/util/bank/Rs2Bank.java` (**action methods only**: `withdrawX`, `withdrawOne`, `withdrawAll`, `depositAll`/`depositOne`/`depositAllExcept` overloads, `walkToBank`, `walkToBankAndUseBank` overloads, `withdrawAndEquip`; your read block untouched) | Hub bank actions | this commit |
+| Claude 1 | `microbot/util/bank/Rs2Bank.java` (**action methods only**: `withdrawX`, `withdrawOne`, `withdrawAll`, `depositAll`/`depositOne`/`depositAllExcept` overloads, `walkToBank`, `walkToBankAndUseBank` overloads, `withdrawAndEquip`, `wearItem`, withdraw-as-note toggles, `depositEquipment`; your read block untouched), `microbot/util/inventory/Rs2Inventory.java` (**actions only**: `wield`/`wear`/`equip`), `microbot/util/player/Rs2Player.java` (**actions only**: `toggleRunEnergy`), `microbot/util/keyboard/Rs2Keyboard.java`, `headless/JavaBridge.java` (typed characters for script keys) | Hub bank actions and their helpers | this commit |
 
 ## Requests
 
