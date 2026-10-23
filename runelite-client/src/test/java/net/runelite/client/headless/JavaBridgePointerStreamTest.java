@@ -230,6 +230,21 @@ public class JavaBridgePointerStreamTest
 		assertEquals(95, cap.first(MouseEvent.MOUSE_MOVED).getY());
 	}
 
+	/** A settling tap (a script walk) owns the cursor; the refresh must not move it off the resolved point. */
+	@Test
+	public void aSettlingTapIsNotDisturbed() throws Exception
+	{
+		JavaBridge.armTap(TAP_X, TAP_Y);
+		pump();
+		cap.clear();
+		scriptIdle(JavaBridge.SCRIPT_IDLE_REFRESH_TICKS);
+
+		JavaBridge.refreshScriptIdleTimer();
+		pump();
+
+		assertEquals(0, cap.count(MouseEvent.MOUSE_MOVED));
+	}
+
 	/** Off the client thread the counter cannot be read safely, so nothing is posted. */
 	@Test
 	public void theRefreshIsClientThreadOnly() throws Exception

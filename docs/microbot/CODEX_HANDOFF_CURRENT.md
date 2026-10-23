@@ -76,8 +76,10 @@ Fix: `JavaBridge.refreshScriptIdleTimer()`, called from `MobileActions.perform`
 after each dispatched action. Once the mouse has been idle for one minute it
 posts one MOUSE_MOVED at the pointer's existing point (or the engine cursor if
 there was no touch yet). No new coordinates, no manual-input mark, nothing
-while a button is held. Tests: four new cases in JavaBridgePointerStreamTest.
-The focused suite (237 tests), checkstyle and PMD pass. Not phone-tested, and
+while a button is held or a script tap (including scene walks) is settling.
+Tests: five new cases in JavaBridgePointerStreamTest.
+Merged with the tap-yield and walk-retry commits; the focused suite (247
+tests), checkstyle and PMD pass. Not phone-tested, and
 this does not cover a script that dispatches nothing for 4+ minutes.
 
 ## Walking investigation in progress — preserve this work

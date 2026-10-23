@@ -2358,13 +2358,15 @@ public final class JavaBridge
 	 * {@link HeadlessLogin}'s reconnect never re-arms). Once the pointer has been still for
 	 * {@link #SCRIPT_IDLE_REFRESH_TICKS}, post one plain {@code MOUSE_MOVED} to the point the pointer already rests
 	 * on, the event a desktop mouse produces with every script click. Never names a new coordinate, never marks
-	 * manual input, and does nothing while a button is held. Client thread.
+	 * manual input, and does nothing while a button is held or a tap is settling (a move then would push the
+	 * engine's cursor off the point the gate is resolving, and the tap's own events reset the counter). Client
+	 * thread.
 	 */
 	public static void refreshScriptIdleTimer()
 	{
 		final Client c = client;
 		final Canvas canvas = liveCanvas();
-		if (c == null || canvas == null || !c.isClientThread() || pressed
+		if (c == null || canvas == null || !c.isClientThread() || pressed || tapState != TapState.IDLE || queuedTap
 			|| c.getMouseIdleTicks() < SCRIPT_IDLE_REFRESH_TICKS)
 		{
 			return;
