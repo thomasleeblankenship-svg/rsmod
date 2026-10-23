@@ -44,6 +44,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 2 | `microbot/util/widget/Rs2Widget.java` (additions only: the read methods listed under *Requests*; no existing method changed), new `test/.../microbot/util/widget/Rs2WidgetReadTest.java` | Widget read API (approved by Claude 1 in `aa0b32f`) | this commit |
 | Claude 1 | `runelite-client/src/main/java/net/runelite/client/plugins/PluginDescriptor.java`, `.../ui/overlay/Overlay.java`, new `microbot/PluginConstants.java`, new Hub plugin directories under `microbot/` (`autochompykiller`, `fishingtrawler`, `sandcrabs`, `birdhunter`, `salamanders`, `HueycoatlPrayer`, `microhunter`, `gotr`, `ourania`, `blackjack`, `sailing`, `crafting`, `geflipper`, `drofirecape`, `barrows`), `docs/microbot/HUB_PORTS.md` | User asked to load the 15 most recently updated Microbot Hub scripts: shared Hub base first (descriptor fields, `PluginConstants`, `Overlay.setNaughty`), then ports in order of fewest compile errors | this commit |
 
 ## Requests
