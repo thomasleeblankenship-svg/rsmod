@@ -1,10 +1,13 @@
 package net.runelite.client.plugins.microbot.shortestpath;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import net.runelite.api.coords.WorldPoint;
 
 /**
@@ -44,6 +47,8 @@ public final class PathResult
 		private final String action;
 		private final String name;
 		private final String displayInfo;
+		private final List<Set<Integer>> itemRequirements;
+		private final Set<Integer> itemIds;
 
 		TransportStep(Transport transport)
 		{
@@ -54,6 +59,37 @@ public final class PathResult
 			this.action = transport.getAction();
 			this.name = transport.getName();
 			this.displayInfo = transport.getDisplayInfo();
+			List<Set<Integer>> requirements = new ArrayList<>();
+			Set<Integer> ids = new TreeSet<>();
+			if (transport.getItemRequirements() != null)
+			{
+				for (TransportItemRequirement requirement : transport.getItemRequirements())
+				{
+					Set<Integer> alternatives = new TreeSet<>(requirement.getItemIds());
+					requirements.add(Collections.unmodifiableSet(alternatives));
+					ids.addAll(alternatives);
+				}
+			}
+			this.itemRequirements = Collections.unmodifiableList(requirements);
+			this.itemIds = Collections.unmodifiableSet(ids);
+		}
+
+		/**
+		 * Every item id that can satisfy one of this transport's item requirements (for a teleport
+		 * item: each charged or variant id of that item). Empty when no item is needed.
+		 */
+		public Set<Integer> getItemIds()
+		{
+			return itemIds;
+		}
+
+		/**
+		 * The item requirements as upstream's catalogue states them: all entries are needed, and each
+		 * entry is satisfied by any one of its ids.
+		 */
+		public List<Set<Integer>> getItemRequirements()
+		{
+			return itemRequirements;
 		}
 
 		public TransportType getType()
