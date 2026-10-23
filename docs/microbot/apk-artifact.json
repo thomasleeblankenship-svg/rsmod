@@ -25,7 +25,8 @@
   "github_download_build": "https://github.com/thomasleeblankenship-svg/rsmod/actions/runs/39908268468",
   "github_artifact_name": "runemobile-mobile-debug-arm64",
   "github_artifact_identity": "separate build; do not assume same hash or signing certificate",
-  "github_download_status": "in progress; local debug APK verified",
+  "github_download_status": "checks, build, verify and upload succeeded; artifact visible on run page",
   "debuggable": true,
-  "tokens_json_bundled": false
+  "tokens_json_bundled": false,
+  "github_artifact_url": "https://github.com/thomasleeblankenship-svg/rsmod/actions/runs/39908268468/artifacts/12481912474"
 }

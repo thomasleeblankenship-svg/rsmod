@@ -89,20 +89,21 @@ Codex web workspace/sandbox links previously failed for this user. Deliver the
 https://github.com/thomasleeblankenship-svg/rsmod/actions/runs/39908268468
 
 Artifact expected: `runemobile-mobile-debug-arm64`, containing APK,
-SOURCE_COMMIT.txt and SHA256SUMS.txt. At handoff creation, SDK setup, contract
-preflight and runtime checks succeeded; **Build test APK was still running**.
-Verification/upload not yet observed. Do not say the artifact is ready until
-it is visible. GitHub builds use their own key/hash; local hash above is not
+SOURCE_COMMIT.txt and SHA256SUMS.txt. The independent GitHub run completed successfully: contract preflight, runtime
+checks, build, APK verification and upload all passed. Artifact ID: 12481912474.
+Direct browser download (signed-in GitHub required):
+
+https://github.com/thomasleeblankenship-svg/rsmod/actions/runs/39908268468/artifacts/12481912474
+
+GitHub builds use their own key/hash; local hash above is not
 proof of remote APK identity.
 
 Next actions:
 
-1. Check that run's build, verification and upload succeed. Its job is
-   https://github.com/thomasleeblankenship-svg/rsmod/actions/runs/39908268468/job/120265107339
-2. Once visible, get artifact ID, construct
-   `https://github.com/thomasleeblankenship-svg/rsmod/actions/runs/39908268468/artifacts/ID`.
-3. Update WOODCUTTING_MOBILE.md and apk-artifact.json with ready status/direct
-   artifact URL; commit/push docs. Docs-only changes do not trigger another build.
+1. The artifact is ready at the direct link above; no rebuild is needed for
+   handoff-only documentation commits.
+2. Provide that link and the instructions below to the next tester.
+3. Keep artifact metadata and this handoff current after future source changes.
 4. Give user download/install instructions and ask them to retest one full
    Drop logs inventory (axe retained), then starting at Lumbridge bank upstairs.
    Manual taps intentionally cancel script input. Re-enable Run script afterward.
