@@ -92,4 +92,32 @@ public class PathfinderLegTest
 		assertEquals(List.of("Talk-to"), Rs2Walker.npcOptions(talk));
 		assertEquals(List.of("Braindeath Island", "Yes"), List.of(Rs2Walker.travelOptions(talk)));
 	}
+
+	@Test
+	public void aTeleportItemIsUsedWhereTheRouteReachesIt()
+	{
+		Rs2Walker.WalkLeg leg = legFor(result(PathResult.Status.FOUND, TILES,
+			Map.of(0, transport(null, GOAL, TransportType.TELEPORTATION_ITEM, null, "Games necklace: Burthorpe", -1))));
+		assertNotNull(leg);
+		assertTrue(leg.stairs.item);
+		assertEquals(A, leg.destination);
+		assertEquals(8, leg.stairs.arrivalRadius);
+		assertEquals("Games necklace", Rs2Walker.teleportItemName(leg.stairs));
+		assertEquals("Burthorpe", Rs2Walker.teleportDestination(leg.stairs));
+	}
+
+	@Test
+	public void disableTeleportsMakesTeleportRoutesFallBack()
+	{
+		Rs2Walker.disableTeleports = true;
+		try
+		{
+			assertNull(legFor(result(PathResult.Status.FOUND, TILES,
+				Map.of(0, transport(null, GOAL, TransportType.TELEPORTATION_ITEM, null, "Ring of dueling: Castle Wars", -1)))));
+		}
+		finally
+		{
+			Rs2Walker.disableTeleports = false;
+		}
+	}
 }

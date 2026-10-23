@@ -42,6 +42,8 @@ final class ObjectTransports
 		final boolean travel;
 		/** The destination as the catalogue names it, for picking a dialogue option; may be empty. */
 		final String destinationText;
+		/** A teleport item (jewellery, tablets): {@link #destinationText} is "Item name: Destination". */
+		final boolean item;
 
 		Step(WorldPoint origin, WorldPoint arrival, int objectId, String action, String target)
 		{
@@ -56,6 +58,13 @@ final class ObjectTransports
 		Step(WorldPoint origin, WorldPoint arrival, int objectId, String action, String target, int arrivalRadius,
 			boolean travel, String destinationText)
 		{
+			this(origin, arrival, objectId, action, target, arrivalRadius, travel, destinationText, false);
+		}
+
+		Step(WorldPoint origin, WorldPoint arrival, int objectId, String action, String target, int arrivalRadius,
+			boolean travel, String destinationText, boolean item)
+		{
+			this.item = item;
 			this.origin = origin;
 			this.arrival = arrival;
 			this.objectId = objectId;
