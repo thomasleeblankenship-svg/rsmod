@@ -113,6 +113,24 @@ public class PlayerInventoryReadTest
 	}
 
 	@Test
+	public void containsByNameIsExactByDefaultLikeUpstream()
+	{
+		define(1521, "Oak logs", false);
+		define(590, "Tinderbox", false);
+		inventoryChanged(inventory(new Item(1521, 1), new Item(590, 1)));
+
+		assertFalse(Rs2Inventory.contains("Logs"));
+		assertTrue(Rs2Inventory.contains("oak LOGS"));
+		assertTrue(Rs2Inventory.contains("Logs", false));
+		assertTrue(Rs2Inventory.contains(false, "logs", "rune"));
+		assertTrue(Rs2Inventory.contains("Bones", "Tinderbox"));
+		assertTrue(Rs2Inventory.contains(995, 590));
+		assertFalse(Rs2Inventory.contains(995));
+		// hasItem/get by name stay substring matches, as upstream.
+		assertTrue(Rs2Inventory.hasItem("logs"));
+	}
+
+	@Test
 	public void otherContainersAreIgnored()
 	{
 		define(995, "Coins", true);
