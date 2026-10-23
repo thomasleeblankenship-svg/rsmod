@@ -44,7 +44,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
-| Claude 2 | `microbot/util/bank/Rs2Bank.java` (**read methods only**, appended at the end; your actions untouched), new `test/.../microbot/util/bank/Rs2BankReadTest.java` | Hub read APIs item (5): `hasItem` overloads, `hasBankItem`, `getBankItem`, `bankItems`, `hasAllItems` | this commit |
+| Claude 2 | `microbot/util/bank/Rs2Bank.java` (**read methods and a remembered bank snapshot only**, appended at the end; your actions untouched), `microbot/api/MicrobotReadServices.java` (routes the bank `ItemContainerChanged`, clears on logout), new `test/.../microbot/util/bank/Rs2BankReadTest.java` | Hub read APIs item (5): `hasItem` overloads, `hasBankItem`, `getBankItem`, `bankItems`, `hasAllItems` | this commit |
 
 ## Requests
 
