@@ -17,6 +17,7 @@ import net.runelite.client.headless.ScriptInputSession;
 import net.runelite.client.plugins.microbot.MicrobotRuntime;
 import net.runelite.client.plugins.microbot.MicrobotScriptAdapter;
 import net.runelite.client.plugins.microbot.api.MicrobotReadServices;
+import net.runelite.client.plugins.microbot.mobile.MobileActions;
 import net.runelite.client.plugins.microbot.statemachineexample.StateMachineExampleConfig;
 import net.runelite.client.plugins.microbot.statemachineexample.StateMachineExampleScript;
 import net.runelite.client.plugins.Plugin;
@@ -47,6 +48,7 @@ public class MobileMicrobotPlugin extends Plugin
 	@Inject private MicrobotReadServices readServices;
 	@Inject private net.runelite.client.ui.overlay.OverlayManager overlayManager;
 	@Inject private net.runelite.client.plugins.PluginManager pluginManager;
+	@Inject private net.runelite.client.game.WorldService worldService;
 
 	private final AtomicLong commandGeneration = new AtomicLong();
 	private final AtomicLong lifecycleGeneration = new AtomicLong();
@@ -82,7 +84,7 @@ public class MobileMicrobotPlugin extends Plugin
 			}
 			try
 			{
-				MicrobotRuntime.install(client, clientThread, eventBus, configManager, pluginManager,
+				MicrobotRuntime.install(client, clientThread, eventBus, configManager, pluginManager, worldService,
 					java.util.List.of(readServices));
 				runtimeInstalled = true;
 				setRun(false);
@@ -178,6 +180,13 @@ public class MobileMicrobotPlugin extends Plugin
 	public void onGameStateChanged(GameStateChanged event)
 	{
 		GameState state = event.getGameState();
+		if (state == GameState.HOPPING && MobileActions.isExpectedHop())
+		{
+			// The running script asked for this hop (Microbot.hopToWorld); it keeps its session.
+			// Any other hop, or a disconnect during this one, still stops it below.
+			LOG.info("Script hop to world {} in progress; keeping its session", MobileActions.expectedHopWorld());
+			return;
+		}
 		if (state != GameState.LOGGED_IN && state != GameState.LOADING)
 		{
 			commandGeneration.incrementAndGet();

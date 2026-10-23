@@ -324,6 +324,56 @@ public final class MobileActions
 		});
 	}
 
+	// ---- Script-initiated world hops. The plugin keeps a session alive through a hop only while
+	// this records that the same session asked for it (see MobileMicrobotPlugin). ----
+
+	private static volatile ScriptInputSession hopOwner;
+	private static volatile int hopWorld = -1;
+	private static volatile long hopDeadlineNanos;
+
+	/** How long a requested hop may take before it no longer counts as the script's own. */
+	static final long HOP_GRACE_MILLIS = 30_000L;
+
+	/** Opens the world switcher (upstream's first hop step). One script action. */
+	public static boolean openWorldHopper()
+	{
+		return perform(() -> { client().openWorldHopper(); return true; });
+	}
+
+	/** Requests a hop to {@code world} and records it as this session's own. One script action. */
+	public static boolean hopToWorld(World world)
+	{
+		if (world == null) { return false; }
+		final ScriptInputSession owner = permission;
+		return perform(() ->
+		{
+			hopOwner = owner;
+			hopWorld = world.getId();
+			hopDeadlineNanos = System.nanoTime() + java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(HOP_GRACE_MILLIS);
+			client().hopToWorld(world);
+			return true;
+		});
+	}
+
+	/** True while the bound, still-active session has a hop of its own in flight. */
+	public static boolean isExpectedHop()
+	{
+		ScriptInputSession owner = hopOwner;
+		return owner != null && owner == permission && owner.isActive() && System.nanoTime() < hopDeadlineNanos;
+	}
+
+	/** The world of the hop in flight, or -1. */
+	public static int expectedHopWorld()
+	{
+		return isExpectedHop() ? hopWorld : -1;
+	}
+
+	public static void clearExpectedHop()
+	{
+		hopOwner = null;
+		hopWorld = -1;
+	}
+
 	/** Walks by tapping {@code destination} on the minimap; false when it is not safely on the minimap. */
 	public static boolean walkMinimap(WorldPoint destination)
 	{

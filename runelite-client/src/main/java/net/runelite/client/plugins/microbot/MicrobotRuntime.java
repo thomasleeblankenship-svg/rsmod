@@ -79,6 +79,21 @@ public final class MicrobotRuntime {
     }
 
     /**
+     * As {@link #install(Client, ClientThread, EventBus, ConfigManager, PluginManager, List)}, also
+     * binding RuneLite's {@link net.runelite.client.game.WorldService} so
+     * {@code Microbot.hopToWorld} and {@code Login}'s world selection work.
+     */
+    public static void install(Client client, ClientThread clientThread, EventBus eventBus,
+                               ConfigManager configManager, PluginManager pluginManager,
+                               net.runelite.client.game.WorldService worldService,
+                               List<? extends MicrobotRuntimeService> services) {
+        synchronized (LOCK) {
+            install(client, clientThread, eventBus, configManager, pluginManager, services);
+            Microbot.bindWorldService(worldService);
+        }
+    }
+
+    /**
      * Binds {@link Microbot}, subscribes the snapshot listeners and starts {@code services} in
      * order. The logged-in snapshot is seeded immediately on the client thread, or by a queued
      * client-thread task otherwise; until then it reads as logged out.

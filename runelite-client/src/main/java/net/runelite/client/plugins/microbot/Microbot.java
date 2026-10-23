@@ -3,12 +3,15 @@ package net.runelite.client.plugins.microbot;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
+import net.runelite.api.GameState;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginInstantiationException;
 import net.runelite.client.plugins.PluginManager;
+import net.runelite.client.plugins.microbot.util.Global;
+import net.runelite.client.plugins.microbot.mobile.MobileActions;
 import net.runelite.client.plugins.microbot.api.MicrobotReadServices;
 import net.runelite.client.plugins.microbot.api.npc.Rs2NpcCache;
 import net.runelite.client.plugins.microbot.api.player.Rs2PlayerCache;
@@ -97,6 +100,78 @@ public class Microbot {
 
     static void bindPluginManager(PluginManager manager) {
         pluginManager = manager;
+    }
+
+    private static volatile net.runelite.client.game.WorldService worldService;
+
+    /** RuneLite's world list service; bound by the mobile plugin. {@code null} when not bound. */
+    public static net.runelite.client.game.WorldService getWorldService() {
+        return worldService;
+    }
+
+    static void bindWorldService(net.runelite.client.game.WorldService service) {
+        worldService = service;
+    }
+
+    /** As upstream: the game is between worlds. */
+    public static boolean isHopping() {
+        return MobileActions.read(() -> client.getGameState() == GameState.HOPPING, false);
+    }
+
+    /**
+     * As upstream: hops to {@code worldNumber} and returns true once logged in there (up to about
+     * 20 seconds), or at once when already there. Mobile: the world switcher is opened and the hop
+     * requested as two script actions for the bound session, which records the hop as its own so the
+     * mobile plugin keeps the script running through it (any other hop or disconnect still stops
+     * it). Refused on the client thread, while logged out or with no bound script session.
+     */
+    public static boolean hopToWorld(int worldNumber) {
+        Client c = client;
+        if (c == null || c.isClientThread() || !isLoggedIn() || !MobileActions.active()) {
+            return false;
+        }
+        if (MobileActions.read(c::getWorld, -1) == worldNumber) {
+            return true;
+        }
+        net.runelite.http.api.worlds.WorldResult worlds = worldService == null ? null : worldService.getWorlds();
+        net.runelite.http.api.worlds.World target = worlds == null ? null : worlds.findWorld(worldNumber);
+        if (target == null) {
+            log.warn("Cannot hop: world {} is not in the world list", worldNumber);
+            return false;
+        }
+        net.runelite.api.World rsWorld = MobileActions.read(() -> {
+            net.runelite.api.World world = c.createWorld();
+            if (world == null) {
+                return null;
+            }
+            world.setActivity(target.getActivity());
+            world.setAddress(target.getAddress());
+            world.setId(target.getId());
+            world.setPlayerCount(target.getPlayers());
+            if (target.getRegion() != null) {
+                world.setLocation(target.getRegion().getId());
+            }
+            world.setTypes(net.runelite.client.util.WorldUtil.toWorldTypes(target.getTypes()));
+            return world;
+        }, null);
+        if (rsWorld == null
+                || !Global.sleepUntil(MobileActions::openWorldHopper, 2_000)
+                || !Global.sleepUntil(() -> MobileActions.hopToWorld(rsWorld), 3_000)) {
+            log.warn("Cannot hop to world {}: the request was not accepted", worldNumber);
+            return false;
+        }
+        try {
+            boolean started = Global.sleepUntil(() -> isHopping()
+                    || MobileActions.read(c::getWorld, -1) == worldNumber, 5_000);
+            boolean landed = started && Global.sleepUntil(() -> MobileActions.read(() ->
+                    c.getWorld() == worldNumber && c.getGameState() == GameState.LOGGED_IN, false), 15_000);
+            if (!landed) {
+                log.warn("Hop to world {} did not complete", worldNumber);
+            }
+            return landed;
+        } finally {
+            MobileActions.clearExpectedHop();
+        }
     }
 
     // --- plugin control, as upstream (togglePlugin runs on the EDT like the mobile plugin UI) ---
@@ -215,6 +290,7 @@ public class Microbot {
     static void unbind() {
         bind(null, null, null, null, null, null);
         pluginManager = null;
+        worldService = null;
         pauseAllScripts.set(false);
         status = "IDLE";
     }

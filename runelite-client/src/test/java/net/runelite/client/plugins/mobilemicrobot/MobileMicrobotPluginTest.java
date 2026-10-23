@@ -159,6 +159,26 @@ public class MobileMicrobotPluginTest
 	}
 
 	@Test
+	public void aHopTheScriptRequestedKeepsItRunningButADisconnectStillStopsIt()
+	{
+		start("DIAGNOSTICS");
+		try (org.mockito.MockedStatic<net.runelite.client.plugins.microbot.mobile.MobileActions> hop =
+			org.mockito.Mockito.mockStatic(net.runelite.client.plugins.microbot.mobile.MobileActions.class, org.mockito.Mockito.CALLS_REAL_METHODS))
+		{
+			hop.when(net.runelite.client.plugins.microbot.mobile.MobileActions::isExpectedHop).thenReturn(true);
+			GameStateChanged hopping = new GameStateChanged();
+			hopping.setGameState(GameState.HOPPING);
+			plugin.onGameStateChanged(hopping);
+			assertTrue(config.run);
+
+			GameStateChanged lost = new GameStateChanged();
+			lost.setGameState(GameState.CONNECTION_LOST);
+			plugin.onGameStateChanged(lost);
+			assertFalse(config.run);
+		}
+	}
+
+	@Test
 	public void disconnectInvalidatesPendingStart()
 	{
 		MobileScriptBridge.start("DIAGNOSTICS");
