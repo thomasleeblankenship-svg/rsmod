@@ -197,6 +197,11 @@ tasks.pmdMain {
     exclude("**/net/runelite/client/headless/MobileUiBridge.java")
     exclude("**/net/runelite/client/headless/MobileUiSmokeRunner.java")
     exclude("**/net/runelite/client/headless/TimeTrackingBridge.java")
+    // Microbot Hub plugins, byte-identical to chsami/Microbot-Hub: style-only PMD flags (printStackTrace,
+    // missing @Override, System.out) are upstream's. Listed per plugin so new code stays covered.
+    for (hub in listOf("autochompykiller", "fishingtrawler", "birdhunter")) {
+        exclude("**/net/runelite/client/plugins/microbot/$hub/**")
+    }
 }
 tasks.pmdTest { enabled = false }
 

@@ -63,6 +63,10 @@ come almost for free.
 
 ## Policy for anti-detection features (applies to every port)
 
+User asked (2026-10-23) to keep anti-ban "for measure". Kept as the inert compatibility layer: scripts
+compile, and the activity, play style and settings they request are recorded and readable. The active
+behaviour stays unported.
+
 Claude 1 does **not** port anti-ban or "human-like input" machinery: the `Rs2Antiban`
 behaviour settings (fatigue, attention span, mistakes, play-style), natural-mouse, mouse-motion
 humanisers (for example geflipper's `GeflipperMouseMotion`), or session fatigue. These exist to
@@ -86,7 +90,7 @@ unchanged.
 | Plugin | Status |
 | --- | --- |
 | Hub base | Done (`PluginDescriptor` metadata, `PluginConstants`, `Overlay.setNaughty`) |
-| autochompykiller | Claude 1 half done; 5 compile errors left, all Claude 2 reads |
-| shared Hub APIs | Done: `@ConfigInformation`, break-handler lock state, camera, `Rs2Random`, plugin control, more `interact`/`isWearing`, `waitForWalking` |
-| errors now | chompy 5, fishingtrawler 7, birdhunter 24, sandcrabs 27, gotr 38, salamanders 45, microhunter 47, HueycoatlPrayer 54, ourania 73, blackjack 78, sailing 127, crafting 139, geflipper 143, drofirecape 266, barrows 272 |
+| autochompykiller, fishingtrawler, birdhunter | **Ported**: Hub sources copied byte-identical (Hub `ee6e066`) into `plugins/microbot/<name>/` with their resources; hosted by `HubPluginHost`, disabled by default (`HubPortedPluginsTest`). Style-only checkstyle/PMD exemptions are scoped to these directories. Not yet run on a phone |
+| shared Hub APIs | Done: `@ConfigInformation`, break-handler lock state, camera, `Rs2Random`, plugin control, more `interact`/`isWearing`, `waitForWalking`, inert anti-ban types, `dropAll`, `Rs2Inventory.interact`, `waitForXpDrop`, `IEntity.click` and queryable `interact`, public `HunterTrap` |
+| errors now | sandcrabs 24, salamanders 10, microhunter 23, gotr 19, ourania 44, blackjack 40, HueycoatlPrayer 54, crafting 73, sailing 114, geflipper 136, barrows 166, drofirecape 222 |
 | batch 2 (11) | Queued after batch 1 |
