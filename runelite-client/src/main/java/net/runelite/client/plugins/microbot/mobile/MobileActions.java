@@ -339,6 +339,15 @@ public final class MobileActions
 		return perform(() -> JavaBridge.onScriptKey(keyCode, permission));
 	}
 
+	/** Types one character into the focused game input (one per game tick, like every action). */
+	public static boolean type(char character)
+	{
+		int keyCode = character == '\n' ? java.awt.event.KeyEvent.VK_ENTER
+			: java.awt.event.KeyEvent.getExtendedKeyCodeForChar(character);
+		if (keyCode == java.awt.event.KeyEvent.VK_UNDEFINED) { return false; }
+		return perform(() -> JavaBridge.onScriptKey(keyCode, character, permission));
+	}
+
 	private static boolean waitFor(BooleanSupplier condition, int millis)
 	{
 		if (MicrobotReadServices.current() == null || MicrobotReadServices.current().getClient().isClientThread()) { return false; }

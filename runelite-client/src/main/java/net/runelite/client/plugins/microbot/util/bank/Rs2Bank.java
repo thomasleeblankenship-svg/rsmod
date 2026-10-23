@@ -84,12 +84,7 @@ public final class Rs2Bank
 
 	public static BankLocation getNearestBank()
 	{
-		WorldPoint origin = location();
-		if (origin == null) return null;
-		return Arrays.stream(BankLocation.values())
-			.filter(bank -> bank.hasRequirements() && (bank.getWorldPoint().getPlane() == origin.getPlane()
-				|| Rs2Walker.canReachVertical(origin, bank.getWorldPoint())))
-			.min(Comparator.comparingInt(bank -> estimatedBankDistance(origin, bank.getWorldPoint()))).orElse(null);
+		return getNearestBank(location());
 	}
 
 	/** Same-plane distance plus a conservative stair overhead; not a claimed full shortest-path cost. */
@@ -149,8 +144,27 @@ public final class Rs2Bank
 
 	private static boolean withdraw(String name, String action)
 	{
-		if (!isOpen() || name == null || name.trim().isEmpty() || Rs2Inventory.isFull() || !setWithdrawAsItem()) return false;
-		int[] item = MobileActions.read(() ->
+		if (name == null || name.trim().isEmpty() || !setWithdrawAsItem()) return false;
+		return withdrawStack(findBankStack(name, false), action);
+	}
+
+	/** First live bank stack whose name matches, as {@code {slot, id}}; exact is case-insensitive equality. */
+	private static int[] findBankStack(String name, boolean exact)
+	{
+		if (name == null || name.trim().isEmpty()) return null;
+		String wanted = name.trim().toLowerCase(Locale.ROOT);
+		return findBankStack((id, itemName) -> itemName != null
+			&& (exact ? itemName.toLowerCase(Locale.ROOT).equals(wanted) : itemName.toLowerCase(Locale.ROOT).contains(wanted)));
+	}
+
+	private static int[] findBankStack(int itemId)
+	{
+		return findBankStack((id, itemName) -> id == itemId);
+	}
+
+	private static int[] findBankStack(java.util.function.BiPredicate<Integer, String> matcher)
+	{
+		return MobileActions.read(() ->
 		{
 			ItemContainer bank = Microbot.getClient().getItemContainer(InventoryID.BANK);
 			if (bank == null || bank.getItems() == null) return null;
@@ -160,16 +174,21 @@ public final class Rs2Bank
 				Item stack = slots[slot];
 				if (stack == null || stack.getId() < 0 || stack.getQuantity() <= 0) continue;
 				ItemComposition definition = Microbot.getClient().getItemDefinition(stack.getId());
-				if (definition != null && definition.getName() != null
-					&& definition.getName().toLowerCase(Locale.ROOT).contains(name.trim().toLowerCase(Locale.ROOT)))
+				if (matcher.test(stack.getId(), definition == null ? null : definition.getName()))
 					return new int[]{slot, stack.getId()};
 			}
 			return null;
 		}, null);
-		if (item == null) return false;
-		int before = inventoryQuantity(item[1]);
+	}
+
+	/** One bank-item action, then waits until the inventory gains items (noted or not). */
+	private static boolean withdrawStack(int[] item, String action)
+	{
+		if (!isOpen() || item == null) return false;
+		if (Rs2Inventory.isFull() && !Rs2Inventory.hasItem(item[1])) return false;
+		long before = inventoryTotal();
 		return Rs2Inventory.waitFor(() -> bankSlotMatches(item[0], item[1]) && MobileActions.bank(item[0], item[1], action), 2_000)
-			&& Rs2Inventory.waitFor(() -> inventoryQuantity(item[1]) > before, 3_000);
+			&& Rs2Inventory.waitFor(() -> inventoryTotal() > before, 3_000);
 	}
 
 	private static boolean bankSlotMatches(int slot, int id)
@@ -211,6 +230,282 @@ public final class Rs2Bank
 	private static int inventoryQuantity(int id)
 	{
 		return Rs2Inventory.items(i -> i.getId() == id).mapToInt(Rs2ItemModel::getQuantity).sum();
+	}
+
+	// ---- Upstream bank actions (Microbot API names, written for mobile) ----
+	// Each dispatches through MobileActions (bound script session, one action per game tick) and,
+	// unless noted, returns true only once the transfer is observed. Unlike withdrawItem(boolean,
+	// String) and withdrawAll(String) above, which force withdraw-as-item for the woodcutting
+	// workflow, these follow upstream and keep the bank's current item/note mode.
+
+	public static boolean withdrawOne(int id) { return withdrawStack(findBankStack(id), "Withdraw-1"); }
+	public static boolean withdrawOne(String name) { return withdrawOne(name, false); }
+	public static boolean withdrawOne(String name, boolean exact) { return withdrawStack(findBankStack(name, exact), "Withdraw-1"); }
+	public static boolean withdrawItem(String name) { return withdrawOne(name); }
+	public static boolean withdrawItem(int id) { return withdrawOne(id); }
+
+	public static boolean withdrawItem(boolean checkInv, int id)
+	{
+		return checkInv && Rs2Inventory.hasItem(id) || withdrawOne(id);
+	}
+
+	public static boolean withdrawAll(int id) { return withdrawStack(findBankStack(id), "Withdraw-All"); }
+	public static boolean withdrawAll(String name, boolean exact) { return withdrawStack(findBankStack(name, exact), "Withdraw-All"); }
+
+	public static boolean withdrawAll(boolean checkInv, String name)
+	{
+		return withdrawAll(checkInv, name, false);
+	}
+
+	public static boolean withdrawAll(boolean checkInv, String name, boolean exact)
+	{
+		return checkInv && Rs2Inventory.hasItem(name, exact) || withdrawAll(name, exact);
+	}
+
+	public static boolean withdrawX(int id, int amount) { return withdrawAmount(findBankStack(id), amount); }
+	public static boolean withdrawX(String name, int amount) { return withdrawX(name, amount, false); }
+	public static boolean withdrawX(String name, int amount, boolean exact) { return withdrawAmount(findBankStack(name, exact), amount); }
+
+	public static boolean withdrawX(boolean checkInv, int id, int amount)
+	{
+		return checkInv && Rs2Inventory.hasItemAmount(id, amount) || withdrawX(id, amount);
+	}
+
+	public static boolean withdrawX(boolean checkInv, String name, int amount)
+	{
+		return withdrawX(checkInv, name, amount, false);
+	}
+
+	public static boolean withdrawX(boolean checkInv, String name, int amount, boolean exact)
+	{
+		return checkInv && Rs2Inventory.hasItemAmount(name, amount, false, exact) || withdrawX(name, amount, exact);
+	}
+
+	/** As upstream: withdraws only what the inventory lacks; false when the bank has too few. */
+	public static boolean withdrawDeficit(int id, int requiredAmount)
+	{
+		int deficit = requiredAmount - Rs2Inventory.itemQuantity(id);
+		return deficit <= 0 || hasBankItem(id, deficit) && withdrawX(id, deficit);
+	}
+
+	public static boolean withdrawDeficit(String name, int requiredAmount) { return withdrawDeficit(name, requiredAmount, false); }
+
+	public static boolean withdrawDeficit(String name, int requiredAmount, boolean exact)
+	{
+		int deficit = requiredAmount - Rs2Inventory.itemQuantity(name, exact);
+		return deficit <= 0 || hasBankItem(name, deficit, exact) && withdrawX(name, deficit, exact);
+	}
+
+	/**
+	 * Withdraw-1/5/10, the bank's remembered Withdraw-{@code amount} option, or Withdraw-X followed
+	 * by typing the amount into the prompt (one digit per game tick).
+	 */
+	private static boolean withdrawAmount(int[] item, int amount)
+	{
+		if (item == null || amount <= 0) return false;
+		if (amount == 1 || amount == 5 || amount == 10 || hasBankAction(item[0], "Withdraw-" + amount))
+			return withdrawStack(item, "Withdraw-" + amount);
+		if (!isOpen() || Rs2Inventory.isFull() && !Rs2Inventory.hasItem(item[1])) return false;
+		long before = inventoryTotal();
+		return Rs2Inventory.waitFor(() -> bankSlotMatches(item[0], item[1]) && MobileActions.bank(item[0], item[1], "Withdraw-X"), 2_000)
+			&& enterAmount(amount)
+			&& Rs2Inventory.waitFor(() -> inventoryTotal() > before, 3_000);
+	}
+
+	private static boolean hasBankAction(int slot, String action)
+	{
+		return MobileActions.read(() ->
+		{
+			Widget container = Microbot.getClient().getWidget(InterfaceID.Bankmain.ITEMS);
+			Widget item = container == null ? null : container.getChild(slot);
+			return item != null && item.getActions() != null
+				&& Arrays.stream(item.getActions()).anyMatch(action::equalsIgnoreCase);
+		}, false);
+	}
+
+	/** The bank-side inventory slot offers {@code action} (for example the remembered Deposit-{@code n}). */
+	private static boolean hasDepositAction(int slot, String action)
+	{
+		return MobileActions.read(() ->
+		{
+			Widget container = Microbot.getClient().getWidget(net.runelite.api.widgets.WidgetInfo.BANK_INVENTORY_ITEMS_CONTAINER);
+			Widget item = container == null ? null : container.getChild(slot);
+			return item != null && item.getActions() != null
+				&& Arrays.stream(item.getActions()).anyMatch(action::equalsIgnoreCase);
+		}, false);
+	}
+
+	/** Waits for the chatbox amount prompt, then types the amount and Enter. */
+	private static boolean enterAmount(int amount)
+	{
+		return Rs2Inventory.waitFor(() -> MobileActions.read(() ->
+				Microbot.getClient().getVarcIntValue(net.runelite.api.VarClientInt.INPUT_TYPE) != 0, false), 3_000)
+			&& net.runelite.client.plugins.microbot.util.keyboard.Rs2Keyboard.typeString(Integer.toString(amount))
+			&& net.runelite.client.plugins.microbot.util.keyboard.Rs2Keyboard.enter();
+	}
+
+	public static boolean depositOne(int id) { return depositItem(Rs2Inventory.get(id), "Deposit-1"); }
+	public static boolean depositOne(String name) { return depositOne(name, false); }
+
+	public static boolean depositOne(String name, boolean exact)
+	{
+		return depositItem(firstInventory(name, exact), "Deposit-1");
+	}
+
+	public static boolean depositX(int id, int amount) { return depositAmount(Rs2Inventory.get(id), amount); }
+	public static boolean depositX(String name, int amount) { return depositAmount(firstInventory(name, false), amount); }
+
+	public static boolean depositAll(int id) { return depositAll(i -> i.getId() == id); }
+	public static boolean depositAll(String name) { return depositAll(name, false); }
+
+	public static boolean depositAll(String name, boolean exact)
+	{
+		return depositAll(i -> nameMatches(i.getName(), name, exact));
+	}
+
+	/** As upstream: the deposit-inventory button; true at once when the inventory is already empty. */
+	public static boolean depositAll()
+	{
+		if (Rs2Inventory.isEmpty()) return true;
+		if (!isOpen()) return false;
+		return Rs2Inventory.waitFor(() -> MobileActions.widget(InterfaceID.Bankmain.DEPOSITINV, -1, ""), 2_000)
+			&& Rs2Inventory.waitFor(Rs2Inventory::isEmpty, 5_000);
+	}
+
+	/** As upstream: the deposit-worn-items button; {@code true} means dispatched. */
+	public static boolean depositEquipment()
+	{
+		return isOpen() && Rs2Inventory.waitFor(() -> MobileActions.widget(InterfaceID.Bankmain.DEPOSITWORN, -1, ""), 2_000);
+	}
+
+	public static boolean depositAllExcept(Predicate<Rs2ItemModel> keep) { return depositAll(keep.negate()); }
+
+	public static boolean depositAllExcept(Integer... ids)
+	{
+		return depositAll(i -> Arrays.stream(ids).noneMatch(id -> id == i.getId()));
+	}
+
+	public static boolean depositAllExcept(String... names) { return depositAllExcept(false, names); }
+
+	public static boolean depositAllExcept(java.util.Collection<String> names) { return depositAllExcept(names.toArray(String[]::new)); }
+
+	public static boolean depositAllExcept(boolean exact, String... names)
+	{
+		return depositAll(i -> Arrays.stream(names).noneMatch(n -> nameMatches(i.getName(), n, exact)));
+	}
+
+	private static boolean depositItem(Rs2ItemModel item, String action)
+	{
+		if (!isOpen() || item == null) return false;
+		long before = inventoryTotal();
+		return Rs2Inventory.waitFor(() -> MobileActions.inventory(item.getSlot(), item.getId(), action), 2_000)
+			&& Rs2Inventory.waitFor(() -> inventoryTotal() < before, 3_000);
+	}
+
+	private static boolean depositAmount(Rs2ItemModel item, int amount)
+	{
+		if (item == null || amount <= 0) return false;
+		if (amount == 1 || amount == 5 || amount == 10) return depositItem(item, "Deposit-" + amount);
+		if (hasDepositAction(item.getSlot(), "Deposit-" + amount)) return depositItem(item, "Deposit-" + amount);
+		if (!isOpen()) return false;
+		long before = inventoryTotal();
+		return Rs2Inventory.waitFor(() -> MobileActions.inventory(item.getSlot(), item.getId(), "Deposit-X"), 2_000)
+			&& enterAmount(amount)
+			&& Rs2Inventory.waitFor(() -> inventoryTotal() < before, 3_000);
+	}
+
+	/** As upstream: withdraws one and equips it; true at once when already worn. */
+	public static boolean withdrawAndEquip(String name)
+	{
+		if (net.runelite.client.plugins.microbot.util.equipment.Rs2Equipment.isWearing(name)) return true;
+		return withdrawOne(name) && wearItem(name);
+	}
+
+	public static boolean withdrawAndEquip(int id)
+	{
+		if (net.runelite.client.plugins.microbot.util.equipment.Rs2Equipment.isWearing(id)) return true;
+		return withdrawOne(id) && wearItem(id);
+	}
+
+	/** As upstream: equips an inventory item while the bank is open; {@code true} means dispatched. */
+	public static boolean wearItem(String name) { return wearItem(name, false); }
+
+	public static boolean wearItem(String name, boolean exact)
+	{
+		return isOpen() && Rs2Inventory.equip(firstInventory(name, exact));
+	}
+
+	public static boolean wearItem(int id)
+	{
+		return isOpen() && Rs2Inventory.equip(Rs2Inventory.get(id));
+	}
+
+	public static boolean hasWithdrawAsNote() { return withdrawMode() == 1; }
+	public static boolean hasWithdrawAsItem() { return withdrawMode() == 0; }
+
+	/** As upstream: the note toggle; observed after clicking. */
+	public static boolean setWithdrawAsNote()
+	{
+		if (!isOpen()) return false;
+		if (hasWithdrawAsNote()) return true;
+		return Rs2Inventory.waitFor(() -> MobileActions.widget(InterfaceID.Bankmain.NOTE, -1, ""), 2_000)
+			&& Rs2Inventory.waitFor(Rs2Bank::hasWithdrawAsNote, 3_000);
+	}
+
+	public static BankLocation getNearestBank(WorldPoint origin)
+	{
+		if (origin == null) return null;
+		return Arrays.stream(BankLocation.values())
+			.filter(bank -> bank.hasRequirements() && (bank.getWorldPoint().getPlane() == origin.getPlane()
+				|| Rs2Walker.canReachVertical(origin, bank.getWorldPoint())))
+			.min(Comparator.comparingInt(bank -> estimatedBankDistance(origin, bank.getWorldPoint()))).orElse(null);
+	}
+
+	/** As upstream: any bank on this floor within {@code distance} tiles. */
+	public static boolean isNearBank(int distance)
+	{
+		WorldPoint origin = location();
+		return origin != null && Arrays.stream(BankLocation.values())
+			.anyMatch(b -> b.getWorldPoint().getPlane() == origin.getPlane() && b.getWorldPoint().distanceTo2D(origin) <= distance);
+	}
+
+	public static boolean walkToBank() { return walkToBank(getNearestBank()); }
+	public static boolean walkToBank(BankLocation bank) { return walkToBank(bank, true); }
+
+	/** As upstream: walks to the bank and returns true when within 4 tiles (or the bank is open). */
+	public static boolean walkToBank(BankLocation bank, boolean toggleRun)
+	{
+		if (bank == null) return false;
+		if (isOpen()) return true;
+		net.runelite.client.plugins.microbot.util.player.Rs2Player.toggleRunEnergy(toggleRun);
+		if (!isNearBank(bank, 4)) Rs2Walker.walkTo(bank.getWorldPoint(), 4);
+		return isNearBank(bank, 4);
+	}
+
+	public static boolean walkToBankAndUseBank() { return walkToBankAndUseBank(getNearestBank()); }
+
+	public static boolean walkToBankAndUseBank(BankLocation bank, boolean toggleRun)
+	{
+		if (isOpen()) return true;
+		net.runelite.client.plugins.microbot.util.player.Rs2Player.toggleRunEnergy(toggleRun);
+		return walkToBankAndUseBank(bank);
+	}
+
+	private static Rs2ItemModel firstInventory(String name, boolean exact)
+	{
+		return Rs2Inventory.items(i -> nameMatches(i.getName(), name, exact)).findFirst().orElse(null);
+	}
+
+	private static boolean nameMatches(String candidate, String search, boolean exact)
+	{
+		if (candidate == null || search == null || search.trim().isEmpty()) return false;
+		return exact ? candidate.equalsIgnoreCase(search.trim())
+			: candidate.toLowerCase(Locale.ROOT).contains(search.trim().toLowerCase(Locale.ROOT));
+	}
+
+	private static long inventoryTotal()
+	{
+		return Rs2Inventory.items(i -> true).mapToLong(Rs2ItemModel::getQuantity).sum();
 	}
 
 	// ---- Hub read APIs: remembered bank contents (Microbot API names, written for mobile) ----

@@ -961,6 +961,17 @@ public final class JavaBridge
 	/** Script keyboard input never enters the native/manual-input path. */
 	public static boolean onScriptKey(int keyCode, ScriptInputSession owner)
 	{
+		char typed = keyCode == KeyEvent.VK_SPACE ? ' ' : keyCode == KeyEvent.VK_ENTER ? '\n'
+			: keyCode >= KeyEvent.VK_0 && keyCode <= KeyEvent.VK_9 ? (char) keyCode : KeyEvent.CHAR_UNDEFINED;
+		return onScriptKey(keyCode, typed, owner);
+	}
+
+	/**
+	 * One script key press with an explicit typed character (for text prompts); {@code typed} may be
+	 * {@link KeyEvent#CHAR_UNDEFINED} for a key without text. Same guards as {@link #onScriptKey(int, ScriptInputSession)}.
+	 */
+	public static boolean onScriptKey(int keyCode, char typed, ScriptInputSession owner)
+	{
 		final long epoch = ScriptInputSession.inputEpoch();
 		final Client c = client;
 		final Canvas canvas = liveCanvas();
@@ -970,8 +981,6 @@ public final class JavaBridge
 		{
 			return false;
 		}
-		char typed = keyCode == KeyEvent.VK_SPACE ? ' ' : keyCode == KeyEvent.VK_ENTER ? '\n'
-			: keyCode >= KeyEvent.VK_0 && keyCode <= KeyEvent.VK_9 ? (char) keyCode : KeyEvent.CHAR_UNDEFINED;
 		EventQueue.invokeLater(() ->
 		{
 			if (!owner.allows(epoch)) { return; }
