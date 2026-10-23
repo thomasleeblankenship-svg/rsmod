@@ -57,6 +57,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class Microbot {
     public static AtomicBoolean pauseAllScripts = new AtomicBoolean(false);
     public static String status = "IDLE";
+    /**
+     * Upstream feature flag. Accepted for source compatibility; mobile scripts never toggle run
+     * on automatically, so any value behaves as {@code false}.
+     */
+    public static boolean enableAutoRunOn = true;
 
     private static volatile Client client;
     private static volatile ClientThread clientThread;

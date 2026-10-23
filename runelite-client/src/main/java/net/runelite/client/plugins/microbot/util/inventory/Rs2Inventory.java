@@ -307,6 +307,13 @@ public final class Rs2Inventory
 		return false;
 	}
 
+	/** As upstream: drops the first inventory item with this ID; {@code true} means dispatched. */
+	public static boolean drop(int id)
+	{
+		Rs2ItemModel item = get(id);
+		return item != null && dropSlot(item);
+	}
+
 	public static boolean drop(String name)
 	{
 		Rs2ItemModel item = get(name);

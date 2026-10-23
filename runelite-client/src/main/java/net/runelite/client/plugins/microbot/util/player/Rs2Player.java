@@ -257,6 +257,21 @@ public final class Rs2Player
 	private static final java.util.Map<Integer, Long> playerDetectionTimes = new java.util.concurrent.ConcurrentHashMap<>();
 
 	/** The uploaded script logs out here; a separate desktop auto-login plugin supplies world hopping. */
+	/**
+	 * As upstream: logs out when logged in, through the logout button's exact menu action. The
+	 * mobile plugin then stops the script on the resulting game-state change, and does not
+	 * auto-login after a requested logout.
+	 */
+	public static void logout()
+	{
+		if (!net.runelite.client.plugins.microbot.Microbot.isLoggedIn())
+		{
+			return;
+		}
+		net.runelite.client.plugins.microbot.mobile.MobileActions.widget(
+			net.runelite.api.widgets.WidgetInfo.LOGOUT_BUTTON.getId(), -1, "Logout");
+	}
+
 	public static boolean logoutIfPlayerDetected(int amountOfPlayers, int time)
 	{
 		return logoutIfPlayerDetected(amountOfPlayers, time, 0);

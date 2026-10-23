@@ -75,6 +75,63 @@ public final class Rs2Walker
 		GENERATION.incrementAndGet();
 	}
 
+	/** Upstream overload; the reason is logged only. {@code null} cancels any walk in progress. */
+	public static void setTarget(WorldPoint point, String reason)
+	{
+		LOG.debug("Walker target {} ({})", point, reason);
+		setTarget(point);
+	}
+
+	/**
+	 * Non-blocking walk, as upstream: at most one walk dispatch per call, returning
+	 * {@link WalkerState#ARRIVED} within {@code distance}, {@link WalkerState#MOVING} while making
+	 * progress, {@link WalkerState#UNREACHABLE} when no same-floor route exists, and
+	 * {@link WalkerState#EXIT} when cancelled, called on the client thread or while the human owns
+	 * input. Like upstream it does not cross transports; use {@link #walkTo} for those.
+	 * Mobile: dispatches a scene-resolved walk instead of a minimap click.
+	 */
+	public static WalkerState walkStep(WorldPoint destination, int distance)
+	{
+		Client client = Microbot.getClient();
+		if (destination == null || client == null || client.isClientThread() || !MobileActions.active()
+			|| MicrobotRuntime.humanOwnsInput())
+		{
+			return WalkerState.EXIT;
+		}
+		MobileRoutePlanner.Scene scene = snapshot();
+		if (scene == null || scene.player == null)
+		{
+			return WalkerState.MOVING;
+		}
+		int radius = Math.max(0, distance);
+		if (arrived(scene.player, destination, radius))
+		{
+			return WalkerState.ARRIVED;
+		}
+		if (scene.player.getPlane() != destination.getPlane())
+		{
+			return WalkerState.UNREACHABLE;
+		}
+		List<WorldPoint> route = plan(scene, destination, radius);
+		if (route.isEmpty())
+		{
+			return WalkerState.UNREACHABLE;
+		}
+		target = destination;
+		// Furthest scene tile within reach on the route, then nearer ones if it is offscreen.
+		int furthest = Math.min(route.size() - 1, 10);
+		for (int i = furthest; i > 0; i--)
+		{
+			WorldPoint step = route.get(i);
+			if (scene.contains(step) && MobileActions.walk(step))
+			{
+				lastStatus = "Walking to " + destination;
+				break;
+			}
+		}
+		return WalkerState.MOVING;
+	}
+
 	public static boolean walkTo(WorldPoint destination)
 	{
 		return walkTo(destination, 1);

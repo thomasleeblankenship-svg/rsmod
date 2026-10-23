@@ -2,6 +2,7 @@ package net.runelite.client.plugins.microbot.util.equipment;
 
 import java.util.Locale;
 import java.util.function.Predicate;
+import net.runelite.api.EquipmentInventorySlot;
 import net.runelite.api.Item;
 import net.runelite.api.ItemComposition;
 import net.runelite.api.ItemContainer;
@@ -29,6 +30,23 @@ public final class Rs2Equipment
 			return definition != null && definition.getName() != null
 				&& definition.getName().toLowerCase(Locale.ROOT).contains(needle);
 		});
+	}
+
+	/** As upstream: true when any of the given slots holds an item. Read on the client thread. */
+	public static boolean isWearing(EquipmentInventorySlot... slots)
+	{
+		if (slots == null || slots.length == 0) return false;
+		return MobileActions.read(() ->
+		{
+			ItemContainer equipment = Microbot.getClient().getItemContainer(InventoryID.EQUIPMENT);
+			if (equipment == null) return false;
+			for (EquipmentInventorySlot slot : slots)
+			{
+				Item item = slot == null ? null : equipment.getItem(slot.getSlotIdx());
+				if (item != null && item.getId() >= 0) return true;
+			}
+			return false;
+		}, false);
 	}
 
 	public static boolean hasWoodcuttingAxe()
