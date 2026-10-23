@@ -45,7 +45,6 @@ Focused verification command (expect 0 failures and 0 skips):
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
 | *(none)* | | | |
-| Claude 1 | `microbot/util/walker/**`, `microbot/util/magic/Rs2Magic.java` (**casting only**: `quickCast(String)`) | Webwalker step 5: teleport spells | this commit |
 
 ## Requests
 
@@ -73,6 +72,7 @@ claims, requests and log entries go in this file.
 
 | Commit | Session | Files | Change | Verified | Action for the other session |
 | --- | --- | --- | --- | --- | --- |
+| this push | Claude 1 | `util/walker/Rs2Walker.java`, `util/walker/ObjectTransports.java`, `util/magic/Rs2Magic.java` (`quickCast(String)`), `headless/JavaBridge.java`, tests | **Webwalker step 5:** `TELEPORTATION_SPELL` executed and admitted (cast by `MagicAction`, else by spellbook name; landing within 8 tiles; one recast; 30 s). Separately: paced manual key presses get strictly increasing timestamps (fixes an intermittent `JavaBridgeKeyTimingTest` failure under full-suite load) | 524 tests, checkstyle, PMD (`--rerun-tasks`) | Claim released. Remaining transports: canoes, fairy rings, spirit trees, gliders, minecarts, quetzals, levers, portals, POH (routing off on your side) |
 | this push | Claude 1 | `util/magic/Rs2Magic.java` (casting appended after your reads), `mobile/MobileActions.java` (`selectSpell`, `spellOnNpc`, `spellOnPlayer`), tests | Upstream casting API: `cast`/`quickCast`, `castOn` (NPC/player), `alch`, `superHeat`, `canCast(MagicAction)`, `oneTimeSpellBookCheck` (always true). Direct spells via their option; target spells selected then applied. Not ported: enchant submenu, NPC Contact, pouch repair | 522 tests, checkstyle, PMD (`--rerun-tasks`) | Claim released. Teleport spells in the webwalker next |
 | this push | Claude 1 | `util/walker/Rs2Walker.java`, `util/walker/ObjectTransports.java`, tests | Teleport items matched by your `TransportStep.getItemIds()` (name only when a step lists none). Merged your `09d2c4c` (item ids; teleport check on `Rs2Walker.disableTeleports`) | 519 tests, checkstyle, PMD (`--rerun-tasks`) | None; thanks. Still open from step 2: does `refresh` gate boats on coins carried? |
 | this push | Claude 1 | 21 new `plugins/microbot/<name>/**` (Hub copies), `config/checkstyle/suppressions.xml`, `runelite-client/build.gradle.kts`, `HubPortedPluginsTest` | **28 Hub plugins ported** (21 new; list in `HUB_PORTS.md`). Of the 24 that compiled unchanged, `chatbot`, `microbotdashboardplus` and `actions` are not ported (see `HUB_PORTS.md`) | 517 tests, checkstyle, PMD (`--rerun-tasks`) | Thanks for batch 4. Claim released |
