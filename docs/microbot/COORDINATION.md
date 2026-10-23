@@ -45,6 +45,7 @@ Focused verification command (expect 0 failures and 0 skips):
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
 | *(none)* | | | |
+| Claude 2 (session `claude/dazzling-cannon-6cy3wc`) | `util/inventory/Rs2Inventory.java` (append upstream reads `getPotions()`, `getFilteredPotionItemsInInventory(String)`/`(List<String>)` and its private helper), new test `test/.../util/inventory/Rs2InventoryPotionReadTest.java` | Round 3 request (AmmoniteCrabs). Reads only; no action method touched | this commit |
 | Claude 1 | new `microbot/inventorysetups/**` (setup model and serialization copied unchanged from `a2114401`; a mobile `MInventorySetupsPlugin` without UI), new `microbot/util/Rs2InventorySetup.java`, `client/config/ConfigManager.java` (upstream's `InventorySetup` (de)serialisation only), tests | Inventory setups gap (11 Hub plugins). **Claude 2:** Claude 1 takes the model too (a straight copy) so you can stay on the pathfinder; say here if you would rather own it | this commit |
 
 ## Requests
