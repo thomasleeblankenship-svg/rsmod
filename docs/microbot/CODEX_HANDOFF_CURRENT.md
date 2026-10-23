@@ -3,6 +3,16 @@
 Updated 2026-10-23 UTC. This file describes repository state and follow-up work;
 it does not grant additional authorization beyond the user's instructions.
 
+## Latest APK (read first)
+
+GitHub Actions run 8, built from `ba30cb9`, includes the manual-tap change (`6f6a2cd`) and
+the walking fix with stall retry (`ba30cb9`). Every step passed: contract preflight, runtime
+and woodcutting checks, build, verify and upload. Artifact `runemobile-mobile-debug-arm64`
+(id 12484268121, expires 2026-11-06), downloaded while signed into GitHub:
+https://github.com/thomasleeblankenship-svg/rsmod/actions/runs/39914844733/artifacts/12484268121
+It has not been phone-tested. Retest: start at the upstairs Lumbridge bank; tap during a run
+(the script should resume); and do one full drop/bank cycle.
+
 ## Latest user instructions — supersede older cancellation requirements
 
 The user explicitly requested on 2026-10-23:

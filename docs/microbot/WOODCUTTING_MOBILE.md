@@ -8,7 +8,7 @@ The current build adds a full inventory drop reset, axe protection and corrected
 ## Install and load
 
 1. Open the repository's [Mobile test APK workflow](https://github.com/thomasleeblankenship-svg/rsmod/actions/workflows/mobile-test-apk.yml).
-2. Open [the successful debug build](https://github.com/thomasleeblankenship-svg/rsmod/actions/runs/39908268468). Under **Artifacts**, download `runemobile-mobile-debug-arm64` while signed into GitHub.
+2. Open [the latest debug build](https://github.com/thomasleeblankenship-svg/rsmod/actions/runs/39914844733) (`ba30cb9`: scene-resolved walking, stall retry, manual taps no longer cancel). Under **Artifacts**, download `runemobile-mobile-debug-arm64` while signed into GitHub.
 3. Unzip the download, transfer `runemobile-mobile-debug-arm64.apk` to an ARM64 Android 9+ phone, and install it. The APK is locally/debug signed; an existing app signed with another key may require uninstalling first, which removes its local data.
 4. In the app's plugin panel, enable **Microbot Mobile (phase 2)** and open its settings.
 5. Set **Script** to **Auto Woodcutting (mobile port)**. Configure **Tree**, **Distance to Stray**, **Primary action**, retained items and Forestry options. The settings labelled **Example woodcutting tree** and **Example tree distance** belong to the old example script.
