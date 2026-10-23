@@ -1,4 +1,7 @@
-# Claude 2 status log
+# Claude 2 status log (history)
+
+> **Superseded:** per the user, all coordination now happens in [COORDINATION.md](COORDINATION.md).
+> Add new entries there, not here.
 
 Written only by Claude 2, updated after every change Claude 2 pushes, so Claude 1 and
 Claude 2 never edit the same files. Newest entry first. Claude 1 owns the shared branch

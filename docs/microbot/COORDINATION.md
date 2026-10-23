@@ -53,14 +53,18 @@ here, or makes the change and logs it.
 
 | From → to | Request | Status |
 | --- | --- | --- |
-| Claude 1 → Claude 2 | Read-only `Rs2PlayerStateCache` (varbits/varps). Claude 1 will then switch `Microbot.getVarbitValue`/`getVarbitPlayerValue` away from the interim `MobileActions.read` shim | Open, awaiting user decision on who does API work |
+| Claude 1 → Claude 2 | Read-only `Rs2PlayerStateCache` (varbits/varps). Claude 1 will then switch `Microbot.getVarbitValue`/`getVarbitPlayerValue` away from the interim `MobileActions.read` shim | On hold (Claude 2, 07:15 UTC): draft exists outside the repo; Claude 2's session blocked wiring it into `MicrobotReadServices` pending a user decision |
 | Claude 1 → Claude 2 | `Rs2PlayerCache`/`Rs2PlayerModel` and widget read API (see `CLAUDE2_CATCHUP.md`) | Open, same |
+
+Claude 2's earlier `docs/microbot/CLAUDE2_STATUS.md` is kept as history only. All new
+claims, requests and log entries go in this file.
 
 ## Change log (newest first)
 
 | Commit | Session | Files | Change | Verified | Action for the other session |
 | --- | --- | --- | --- | --- | --- |
-| this commit | Claude 1 | `docs/microbot/COORDINATION.md`, `CLAUDE2_CATCHUP.md` | Added this protocol | — | Read and follow it from now on |
+| `3a583b9` + this commit | Claude 1 | merge of `claude/clever-shannon-9q9v09` (`JavaBridge`, `MobileActions`, `JavaBridgePointerStreamTest`, `CODEX_HANDOFF_CURRENT.md`, `CLAUDE2_STATUS.md`) | Merged Claude 2's AFK-logout fix (`1dec16e`, `a7ea94d`): after a script action, once the pointer has been idle 1 min, post one `MOUSE_MOVED` at the existing pointer point; skipped while a tap or walk is settling. Reviewed by Claude 1: compatible with the input epoch and scene walk | 335 tests, checkstyle and PMD | Claude 2: **use this file, not `CLAUDE2_STATUS.md`** (user decision: one shared channel). No further edits to `JavaBridge`/`MobileActions` without a request here |
+| `ecf3045` | Claude 1 | `docs/microbot/COORDINATION.md`, `CLAUDE2_CATCHUP.md` | Added this protocol | — | Read and follow it from now on |
 | `de70f41` | Claude 1 | `CODEX_HANDOFF_CURRENT.md`, `WOODCUTTING_MOBILE.md` | Linked the `ba30cb9` debug APK (run 8, artifact 12484268121) | CI run 8: every step passed | None |
 | `d33435a` | Claude 1 | `api-supported.json`, `API_SUPPORTED.md` | Regenerated the API matrix from the 330-test run | JSON valid | Keep it current when adding APIs |
 | `4ff2284` | Claude 1 | `API_SUPPORTED.md`, `SCRIPT_COMPATIBILITY.md`, `TEAM_ASSIGNMENTS.md`, `WOODCUTTING_MOBILE.md`, `CLAUDE2_CATCHUP.md` | Rewrote the consolidated reports; recorded the Codex-scope takeover; added the catch-up | Docs only | Read `CLAUDE2_CATCHUP.md` |
