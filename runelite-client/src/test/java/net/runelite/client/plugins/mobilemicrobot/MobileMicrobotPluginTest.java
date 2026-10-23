@@ -27,6 +27,12 @@ import static org.mockito.Mockito.*;
 /** Real RuneMobile types and services, mocked at their boundaries; no game/device. */
 public class MobileMicrobotPluginTest
 {
+	static
+	{
+		// JavaBridge captures this flag on first load; set it before any test reaches the bridge.
+		System.setProperty("runelite.bridge", "true");
+	}
+
 	private final Queue<Runnable> commands = new ArrayDeque<>();
 	private MobileMicrobotPlugin plugin;
 	private Client client;

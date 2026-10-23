@@ -23,6 +23,12 @@ import static org.mockito.Mockito.*;
 /** Real host/event lifecycle with mocked engine boundaries; no device or live-game claim. */
 public class AutoWoodcuttingHostTest
 {
+    static
+    {
+        // JavaBridge captures this flag on first load; set it before any test reaches the bridge.
+        System.setProperty("runelite.bridge", "true");
+    }
+
     private AutoWoodcuttingPlugin host;
     private OverlayManager overlays;
 

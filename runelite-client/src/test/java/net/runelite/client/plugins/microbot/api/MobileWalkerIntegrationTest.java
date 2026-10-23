@@ -38,10 +38,13 @@ public class MobileWalkerIntegrationTest
 
 	private ReadApiFixture fixture;
 	private ScriptInputSession permission;
+	private SceneWalkFixture sceneWalk;
 	private final AtomicReference<WorldPoint> position = new AtomicReference<>();
 	private final List<String> actions = new CopyOnWriteArrayList<>();
 	private final CountDownLatch firstStair = new CountDownLatch(1);
 	private boolean changePlane = true;
+	/** While true the fake engine accepts WALK but the player does not move (a stall). */
+	private volatile boolean frozen;
 
 	@Before
 	public void setUp() throws Exception
@@ -50,6 +53,8 @@ public class MobileWalkerIntegrationTest
 		fixture = new ReadApiFixture();
 		permission = new ScriptInputSession();
 		MobileActions.bind(permission);
+		sceneWalk = new SceneWalkFixture(fixture);
+		sceneWalk.animate();
 		position.set(new WorldPoint(3209, 3220, 2));
 		doAnswer(call -> fixture.onClientThread(position.get())).when(fixture.localPlayer).getWorldLocation();
 		// Deliberately stale: routing, collision and object capture must use the actual player's floor.
@@ -73,8 +78,13 @@ public class MobileWalkerIntegrationTest
 			if (type == MenuAction.WALK)
 			{
 				actions.add("walk:" + before.getPlane());
-				position.set(new WorldPoint(3200 + (int) call.getArgument(0),
-					3200 + (int) call.getArgument(1), before.getPlane()));
+				assertEquals(100, (int) call.getArgument(0));
+				assertEquals(120, (int) call.getArgument(1));
+				// WALK consumes the renderer's selected tile, not its menu parameters.
+				if (!frozen)
+				{
+					position.set(fixture.topLevel.getSelectedSceneTile().getWorldLocation());
+				}
 			}
 			else if ("Climb-down".equals(option))
 			{
@@ -121,9 +131,11 @@ public class MobileWalkerIntegrationTest
 	@After
 	public void tearDown() throws Exception
 	{
+		Rs2Walker.setStallMillis(0);
 		Rs2Walker.setTarget(null);
 		MobileActions.unbind(permission);
 		JavaBridge.setScriptInputSuspended(false);
+		sceneWalk.close();
 		fixture.close();
 	}
 
@@ -158,6 +170,62 @@ public class MobileWalkerIntegrationTest
 			assertEquals(2, position.get().getPlane());
 			assertFalse(actions.contains("stairs:1>0"));
 			assertFalse(actions.contains("walk:0"));
+			assertNull(Rs2Walker.getTarget());
+		}
+		finally
+		{
+			worker.shutdownNow();
+		}
+	}
+
+	@Test
+	public void stalledWalkRetriesInsteadOfStoppingAndThenArrives() throws Exception
+	{
+		Rs2Walker.setStallMillis(300);
+		position.set(new WorldPoint(3209, 3220, 0));
+		frozen = true;
+		ExecutorService worker = Executors.newSingleThreadExecutor();
+		try
+		{
+			WorldPoint destination = new WorldPoint(3218, 3225, 0);
+			Future<Boolean> walk = worker.submit(() -> Rs2Walker.walkTo(destination, 0));
+			long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+			while (!Rs2Walker.getLastStatus().startsWith("Walk stalled; retrying") && System.nanoTime() < deadline)
+			{
+				Thread.sleep(10);
+			}
+			assertTrue("a stall must be retried, status: " + Rs2Walker.getLastStatus(),
+				Rs2Walker.getLastStatus().startsWith("Walk stalled; retrying"));
+			assertFalse("a stall must not end the walk", walk.isDone());
+
+			frozen = false;
+			assertTrue(Rs2Walker.getLastStatus(), walk.get(10, TimeUnit.SECONDS));
+			assertEquals(destination, position.get());
+		}
+		finally
+		{
+			worker.shutdownNow();
+		}
+	}
+
+	@Test
+	public void stopEndsAStalledRetryingWalkPromptly() throws Exception
+	{
+		Rs2Walker.setStallMillis(300);
+		position.set(new WorldPoint(3209, 3220, 0));
+		frozen = true;
+		ExecutorService worker = Executors.newSingleThreadExecutor();
+		try
+		{
+			Future<Boolean> walk = worker.submit(() -> Rs2Walker.walkTo(new WorldPoint(3218, 3225, 0), 0));
+			long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+			while (!Rs2Walker.getLastStatus().startsWith("Walk stalled; retrying") && System.nanoTime() < deadline)
+			{
+				Thread.sleep(10);
+			}
+			permission.close();
+			worker.shutdownNow(); // Stop interrupts the script thread
+			assertFalse(walk.get(3, TimeUnit.SECONDS));
 			assertNull(Rs2Walker.getTarget());
 		}
 		finally

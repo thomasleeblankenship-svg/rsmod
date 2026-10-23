@@ -310,8 +310,7 @@ public final class MobileActions
 			if (destination == null || view == null || destination.getPlane() != client().getLocalPlayer().getWorldLocation().getPlane()) { return false; }
 			int x = destination.getX() - view.getBaseX(), y = destination.getY() - view.getBaseY();
 			if (x < 0 || y < 0 || x >= 104 || y >= 104) { return false; }
-			client().menuAction(x, y, MenuAction.WALK, 0, -1, "Walk here", "");
-			return true;
+			return JavaBridge.onScriptWalk(destination, permission);
 		});
 	}
 

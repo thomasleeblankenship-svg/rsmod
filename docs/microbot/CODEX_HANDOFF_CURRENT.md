@@ -35,8 +35,30 @@ The user explicitly requested on 2026-10-23:
   with no auto-resume). The focused suite of 328 tests, checkstyle and PMD pass, all
   against mocked boundaries.
 
-Item 2 (walk retry) is still **requested and pending**. Neither change is in the
-published debug APK; a new APK build is needed before a phone test. The requested behavior
+**Item 2 and the walking fix are implemented in source (Claude 1), not yet in any APK.**
+`pending-walk-resolution.patch` was applied and finished, then removed from the tree
+(it is still in Git history):
+
+- `MobileActions.walk` uses `JavaBridge.onScriptWalk`. This projects the tile to the
+  canvas, waits for the settle gate, and dispatches WALK only when the renderer's
+  selected tile equals the target. It never falls back to an ordinary click. Queued
+  walks follow the same input-epoch rule as taps: a manual tap drops them.
+- `Rs2Walker` no longer stops after 15 s without movement. Each stall replans from the
+  observed position, switches to short steps and backs off (1.2 s × stall count, capped
+  at 6 s), bounded by the 120 s walk deadline. Stop or interrupt still ends it at once.
+  An earlier replan happens at half the stall window.
+- Fixture fixes: scene size 104×104 so `LocalPoint.fromWorld` accepts tiles, and every
+  test class that reaches `JavaBridge` sets `runelite.bridge=true` in a static block,
+  so `JavaBridge.ENABLED` no longer depends on test order.
+- New tests: `stalledWalkRetriesInsteadOfStoppingAndThenArrives` and
+  `stopEndsAStalledRetryingWalkPromptly`. The Lumbridge two-floor descent test passes
+  with the scene-resolved walk.
+- Full focused suite: 330 tests, checkstyle and PMD pass, on two consecutive runs. All
+  of these use a mocked engine and renderer, so this is **not phone evidence**. The stairs
+  were reported broken on the `024f387` APK; retest them on a new build.
+
+Neither change is in the published debug APK; a new APK build is needed before a
+phone test. The requested behavior
 supersedes statements later in this file that describe cancellation in the old
 implementation.
 
@@ -54,8 +76,8 @@ shows WALK arms viewport movement using the scene's already-picked tile; it
 cannot select the desired world tile solely from those arguments. The old fake
 engine test incorrectly treated those parameters as a destination, hiding this.
 
-**Uncommitted experimental code is in the current workspace** and preserved in
-[the pending patch](pending-walk-resolution.patch) for a fresh checkout:
+*Historical (superseded by the update above):* the experimental code below was kept in
+`pending-walk-resolution.patch`, which has now been applied, finished and removed:
 
 - JavaBridge.onScriptWalk projects a world tile to canvas, waits for the bridge
   settle gate and requires the renderer's selected tile to match before WALK.

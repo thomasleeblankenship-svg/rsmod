@@ -1,5 +1,6 @@
 package net.runelite.client.plugins.microbot.util.walker;
 
+import com.google.common.annotations.VisibleForTesting;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -15,11 +16,14 @@ import net.runelite.api.Tile;
 import net.runelite.api.TileObject;
 import net.runelite.api.WorldView;
 import net.runelite.api.coords.WorldPoint;
-import net.runelite.client.plugins.microbot.MicrobotRuntime;
+import net.runelite.client.headless.JavaBridge;
 import net.runelite.client.plugins.microbot.Microbot;
-import net.runelite.client.plugins.microbot.mobile.MobileActions;
+import net.runelite.client.plugins.microbot.MicrobotRuntime;
 import net.runelite.client.plugins.microbot.api.MicrobotReadServices;
 import net.runelite.client.plugins.microbot.api.tileobject.models.Rs2TileObjectModel;
+import net.runelite.client.plugins.microbot.mobile.MobileActions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Mobile walking: static same-plane walking edges plus live scene collision and door recovery.
@@ -29,11 +33,23 @@ import net.runelite.client.plugins.microbot.api.tileobject.models.Rs2TileObjectM
  */
 public final class Rs2Walker
 {
+	private static final Logger LOG = LoggerFactory.getLogger(Rs2Walker.class);
 	private static final AtomicLong GENERATION = new AtomicLong();
 	private static volatile WorldPoint target;
 	private static volatile String lastStatus = "Idle";
 	private static final long MAX_WALK_MILLIS = 120_000;
-	private static final long STALL_MILLIS = 15_000;
+	/** No observed movement for this long triggers a replan and retry, never a stop. */
+	private static final long DEFAULT_STALL_MILLIS = 15_000;
+	private static volatile long stallMillis = DEFAULT_STALL_MILLIS;
+	private static final long STALL_RETRY_BACKOFF_MILLIS = 1_200;
+	private static final long STALL_RETRY_MAX_BACKOFF_MILLIS = 6_000;
+
+	/** Test hook: shortens the no-movement window; {@code <= 0} restores the 15 s default. */
+	@VisibleForTesting
+	public static void setStallMillis(long millis)
+	{
+		stallMillis = millis > 0 ? millis : DEFAULT_STALL_MILLIS;
+	}
 
 	private Rs2Walker()
 	{
@@ -103,6 +119,9 @@ public final class Rs2Walker
 			long lastProgress = System.currentTimeMillis();
 			WorldPoint previous = scene.player;
 			int progress = 0;
+			boolean recovered = false;
+			int acceptedWalks = 0;
+			int stalls = 0;
 			while (System.currentTimeMillis() < deadline && GENERATION.get() == generation
 				&& MobileActions.active() && !Thread.currentThread().isInterrupted())
 			{
@@ -153,9 +172,30 @@ public final class Rs2Walker
 					lastStatus = "Waiting: manual input";
 					lastProgress = System.currentTimeMillis();
 				}
-				if (System.currentTimeMillis() - lastProgress >= STALL_MILLIS)
+				if (System.currentTimeMillis() - lastProgress >= stallMillis)
 				{
-					return fail("Walking stopped: no movement for 15 seconds");
+					// Retry rather than stop: replan from the observed position, use short steps
+					// and back off, bounded by the overall walk deadline. An interrupt (Stop) still
+					// ends the wait at once.
+					stalls++;
+					LOG.warn("Mobile walk stalled, retry {}: player={} target={} accepted={} bridge={}",
+						stalls, scene.player, destination, acceptedWalks, JavaBridge.getScriptWalkStatus());
+					List<WorldPoint> replanned = plan(scene, leg.destination, leg.radius);
+					if (!replanned.isEmpty()) { global = replanned; progress = 0; }
+					recovered = true;
+					lastStatus = "Walk stalled; retrying (" + stalls + ")";
+					long backoff = Math.min(STALL_RETRY_MAX_BACKOFF_MILLIS, STALL_RETRY_BACKOFF_MILLIS * stalls);
+					long remaining = deadline - System.currentTimeMillis();
+					if (remaining > 0) { Thread.sleep(Math.min(backoff, remaining)); }
+					lastProgress = System.currentTimeMillis();
+					continue;
+				}
+				if (!recovered && System.currentTimeMillis() - lastProgress >= stallMillis / 2)
+				{
+					List<WorldPoint> replanned = plan(scene, leg.destination, leg.radius);
+					if (!replanned.isEmpty()) { global = replanned; progress = 0; }
+					recovered = true;
+					LOG.info("Mobile walk recovery: player={} target={} bridge={}", scene.player, destination, JavaBridge.getScriptWalkStatus());
 				}
 				progress = nearestProgress(global, scene.player, progress);
 				WorldPoint waypoint = null;
@@ -169,7 +209,7 @@ public final class Rs2Walker
 					List<WorldPoint> local = MobileRoutePlanner.route(scene.player, candidate, 0, scene::canStep);
 					if (!local.isEmpty())
 					{
-						waypoint = local.get(Math.min(local.size() - 1, 10));
+						waypoint = local.get(Math.min(local.size() - 1, recovered ? 3 : 10));
 						break;
 					}
 				}
@@ -188,7 +228,13 @@ public final class Rs2Walker
 				else if (!waypoint.equals(scene.player))
 				{
 					lastStatus = "Walking to " + destination;
-					MobileActions.walk(waypoint);
+					// A long waypoint may project offscreen with the current mobile camera.
+					// Try nearer reachable tiles instead of repeating an invisible destination.
+					List<WorldPoint> steps = MobileRoutePlanner.route(scene.player, waypoint, 0, scene::canStep);
+					for (int i = steps.size() - 1; i > 0; i--)
+					{
+						if (MobileActions.walk(steps.get(i))) { acceptedWalks++; break; }
+					}
 				}
 				long remaining = deadline - System.currentTimeMillis();
 				if (remaining > 0) { Thread.sleep(Math.min(600, remaining)); }
@@ -384,6 +430,7 @@ public final class Rs2Walker
 	{
 		lastStatus = status;
 		Microbot.status = status;
+		LOG.info("Mobile walk ended: {}", status);
 		return false;
 	}
 
