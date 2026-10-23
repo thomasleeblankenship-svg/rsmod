@@ -1,83 +1,120 @@
+/*
+ * Copied from chsami/Microbot a2114401bbbc35e9762db9e8aa666d70ffcd24d8,
+ * runelite-client/src/main/java/net/runelite/client/plugins/microbot/util/misc/Rs2Food.java.
+ * BSD 2-Clause License; see LICENSE. Mobile changes: Dark crab heals 22 (upstream lists 27),
+ * five foods are added at the end; whitespace, final fields and no Lombok constructor for checkstyle and PMD.
+ */
 package net.runelite.client.plugins.microbot.util.misc;
+
+import lombok.Getter;
+import net.runelite.api.gameval.ItemID;
 
 import java.util.Arrays;
 import java.util.Set;
 import java.util.stream.Collectors;
-import net.runelite.api.gameval.ItemID;
 
-/**
- * Common cooked foods: item id, hitpoints healed and display name. Microbot scripts use it as a
- * config choice ({@code default Rs2Food food()}) and read {@link #getId()} / {@link #getName()}.
- * Written for RuneMobile; heal values are the fixed amounts (variable foods use their usual heal).
- */
-public enum Rs2Food
-{
-	SHRIMPS(ItemID.SHRIMP, 3, "Shrimps"),
-	ANCHOVIES(ItemID.ANCHOVIES, 1, "Anchovies"),
-	SARDINE(ItemID.SARDINE, 4, "Sardine"),
-	HERRING(ItemID.HERRING, 5, "Herring"),
-	MACKEREL(ItemID.MACKEREL, 6, "Mackerel"),
-	TROUT(ItemID.TROUT, 7, "Trout"),
-	COD(ItemID.COD, 7, "Cod"),
-	PIKE(ItemID.PIKE, 8, "Pike"),
-	SALMON(ItemID.SALMON, 9, "Salmon"),
-	TUNA(ItemID.TUNA, 10, "Tuna"),
-	LOBSTER(ItemID.LOBSTER, 12, "Lobster"),
-	BASS(ItemID.BASS, 13, "Bass"),
-	SWORDFISH(ItemID.SWORDFISH, 14, "Swordfish"),
-	MONKFISH(ItemID.MONKFISH, 16, "Monkfish"),
-	KARAMBWAN(ItemID.TBWT_COOKED_KARAMBWAN, 18, "Cooked karambwan"),
-	SHARK(ItemID.SHARK, 20, "Shark"),
-	SEA_TURTLE(ItemID.SEATURTLE, 21, "Sea turtle"),
-	MANTA_RAY(ItemID.MANTARAY, 22, "Manta ray"),
-	DARK_CRAB(ItemID.DARK_CRAB, 22, "Dark crab"),
-	ANGLERFISH(ItemID.ANGLERFISH, 22, "Anglerfish"),
-	POTATO_WITH_CHEESE(ItemID.POTATO_CHEESE, 16, "Potato with cheese"),
-	TUNA_POTATO(ItemID.POTATO_TUNA_SWEETCORN, 22, "Tuna potato"),
-	CURRY(ItemID.CURRY, 19, "Curry"),
-	JUG_OF_WINE(ItemID.JUG_WINE, 11, "Jug of wine"),
-	CAKE(ItemID.CAKE, 4, "Cake"),
-	BREAD(ItemID.BREAD, 5, "Bread"),
-	COOKED_MEAT(ItemID.COOKED_MEAT, 3, "Cooked meat"),
-	COOKED_CHICKEN(ItemID.COOKED_CHICKEN, 3, "Cooked chicken");
+@Getter
+public enum Rs2Food {
+    // Format: (id, heal, name, tickdelay)
+    Dark_Crab(11936, 22, "Dark Crab", 3),
+    ROCKTAIL(15272, 23, "Rocktail", 3),
+    MANTA(391, 22, "Manta Ray", 3),
+    SHARK(385, 20, "Shark", 3),
+    KARAMBWAN(3144, 18, "Cooked karambwan", 3),
+    LOBSTER(379, 12, "Lobster", 3),
+    TROUT(333, 7, "Trout", 3 ),
+    SALMON(329, 9, "Salmon", 3),
+    SWORDFISH(373, 14, "Swordfish", 3),
+    TUNA(361, 10, "Tuna", 3),
+    MONKFISH(7946, 16, "Monkfish", 3),
+    SEA_TURTLE(397, 21, "Sea Turtle", 3),
+    CAKE(1891, 4, "Cake", 1),
+    BASS(365, 13, "Bass", 3),
+    COD(339, 7, "Cod", 3),
+    POTATO(1942, 1, "Potato", 3),
+    BAKED_POTATO(6701, 4, "Baked Potato", 3),
+    POTATO_WITH_CHEESE(6705, 16, "Potato with Cheese", 3),
+    EGG_POTATO(7056, 16, "Egg Potato", 3),
+    CHILLI_POTATO(7054, 14, "Chilli Potato", 3),
+    MUSHROOM_POTATO(7058, 20, "Mushroom Potato", 3),
+    TUNA_POTATO(7060, 22, "Tuna Potato", 3),
+    SHRIMPS(315, 3, "Shrimps", 3),
+    HERRING(347, 5, "Herring", 3),
+    SARDINE(325, 4, "Sardine", 3),
+    CHOCOLATE_CAKE(1897, 5, "Chocolate Cake", 1),
+    ANCHOVIES(319, 1, "Anchovies", 3),
+    PLAIN_PIZZA(2289, 7, "Plain Pizza", 1),
+    MEAT_PIZZA(2293, 8, "Meat Pizza", 1),
+    ANCHOVY_PIZZA(2297, 9, "Anchovy Pizza", 1),
+    PINEAPPLE_PIZZA(2301, 11, "Pineapple Pizza", 1),
+    BREAD(2309, 5, "Bread", 3),
+    APPLE_PIE(2323, 7, "Apple Pie", 1),
+    REDBERRY_PIE(2325, 5, "Redberry Pie", 1),
+    MEAT_PIE(2327, 6, "Meat Pie", 1),
+    PIKE(351, 8, "Pike", 3),
+    POTATO_WITH_BUTTER(6703, 14, "Potato with Butter", 3),
+    BANANA(1963, 2, "Banana", 3),
+    PEACH(6883, 8, "Peach", 3),
+    ORANGE(2108, 2, "Orange", 3),
+    PINEAPPLE_RINGS(2118, 2, "Pineapple Rings", 3),
+    PINEAPPLE_CHUNKS(2116, 2, "Pineapple Chunks", 3),
+    JUG_OF_WINE(1993, 11, "Jug of wine", 3),
+    COOKED_LARUPIA(29146, 11, "Cooked larupia", 3),
+    COOKED_BARBTAILED_KEBBIT(29131, 12, "Cooked barb-tailed kebbit", 3),
+    COOKED_GRAAHK(29149, 14, "Cooked graahk", 3),
+    COOKED_KYATT(29152, 17, "Cooked kyatt", 3),
+    COOKED_PYRE_FOX(29137, 19, "Cooked pyre fox", 3),
+    COOKED_SUNLIGHT_ANTELOPE(29140, 21, "Cooked sunlight antelope", 3),
+    COOKED_DASHING_KEBBIT(29134, 23, "Cooked dashing kebbit", 3),
+    COOKED_MOONLIGHT_ANTELOPE(29143, 26, "Cooked moonlight antelope", 3),
+    PURPLE_SWEETS(10476, 3, "Purple Sweets", 3),
+    CABBAGE(ItemID.CABBAGE, 1, "Cabbage", 3),
+    BLIGHTED_MANTA_RAY(24589, 22, "Blighted manta ray", 3),
+    BLIGHTED_ANGLERFISH(24592, 22, "Blighted anglerfish", 3),
+    BLIGHTED_KARAMBWAN(24595, 18, "Blighted karambwan", 3),
+    // RuneMobile additions (not in upstream's table).
+    MACKEREL(ItemID.MACKEREL, 6, "Mackerel", 3),
+    ANGLERFISH(ItemID.ANGLERFISH, 22, "Anglerfish", 3),
+    CURRY(ItemID.CURRY, 19, "Curry", 3),
+    COOKED_MEAT(ItemID.COOKED_MEAT, 3, "Cooked meat", 3),
+    COOKED_CHICKEN(ItemID.COOKED_CHICKEN, 3, "Cooked chicken", 3);
 
-	private final int id;
-	private final int heal;
-	private final String name;
+    private final int id;
+    private final int heal;
+    private final String name;
+    private final int tickdelay;
 
-	Rs2Food(int id, int heal, String name)
-	{
-		this.id = id;
-		this.heal = heal;
-		this.name = name;
+    Rs2Food(int id, int heal, String name, int tickdelay) {
+        this.id = id;
+        this.heal = heal;
+        this.name = name;
+        this.tickdelay = tickdelay;
+    }
+
+    @Override
+    public String toString() {
+        return name + " (+" + getHeal() + ")";
+    }
+
+    public int getId() {
+        return id;
+    }
+
+    public int getHeal() {
+        return heal;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    // get all ids as a set
+    public static Set<Integer> getIds() {
+        return Arrays.stream(values()).map(Rs2Food::getId).collect(Collectors.toSet());
+    }
+
+	public static Set<Integer> getFastFoodIds() {
+		return Arrays.stream(values()).filter(f -> f.getTickdelay() == 1).map(Rs2Food::getId).collect(Collectors.toSet());
 	}
 
-	public int getId()
-	{
-		return id;
-	}
-
-	/** Hitpoints restored by one bite. */
-	public int getHeal()
-	{
-		return heal;
-	}
-
-	public String getName()
-	{
-		return name;
-	}
-
-	/** The name, so config dropdowns read naturally. */
-	@Override
-	public String toString()
-	{
-		return name;
-	}
-
-	/** Every listed food's item id. */
-	public static Set<Integer> getIds()
-	{
-		return Arrays.stream(values()).map(Rs2Food::getId).collect(Collectors.toSet());
-	}
 }
