@@ -45,6 +45,7 @@ Focused verification command (expect 0 failures and 0 skips):
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
 | *(none)* | | | |
+| Claude 2 (session `claude/dazzling-cannon-6cy3wc`) | `woodcutting/AutoWoodcuttingScript.java` (**user-authorised**, progressive selection only), `api/MicrobotReadServices.java`, new/updated tests | User report: slow to start the next tree. Progressive tree/location search runs on every 100 ms pass (many client-thread reads) → recompute only on level change or lost location; scene snapshots refresh when an object or ground item spawns/despawns | this commit |
 | Claude 1 | new `microbot/util/mouse/Mouse.java`, `Microbot.java` (`getMouse`), `mobile/MobileActions.java` (`tap`), new `util/depositbox/Rs2DepositBox.java`, new `util/text/Rs2TextSanitizer.java` (copy), new `kspwillowchopper/**`, `kspsupport/**`, `kspmule/**` (KSP copy and inert stand-ins), new `third_party/ksp/**` (untouched original) | KSP Chopper mobile port (user request) | this commit |
 
 ## Requests
