@@ -4,7 +4,9 @@ import com.google.common.annotations.VisibleForTesting;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import net.runelite.api.Client;
 import net.runelite.api.CollisionData;
@@ -34,6 +36,7 @@ import org.slf4j.LoggerFactory;
 public final class Rs2Walker
 {
 	private static final Logger LOG = LoggerFactory.getLogger(Rs2Walker.class);
+	private static final String STAIRS_UNAVAILABLE = "staircase action unavailable";
 	private static final AtomicLong GENERATION = new AtomicLong();
 	private static volatile WorldPoint target;
 	private static volatile String lastStatus = "Idle";
@@ -110,7 +113,8 @@ public final class Rs2Walker
 				lastStatus = "Arrived";
 				return true;
 			}
-			WalkLeg leg = selectLeg(scene, destination, radius);
+			Set<ObjectTransports.Step> unusable = new HashSet<>();
+			WalkLeg leg = selectLeg(scene, destination, radius, unusable);
 			if (leg == null)
 			{
 				return fail("No walking route; a transport or an unmapped region may be required");
@@ -143,17 +147,35 @@ public final class Rs2Walker
 				{
 					if (!useStairs(leg.stairs, generation, deadline))
 					{
-						return fail("Lumbridge staircase failed: " + lastStatus);
+						if (!STAIRS_UNAVAILABLE.equals(lastStatus))
+						{
+							return fail("Transport failed (" + leg.stairs + "): " + lastStatus);
+						}
+						// The live object does not offer this action here: try the next transport.
+						unusable.add(leg.stairs);
+						LOG.info("Mobile walk: transport unavailable, trying another: {}", leg.stairs);
+						scene = awaitSnapshot(generation, deadline);
+						leg = scene == null ? null : selectLeg(scene, destination, radius, unusable);
+						if (leg == null)
+						{
+							return fail("No usable transport toward " + destination);
+						}
+						global = leg.route;
+						progress = 0;
+						previous = scene.player;
+						lastProgress = System.currentTimeMillis();
+						continue;
 					}
+					ObjectTransports.Step used = leg.stairs;
 					scene = awaitSnapshot(generation, deadline);
-					if (scene == null || !leg.stairs.observedArrival(scene.player))
+					if (scene == null || !used.observedArrival(scene.player))
 					{
-						return fail("No collision snapshot after Lumbridge staircase");
+						return fail("No collision snapshot after transport " + used);
 					}
-					leg = selectLeg(scene, destination, radius);
+					leg = selectLeg(scene, destination, radius, unusable);
 					if (leg == null)
 					{
-						return fail("No walking route after Lumbridge staircase");
+						return fail("No walking route after transport " + used);
 					}
 					global = leg.route;
 					progress = 0;
@@ -289,17 +311,17 @@ public final class Rs2Walker
 	/** Structural capability check for bank selection; actual collision routing is still validated when walking. */
 	public static boolean canReachVertical(WorldPoint origin, WorldPoint destination)
 	{
-		return LumbridgeStairs.supported(origin, destination);
+		return ObjectTransports.verticalChainExists(origin, destination);
 	}
 
 	private static final class WalkLeg
 	{
 		final WorldPoint destination;
 		final int radius;
-		final LumbridgeStairs.Step stairs;
+		final ObjectTransports.Step stairs;
 		final List<WorldPoint> route;
 
-		WalkLeg(WorldPoint destination, int radius, LumbridgeStairs.Step stairs, List<WorldPoint> route)
+		WalkLeg(WorldPoint destination, int radius, ObjectTransports.Step stairs, List<WorldPoint> route)
 		{
 			this.destination = destination;
 			this.radius = radius;
@@ -310,6 +332,12 @@ public final class Rs2Walker
 
 	private static WalkLeg selectLeg(MobileRoutePlanner.Scene scene, WorldPoint destination, int radius)
 	{
+		return selectLeg(scene, destination, radius, Collections.emptySet());
+	}
+
+	private static WalkLeg selectLeg(MobileRoutePlanner.Scene scene, WorldPoint destination, int radius,
+		Set<ObjectTransports.Step> excluded)
+	{
 		if (scene.player.getPlane() == destination.getPlane())
 		{
 			List<WorldPoint> route = plan(scene, destination, radius);
@@ -319,7 +347,7 @@ public final class Rs2Walker
 		{
 			return null;
 		}
-		for (LumbridgeStairs.Step stairs : LumbridgeStairs.candidates(scene.player, destination))
+		for (ObjectTransports.Step stairs : ObjectTransports.candidates(ObjectTransports.all(), scene.player, destination, excluded))
 		{
 			List<WorldPoint> route = plan(scene, stairs.origin, 1);
 			if (!route.isEmpty())
@@ -331,12 +359,13 @@ public final class Rs2Walker
 	}
 
 	/** Dispatch exact live staircase actions, then require observed plane and landing-location changes. */
-	private static boolean useStairs(LumbridgeStairs.Step stairs, long generation, long walkDeadline) throws InterruptedException
+	private static boolean useStairs(ObjectTransports.Step stairs, long generation, long walkDeadline) throws InterruptedException
 	{
 		long deadline = Math.min(walkDeadline, System.currentTimeMillis() + 20_000);
 		long lastAttempt = 0;
 		boolean dispatched = false;
-		lastStatus = "Using Lumbridge staircase: " + stairs.action;
+		lastStatus = "Using " + stairs.target + ": " + stairs.action;
+		int missingLookups = 0;
 		while (System.currentTimeMillis() < deadline && GENERATION.get() == generation
 			&& MobileActions.active() && !Thread.currentThread().isInterrupted())
 		{
@@ -375,14 +404,20 @@ public final class Rs2Walker
 				}, null);
 				if (staircase != null)
 				{
+					missingLookups = 0;
 					dispatched |= MobileActions.objectAt(staircase.getId(), staircase.getWorldLocation(), stairs.action);
+				}
+				else if (!dispatched && ++missingLookups >= 3)
+				{
+					lastStatus = STAIRS_UNAVAILABLE;
+					return false;
 				}
 			}
 			long remaining = deadline - System.currentTimeMillis();
 			if (remaining > 0) { Thread.sleep(Math.min(300, remaining)); }
 		}
 		lastStatus = !MobileActions.active() || GENERATION.get() != generation
-			? "staircase cancelled" : dispatched ? "plane change was not observed" : "staircase action unavailable";
+			? "staircase cancelled" : dispatched ? "plane change was not observed" : STAIRS_UNAVAILABLE;
 		return false;
 	}
 

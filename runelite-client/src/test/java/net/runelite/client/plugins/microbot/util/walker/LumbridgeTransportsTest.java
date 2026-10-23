@@ -5,12 +5,13 @@ import net.runelite.api.coords.WorldPoint;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
-public class LumbridgeStairsTest
+/** Lumbridge castle stairs through the generic upstream transport table. */
+public class LumbridgeTransportsTest
 {
 	@Test
 	public void liveStaircaseDirectionIsRequiredAcrossOldAndNewIds()
 	{
-		LumbridgeStairs.Step stairs = LumbridgeStairs.candidates(new WorldPoint(3209, 3220, 2),
+		ObjectTransports.Step stairs = ObjectTransports.candidates(new WorldPoint(3209, 3220, 2),
 			new WorldPoint(3218, 3225, 0)).get(0);
 		assertTrue(stairs.matches(56231, "Staircase", new String[]{"Climb-down"}));
 		assertTrue(stairs.matches(16673, "Staircase", new String[]{"Climb-down"}));
@@ -24,9 +25,9 @@ public class LumbridgeStairsTest
 	{
 		WorldPoint player = new WorldPoint(3206, 3207, 0);
 		WorldPoint bank = new WorldPoint(3209, 3220, 2);
-		List<LumbridgeStairs.Step> candidates = LumbridgeStairs.candidates(player, bank);
-		assertEquals(2, candidates.size());
-		LumbridgeStairs.Step stairs = candidates.get(0);
+		List<ObjectTransports.Step> candidates = ObjectTransports.candidates(player, bank);
+		assertFalse(candidates.isEmpty());
+		ObjectTransports.Step stairs = candidates.get(0);
 		assertEquals(new WorldPoint(3206, 3208, 0), stairs.origin);
 		assertEquals(new WorldPoint(3205, 3209, 1), stairs.arrival);
 		assertEquals(56230, stairs.objectId);
@@ -40,7 +41,7 @@ public class LumbridgeStairsTest
 	@Test
 	public void firstFloorContinuesToBankOnSecondFloor()
 	{
-		LumbridgeStairs.Step stairs = LumbridgeStairs.candidates(new WorldPoint(3205, 3209, 1),
+		ObjectTransports.Step stairs = ObjectTransports.candidates(new WorldPoint(3205, 3209, 1),
 			new WorldPoint(3209, 3220, 2)).get(0);
 		assertEquals(16672, stairs.objectId);
 		assertEquals("Climb-up", stairs.action);
@@ -52,11 +53,11 @@ public class LumbridgeStairsTest
 	public void bankToGroundPlansBothDownstairsTransitions()
 	{
 		WorldPoint ground = new WorldPoint(3200, 3240, 0);
-		LumbridgeStairs.Step upper = LumbridgeStairs.candidates(new WorldPoint(3209, 3220, 2), ground).get(0);
+		ObjectTransports.Step upper = ObjectTransports.candidates(new WorldPoint(3209, 3220, 2), ground).get(0);
 		assertEquals(56231, upper.objectId);
 		assertEquals("Climb-down", upper.action);
 		assertEquals(1, upper.arrival.getPlane());
-		LumbridgeStairs.Step lower = LumbridgeStairs.candidates(upper.arrival, ground).get(0);
+		ObjectTransports.Step lower = ObjectTransports.candidates(upper.arrival, ground).get(0);
 		assertEquals(16672, lower.objectId);
 		assertEquals("Climb-down", lower.action);
 		assertEquals(0, lower.arrival.getPlane());
@@ -65,20 +66,19 @@ public class LumbridgeStairsTest
 	@Test
 	public void nearbyNorthStaircaseIsPreferredOverSouthStaircase()
 	{
-		LumbridgeStairs.Step stairs = LumbridgeStairs.candidates(new WorldPoint(3204, 3230, 0),
+		ObjectTransports.Step stairs = ObjectTransports.candidates(new WorldPoint(3204, 3230, 0),
 			new WorldPoint(3209, 3220, 2)).get(0);
 		assertEquals(new WorldPoint(3205, 3228, 0), stairs.origin);
 		assertEquals(new WorldPoint(3206, 3229, 1), stairs.arrival);
 	}
 
 	@Test
-	public void unsupportedUpstairsDestinationsAndPlaneThreeAreRefused()
+	public void destinationsWithoutNearbyTransportsAreRefused()
 	{
 		WorldPoint ground = new WorldPoint(3200, 3200, 0);
-		assertFalse(LumbridgeStairs.supported(ground, new WorldPoint(3000, 3000, 2)));
-		assertTrue(LumbridgeStairs.candidates(ground, new WorldPoint(3000, 3000, 2)).isEmpty());
-		assertFalse(LumbridgeStairs.supported(new WorldPoint(3000, 3000, 1), ground));
-		assertFalse(LumbridgeStairs.supported(ground, new WorldPoint(3209, 3220, 3)));
-		assertFalse(LumbridgeStairs.supported(ground, ground));
+		assertFalse(ObjectTransports.verticalChainExists(ground, new WorldPoint(2000, 2000, 2)));
+		assertTrue(ObjectTransports.candidates(new WorldPoint(2000, 2000, 0), new WorldPoint(2000, 2000, 2)).isEmpty());
+		assertTrue(ObjectTransports.candidates(ground, ground).isEmpty());
+		assertTrue(ObjectTransports.verticalChainExists(ground, new WorldPoint(3209, 3220, 2)));
 	}
 }
