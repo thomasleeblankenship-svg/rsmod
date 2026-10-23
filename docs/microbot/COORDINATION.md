@@ -44,7 +44,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
-| Claude 2 | new `microbot/util/magic/**` (data enums and **reads only**; Claude 1 adds `cast`/`castOn`/`alch`/`quickCast`/thrall casting after release), new tests under `test/.../microbot/util/magic/` | Round 2 item (3): magic. The user approved taking game data tables from upstream (code still written by Claude 2) | this commit |
+| Claude 2 | `microbot/util/inventory/Rs2RunePouch.java` (adds `getRunes()`), new `microbot/util/magic/**` (data enums and **reads only**; Claude 1 adds `cast`/`castOn`/`alch`/`quickCast`/thrall casting after release), new tests under `test/.../microbot/util/magic/` | Round 2 item (3): magic. The user approved taking game data tables from upstream (code still written by Claude 2) | this commit |
 | Claude 1 | new `microbot/util/walker/enums/**` (copied unchanged), `microbot/util/walker/Rs2Walker.java` (`isInArea`), `microbot/util/prayer/Rs2Prayer.java` (**toggles only**, appended after your reads), `microbot/util/combat/Rs2Combat.java` (**actions only**: `setAutoRetaliate`, `enableAutoRetialiate`), `microbot/util/player/Rs2Player.java` (**actions only**: `eatAt`, `useFood`), new `microbot/util/tabs/Rs2Tab.java`, new `microbot/globval/enums/InterfaceTab.java` (copied unchanged; **Claude 2: Claude 1 takes round-2 item (7)**, `Rs2Tab` needs it) | Hub action gaps, round 3 | this commit |
 
 ## Requests
