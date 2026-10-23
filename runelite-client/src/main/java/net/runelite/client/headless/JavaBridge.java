@@ -346,6 +346,9 @@ public final class JavaBridge
 	// exit the x of one event and the y of the next -- both real points a finger was at a frame apart.
 	private static volatile int lastPointerX = -1;
 	private static volatile int lastPointerY = -1;
+	// Script actions are menu dispatches the engine's idle-logout counter never sees. Once the pointer has been
+	// still this long, refreshScriptIdleTimer re-posts a move so a running script is not logged out as AFK.
+	static final int SCRIPT_IDLE_REFRESH_TICKS = 60_000 / Constants.CLIENT_TICK_LENGTH;
 	private static boolean shiftHeld;     // sticky-Shift: a held VK_SHIFT KEY_PRESSED with no release (see setShiftHeld)
 	private static boolean ctrlHeld;      // sticky-Ctrl: same latch for VK_CONTROL (see setCtrlHeld)
 	private static boolean altHeld;       // sticky-Alt:  same latch for VK_ALT (Ground-Items Alt-highlight; see setAltHeld)
@@ -2346,6 +2349,46 @@ public final class JavaBridge
 		final long t = System.currentTimeMillis();
 		primeFocus(q, canvas, t, x, y);
 		postPointer(q, new MouseEvent(canvas, MouseEvent.MOUSE_MOVED, t + 1, 0, x, y, 0, false));
+	}
+
+	/**
+	 * Keep the engine's idle-logout counter fed while a script plays. Script actions are exact menu dispatches,
+	 * and the engine counts only canvas mouse/key events toward activity, so a script left running logs out as
+	 * AFK five minutes after the last real touch, straight to the login screen (no CONNECTION_LOST, so
+	 * {@link HeadlessLogin}'s reconnect never re-arms). Once the pointer has been still for
+	 * {@link #SCRIPT_IDLE_REFRESH_TICKS}, post one plain {@code MOUSE_MOVED} to the point the pointer already rests
+	 * on, the event a desktop mouse produces with every script click. Never names a new coordinate, never marks
+	 * manual input, and does nothing while a button is held or a tap is settling (a move then would push the
+	 * engine's cursor off the point the gate is resolving, and the tap's own events reset the counter). Client
+	 * thread.
+	 */
+	public static void refreshScriptIdleTimer()
+	{
+		final Client c = client;
+		final Canvas canvas = liveCanvas();
+		if (c == null || canvas == null || !c.isClientThread() || pressed || tapState != TapState.IDLE || queuedTap
+			|| c.getMouseIdleTicks() < SCRIPT_IDLE_REFRESH_TICKS)
+		{
+			return;
+		}
+		int x = lastPointerX;
+		int y = lastPointerY;
+		if (x < 0 || y < 0)
+		{
+			// No touch yet this session (autologin clicks bypass postPointer): use the engine's own cursor.
+			final net.runelite.api.Point mp = c.getMouseCanvasPosition();
+			if (mp == null)
+			{
+				return;
+			}
+			x = mp.getX();
+			y = mp.getY();
+		}
+		if (x < 0 || y < 0 || x >= c.getCanvasWidth() || y >= c.getCanvasHeight())
+		{
+			return;
+		}
+		postMove(canvas, x, y);
 	}
 
 	/**

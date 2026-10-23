@@ -68,6 +68,7 @@ public final class MobileActions
 			if (!action.getAsBoolean()) { return false; }
 			lastPermission = owner;
 			lastTick = tick;
+			JavaBridge.refreshScriptIdleTimer();
 			return true;
 		}, false);
 	}
