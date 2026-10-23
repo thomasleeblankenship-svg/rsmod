@@ -6,6 +6,10 @@ import net.runelite.api.Client;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.EventBus;
+import net.runelite.client.plugins.microbot.api.MicrobotReadServices;
+import net.runelite.client.plugins.microbot.api.npc.Rs2NpcCache;
+import net.runelite.client.plugins.microbot.api.tileitem.Rs2TileItemCache;
+import net.runelite.client.plugins.microbot.api.tileobject.Rs2TileObjectCache;
 import net.runelite.client.plugins.microbot.util.GameTickBroadcaster;
 import org.slf4j.event.Level;
 
@@ -30,8 +34,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *     <li>{@link #getBlockingEventManager()} is created per install and starts with no registered
  *     events: every upstream default event performs game input, which this stage does not
  *     support.</li>
- *     <li>Cache getters ({@code getRs2NpcCache()} and friends) are not present yet: they are
- *     owned by the read-only API stage and are added once its service interface lands.</li>
+ *     <li>The NPC, tile-object and tile-item cache getters delegate to the installed
+ *     {@link MicrobotReadServices} (read-only API stage) instead of Guice-injected fields, and
+ *     throw {@link IllegalStateException} when none is installed rather than returning null.
+ *     Player, player-state and boat caches are not ported.</li>
  * </ul>
  * Everything else upstream exposes here (mouse, hopping, plugin control, popups, loot records,
  * item containers, world services, overlays) is unsupported on mobile and deliberately absent,
@@ -74,6 +80,18 @@ public class Microbot {
         return gameTickBroadcaster;
     }
 
+    public static Rs2NpcCache getRs2NpcCache() {
+        return MicrobotReadServices.require().getRs2NpcCache();
+    }
+
+    public static Rs2TileObjectCache getRs2TileObjectCache() {
+        return MicrobotReadServices.require().getRs2TileObjectCache();
+    }
+
+    public static Rs2TileItemCache getRs2TileItemCache() {
+        return MicrobotReadServices.require().getRs2TileItemCache();
+    }
+
     static void bind(Client client, ClientThread clientThread, EventBus eventBus, ConfigManager configManager,
                      BlockingEventManager blockingEventManager, GameTickBroadcaster gameTickBroadcaster) {
         Microbot.client = client;
@@ -97,7 +115,8 @@ public class Microbot {
 
     /**
      * Upstream delegates to {@code LoginManager.isLoggedIn()}, which reads the game state from the
-     * calling thread. Mobile reads the last state the client thread published.
+     * calling thread. Mobile reads the last state the client thread published, rather than
+     * {@link MicrobotReadServices#isLoggedIn()}, which reads {@code Client#getGameState()} directly.
      */
     public static boolean isLoggedIn() {
         return MicrobotRuntime.isLoggedIn();
