@@ -3,6 +3,68 @@
 Updated 2026-10-23 UTC. This file describes repository state and follow-up work;
 it does not grant additional authorization beyond the user's instructions.
 
+## Latest user instructions — supersede older cancellation requirements
+
+The user explicitly requested on 2026-10-23:
+
+1. **Remove manual-tap cancellation.** A screen tap must no longer permanently
+   stop the script or require toggling Run script again. Preserve explicit Stop,
+   disable, logout and background cancellation. Work out how pending generated
+   input yields to the user's tap without invalidating the entire run. Existing
+   manual-input tests/docs will need updating to the intended new behavior.
+2. **Retry stalled walks instead of stopping after 15 seconds.** The user
+   confirmed this interpretation in the clarification response. Replan/retry
+   with a delay and observed movement; keep Stop responsive and avoid a busy
+   infinite dispatch loop. Do not merely report queued input as successful arrival.
+3. Save a fresh handoff before usage is exhausted.
+
+At this handoff update, items 1 and 2 are **requested and pending**, not present
+in the published debug APK. Do not claim otherwise. The requested behavior
+supersedes statements later in this file that describe cancellation in the old
+implementation.
+
+## Walking investigation in progress — preserve this work
+
+Latest user log summary: client started three times around 06:04–06:05, then
+stayed up. Three script stops while walking: bank stall at 06:10:50, manual tap
+just before interrupted walk at 06:11:15, and progressive tree-location stall
+at 06:11:38. Both stalls were 15 seconds without movement. Original raw startup
+logs were not supplied in this turn, so the three starts have no confirmed cause.
+
+Strong implementation finding: MobileActions.walk was passing scene tile x/y
+to client.menuAction(WALK). Inspection of the pinned injected client bytecode
+shows WALK arms viewport movement using the scene's already-picked tile; it
+cannot select the desired world tile solely from those arguments. The old fake
+engine test incorrectly treated those parameters as a destination, hiding this.
+
+**Uncommitted experimental code is in the current workspace** and preserved in
+[the pending patch](pending-walk-resolution.patch) for a fresh checkout:
+
+- JavaBridge.onScriptWalk projects a world tile to canvas, waits for the bridge
+  settle gate and requires the renderer's selected tile to match before WALK.
+  It never falls back to ordinary clicking (which might chop instead of walk).
+- MobileActions.walk uses this scene-resolved path.
+- Walker experiments try nearer waypoints when a long waypoint is offscreen,
+  replan after 7.5 seconds and add diagnostics. These experiments STILL stop at
+  15 seconds; replace that behavior to meet the new retry instruction.
+- Tests gain SceneWalkFixture, a simulated renderer with the real bridge gate.
+
+**The experimental patch has not passed tests and is not a new APK.**
+First focused run failed MobileActionsTest dispatch assertions; the fixture did
+not supply WorldView.getSizeX/getSizeY, so LocalPoint.fromWorld rejects every
+point as outside a zero-size scene. Set fixture sizes (32) before rerunning.
+Also corrected use of LocalPoint.fromWorld(view,x,y), avoiding its WorldPoint
+variant's stale view-plane check; that correction was made during the first
+run and needs fresh validation. Dedicated bridge tests for wrong selected tile,
+settle timeout, Stop and manual input should be added. Test log:
+`/workspace/tooling/walk-resolution-checks.log` (not passing).
+
+Tracked modified files in that patch: JavaBridge.java, MobileActions.java,
+Rs2Walker.java, MobileActionsTest.java, MobileWalkerIntegrationTest.java;
+new test helper SceneWalkFixture.java. Do not overwrite them on resuming.
+Implementation changes have not been committed so CI continues to build the
+last verified source. Documentation commits alone do not trigger an APK build.
+
 ## Repository and user goal
 
 - Repository: https://github.com/thomasleeblankenship-svg/rsmod

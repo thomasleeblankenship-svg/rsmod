@@ -22,8 +22,9 @@ import java.util.function.BooleanSupplier;
  *     <li>Every client-thread check also refuses to wait when the runtime is not installed, rather
  *     than throwing a {@code NullPointerException}.</li>
  *     <li>The polling pool uses daemon threads, so it cannot keep the embedded JVM alive.</li>
- *     <li>Not ported, because they depend on the anti-ban helpers {@code Rs2Random} and
- *     {@code SessionFatigue}: {@code sleep(int, int)}, {@code sleepGaussian},
+ *     <li>{@code sleep(int, int)} and {@code sleepGaussian} inline the two {@code Rs2Random}
+ *     samplers they use instead of depending on {@code Rs2Random}.</li>
+ *     <li>Not ported, because they depend on {@code SessionFatigue} or more of {@code Rs2Random}:
  *     {@code sleepFatigued} (both), {@code sleepGaussianFatigued},
  *     {@code sleepTickJitterFatigued} and {@code sleepUntilOnClientThread(BooleanSupplier)}.</li>
  * </ul>
@@ -118,12 +119,22 @@ public class Global {
         }
     }
 
-    public static void sleep(int min, int max) {
-        sleep(ThreadLocalRandom.current().nextInt(Math.max(0, min), Math.max(min + 1, max + 1)));
+    /**
+     * Mobile: inlines upstream {@code Rs2Random.between(start, end)}: uniform in
+     * {@code [min(start, end), max(start, end))}, so either argument order works and the upper
+     * bound is exclusive.
+     */
+    public static void sleep(int start, int end) {
+        int n = Math.abs(end - start);
+        sleep(Math.min(start, end) + (n == 0 ? 0 : ThreadLocalRandom.current().nextInt(n)));
     }
 
-    public static void sleepGaussian(int mean, int deviation) {
-        sleep(Math.max(0, (int) Math.min(10000, mean + ThreadLocalRandom.current().nextGaussian() * deviation)));
+    /**
+     * Mobile: inlines upstream {@code Rs2Random.randomGaussian(mean, stddev)}: a normal sample
+     * floored at zero, with no upper cap.
+     */
+    public static void sleepGaussian(int mean, int stddev) {
+        sleep(Math.max(0, (int) (mean + stddev * ThreadLocalRandom.current().nextGaussian())));
     }
 
     private static final int TICK_MS = 600;

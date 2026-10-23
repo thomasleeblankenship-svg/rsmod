@@ -53,6 +53,17 @@ public class GlobalWaitTest {
     }
 
     @Test
+    public void randomSleepsAcceptUpstreamArgumentShapes() {
+        new RuntimeFixture().installLoggedIn();
+        long before = System.nanoTime();
+        Global.sleep(-5, -3);       // upstream Rs2Random.between tolerates any order and sign
+        Global.sleep(20, 10);       // reversed bounds
+        Global.sleep(7, 7);         // empty range
+        Global.sleepGaussian(-1_000, 10); // floored at zero
+        assertTrue(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - before) < 1_000);
+    }
+
+    @Test
     public void sleepUntilReturnsTrueWhenConditionHolds() {
         new RuntimeFixture().installLoggedIn();
         AtomicInteger polls = new AtomicInteger();
