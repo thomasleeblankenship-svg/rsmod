@@ -1,7 +1,14 @@
 # Android validation
 
-Phase 2 release-variant APK built; static checks passed. This is a baseline
-mobile adapter, not the upstream Microbot runtime. No device tests ran.
+Fresh release-variant APK built from `131c23215ebe4f1bcec214d315f2c1e3ed599cae`.
+Microbot runtime lifecycle, read services, the upstream state-machine example
+and manual-input cancellation are included. No device tests ran.
+
+Latest validation: 147 focused client tests passed with no failures or skips;
+APK v2 signature and ZIP alignment passed; 68 packaged Microbot/input classes
+match the compiled client. Download artifact:
+`/workspace/artifacts/runemobile-131c232-arm64.apk`.
+The original baseline checks below describe earlier validation unless repeated above.
 
 ## Verified
 

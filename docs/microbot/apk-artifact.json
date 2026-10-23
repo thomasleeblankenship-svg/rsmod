@@ -1,7 +1,7 @@
 {
-  "file": "/workspace/artifacts/runemobile-phase2-arm64.apk",
-  "bytes": 106436090,
-  "sha256": "f15b4aab50e58578d9a5d433c32bbca247a44dc000d84807f815d0b0fa4e6778",
+  "file": "/workspace/artifacts/runemobile-131c232-arm64.apk",
+  "bytes": 106522882,
+  "sha256": "cc9d46d0210e523f14ae0c4ec3ef96f22cd4c29803d5fc9876a68514e36c1019",
   "package": "dev.audaro.runemobile",
   "version_name": "0.2.6",
   "version_code": 206,
@@ -9,8 +9,15 @@
   "min_sdk": 28,
   "target_sdk": 35,
   "signing": "local Android Debug certificate, APK v2 verified",
-  "plugin_classes_verified": 15,
+  "zip_alignment": "16 KB native-library alignment verified",
+  "packaged_classes_verified": 68,
   "device_install_launch": "unrun",
-  "upstream_microbot_scripts": "not supported yet",
-  "source_commit": "8aa492ccf4ed1a0fcd8e87a1854b30dbb57bc3c4"
+  "upstream_microbot_scripts": "StateMachineExampleScript integrated; arbitrary desktop scripts require API review",
+  "source_commit": "131c23215ebe4f1bcec214d315f2c1e3ed599cae",
+  "focused_client_tests": {
+    "tests": 147,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  }
 }
