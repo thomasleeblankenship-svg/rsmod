@@ -21,6 +21,9 @@ public final class Rs2RunePouch
 		ItemID.NATURERUNE, ItemID.LAWRUNE, ItemID.BODYRUNE, ItemID.SOULRUNE, ItemID.ASTRALRUNE,
 		ItemID.MISTRUNE, ItemID.MUDRUNE, ItemID.DUSTRUNE, ItemID.LAVARUNE, ItemID.STEAMRUNE,
 		ItemID.SMOKERUNE, ItemID.WRATHRUNE, ItemID.SUNFIRERUNE};
+	/** Every rune pouch item: standard, upgraded, large, divine and large divine. */
+	public static final int[] POUCH_IDS = {ItemID.BH_RUNE_POUCH, ItemID.BR_RUNE_REPLACEMENT,
+		ItemID.BH_RUNE_POUCH_TROUVER, ItemID.DIVINE_RUNE_POUCH, ItemID.DIVINE_RUNE_POUCH_TROUVER};
 	private Rs2RunePouch() { }
 	public static int getQuantity(int itemId)
 	{

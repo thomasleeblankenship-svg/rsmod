@@ -405,4 +405,178 @@ public final class Rs2Inventory
 		return client != null && !client.isClientThread() && MobileActions.active();
 	}
 
+	// ---- Reads requested for the Hub plugins (Microbot API names, written for mobile) ----
+
+	/** Total stack size of every item accepted by {@code filter}. */
+	public static int itemQuantity(Predicate<Rs2ItemModel> filter)
+	{
+		int total = 0;
+		for (Rs2ItemModel item : getList(filter))
+		{
+			total += item.getQuantity();
+		}
+		return total;
+	}
+
+	/** Total stack size of item {@code id}. */
+	public static int itemQuantity(int id)
+	{
+		return itemQuantity(item -> item.getId() == id);
+	}
+
+	/** Total stack size of items named {@code name} (exact) or containing it, ignoring case. */
+	public static int itemQuantity(String name, boolean exact)
+	{
+		return itemQuantity(item -> matches(item.getName(), name, exact));
+	}
+
+	/** {@link #itemQuantity(String, boolean)} with an exact name. */
+	public static int itemQuantity(String name)
+	{
+		return itemQuantity(name, true);
+	}
+
+	/** At least {@code amount} of item {@code id}. */
+	public static boolean hasItemAmount(int id, int amount)
+	{
+		return hasItemAmount(id, amount, false);
+	}
+
+	/** Exactly {@code amount} of item {@code id} when {@code exact}, otherwise at least that many. */
+	public static boolean hasItemAmount(int id, int amount, boolean exact)
+	{
+		int quantity = itemQuantity(id);
+		return exact ? quantity == amount : quantity >= amount;
+	}
+
+	/**
+	 * At least {@code amount} of the item whose name contains {@code name}: its stack size if it
+	 * stacks, otherwise the number of slots holding it. False when no such item is carried.
+	 */
+	public static boolean hasItemAmount(String name, int amount)
+	{
+		Rs2ItemModel item = get(name);
+		return item != null && hasItemAmount(name, amount, item.isStackable());
+	}
+
+	/** {@link #hasItemAmount(String, int, boolean, boolean)} with a partial name. */
+	public static boolean hasItemAmount(String name, int amount, boolean stackable)
+	{
+		return hasItemAmount(name, amount, stackable, false);
+	}
+
+	/** Compares stack size for a stackable item and occupied slots otherwise. */
+	public static boolean hasItemAmount(String name, int amount, boolean stackable, boolean exact)
+	{
+		int have = stackable ? itemQuantity(name, exact) : count(name, exact);
+		return have >= amount;
+	}
+
+	/** Whether any of {@code ids} is carried. */
+	public static boolean hasItem(int... ids)
+	{
+		return contains(ids);
+	}
+
+	/** Whether any carried item's name contains one of {@code names}, ignoring case. */
+	public static boolean hasItem(String... names)
+	{
+		return contains(false, names);
+	}
+
+	/** Whether any carried item matches one of {@code names}, exactly or partially. */
+	public static boolean hasItem(String[] names, boolean exact)
+	{
+		return contains(exact, names);
+	}
+
+	/** Whether a carried item matches {@code name}, exactly or partially. */
+	public static boolean hasItem(String name, boolean exact)
+	{
+		return contains(exact, name);
+	}
+
+	/** Whether no slot is occupied. */
+	public static boolean isEmpty()
+	{
+		return count() == 0;
+	}
+
+	/** Whether every carried item satisfies {@code predicate}; an empty inventory qualifies. */
+	public static boolean onlyContains(Predicate<Rs2ItemModel> predicate)
+	{
+		return items().allMatch(predicate);
+	}
+
+	/** Whether every carried item is one of {@code ids}. */
+	public static boolean onlyContains(int... ids)
+	{
+		return onlyContains(item -> Arrays.stream(ids).anyMatch(id -> id == item.getId()));
+	}
+
+	/** Whether every carried item is named exactly (ignoring case) one of {@code names}. */
+	public static boolean onlyContains(String... names)
+	{
+		return onlyContains(item -> Arrays.stream(names).anyMatch(name -> matches(item.getName(), name, true)));
+	}
+
+	/** Carried food (see {@link Rs2ItemModel#isFood()}). */
+	public static List<Rs2ItemModel> getInventoryFood()
+	{
+		return getList(Rs2ItemModel::isFood);
+	}
+
+	/** Carried items that can be buried. */
+	public static List<Rs2ItemModel> getBones()
+	{
+		return getList(item -> hasAction(item, "Bury"));
+	}
+
+	private static boolean hasAction(Rs2ItemModel item, String action)
+	{
+		for (String candidate : item.getInventoryActions())
+		{
+			if (action.equalsIgnoreCase(candidate))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** Whether any kind of rune pouch is carried. */
+	public static boolean hasRunePouch()
+	{
+		return hasItem(Rs2RunePouch.POUCH_IDS);
+	}
+
+	private static final int[] INVENTORY_VIEWS = {
+		net.runelite.api.widgets.ComponentID.INVENTORY_CONTAINER,
+		net.runelite.api.widgets.ComponentID.BANK_INVENTORY_ITEM_CONTAINER,
+		net.runelite.api.gameval.InterfaceID.INVENTORY_NOOPS << 16,
+		net.runelite.api.gameval.InterfaceID.Shopside.ITEMS,
+		net.runelite.api.widgets.ComponentID.GRAND_EXCHANGE_INVENTORY_INVENTORY_ITEM_CONTAINER,
+		net.runelite.api.widgets.ComponentID.DEPOSIT_BOX_INVENTORY_ITEM_CONTAINER,
+	};
+
+	/**
+	 * The item-container widget currently showing the inventory: the side panel, or the inventory
+	 * shown beside the bank, bank PIN, shop, Grand Exchange or deposit box. {@code null} when none
+	 * is visible. A live handle; dereference it on the client thread.
+	 */
+	public static net.runelite.api.widgets.Widget getInventory()
+	{
+		return MobileActions.read(() ->
+		{
+			for (int id : INVENTORY_VIEWS)
+			{
+				net.runelite.api.widgets.Widget view = Microbot.getClient().getWidget(id);
+				if (view != null && !view.isHidden() && view.getDynamicChildren() != null)
+				{
+					return view;
+				}
+			}
+			return null;
+		}, null);
+	}
 }

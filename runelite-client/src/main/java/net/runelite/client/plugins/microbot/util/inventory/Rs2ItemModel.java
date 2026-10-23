@@ -91,4 +91,25 @@ public class Rs2ItemModel
 	{
 		return isTradeable;
 	}
+
+	/**
+	 * Whether this is food: an unnoted item that can be eaten, or a jug of wine. Rock cakes have an
+	 * Eat option but only hurt, so they are excluded.
+	 */
+	public boolean isFood()
+	{
+		String lower = name == null ? "" : name.toLowerCase(java.util.Locale.ROOT);
+		if (isNoted || lower.contains("rock cake"))
+		{
+			return false;
+		}
+		for (String action : getInventoryActions())
+		{
+			if ("Eat".equalsIgnoreCase(action))
+			{
+				return true;
+			}
+		}
+		return lower.contains("jug of wine");
+	}
 }
