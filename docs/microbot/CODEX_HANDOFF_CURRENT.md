@@ -142,6 +142,20 @@ Evidence: `docs/microbot/build-logs/drop-stairs-checks.log`,
 
 ## APK and browser delivery (next step)
 
+**Newest GitHub debug APK (source `d6b4be0`):** run 39911072637 succeeded
+(contract preflight, build, APK verification and upload). It adds two Claude 2
+fixes on top of `024f387`: exact `Rs2Inventory.contains(name)` matching
+(upstream semantics, so `"Logs"` no longer matches `"Oak logs"`) and
+ground-item scans on the player's actual floor. It does **not** contain the
+pending walk-resolution patch or the tap/retry changes requested above.
+Artifact `runemobile-mobile-debug-arm64`, ID 12483336024, digest
+`sha256:f72e0069b3fd3cc60c78f5f6d5f0b2a60cdba91e175eb1827bee0c0685fb5210`,
+expires 2026-11-06. Direct browser download (signed-in GitHub required):
+
+https://github.com/thomasleeblankenship-svg/rsmod/actions/runs/39911072637/artifacts/12483336024
+
+The `024f387` details below remain the last locally verified build.
+
 Verified local APK:
 `/workspace/artifacts/runemobile-woodcutting-debug-024f387-arm64.apk`
 
