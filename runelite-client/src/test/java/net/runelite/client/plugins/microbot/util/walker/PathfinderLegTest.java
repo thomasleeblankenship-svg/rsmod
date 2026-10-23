@@ -63,7 +63,7 @@ public class PathfinderLegTest
 	public void routesNeedingATransportTheWalkerCannotExecuteFallBack()
 	{
 		assertNull(legFor(result(PathResult.Status.FOUND, TILES,
-			Map.of(1, transport(B, GOAL, TransportType.BOAT, "Travel", "Sailor", -1)))));
+			Map.of(1, transport(B, GOAL, TransportType.FAIRY_RING, "Use", "Fairy ring", 29495)))));
 	}
 
 	@Test
@@ -71,5 +71,53 @@ public class PathfinderLegTest
 	{
 		assertNull(legFor(result(PathResult.Status.PARTIAL, TILES, Map.of())));
 		assertNull(legFor(result(PathResult.Status.TIMED_OUT, TILES, Map.of())));
+	}
+
+	@Test
+	public void aBoatBecomesATravelStepThatLandsWithinFiveTiles()
+	{
+		Rs2Walker.WalkLeg leg = legFor(result(PathResult.Status.FOUND, TILES,
+			Map.of(1, transport(B, GOAL, TransportType.SHIP, "Musa Point", "Captain Tobias", 3644))));
+		assertNotNull(leg);
+		assertTrue(leg.stairs.travel);
+		assertEquals(5, leg.stairs.arrivalRadius);
+		assertEquals(List.of("Musa Point", "Travel"), Rs2Walker.npcOptions(leg.stairs));
+		assertEquals(List.of("Captain Tobias", "Musa Point", "Yes"), List.of(Rs2Walker.travelOptions(leg.stairs)));
+	}
+
+	@Test
+	public void anExplicitTravelOptionIsNotSupplementedWithTravel()
+	{
+		ObjectTransports.Step talk = new ObjectTransports.Step(A, GOAL, 601, "Talk-to", "Pirate Pete", 5, true, "Braindeath Island");
+		assertEquals(List.of("Talk-to"), Rs2Walker.npcOptions(talk));
+		assertEquals(List.of("Braindeath Island", "Yes"), List.of(Rs2Walker.travelOptions(talk)));
+	}
+
+	@Test
+	public void aTeleportItemIsUsedWhereTheRouteReachesIt()
+	{
+		Rs2Walker.WalkLeg leg = legFor(result(PathResult.Status.FOUND, TILES,
+			Map.of(0, transport(null, GOAL, TransportType.TELEPORTATION_ITEM, null, "Games necklace: Burthorpe", -1))));
+		assertNotNull(leg);
+		assertTrue(leg.stairs.item);
+		assertEquals(A, leg.destination);
+		assertEquals(8, leg.stairs.arrivalRadius);
+		assertEquals("Games necklace", Rs2Walker.teleportItemName(leg.stairs));
+		assertEquals("Burthorpe", Rs2Walker.teleportDestination(leg.stairs));
+	}
+
+	@Test
+	public void disableTeleportsMakesTeleportRoutesFallBack()
+	{
+		Rs2Walker.disableTeleports = true;
+		try
+		{
+			assertNull(legFor(result(PathResult.Status.FOUND, TILES,
+				Map.of(0, transport(null, GOAL, TransportType.TELEPORTATION_ITEM, null, "Ring of dueling: Castle Wars", -1)))));
+		}
+		finally
+		{
+			Rs2Walker.disableTeleports = false;
+		}
 	}
 }

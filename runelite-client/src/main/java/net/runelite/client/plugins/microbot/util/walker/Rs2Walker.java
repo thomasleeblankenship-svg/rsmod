@@ -19,15 +19,25 @@ import net.runelite.api.Tile;
 import net.runelite.api.TileObject;
 import net.runelite.api.WorldView;
 import net.runelite.api.coords.WorldPoint;
+import net.runelite.api.gameval.InterfaceID;
 import net.runelite.client.headless.JavaBridge;
 import net.runelite.client.plugins.microbot.Microbot;
 import net.runelite.client.plugins.microbot.MicrobotRuntime;
 import net.runelite.client.plugins.microbot.api.MicrobotReadServices;
+import net.runelite.client.plugins.microbot.api.npc.models.Rs2NpcModel;
 import net.runelite.client.plugins.microbot.api.tileobject.models.Rs2TileObjectModel;
+import net.runelite.client.plugins.microbot.globval.enums.InterfaceTab;
 import net.runelite.client.plugins.microbot.mobile.MobileActions;
 import net.runelite.client.plugins.microbot.shortestpath.MobilePathfinder;
+import net.runelite.client.plugins.microbot.shortestpath.MobileTransportPolicy;
 import net.runelite.client.plugins.microbot.shortestpath.PathResult;
 import net.runelite.client.plugins.microbot.shortestpath.TransportType;
+import net.runelite.client.plugins.microbot.util.Global;
+import net.runelite.client.plugins.microbot.util.dialogues.Rs2Dialogue;
+import net.runelite.client.plugins.microbot.util.equipment.Rs2Equipment;
+import net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory;
+import net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel;
+import net.runelite.client.plugins.microbot.util.tabs.Rs2Tab;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -259,7 +269,9 @@ public final class Rs2Walker
 				}
 				if (arrived(scene.player, leg.destination, leg.radius) && leg.stairs != null)
 				{
-					if (!useStairs(leg.stairs, generation, deadline))
+					if (!(leg.stairs.item ? useTeleportItem(leg.stairs, generation, deadline)
+						: leg.stairs.travel ? useTravel(leg.stairs, generation, deadline)
+						: useStairs(leg.stairs, generation, deadline)))
 					{
 						if (!STAIRS_UNAVAILABLE.equals(lastStatus))
 						{
@@ -471,8 +483,38 @@ public final class Rs2Walker
 		}
 	}
 
+	/** Rides on an NPC or vehicle: interact, answer the destination dialogue, wait for the landing. */
+	static final Set<TransportType> TRAVEL_TRANSPORTS = EnumSet.of(TransportType.BOAT, TransportType.SHIP, TransportType.NPC);
+
 	/** Transport types the walker can execute; the pathfinder is told to admit only these. */
-	static final Set<TransportType> EXECUTABLE_TRANSPORTS = EnumSet.of(TransportType.TRANSPORT, TransportType.AGILITY_SHORTCUT);
+	static final Set<TransportType> EXECUTABLE_TRANSPORTS = EnumSet.of(TransportType.TRANSPORT, TransportType.AGILITY_SHORTCUT,
+		TransportType.BOAT, TransportType.SHIP, TransportType.NPC, TransportType.TELEPORTATION_ITEM);
+
+	/** Teleports land in an area rather than on one tile. */
+	private static final int TELEPORT_ARRIVAL_TILES = 8;
+	private static final long TELEPORT_MILLIS = 20_000;
+	/** Inventory options that open a teleport item's destinations or use it, in preference order. */
+	private static final List<String> TELEPORT_ITEM_OPTIONS = List.of("Rub", "Teleport", "Break", "Read", "Commune");
+	/** Worn-equipment widgets by equipment slot index (head 0 ... ammo 13; 6, 8 and 11 are unused). */
+	private static final java.util.Map<Integer, Integer> WORN_SLOT_WIDGETS = java.util.Map.ofEntries(
+		java.util.Map.entry(0, InterfaceID.Wornitems.SLOT0), java.util.Map.entry(1, InterfaceID.Wornitems.SLOT1),
+		java.util.Map.entry(2, InterfaceID.Wornitems.SLOT2), java.util.Map.entry(3, InterfaceID.Wornitems.SLOT3),
+		java.util.Map.entry(4, InterfaceID.Wornitems.SLOT4), java.util.Map.entry(5, InterfaceID.Wornitems.SLOT5),
+		java.util.Map.entry(7, InterfaceID.Wornitems.SLOT7), java.util.Map.entry(9, InterfaceID.Wornitems.SLOT9),
+		java.util.Map.entry(10, InterfaceID.Wornitems.SLOT10), java.util.Map.entry(12, InterfaceID.Wornitems.SLOT12),
+		java.util.Map.entry(13, InterfaceID.Wornitems.SLOT13));
+
+	/** A ride lands roughly where the catalogue says (gangplanks and docks shift by a few tiles). */
+	private static final int TRAVEL_ARRIVAL_TILES = 5;
+	/** Longest a ride (interaction, dialogue, the trip and its scene load) may take. */
+	private static final long TRAVEL_MILLIS = 45_000;
+	/** NPC options upstream treats as explicit; any other configured option also tries "Travel". */
+	private static final Set<String> EXPLICIT_TRAVEL_OPTIONS = Set.of("travel", "talk-to", "quick-travel", "take-boat");
+
+	static
+	{
+		MobilePathfinder.setTransportPolicy(MobileTransportPolicy.admitting(EXECUTABLE_TRANSPORTS));
+	}
 
 	/**
 	 * The next leg: {@link MobilePathfinder} when enabled (whole-world map and transports), else
@@ -522,13 +564,29 @@ public final class Rs2Walker
 			{
 				continue;
 			}
-			if (!EXECUTABLE_TRANSPORTS.contains(transport.getType()) || transport.getAction() == null)
+			if (!EXECUTABLE_TRANSPORTS.contains(transport.getType())
+				|| (transport.getAction() == null && transport.getType() != TransportType.TELEPORTATION_ITEM))
 			{
 				LOG.info("Mobile walk: route needs {} ({}); using the same-plane planner", transport.getType(), transport);
 				return null;
 			}
+			if (transport.getType() == TransportType.TELEPORTATION_ITEM)
+			{
+				if (disableTeleports || transport.getDisplayInfo() == null || !transport.getDisplayInfo().contains(":"))
+				{
+					LOG.info("Mobile walk: route needs teleport item {}; using the same-plane planner", transport);
+					return null;
+				}
+				// A teleport item is used where the route reaches it (usually where the player stands).
+				WorldPoint from = tiles.get(i);
+				ObjectTransports.Step step = new ObjectTransports.Step(from, transport.getDestination(), -1, "",
+					transport.getName(), TELEPORT_ARRIVAL_TILES, false, transport.getDisplayInfo(), true);
+				return new WalkLeg(from, 1, step, new ArrayList<>(tiles.subList(0, i + 1)), true);
+			}
+			boolean travel = TRAVEL_TRANSPORTS.contains(transport.getType());
 			ObjectTransports.Step step = new ObjectTransports.Step(transport.getOrigin(), transport.getDestination(),
-				transport.getObjectId(), transport.getAction(), transport.getName(), 1);
+				transport.getObjectId(), transport.getAction(), transport.getName(), travel ? TRAVEL_ARRIVAL_TILES : 1,
+				travel, transport.getDisplayInfo());
 			return new WalkLeg(transport.getOrigin(), 1, step, new ArrayList<>(tiles.subList(0, i + 1)), true);
 		}
 		return new WalkLeg(destination, radius, null, new ArrayList<>(tiles), true);
@@ -623,6 +681,236 @@ public final class Rs2Walker
 		lastStatus = !MobileActions.active() || GENERATION.get() != generation
 			? "staircase cancelled" : dispatched ? "plane change was not observed" : STAIRS_UNAVAILABLE;
 		return false;
+	}
+
+	/**
+	 * Rides an NPC or vehicle transport: interacts with the catalogued NPC (or, failing that, an
+	 * object at the origin) using its option, answers the destination dialogue, and requires an
+	 * observed landing near the catalogued destination.
+	 */
+	private static boolean useTravel(ObjectTransports.Step step, long generation, long walkDeadline) throws InterruptedException
+	{
+		long deadline = Math.min(walkDeadline, System.currentTimeMillis() + TRAVEL_MILLIS);
+		long lastAttempt = 0;
+		boolean dispatched = false;
+		int missingLookups = 0;
+		lastStatus = "Travelling: " + step;
+		while (System.currentTimeMillis() < deadline && GENERATION.get() == generation
+			&& MobileActions.active() && !Thread.currentThread().isInterrupted())
+		{
+			MobileRoutePlanner.Scene scene = awaitSnapshot(generation, deadline);
+			if (scene == null)
+			{
+				lastStatus = "no collision snapshot, loading timed out or game state changed";
+				return false;
+			}
+			if (dispatched && step.observedArrival(scene.player))
+			{
+				return true;
+			}
+			if (Rs2Dialogue.hasSelectAnOption())
+			{
+				if (!Rs2Dialogue.clickOption(travelOptions(step)))
+				{
+					lastStatus = "unexpected travel dialogue options for " + step;
+					return false;
+				}
+			}
+			else if (Rs2Dialogue.hasContinue())
+			{
+				Rs2Dialogue.clickContinue();
+			}
+			else if (scene.player.getPlane() == step.origin.getPlane() && scene.player.distanceTo(step.origin) <= 3
+				&& System.currentTimeMillis() - lastAttempt >= 3_000)
+			{
+				lastAttempt = System.currentTimeMillis();
+				if (dispatchTravel(step))
+				{
+					dispatched = true;
+					missingLookups = 0;
+				}
+				else if (!dispatched && ++missingLookups >= 3)
+				{
+					lastStatus = STAIRS_UNAVAILABLE;
+					return false;
+				}
+			}
+			long remaining = deadline - System.currentTimeMillis();
+			if (remaining > 0) { Thread.sleep(Math.min(300, remaining)); }
+		}
+		lastStatus = !MobileActions.active() || GENERATION.get() != generation
+			? "travel cancelled" : dispatched ? "travel landing was not observed" : STAIRS_UNAVAILABLE;
+		return false;
+	}
+
+	/**
+	 * Uses a teleport item: a worn item's destination option on the equipment tab, else the carried
+	 * item's destination option or Rub/Teleport/Break, then the destination in the dialogue; requires
+	 * an observed landing near the destination. Never answers "Yes": a confirmation could be a
+	 * Wilderness warning.
+	 */
+	private static boolean useTeleportItem(ObjectTransports.Step step, long generation, long walkDeadline) throws InterruptedException
+	{
+		String itemName = teleportItemName(step);
+		String place = teleportDestination(step);
+		long deadline = Math.min(walkDeadline, System.currentTimeMillis() + TELEPORT_MILLIS);
+		long lastAttempt = 0;
+		boolean dispatched = false;
+		lastStatus = "Teleporting: " + step.destinationText;
+		while (System.currentTimeMillis() < deadline && GENERATION.get() == generation
+			&& MobileActions.active() && !Thread.currentThread().isInterrupted())
+		{
+			MobileRoutePlanner.Scene scene = awaitSnapshot(generation, deadline);
+			if (scene == null)
+			{
+				lastStatus = "no collision snapshot, loading timed out or game state changed";
+				return false;
+			}
+			if (dispatched && step.observedArrival(scene.player))
+			{
+				return true;
+			}
+			if (Rs2Dialogue.hasSelectAnOption())
+			{
+				if (!Rs2Dialogue.clickOption(place))
+				{
+					lastStatus = "teleport dialogue does not offer " + place;
+					return false;
+				}
+			}
+			else if (Rs2Dialogue.hasContinue())
+			{
+				Rs2Dialogue.clickContinue();
+			}
+			else if (!dispatched || System.currentTimeMillis() - lastAttempt >= 6_000)
+			{
+				lastAttempt = System.currentTimeMillis();
+				if (dispatchTeleportItem(itemName, place))
+				{
+					dispatched = true;
+				}
+				else if (!dispatched)
+				{
+					lastStatus = "no usable " + itemName + " for " + place;
+					return false;
+				}
+			}
+			long remaining = deadline - System.currentTimeMillis();
+			if (remaining > 0) { Thread.sleep(Math.min(300, remaining)); }
+		}
+		lastStatus = !MobileActions.active() || GENERATION.get() != generation
+			? "teleport cancelled" : dispatched ? "teleport landing was not observed" : "teleport was not used";
+		return false;
+	}
+
+	/** "Games necklace: Burthorpe" gives "Games necklace". */
+	static String teleportItemName(ObjectTransports.Step step)
+	{
+		int colon = step.destinationText.indexOf(':');
+		return (colon < 0 ? step.destinationText : step.destinationText.substring(0, colon)).trim();
+	}
+
+	/** "Games necklace: Burthorpe" gives "Burthorpe". */
+	static String teleportDestination(ObjectTransports.Step step)
+	{
+		int colon = step.destinationText.indexOf(':');
+		return colon < 0 ? "" : step.destinationText.substring(colon + 1).trim();
+	}
+
+	/** One use of the item: worn first (its destination option), then carried. */
+	private static boolean dispatchTeleportItem(String itemName, String place)
+	{
+		String prefix = itemName.toLowerCase(java.util.Locale.ROOT);
+		Rs2ItemModel worn = Rs2Equipment.get(item -> item.getName() != null && item.getName().toLowerCase(java.util.Locale.ROOT).startsWith(prefix));
+		Integer widget = worn == null ? null : WORN_SLOT_WIDGETS.get(worn.getSlot());
+		if (widget != null)
+		{
+			String option = MobileActions.read(() ->
+			{
+				net.runelite.api.widgets.Widget slot = Microbot.getClient().getWidget(widget);
+				return slot == null || slot.getActions() == null ? null : Arrays.stream(slot.getActions())
+					.filter(action -> action != null && action.toLowerCase(java.util.Locale.ROOT).contains(place.toLowerCase(java.util.Locale.ROOT)))
+					.findFirst().orElse(null);
+			}, null);
+			if (option != null && Rs2Tab.switchTo(InterfaceTab.EQUIPMENT)
+				&& Global.sleepUntil(() -> MobileActions.widget(widget, -1, option), 2_000))
+			{
+				return true;
+			}
+		}
+		Rs2ItemModel carried = Rs2Inventory.items(item -> item.getName() != null
+			&& item.getName().toLowerCase(java.util.Locale.ROOT).startsWith(prefix)).findFirst().orElse(null);
+		if (carried == null || carried.getInventoryActions() == null)
+		{
+			return false;
+		}
+		String direct = Arrays.stream(carried.getInventoryActions())
+			.filter(action -> action != null && !place.isEmpty() && action.toLowerCase(java.util.Locale.ROOT).contains(place.toLowerCase(java.util.Locale.ROOT)))
+			.findFirst().orElse(null);
+		String option = direct != null ? direct : TELEPORT_ITEM_OPTIONS.stream()
+			.filter(candidate -> Arrays.stream(carried.getInventoryActions()).anyMatch(candidate::equalsIgnoreCase))
+			.findFirst().orElse(null);
+		return option != null && Global.sleepUntil(() -> Rs2Inventory.interact(carried, option), 2_000);
+	}
+
+	/** Dialogue choices that mean "go to this step's destination", most specific first. */
+	static String[] travelOptions(ObjectTransports.Step step)
+	{
+		List<String> options = new ArrayList<>();
+		if (!step.destinationText.isBlank())
+		{
+			options.add(step.destinationText);
+		}
+		if (step.action != null && !EXPLICIT_TRAVEL_OPTIONS.contains(step.action.toLowerCase(java.util.Locale.ROOT)))
+		{
+			options.add(step.action);
+		}
+		options.add("Yes");
+		return options.toArray(new String[0]);
+	}
+
+	/** One interaction: the catalogued NPC with its option (or "Travel"), else an object at the origin. */
+	private static boolean dispatchTravel(ObjectTransports.Step step)
+	{
+		Rs2NpcModel npc = MobileActions.read(() -> MicrobotReadServices.require().getRs2NpcCache().query()
+			.where(candidate -> candidate.getWorldLocation() != null
+				&& candidate.getWorldLocation().getPlane() == step.origin.getPlane()
+				&& candidate.getWorldLocation().distanceTo(step.origin) <= 12
+				&& (candidate.getId() == step.objectId || (!step.target.isEmpty() && step.target.equalsIgnoreCase(candidate.getName()))))
+			.nearest(), null);
+		if (npc != null)
+		{
+			for (String option : npcOptions(step))
+			{
+				if (MobileActions.npcAt(npc.getId(), npc.getIndex(), option))
+				{
+					return true;
+				}
+			}
+			return false;
+		}
+		Rs2TileObjectModel object = MobileActions.read(() -> MicrobotReadServices.require().getRs2TileObjectCache().query()
+			.where(candidate -> candidate.getWorldLocation().getPlane() == step.origin.getPlane()
+				&& candidate.getWorldLocation().distanceTo(step.origin) <= 6
+				&& candidate.getObjectComposition() != null
+				&& step.matches(candidate.getId(), candidate.getObjectComposition().getName(), candidate.getObjectComposition().getActions()))
+			.nearest(), null);
+		return object != null && MobileActions.objectAt(object.getId(), object.getWorldLocation(), step.action);
+	}
+
+	/** As upstream: the configured option, and "Travel" when the configured one is a destination name. */
+	static List<String> npcOptions(ObjectTransports.Step step)
+	{
+		List<String> options = new ArrayList<>();
+		if (step.action != null && !step.action.isBlank())
+		{
+			options.add(step.action);
+		}
+		if (step.action == null || !EXPLICIT_TRAVEL_OPTIONS.contains(step.action.toLowerCase(java.util.Locale.ROOT)))
+		{
+			options.add("Travel");
+		}
+		return options;
 	}
 
 	public static List<WorldPoint> getWalkableTilesAroundPlayer(int distance)

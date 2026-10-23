@@ -38,6 +38,12 @@ final class ObjectTransports
 		final String target;
 		/** How close to {@link #arrival} counts as arrived (staircases land loosely, doors do not). */
 		final int arrivalRadius;
+		/** An NPC or vehicle ride (boat, ship, travel NPC) rather than a single object click. */
+		final boolean travel;
+		/** The destination as the catalogue names it, for picking a dialogue option; may be empty. */
+		final String destinationText;
+		/** A teleport item (jewellery, tablets): {@link #destinationText} is "Item name: Destination". */
+		final boolean item;
 
 		Step(WorldPoint origin, WorldPoint arrival, int objectId, String action, String target)
 		{
@@ -46,12 +52,27 @@ final class ObjectTransports
 
 		Step(WorldPoint origin, WorldPoint arrival, int objectId, String action, String target, int arrivalRadius)
 		{
+			this(origin, arrival, objectId, action, target, arrivalRadius, false, "");
+		}
+
+		Step(WorldPoint origin, WorldPoint arrival, int objectId, String action, String target, int arrivalRadius,
+			boolean travel, String destinationText)
+		{
+			this(origin, arrival, objectId, action, target, arrivalRadius, travel, destinationText, false);
+		}
+
+		Step(WorldPoint origin, WorldPoint arrival, int objectId, String action, String target, int arrivalRadius,
+			boolean travel, String destinationText, boolean item)
+		{
+			this.item = item;
 			this.origin = origin;
 			this.arrival = arrival;
 			this.objectId = objectId;
 			this.action = action;
 			this.target = target == null ? "" : target;
 			this.arrivalRadius = arrivalRadius;
+			this.travel = travel;
+			this.destinationText = destinationText == null ? "" : destinationText;
 		}
 
 		/**
