@@ -46,6 +46,7 @@ Focused verification command (expect 0 failures and 0 skips):
 | --- | --- | --- | --- |
 | *(none)* | | | |
 | Claude 2 (session `claude/dazzling-cannon-6cy3wc`) | new `microbot/shortestpath/**` (main and test sources), new resources under `src/main/resources/net/runelite/client/plugins/microbot/shortestpath/**` | Webwalker plan, Claude 2 half: headless pathfinder port, `PathResult` entry point, five route tests. No edits to `util/walker/**`, `MobileActions`, `JavaBridge` | this commit |
+| Claude 1 | `microbot/Microbot.java` (`hopToWorld`, `getWorldService`, `isHopping`), `microbot/mobile/MobileActions.java` (hop request), `mobilemicrobot/MobileMicrobotPlugin.java` (a hop the running script requested keeps its session), new `microbot/util/security/Login.java` (world selection only; no auto-login), tests | Script-initiated world hopping (11 Hub plugins) | this commit |
 
 ## Requests
 
