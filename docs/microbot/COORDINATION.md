@@ -45,6 +45,7 @@ Focused verification command (expect 0 failures and 0 skips):
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
 | *(none)* | | | |
+| Claude 1 | `microbot/util/walker/**`, `microbot/util/magic/Rs2Magic.java` (**casting only**: `quickCast(String)`) | Webwalker step 5: teleport spells | this commit |
 
 ## Requests
 
