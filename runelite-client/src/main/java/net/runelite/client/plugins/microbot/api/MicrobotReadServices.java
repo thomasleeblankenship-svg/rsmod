@@ -42,8 +42,9 @@ import net.runelite.client.plugins.microbot.util.player.Rs2Player;
  * Event handlers mirror upstream {@code MicrobotPlugin}: world-view ids,
  * {@code Rs2Inventory.storeInventoryItemsInMemory} and
  * {@code Rs2Player.handleAnimationChanged}. Additionally, any game-state or
- * world-view change invalidates every snapshot, and leaving
- * {@code LOGGED_IN} clears inventory and animation state.
+ * world-view change invalidates every snapshot, and any state other than
+ * {@code LOGGED_IN} or {@code LOADING} (logout, hop, connection loss, login)
+ * clears world-view ids, inventory and animation state.
  */
 @Singleton
 public final class MicrobotReadServices implements MicrobotReadApi, MicrobotRuntimeService
@@ -199,7 +200,9 @@ public final class MicrobotReadServices implements MicrobotReadApi, MicrobotRunt
 	{
 		generation.incrementAndGet();
 		GameState state = event.getGameState();
-		if (state != GameState.LOGGED_IN)
+		// LOADING is a region load while still logged in: snapshots are invalidated
+		// above, but inventory, animation history and loaded sub-world-views remain.
+		if (state != GameState.LOGGED_IN && state != GameState.LOADING)
 		{
 			worldViewIds.clear();
 			Rs2Inventory.clear();

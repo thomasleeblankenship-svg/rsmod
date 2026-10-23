@@ -149,6 +149,22 @@ public class PlayerInventoryReadTest
 	}
 
 	@Test
+	public void regionLoadKeepsInventoryAndAnimationState()
+	{
+		define(1511, "Logs", false);
+		inventoryChanged(inventory(new Item(1511, 1)));
+		Instant animated = Instant.now();
+		Rs2Player.lastAnimationTime = animated;
+
+		GameStateChanged event = new GameStateChanged();
+		event.setGameState(GameState.LOADING);
+		eventBus.post(event);
+
+		assertEquals(1, Rs2Inventory.count());
+		assertSame(animated, Rs2Player.lastAnimationTime);
+	}
+
+	@Test
 	public void isAnimatingUsesCurrentAnimationOrRecentLocalAnimationEvent()
 	{
 		assertFalse(Rs2Player.isAnimating());
