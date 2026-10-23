@@ -261,6 +261,20 @@ public final class Rs2Player
 			net.runelite.api.widgets.WidgetInfo.LOGOUT_BUTTON.getId(), -1, "Logout");
 	}
 
+	/** As upstream: waits up to 5 s for movement to start, then for it to stop. */
+	public static void waitForWalking()
+	{
+		if (!net.runelite.client.plugins.microbot.util.Global.sleepUntilTrue(Rs2Player::isMoving, 100, 5000)) return;
+		net.runelite.client.plugins.microbot.util.Global.sleepUntil(() -> !Rs2Player.isMoving());
+	}
+
+	/** As upstream: waits up to {@code time} ms for movement to start, then up to {@code time} ms to stop. */
+	public static void waitForWalking(int time)
+	{
+		if (!net.runelite.client.plugins.microbot.util.Global.sleepUntilTrue(Rs2Player::isMoving, 100, time)) return;
+		net.runelite.client.plugins.microbot.util.Global.sleepUntil(() -> !Rs2Player.isMoving(), time);
+	}
+
 	public static boolean logoutIfPlayerDetected(int amountOfPlayers, int time)
 	{
 		return logoutIfPlayerDetected(amountOfPlayers, time, 0);

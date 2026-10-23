@@ -45,6 +45,7 @@ public class MobileMicrobotPlugin extends Plugin
 	@Inject private EventBus eventBus;
 	@Inject private MicrobotReadServices readServices;
 	@Inject private net.runelite.client.ui.overlay.OverlayManager overlayManager;
+	@Inject private net.runelite.client.plugins.PluginManager pluginManager;
 
 	private final AtomicLong commandGeneration = new AtomicLong();
 	private final AtomicLong lifecycleGeneration = new AtomicLong();
@@ -79,7 +80,7 @@ public class MobileMicrobotPlugin extends Plugin
 			}
 			try
 			{
-				MicrobotRuntime.install(client, clientThread, eventBus, configManager,
+				MicrobotRuntime.install(client, clientThread, eventBus, configManager, pluginManager,
 					java.util.List.of(readServices));
 				runtimeInstalled = true;
 				setRun(false);

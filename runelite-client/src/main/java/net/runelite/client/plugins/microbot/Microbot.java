@@ -6,6 +6,9 @@ import net.runelite.api.Client;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.EventBus;
+import net.runelite.client.plugins.Plugin;
+import net.runelite.client.plugins.PluginInstantiationException;
+import net.runelite.client.plugins.PluginManager;
 import net.runelite.client.plugins.microbot.api.MicrobotReadServices;
 import net.runelite.client.plugins.microbot.api.npc.Rs2NpcCache;
 import net.runelite.client.plugins.microbot.api.player.Rs2PlayerCache;
@@ -16,6 +19,7 @@ import net.runelite.client.plugins.microbot.util.GameTickBroadcaster;
 import net.runelite.client.plugins.microbot.woodcutting.AutoWoodcuttingPlugin;
 import org.slf4j.event.Level;
 
+import javax.swing.SwingUtilities;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -67,6 +71,7 @@ public class Microbot {
     private static volatile ClientThread clientThread;
     private static volatile EventBus eventBus;
     private static volatile ConfigManager configManager;
+    private static volatile PluginManager pluginManager;
     private static volatile BlockingEventManager blockingEventManager;
     private static volatile GameTickBroadcaster gameTickBroadcaster;
 
@@ -84,6 +89,94 @@ public class Microbot {
 
     public static ConfigManager getConfigManager() {
         return configManager;
+    }
+
+    public static PluginManager getPluginManager() {
+        return pluginManager;
+    }
+
+    static void bindPluginManager(PluginManager manager) {
+        pluginManager = manager;
+    }
+
+    // --- plugin control, as upstream (togglePlugin runs on the EDT like the mobile plugin UI) ---
+
+    public static boolean startPlugin(Plugin plugin) {
+        return togglePlugin(plugin, true);
+    }
+
+    public static boolean startPlugin(Class<? extends Plugin> clazz) {
+        return startPlugin(getPlugin(clazz));
+    }
+
+    public static boolean startPlugin(String className) {
+        return startPlugin(getPlugin(className));
+    }
+
+    public static boolean stopPlugin(Plugin plugin) {
+        return togglePlugin(plugin, false);
+    }
+
+    public static boolean stopPlugin(Class<? extends Plugin> clazz) {
+        return stopPlugin(getPlugin(clazz));
+    }
+
+    public static boolean stopPlugin(String className) {
+        return stopPlugin(getPlugin(className));
+    }
+
+    /** {@code null} when not installed or not loaded. */
+    public static Plugin getPlugin(String className) {
+        PluginManager manager = pluginManager;
+        return manager == null || className == null ? null : manager.getPlugins().stream()
+                .filter(plugin -> plugin.getClass().getName().equals(className))
+                .findFirst().orElse(null);
+    }
+
+    /** {@code null} when not installed or not loaded. */
+    public static <T extends Plugin> T getPlugin(Class<T> clazz) {
+        PluginManager manager = pluginManager;
+        return manager == null || clazz == null ? null : manager.getPlugins().stream()
+                .filter(plugin -> plugin.getClass() == clazz)
+                .map(clazz::cast).findFirst().orElse(null);
+    }
+
+    public static boolean isPluginEnabled(Plugin plugin) {
+        PluginManager manager = pluginManager;
+        return plugin != null && manager != null && manager.isPluginEnabled(plugin);
+    }
+
+    public static boolean isPluginEnabled(Class<? extends Plugin> clazz) {
+        return isPluginEnabled(getPlugin(clazz));
+    }
+
+    /**
+     * As upstream: on the EDT, sets the plugin's enabled flag, then starts or stops it. Off the EDT
+     * the change is queued and the return value is {@code false}, as upstream.
+     */
+    private static boolean togglePlugin(Plugin plugin, boolean enable) {
+        PluginManager manager = pluginManager;
+        if (plugin == null || manager == null) return false;
+        final AtomicBoolean success = new AtomicBoolean(false);
+        Runnable runnable = () -> {
+            try {
+                manager.setPluginEnabled(plugin, enable);
+                if (enable) {
+                    success.set(manager.startPlugin(plugin));
+                    manager.startPlugins();
+                } else {
+                    success.set(manager.stopPlugin(plugin));
+                }
+            } catch (PluginInstantiationException ex) {
+                log.error("Error {}abling plugin ({}):", enable ? "en" : "dis", plugin.getClass().getSimpleName(), ex);
+            }
+        };
+        if (SwingUtilities.isEventDispatchThread()) {
+            runnable.run();
+        } else {
+            SwingUtilities.invokeLater(runnable);
+        }
+        return success.get();
     }
 
     public static BlockingEventManager getBlockingEventManager() {
@@ -121,6 +214,7 @@ public class Microbot {
 
     static void unbind() {
         bind(null, null, null, null, null, null);
+        pluginManager = null;
         pauseAllScripts.set(false);
         status = "IDLE";
     }
