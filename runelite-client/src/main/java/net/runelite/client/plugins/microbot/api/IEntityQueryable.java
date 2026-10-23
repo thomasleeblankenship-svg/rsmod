@@ -58,6 +58,20 @@ public interface IEntityQueryable<Q extends IEntityQueryable<Q, E>, E extends IE
 	/** {@link #nearestReachable()} within {@code maxDistance} tiles. */
 	E nearestReachable(int maxDistance);
 
+	/** As upstream: clicks the nearest reachable match with its first action. */
+	boolean interact();
+
+	/** As upstream: {@code action} on the nearest reachable match. */
+	boolean interact(String action);
+
+	boolean interact(String action, int maxDistance);
+
+	boolean interact(int id);
+
+	boolean interact(int id, String action);
+
+	boolean interact(int id, String action, int maxDistance);
+
 	E firstOnClientThread();
 
 	E nearestOnClientThread();

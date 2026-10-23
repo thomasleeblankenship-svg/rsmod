@@ -12,10 +12,10 @@ import net.runelite.api.coords.WorldPoint;
 /**
  * Common read surface of a cached game entity.
  * <p>
- * Adaptation: upstream's {@code click()}, {@code click(String)} and
- * {@code isReachable()} are omitted because the action, menu and reachability
- * stacks are not ported in this stage; calling them would be a compile error
- * rather than a silent no-op.
+ * {@code click()} uses the entity's first action; {@code click(String)} dispatches one action
+ * through {@code MobileActions} (one per game tick, only for the bound script session), and
+ * returns whether it was dispatched. Adaptation: upstream's {@code isReachable()} is omitted;
+ * use the queryables' {@code nearestReachable}.
  */
 public interface IEntity
 {
@@ -28,4 +28,8 @@ public interface IEntity
 	LocalPoint getLocalLocation();
 
 	WorldView getWorldView();
+
+	boolean click();
+
+	boolean click(String action);
 }

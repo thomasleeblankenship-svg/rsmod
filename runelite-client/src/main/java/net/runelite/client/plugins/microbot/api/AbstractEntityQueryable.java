@@ -332,6 +332,50 @@ public abstract class AbstractEntityQueryable<
 		return toList();
 	}
 
+	// Interactions, as upstream: the nearest reachable match is clicked through IEntity.click.
+
+	@Override
+	public boolean interact()
+	{
+		E entity = nearestReachable();
+		return entity != null && entity.click();
+	}
+
+	@Override
+	public boolean interact(String action)
+	{
+		E entity = nearestReachable();
+		return entity != null && entity.click(action);
+	}
+
+	@Override
+	public boolean interact(String action, int maxDistance)
+	{
+		E entity = nearestReachable(maxDistance);
+		return entity != null && entity.click(action);
+	}
+
+	@Override
+	public boolean interact(int id)
+	{
+		E entity = withId(id).nearestReachable();
+		return entity != null && entity.click();
+	}
+
+	@Override
+	public boolean interact(int id, String action)
+	{
+		E entity = withId(id).nearestReachable();
+		return entity != null && entity.click(action);
+	}
+
+	@Override
+	public boolean interact(int id, String action, int maxDistance)
+	{
+		E entity = withId(id).nearestReachable(maxDistance);
+		return entity != null && entity.click(action);
+	}
+
 	private static Set<WorldPoint> reachableTiles(int radius)
 	{
 		return new HashSet<>(net.runelite.client.plugins.microbot.util.walker.Rs2Walker.getWalkableTilesAroundPlayer(radius));
