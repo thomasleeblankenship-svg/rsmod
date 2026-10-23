@@ -1,8 +1,12 @@
 package net.runelite.client.plugins.microbot.api;
 
 import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -15,7 +19,10 @@ import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.WorldViewLoaded;
 import net.runelite.api.events.WorldViewUnloaded;
 import net.runelite.client.callback.ClientThread;
+import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.plugins.microbot.MicrobotRuntime;
+import net.runelite.client.plugins.microbot.MicrobotRuntimeService;
 import net.runelite.client.plugins.microbot.api.npc.Rs2NpcCache;
 import net.runelite.client.plugins.microbot.api.tileitem.Rs2TileItemCache;
 import net.runelite.client.plugins.microbot.api.tileobject.Rs2TileObjectCache;
@@ -27,11 +34,11 @@ import net.runelite.client.plugins.microbot.util.player.Rs2Player;
  * and tile-item caches and routes the client events that keep the static
  * {@link Rs2Inventory} and {@link Rs2Player} read state current.
  * <p>
- * Lifecycle (performed by the hosting plugin, not by scripts):
- * <ol>
- * <li>inject this class, {@code eventBus.register(services)} and {@link #install(MicrobotReadServices)};</li>
- * <li>on shutdown, {@code eventBus.unregister(services)} and {@link #uninstall(MicrobotReadServices)}.</li>
- * </ol>
+ * Lifecycle: pass this service to {@link MicrobotRuntime#install}. Its
+ * {@link #startUp()} subscribes to the event bus and makes it the installed
+ * provider; {@link #shutDown()} reverses that and drops every cached entity.
+ * Scripts never construct it.
+ * <p>
  * Event handlers mirror upstream {@code MicrobotPlugin}: world-view ids,
  * {@code Rs2Inventory.storeInventoryItemsInMemory} and
  * {@code Rs2Player.handleAnimationChanged}. Additionally, any game-state or
@@ -39,51 +46,43 @@ import net.runelite.client.plugins.microbot.util.player.Rs2Player;
  * {@code LOGGED_IN} clears inventory and animation state.
  */
 @Singleton
-public final class MicrobotReadServices implements MicrobotReadApi
+public final class MicrobotReadServices implements MicrobotReadApi, MicrobotRuntimeService
 {
 	private static volatile MicrobotReadServices installed;
 
 	private final Client client;
-	private final ClientThreadCalls clientThreadCalls;
+	private final ClientThread clientThread;
+	private final EventBus eventBus;
+	private final long readTimeoutMillis;
 	private final Set<Integer> worldViewIds = ConcurrentHashMap.newKeySet();
 	private final AtomicInteger generation = new AtomicInteger();
+	private final List<TickSnapshotCache<?>> snapshots = new CopyOnWriteArrayList<>();
 	private final Rs2NpcCache npcCache;
 	private final Rs2TileObjectCache tileObjectCache;
 	private final Rs2TileItemCache tileItemCache;
 
 	@Inject
-	public MicrobotReadServices(Client client, ClientThread clientThread)
+	public MicrobotReadServices(Client client, ClientThread clientThread, EventBus eventBus)
 	{
-		this(client, new ClientThreadCalls(client, clientThread));
+		this(client, clientThread, eventBus, ClientThread.DEFAULT_CLIENT_THREAD_TIMEOUT_MILLIS);
 	}
 
-	public MicrobotReadServices(Client client, ClientThreadCalls clientThreadCalls)
+	/**
+	 * @param readTimeoutMillis how long an off-client-thread read waits before it
+	 *                          returns empty; upstream uses 10 s
+	 */
+	public MicrobotReadServices(Client client, ClientThread clientThread, EventBus eventBus, long readTimeoutMillis)
 	{
 		this.client = client;
-		this.clientThreadCalls = clientThreadCalls;
+		this.clientThread = clientThread;
+		this.eventBus = eventBus;
+		this.readTimeoutMillis = readTimeoutMillis;
 		this.npcCache = new Rs2NpcCache(this);
 		this.tileObjectCache = new Rs2TileObjectCache(this);
 		this.tileItemCache = new Rs2TileItemCache(this);
 	}
 
-	/** Makes {@code services} the process-wide provider. */
-	public static void install(MicrobotReadServices services)
-	{
-		installed = services;
-	}
-
-	/** Removes {@code services} if it is still the installed provider and clears static read state. */
-	public static void uninstall(MicrobotReadServices services)
-	{
-		if (installed == services)
-		{
-			installed = null;
-			Rs2Inventory.clear();
-			Rs2Player.clear();
-		}
-	}
-
-	/** The installed provider, or {@code null} before plugin start-up / after shutdown. */
+	/** The installed provider, or {@code null} while the runtime is not installed. */
 	public static MicrobotReadServices current()
 	{
 		return installed;
@@ -101,21 +100,51 @@ public final class MicrobotReadServices implements MicrobotReadApi
 	}
 
 	@Override
+	public void startUp()
+	{
+		if (installed != null && installed != this)
+		{
+			throw new IllegalStateException("Another MicrobotReadServices instance is installed");
+		}
+		eventBus.register(this);
+		installed = this;
+	}
+
+	@Override
+	public void shutDown()
+	{
+		if (installed == this)
+		{
+			installed = null;
+		}
+		eventBus.unregister(this);
+		worldViewIds.clear();
+		generation.incrementAndGet();
+		snapshots.forEach(TickSnapshotCache::clear);
+		Rs2Inventory.clear();
+		Rs2Player.clear();
+	}
+
+	@Override
 	public Client getClient()
 	{
 		return client;
 	}
 
 	@Override
-	public ClientThreadCalls getClientThreadCalls()
+	public ClientThread getClientThread()
 	{
-		return clientThreadCalls;
+		return clientThread;
 	}
 
-	@Override
-	public boolean isLoggedIn()
+	/**
+	 * Runs {@code method} on the client thread via
+	 * {@link ClientThread#runOnClientThreadOptional(Callable, long)}: inline on the
+	 * client thread, otherwise waiting at most the read timeout.
+	 */
+	public <T> Optional<T> read(Callable<T> method)
 	{
-		return client.getGameState() == GameState.LOGGED_IN;
+		return clientThread.runOnClientThreadOptional(method, readTimeoutMillis);
 	}
 
 	@Override
@@ -142,10 +171,15 @@ public final class MicrobotReadServices implements MicrobotReadApi
 		return generation.get();
 	}
 
+	void track(TickSnapshotCache<?> snapshot)
+	{
+		snapshots.add(snapshot);
+	}
+
 	/**
 	 * World views to scan: the top-level view plus every loaded sub-view (boats).
 	 * Upstream only iterates ids from {@link WorldViewLoaded}; the top-level id is
-	 * added explicitly so a plugin started after login still sees the main scene.
+	 * added explicitly so a runtime installed after login still sees the main scene.
 	 * Call on the client thread.
 	 */
 	public Set<Integer> getWorldViewIds()

@@ -129,7 +129,7 @@ public class Rs2TileObjectModel implements IEntity
 	{
 		if (!nameResolved)
 		{
-			name = services.getClientThreadCalls().call(this::resolveName).orElse(null);
+			name = services.read(this::resolveName).orElse(null);
 			nameResolved = true;
 		}
 		return name;

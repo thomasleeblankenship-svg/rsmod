@@ -105,7 +105,7 @@ public final class Rs2Player
 			return false;
 		}
 		Client client = services.getClient();
-		return services.getClientThreadCalls().call(() ->
+		return services.read(() ->
 		{
 			Player localPlayer = client.getLocalPlayer();
 			if (localPlayer == null)
@@ -125,7 +125,7 @@ public final class Rs2Player
 			return -1;
 		}
 		Client client = services.getClient();
-		return services.getClientThreadCalls().call(() ->
+		return services.read(() ->
 		{
 			Player localPlayer = client.getLocalPlayer();
 			return localPlayer == null ? -1 : localPlayer.getAnimation();
@@ -141,7 +141,7 @@ public final class Rs2Player
 			return -1;
 		}
 		Client client = services.getClient();
-		return services.getClientThreadCalls().call(() ->
+		return services.read(() ->
 		{
 			Player localPlayer = client.getLocalPlayer();
 			return localPlayer == null ? -1 : localPlayer.getPoseAnimation();

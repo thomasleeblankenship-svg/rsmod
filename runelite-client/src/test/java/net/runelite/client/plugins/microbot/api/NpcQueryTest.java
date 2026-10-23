@@ -11,6 +11,7 @@ import net.runelite.api.NPC;
 import net.runelite.api.WorldView;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.WorldViewLoaded;
+import net.runelite.client.plugins.microbot.Microbot;
 import net.runelite.client.plugins.microbot.api.npc.models.Rs2NpcModel;
 import org.junit.After;
 import org.junit.Before;
@@ -98,7 +99,7 @@ public class NpcQueryTest
 		assertEquals(1, f.services.getRs2NpcCache().getStream().count());
 
 		f.gameState(GameState.LOGIN_SCREEN);
-		assertFalse(f.services.isLoggedIn());
+		assertFalse(Microbot.isLoggedIn());
 		assertEquals(0, f.services.getRs2NpcCache().getStream().count());
 
 		f.gameState(GameState.LOGGED_IN);
@@ -190,7 +191,7 @@ public class NpcQueryTest
 		when(f.client.getWorldView(7)).thenReturn(boat);
 
 		assertEquals(0, f.services.getRs2NpcCache().getStream().count());
-		f.services.onWorldViewLoaded(new WorldViewLoaded(boat));
+		f.eventBus.post(new WorldViewLoaded(boat));
 		assertEquals("Deckhand", f.services.getRs2NpcCache().query().first().getName());
 	}
 }
