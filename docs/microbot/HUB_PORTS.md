@@ -61,6 +61,36 @@ human-like behavior"). Errors were measured the same way, after the shared base.
 Batch 2 is ported after batch 1, in order of fewest errors; ports that share APIs with batch 1
 come almost for free.
 
+## Batch 3 (user request, 2026-10-23: 10 more by latest Hub commits)
+
+Hub ranks 26–36 by the last commit touching each plugin directory (Hub `ee6e066`). **Rank 35,
+`playermonitor`, is excluded.** It logs out, hops or uses an item when another player comes near,
+which serves only to avoid being seen and reported, so it falls under the policy below. Rank 36,
+`woodcutting`, takes its place. Errors were measured on 2026-10-23 against the current client.
+
+| Plugin | Last update | Java lines | Errors |
+| --- | --- | --- | --- |
+| woodcutting | 2026-10-15 | 2,015 | 8 |
+| AmmoniteCrabs | 2026-10-16 | 704 | 15 |
+| scurrius | 2026-10-15 | 758 | 25 |
+| virewatch | 2026-10-16 | 1,036 | 28 |
+| tutorialisland | 2026-10-16 | 1,148 | 35 |
+| farmtreerun | 2026-10-17 | 2,071 | 54 |
+| mahoganyhomez | 2026-10-17 | 2,726 | 54 |
+| thieving | 2026-10-16 | 2,179 | 65 |
+| magetrainingarena | 2026-10-15 | 1,348 | 82 |
+| moonsofperil | 2026-10-16 | 2,191 | 93 |
+
+## Widest remaining gaps (all 33 pending plugins, 2026-10-23)
+
+Number of plugins blocked by each gap. Packages missing entirely: `util.prayer` (13), `util.magic`
+(13), `inventorysetups`/`Rs2InventorySetup` (11), `util.security` (`Login`, 10), `util.tabs` (9),
+`globval.enums` (6), `util.menu` (6), `util.npc.Rs2NpcModel` (legacy NPC model, 6). Members:
+`Microbot.hopToWorld` (11), `Rs2Bank.withdrawX` (10) / `depositAll` overloads (9) / `walkToBank`
+(8) / `withdrawOne` (7) / `walkToBankAndUseBank` overloads (7), `Rs2Combat.inCombat` (9),
+`Microbot.getMouse` (8), `Rs2Player.eatAt` (8), `Rs2Dialogue.clickOption` (7),
+`Rs2Keyboard.typeString` (7). Full list: regenerate with `hubcheck.sh` (see *Measured gap*).
+
 ## Policy for anti-detection features (applies to every port)
 
 User asked (2026-10-23) to keep anti-ban "for measure". Kept as the inert compatibility layer: scripts
