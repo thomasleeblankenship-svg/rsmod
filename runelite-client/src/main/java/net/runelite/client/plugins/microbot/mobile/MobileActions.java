@@ -374,6 +374,55 @@ public final class MobileActions
 		hopWorld = -1;
 	}
 
+	/**
+	 * Selects a target spell (alchemy, superheat, cast on an NPC) by its spellbook widget, as
+	 * upstream's WIDGET_TARGET menu entry; the next target action applies it. One script action.
+	 */
+	public static boolean selectSpell(int widgetId, String option, int identifier)
+	{
+		return perform(() ->
+		{
+			Widget spell = client().getWidget(widgetId);
+			if (spell == null || spell.isHidden()) { return false; }
+			client().menuAction(-1, widgetId, MenuAction.WIDGET_TARGET, identifier, -1, option, spell.getName());
+			return true;
+		});
+	}
+
+	/** Applies the selected spell to the NPC with this scene index. One script action. */
+	public static boolean spellOnNpc(int npcIndex)
+	{
+		return perform(() ->
+		{
+			if (!client().isWidgetSelected()) { return false; }
+			NPC target = null;
+			for (NPC npc : client().getTopLevelWorldView().npcs())
+			{
+				if (npc.getIndex() == npcIndex) { target = npc; break; }
+			}
+			if (target == null) { return false; }
+			client().menuAction(0, 0, MenuAction.WIDGET_TARGET_ON_NPC, npcIndex, -1, "Cast", target.getName());
+			return true;
+		});
+	}
+
+	/** Applies the selected spell to the player with this id. One script action. */
+	public static boolean spellOnPlayer(int playerId)
+	{
+		return perform(() ->
+		{
+			if (!client().isWidgetSelected()) { return false; }
+			Player target = null;
+			for (Player player : client().getTopLevelWorldView().players())
+			{
+				if (player.getId() == playerId) { target = player; break; }
+			}
+			if (target == null) { return false; }
+			client().menuAction(0, 0, MenuAction.WIDGET_TARGET_ON_PLAYER, playerId, -1, "Cast", target.getName());
+			return true;
+		});
+	}
+
 	/** Walks by tapping {@code destination} on the minimap; false when it is not safely on the minimap. */
 	public static boolean walkMinimap(WorldPoint destination)
 	{

@@ -17,6 +17,8 @@ import java.util.stream.Stream;
 import net.runelite.api.EquipmentInventorySlot;
 import net.runelite.api.gameval.VarbitID;
 import net.runelite.client.plugins.microbot.Microbot;
+import net.runelite.client.plugins.skillcalculator.skills.MagicAction;
+import net.runelite.client.plugins.microbot.util.Global;
 import net.runelite.client.plugins.microbot.util.bank.Rs2Bank;
 import net.runelite.client.plugins.microbot.util.equipment.Rs2Equipment;
 import net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory;
@@ -268,5 +270,153 @@ public class Rs2Magic {
 
     public static boolean hasRequiredRunes(Spell spell) {
         return hasRequiredRunes(spell, 1);
+    }
+
+    // ---- Casting (Claude 1). Mobile: each step is one MobileActions script action for the bound
+    // session, and waits are on observed state (spell selected, inventory tab open), so upstream's
+    // sleepMin/sleepMax pauses are accepted and ignored. Not ported: the jewellery-enchant
+    // submenu, NPC Contact and pouch repair. ----
+
+    /** Spells cast with their own option (teleports, Bones to ..., spells listing "Cast"); others take a target. */
+    private static boolean castsDirectly(MagicAction spell) {
+        String name = spell.getName().toLowerCase(java.util.Locale.ROOT);
+        return name.contains("teleport") || name.contains("bones to")
+                || (spell.getActions() != null && Arrays.stream(spell.getActions()).anyMatch(a -> a != null && a.equalsIgnoreCase("cast")));
+    }
+
+    /** Spell definitions that list this action, for the rune and level check. */
+    private static Rs2Spells spellFor(MagicAction action) {
+        return Arrays.stream(Rs2Spells.values()).filter(spell -> spell.getMagicAction() == action).findFirst().orElse(null);
+    }
+
+    /**
+     * As upstream: the spellbook is right, the level and runes suffice (when a spell definition
+     * exists for it), and the spellbook widget is present. Opens the magic tab.
+     */
+    public static boolean canCast(MagicAction spell) {
+        if (spell == null || !isSpellbook(spell.getSpellbook())) return false;
+        Rs2Spells definition = spellFor(spell);
+        if (definition != null && !canCast(definition)) return false;
+        if (!net.runelite.client.plugins.microbot.util.tabs.Rs2Tab.switchTo(net.runelite.client.plugins.microbot.globval.enums.InterfaceTab.MAGIC)) return false;
+        int widgetId = spell.getWidgetId();
+        return widgetId != -1 && net.runelite.client.plugins.microbot.mobile.MobileActions.read(() -> {
+            net.runelite.api.widgets.Widget widget = Microbot.getClient().getWidget(widgetId);
+            return widget != null && !widget.isHidden();
+        }, false);
+    }
+
+    public static boolean cast(Spell spell) {
+        return spell != null && cast(spell.getMagicAction());
+    }
+
+    public static boolean cast(Spell spell, String option, int identifier) {
+        return spell != null && cast(spell.getMagicAction(), option, identifier);
+    }
+
+    public static boolean cast(MagicAction spell) {
+        return cast(spell, "Cast", 1);
+    }
+
+    /**
+     * As upstream: casts a direct spell, or selects a target spell (true once it is selected; the
+     * caller then picks the target).
+     */
+    public static boolean cast(MagicAction spell, String option, int identifier) {
+        if (!canCast(spell)) {
+            Microbot.log("Unable to cast " + (spell == null ? "null" : spell.getName()));
+            return false;
+        }
+        int widgetId = spell.getWidgetId();
+        if (castsDirectly(spell)) {
+            return Global.sleepUntil(() -> net.runelite.client.plugins.microbot.mobile.MobileActions.widget(widgetId, -1, option)
+                    || net.runelite.client.plugins.microbot.mobile.MobileActions.widget(widgetId, -1, ""), 2_000);
+        }
+        return Global.sleepUntil(() -> net.runelite.client.plugins.microbot.mobile.MobileActions.selectSpell(widgetId, option, identifier), 2_000)
+                && Global.sleepUntil(() -> net.runelite.client.plugins.microbot.mobile.MobileActions.read(() -> Microbot.getClient().isWidgetSelected(), false), 2_000);
+    }
+
+    public static boolean quickCast(Spell spell) {
+        return cast(spell);
+    }
+
+    /** Mobile: the same as {@link #cast(MagicAction)}; upstream clicks the widget directly. */
+    public static boolean quickCast(MagicAction spell) {
+        return cast(spell);
+    }
+
+    public static boolean castOn(Spell spell, net.runelite.api.Actor actor) {
+        return spell != null && castOn(spell.getMagicAction(), actor);
+    }
+
+    /** As upstream: selects {@code spell} and applies it to an NPC or another player. */
+    public static boolean castOn(MagicAction spell, net.runelite.api.Actor actor) {
+        if (actor == null || !cast(spell)) return false;
+        if (actor instanceof net.runelite.api.NPC) {
+            int index = ((net.runelite.api.NPC) actor).getIndex();
+            return Global.sleepUntil(() -> net.runelite.client.plugins.microbot.mobile.MobileActions.spellOnNpc(index), 2_000);
+        }
+        if (actor instanceof net.runelite.api.Player) {
+            int id = ((net.runelite.api.Player) actor).getId();
+            return Global.sleepUntil(() -> net.runelite.client.plugins.microbot.mobile.MobileActions.spellOnPlayer(id), 2_000);
+        }
+        return false;
+    }
+
+    /** As upstream: High Level Alchemy from 55 Magic, else Low Level Alchemy. */
+    public static void alch(Rs2ItemModel item) {
+        alch(item, 0, 0);
+    }
+
+    public static void alch(Rs2ItemModel item, int sleepMin, int sleepMax) {
+        int level = net.runelite.client.plugins.microbot.mobile.MobileActions.read(() ->
+                Microbot.getClient().getRealSkillLevel(net.runelite.api.Skill.MAGIC), 0);
+        castOnItem(level >= 55 ? MagicAction.HIGH_LEVEL_ALCHEMY : MagicAction.LOW_LEVEL_ALCHEMY, item);
+    }
+
+    public static void alch(String itemName) {
+        alch(Rs2Inventory.get(itemName));
+    }
+
+    public static void alch(String itemName, int sleepMin, int sleepMax) {
+        alch(Rs2Inventory.get(itemName), sleepMin, sleepMax);
+    }
+
+    public static void superHeat(Rs2ItemModel item) {
+        castOnItem(MagicAction.SUPERHEAT_ITEM, item);
+    }
+
+    public static void superHeat(Rs2ItemModel item, int sleepMin, int sleepMax) {
+        superHeat(item);
+    }
+
+    public static void superHeat(String itemName) {
+        superHeat(Rs2Inventory.get(itemName));
+    }
+
+    public static void superHeat(String itemName, int sleepMin, int sleepMax) {
+        superHeat(itemName);
+    }
+
+    public static void superHeat(int id) {
+        superHeat(Rs2Inventory.get(id));
+    }
+
+    public static void superHeat(int id, int sleepMin, int sleepMax) {
+        superHeat(id);
+    }
+
+    /** Selects {@code spell}, waits for the inventory tab the game opens, then targets {@code item}. */
+    static boolean castOnItem(MagicAction spell, Rs2ItemModel item) {
+        if (item == null || !cast(spell)) return false;
+        net.runelite.client.plugins.microbot.util.tabs.Rs2Tab.switchTo(net.runelite.client.plugins.microbot.globval.enums.InterfaceTab.INVENTORY);
+        return Global.sleepUntil(() -> net.runelite.client.plugins.microbot.mobile.MobileActions.inventory(item.getSlot(), item.getId(), "Use"), 2_000);
+    }
+
+    /**
+     * Upstream configures the spellbook's filter settings once. Mobile: always true; a spell hidden
+     * by the filters makes {@link #canCast(MagicAction)} false instead.
+     */
+    public static boolean oneTimeSpellBookCheck() {
+        return true;
     }
 }
