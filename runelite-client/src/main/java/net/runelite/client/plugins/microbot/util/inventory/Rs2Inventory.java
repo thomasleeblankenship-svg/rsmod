@@ -544,6 +544,64 @@ public final class Rs2Inventory
 		return false;
 	}
 
+	/** Carried essence pouches the player has the Runecraft level to use. */
+	private static Stream<net.runelite.client.plugins.microbot.pouch.Pouch> usablePouches()
+	{
+		return Arrays.stream(net.runelite.client.plugins.microbot.pouch.Pouch.values())
+			.filter(net.runelite.client.plugins.microbot.pouch.Pouch::hasPouchInInventory)
+			.filter(net.runelite.client.plugins.microbot.pouch.Pouch::hasRequiredRunecraftingLevel);
+	}
+
+	/** Whether any essence pouch is carried. */
+	public static boolean hasAnyPouch()
+	{
+		return Arrays.stream(net.runelite.client.plugins.microbot.pouch.Pouch.values())
+			.anyMatch(net.runelite.client.plugins.microbot.pouch.Pouch::hasPouchInInventory);
+	}
+
+	/** Whether a carried essence pouch is degraded. */
+	public static boolean hasDegradedPouch()
+	{
+		return Arrays.stream(net.runelite.client.plugins.microbot.pouch.Pouch.values())
+			.anyMatch(pouch -> pouch.isDegraded() && pouch.hasPouchInInventory());
+	}
+
+	/** Whether a usable carried pouch's contents have not been observed yet. */
+	public static boolean anyPouchUnknown()
+	{
+		return usablePouches().anyMatch(net.runelite.client.plugins.microbot.pouch.Pouch::isUnknown);
+	}
+
+	/** Whether a usable carried pouch still has room (Microbot's name for "can be filled"). */
+	public static boolean anyPouchEmpty()
+	{
+		return usablePouches().anyMatch(pouch -> pouch.getRemaining() > 0);
+	}
+
+	/** Whether a usable carried pouch holds essence (Microbot's name for "can be emptied"). */
+	public static boolean anyPouchFull()
+	{
+		return usablePouches().anyMatch(pouch -> pouch.getHolding() > 0);
+	}
+
+	/** Whether every usable carried pouch is full. */
+	public static boolean allPouchesFull()
+	{
+		return usablePouches().allMatch(pouch -> pouch.getRemaining() <= 0);
+	}
+
+	/** Whether every usable carried pouch holds nothing. */
+	public static boolean allPouchesEmpty()
+	{
+		return usablePouches().allMatch(pouch -> pouch.getHolding() <= 0);
+	}
+
+	/** Free essence space across the usable carried pouches. */
+	public static int getRemainingCapacityInPouches()
+	{
+		return usablePouches().mapToInt(net.runelite.client.plugins.microbot.pouch.Pouch::getRemaining).sum();
+	}
+
 	/** Whether any kind of rune pouch is carried. */
 	public static boolean hasRunePouch()
 	{
