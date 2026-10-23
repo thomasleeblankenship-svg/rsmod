@@ -53,6 +53,15 @@ this report records the read-only stage. Where it differs, this section and
   failures/errors/skips, and `:client:checkstyleMain` and `:client:pmdMain`
   pass. Mocked interfaces only: no phone retest has been done.
 
+## Webwalker pathfinding (Claude 2 half)
+
+Upstream `shortestpath/**` at Microbot `a2114401` is ported headless into
+`microbot/shortestpath/**` (commit `5bb25e7`). Entry point
+`MobilePathfinder.find(start, goal)` returns an immutable `PathResult`. Contract,
+adaptations and the open items for the walker are in the coordination change
+log. Five route tests on the real collision map are planning evidence only; the
+walker does not execute these routes yet.
+
 ## Source identity
 
 | Item | Value | How checked |
