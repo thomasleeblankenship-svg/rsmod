@@ -797,4 +797,70 @@ public final class Rs2Inventory
 			return matcher.matches() && Arrays.stream(potionNames).anyMatch(name -> name.equalsIgnoreCase(matcher.group(1).trim()));
 		});
 	}
+
+	/** As upstream: any item accepted by {@code predicate}. */
+	public static boolean contains(Predicate<Rs2ItemModel> predicate)
+	{
+		return items().anyMatch(predicate);
+	}
+
+	/** As upstream: inventory size, 28 slots. */
+	public static int capacity()
+	{
+		return 28;
+	}
+
+	/** The item in {@code slot}, or {@code null} when it is empty. */
+	public static Rs2ItemModel getItemInSlot(int slot)
+	{
+		return items(i -> i.getSlot() == slot).findFirst().orElse(null);
+	}
+
+	/** As upstream: {@code slot} holds one of {@code ids}. */
+	public static boolean slotContains(int slot, int... ids)
+	{
+		Rs2ItemModel item = getItemInSlot(slot);
+		return item != null && ids != null && Arrays.stream(ids).anyMatch(id -> id == item.getId());
+	}
+
+	/** As upstream: {@code slot} holds an item named exactly (case-insensitively) one of {@code names}. */
+	public static boolean slotContains(int slot, String... names)
+	{
+		Rs2ItemModel item = getItemInSlot(slot);
+		return item != null && names != null && Arrays.stream(names).anyMatch(name -> name.equalsIgnoreCase(item.getName()));
+	}
+
+	/** As upstream: the first noted item matching {@code name} (exact, or a substring), case-insensitively. */
+	public static Rs2ItemModel getNotedItem(String name, boolean exact)
+	{
+		return items(Rs2ItemModel::isNoted).filter(exact ? item -> item.getName().equalsIgnoreCase(name)
+			: item -> item.getName().toLowerCase().contains(name.toLowerCase())).findFirst().orElse(null);
+	}
+
+	public static boolean hasNotedItem(String name)
+	{
+		return getNotedItem(name, false) != null;
+	}
+
+	public static boolean hasNotedItem(String name, boolean exact)
+	{
+		return getNotedItem(name, exact) != null;
+	}
+
+	/** As upstream: the first unnoted item matching {@code name} (exact, or a substring), case-insensitively. */
+	public static Rs2ItemModel getUnNotedItem(String name, boolean exact)
+	{
+		return items(exact ? item -> item.getName().equalsIgnoreCase(name) && !item.isNoted()
+			: item -> item.getName().toLowerCase().contains(name.toLowerCase()) && !item.isNoted()).findFirst().orElse(null);
+	}
+
+	public static boolean hasUnNotedItem(String name)
+	{
+		return getUnNotedItem(name, false) != null;
+	}
+
+	public static boolean hasUnNotedItem(String name, boolean exact)
+	{
+		return getUnNotedItem(name, exact) != null;
+	}
 }

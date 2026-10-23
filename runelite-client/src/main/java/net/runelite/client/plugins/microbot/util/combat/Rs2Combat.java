@@ -57,4 +57,10 @@ public final class Rs2Combat
 	{
 		return setAutoRetaliate(true);
 	}
+
+	/** As upstream: special attack energy, 0-1000 (100% = 1000). */
+	public static int getSpecEnergy()
+	{
+		return Microbot.getVarbitPlayerValue(net.runelite.api.gameval.VarPlayerID.SA_ENERGY);
+	}
 }

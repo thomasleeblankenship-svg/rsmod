@@ -171,4 +171,10 @@ public final class Rs2Equipment
 		return new net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel(
 			item, Microbot.getClient().getItemDefinition(item.getId()), null, slot);
 	}
+
+	/** As upstream: every equipped item as a list. */
+	public static java.util.List<net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel> items()
+	{
+		return all().collect(java.util.stream.Collectors.toList());
+	}
 }

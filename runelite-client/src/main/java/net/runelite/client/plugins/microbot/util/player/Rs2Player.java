@@ -635,4 +635,66 @@ public final class Rs2Player
 		return net.runelite.client.plugins.microbot.mobile.MobileActions.read(() ->
 			net.runelite.client.plugins.microbot.Microbot.getClient().getTopLevelWorldView().getScene().isInstance(), false);
 	}
+
+	/** As upstream: the local player's prayer is above 0. */
+	public static boolean hasPrayerPoints()
+	{
+		return getBoostedSkillLevel(net.runelite.api.Skill.PRAYER) > 0;
+	}
+
+	/** As upstream: boosted prayer as a whole percentage of the real prayer level. */
+	public static int getPrayerPercentage()
+	{
+		int current = getBoostedSkillLevel(net.runelite.api.Skill.PRAYER);
+		int base = getRealSkillLevel(net.runelite.api.Skill.PRAYER);
+		return (int) ((current / (double) base) * 100);
+	}
+
+	/** As upstream: the local player's local location, read on the client thread; {@code null} without a player. */
+	public static net.runelite.api.coords.LocalPoint getLocalLocation()
+	{
+		return net.runelite.client.plugins.microbot.mobile.MobileActions.read(() ->
+		{
+			Player localPlayer = net.runelite.client.plugins.microbot.Microbot.getClient().getLocalPlayer();
+			return localPlayer == null ? null : localPlayer.getLocalLocation();
+		}, null);
+	}
+
+	/** As upstream: within {@code radius} tiles of {@code worldPoint} on its floor. */
+	public static boolean isInArea(net.runelite.api.coords.WorldPoint worldPoint, int radius)
+	{
+		return isInArea(worldPoint, radius, radius);
+	}
+
+	/** As upstream: within a {@code xRadius} by {@code yRadius} rectangle around {@code worldPoint} on its floor. */
+	public static boolean isInArea(net.runelite.api.coords.WorldPoint worldPoint, int xRadius, int yRadius)
+	{
+		if (worldPoint == null || xRadius < 0 || yRadius < 0)
+		{
+			return false;
+		}
+		net.runelite.api.coords.WorldPoint playerLocation = getWorldLocation();
+		if (playerLocation == null || worldPoint.getPlane() != playerLocation.getPlane())
+		{
+			return false;
+		}
+		return Math.abs(playerLocation.getX() - worldPoint.getX()) <= xRadius
+			&& Math.abs(playerLocation.getY() - worldPoint.getY()) <= yRadius;
+	}
+
+	/** As upstream: the local player shows spot animation {@code graphicId}. Read on the client thread. */
+	public static boolean hasSpotAnimation(int graphicId)
+	{
+		return net.runelite.client.plugins.microbot.mobile.MobileActions.read(() ->
+		{
+			Player localPlayer = net.runelite.client.plugins.microbot.Microbot.getClient().getLocalPlayer();
+			return localPlayer != null && localPlayer.hasSpotAnim(graphicId);
+		}, false);
+	}
+
+	/** As upstream: stunned, shown by spot animation 245. */
+	public static boolean isStunned()
+	{
+		return hasSpotAnimation(245);
+	}
 }

@@ -6,6 +6,7 @@
 package net.runelite.client.plugins.microbot.api.npc.models;
 
 import net.runelite.api.Client;
+import net.runelite.api.HeadIcon;
 import net.runelite.api.NPC;
 import net.runelite.client.plugins.microbot.api.IEntity;
 import net.runelite.client.plugins.microbot.api.actor.Rs2ActorModel;
@@ -60,10 +61,12 @@ public class Rs2NpcModel extends Rs2ActorModel implements IEntity
 	{
 		return index;
 	}
+	@Override
 	public int getAnimation()
 	{
 		return net.runelite.client.plugins.microbot.mobile.MobileActions.read(npc::getAnimation, -1);
 	}
+	@Override
 	public String getOverheadText()
 	{
 		return net.runelite.client.plugins.microbot.mobile.MobileActions.read(npc::getOverheadText, null);
@@ -88,12 +91,14 @@ public class Rs2NpcModel extends Rs2ActorModel implements IEntity
 		return action != null && click(action);
 	}
 
+	@Override
 	public int getCombatLevel()
 	{
 		return combatLevel;
 	}
 
 	/** The actor this NPC was interacting with at capture (live; read it on the client thread). */
+	@Override
 	public net.runelite.api.Actor getInteracting()
 	{
 		return interacting;
@@ -105,6 +110,7 @@ public class Rs2NpcModel extends Rs2ActorModel implements IEntity
 		return interactingWithPlayer;
 	}
 
+	@Override
 	public boolean isDead()
 	{
 		return dead;
@@ -145,5 +151,28 @@ public class Rs2NpcModel extends Rs2ActorModel implements IEntity
 			net.runelite.api.WorldView view = client.getTopLevelWorldView();
 			return view != null && npcLocation.toWorldArea().hasLineOfSightTo(view, playerLocation);
 		}).orElse(false);
+	}
+
+	/**
+	 * As upstream: the NPC's overhead prayer icon (the first set overhead sprite), or {@code null}.
+	 * Read live on the client thread. Unlike upstream, an id outside {@link HeadIcon} yields
+	 * {@code null} instead of throwing.
+	 */
+	public HeadIcon getHeadIcon()
+	{
+		short[] spriteIds = net.runelite.client.plugins.microbot.mobile.MobileActions.read(npc::getOverheadSpriteIds, null);
+		if (spriteIds == null)
+		{
+			return null;
+		}
+		for (short spriteId : spriteIds)
+		{
+			if (spriteId == -1)
+			{
+				continue;
+			}
+			return spriteId >= 0 && spriteId < HeadIcon.values().length ? HeadIcon.values()[spriteId] : null;
+		}
+		return null;
 	}
 }

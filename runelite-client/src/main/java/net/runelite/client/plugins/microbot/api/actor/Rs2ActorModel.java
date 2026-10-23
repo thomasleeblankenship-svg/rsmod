@@ -14,20 +14,19 @@ import net.runelite.api.WorldView;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.plugins.microbot.api.MicrobotReadServices;
+import net.runelite.client.plugins.microbot.util.ActorModel;
 
 /**
- * Immutable client-thread snapshot of an {@link Actor}'s read state.
+ * A cached actor that is also an {@link Actor}, as upstream.
  * <p>
- * Adaptation: upstream wraps the live actor, implements {@link Actor} and hops
- * to the client thread on each getter. Here name, locations and world view are
- * captured once on the client thread when the cache snapshot is built, so a
- * background script reads consistent values without per-call hops. The live
- * actor stays reachable through {@link #getActor()} for client-thread use only;
- * the model does not implement {@link Actor}.
+ * Name, world and local location and world view are captured once on the client thread when the
+ * cache snapshot is built, so a script reads consistent values without per-call hops. Every other
+ * {@link Actor} method is inherited from {@link ActorModel} and reads the live actor on the client
+ * thread (upstream hops per getter the same way); subclasses capture more fields where a query
+ * filters on them. The live actor is {@link #getActor()}; read it on the client thread only.
  */
-public class Rs2ActorModel
+public class Rs2ActorModel extends ActorModel
 {
-	private final Actor actor;
 	private final String name;
 	private final WorldPoint worldLocation;
 	private final LocalPoint localLocation;
@@ -36,35 +35,33 @@ public class Rs2ActorModel
 	/** Captures {@code actor}; must be called on the client thread. */
 	protected Rs2ActorModel(Client client, Actor actor)
 	{
-		this.actor = actor;
+		super(actor);
 		this.name = actor.getName();
 		this.worldView = actor.getWorldView();
 		this.worldLocation = mainWorldLocation(client, actor);
 		this.localLocation = actor.getLocalLocation();
 	}
 
-	/** The live actor. Read it only on the client thread. */
-	public Actor getActor()
-	{
-		return actor;
-	}
-
+	@Override
 	public String getName()
 	{
 		return name;
 	}
 
 	/** World location at capture, projected to the main world for sub-world-view actors (upstream rule). */
+	@Override
 	public WorldPoint getWorldLocation()
 	{
 		return worldLocation;
 	}
 
+	@Override
 	public LocalPoint getLocalLocation()
 	{
 		return localLocation;
 	}
 
+	@Override
 	public WorldView getWorldView()
 	{
 		return worldView;
