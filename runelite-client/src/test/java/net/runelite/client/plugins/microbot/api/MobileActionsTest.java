@@ -15,8 +15,15 @@ import static org.mockito.Mockito.*;
 /** Real cross-thread action dispatch and cancellation, with mocked engine boundaries. */
 public class MobileActionsTest
 {
+	static
+	{
+		// JavaBridge captures this flag on first load; set it before any test reaches the bridge.
+		System.setProperty("runelite.bridge", "true");
+	}
+
 	private ReadApiFixture fixture;
 	private ScriptInputSession session;
+	private SceneWalkFixture sceneWalk;
 
 	@Before
 	public void setUp() throws Exception
@@ -25,6 +32,7 @@ public class MobileActionsTest
 		fixture = new ReadApiFixture();
 		session = new ScriptInputSession();
 		MobileActions.bind(session);
+		sceneWalk = new SceneWalkFixture(fixture);
 	}
 
 	@After
@@ -32,18 +40,21 @@ public class MobileActionsTest
 	{
 		MobileActions.unbind(session);
 		JavaBridge.setScriptInputSuspended(false);
+		sceneWalk.close();
 		fixture.close();
 	}
 
 	@Test
-	public void walkConfinesEngineDispatchToClientThreadAndRateLimitsPerTick()
+	public void walkConfinesEngineDispatchToClientThreadAndRateLimitsPerTick() throws Exception
 	{
 		doAnswer(call -> { assertTrue(fixture.client.isClientThread()); return null; })
 			.when(fixture.client).menuAction(anyInt(), anyInt(), any(), anyInt(), anyInt(), anyString(), anyString());
-		assertTrue(MobileActions.walk(new WorldPoint(3208, 3208, 0)));
+		assertTrue(JavaBridge.getScriptWalkStatus(), MobileActions.walk(new WorldPoint(3208, 3208, 0)));
 		assertFalse(MobileActions.walk(new WorldPoint(3209, 3209, 0)));
+		sceneWalk.settle();
 		fixture.tick++;
-		assertTrue(MobileActions.walk(new WorldPoint(3209, 3209, 0)));
+		assertTrue(JavaBridge.getScriptWalkStatus(), MobileActions.walk(new WorldPoint(3209, 3209, 0)));
+		sceneWalk.settle();
 		verify(fixture.client, times(2)).menuAction(anyInt(), anyInt(), eq(MenuAction.WALK), anyInt(), anyInt(), anyString(), anyString());
 	}
 
@@ -66,7 +77,7 @@ public class MobileActionsTest
 		assertFalse(MobileActions.walk(new WorldPoint(3208, 3208, 0)));
 		when(fixture.client.isMenuOpen()).thenReturn(false);
 		assertFalse(MobileActions.walk(new WorldPoint(3208, 3208, 1)));
-		assertTrue(MobileActions.walk(new WorldPoint(3208, 3208, 0)));
+		assertTrue(JavaBridge.getScriptWalkStatus(), MobileActions.walk(new WorldPoint(3208, 3208, 0)));
 	}
 
 	@Test

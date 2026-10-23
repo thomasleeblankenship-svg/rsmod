@@ -5,6 +5,43 @@ read-only API closure of the upstream `StateMachineExampleScript`, plus the
 integration interface the other owners need. Mocked-interface tests are **not**
 live-game, device or APK evidence.
 
+## Current status (read this first)
+
+Base: `feat/android-microbot-compat` `239cdf5` plus this review. The rest of
+this report records the read-only stage. Where it differs, this section and
+[CODEX_HANDOFF_CURRENT.md](CODEX_HANDOFF_CURRENT.md) take precedence.
+
+- **Done in this stage.** The unchanged upstream `StateMachineExampleScript`
+  compiles in the client and is selectable in the mobile plugin. The read
+  services run under Claude 1's `MicrobotRuntime`.
+- **Scope has grown since.** To port Auto Woodcutting, Codex added action
+  methods on top of these APIs, all routed through `MobileActions`: NPC and
+  object `click`, inventory `interact`/`use`/`combine`/`drop`/`dropAllExcept`,
+  plus `Rs2Player` waits, skills, quests and logout-on-player-detection. So the
+  JSON table's `unsupported` entries for actions are out of date. The
+  read-API semantics in the table still hold.
+- **Review of those additions (Claude 2):**
+  - *Drop batch.* `dropSlot` retries dispatch until `MobileActions.inventory`
+    returns `true`. `true` means the menu action was sent, and every `false`
+    path exits before sending. The expected-item-id check and the
+    one-action-per-tick guard stop a retry from dropping a replaced or already
+    emptied slot. No change needed.
+  - *Fixed: `Rs2Inventory.contains(String...)`.* It matched names as
+    substrings. Upstream matches exactly, so `contains("Logs")` was also true
+    for `"Oak logs"`, `"Willow logs"` and others. That affected the
+    woodcutting burn and Forestry egg checks, which pass tree log names. It is
+    now exact by default, as upstream, with upstream's
+    `contains(boolean exact, String...)` and `contains(String, boolean)`
+    overloads. `hasItem`/`get` by name stay substring matches, as upstream.
+  - *Fixed: floor selection.* Codex made the object cache scan the local
+    player's floor because the world view's plane lags stair transitions. The
+    ground-item cache still used the view's plane. Both now share
+    `MicrobotReadServices.scanPlane`.
+  - The `LOADING` rule (state survives region loads) is intact.
+- **Validation of this review:** the handoff's command set gives 224 tests, 0
+  failures/errors/skips, and `:client:checkstyleMain` and `:client:pmdMain`
+  pass. Mocked interfaces only: no phone retest has been done.
+
 ## Source identity
 
 | Item | Value | How checked |

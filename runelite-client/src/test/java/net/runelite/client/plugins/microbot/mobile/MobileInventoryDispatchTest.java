@@ -28,6 +28,12 @@ import static org.mockito.Mockito.*;
 /** Real dispatch selection and revocable session against mocked engine interfaces, not a live game. */
 public class MobileInventoryDispatchTest
 {
+	static
+	{
+		// JavaBridge captures this flag on first load; set it before any test reaches the bridge.
+		System.setProperty("runelite.bridge", "true");
+	}
+
 	private Client client;
 	private Widget inventory;
 	private Widget itemWidget;

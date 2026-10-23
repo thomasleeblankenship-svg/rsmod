@@ -189,7 +189,7 @@ public class MobileMicrobotPlugin extends Plugin
 		}
 		if (inputSession != null && !inputSession.isActive())
 		{
-			stopActive("Stopped: manual input or cancelled input session");
+			stopActive("Stopped: input session cancelled (Stop, app backgrounded or input fault)");
 			setRun(false);
 			return;
 		}
@@ -210,7 +210,7 @@ public class MobileMicrobotPlugin extends Plugin
 				inputSession = next;
 				if (!next.isActive())
 				{
-					stopActive("Stopped: manual input during script start");
+					stopActive("Stopped: app backgrounded during script start");
 					setRun(false);
 					return;
 				}

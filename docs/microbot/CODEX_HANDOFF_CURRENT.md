@@ -18,8 +18,47 @@ The user explicitly requested on 2026-10-23:
    infinite dispatch loop. Do not merely report queued input as successful arrival.
 3. Save a fresh handoff before usage is exhausted.
 
-At this handoff update, items 1 and 2 are **requested and pending**, not present
-in the published debug APK. Do not claim otherwise. The requested behavior
+**Item 1 is implemented in source (Claude 1), not yet in any published APK.**
+`ScriptInputSession` now separates the session's lifetime from a per-input epoch:
+
+- A real tap or key bumps the input epoch and calls `MicrobotRuntime.noteHumanInput()`.
+  Any script tap or key queued before it is dropped (`JavaBridge` captures the epoch
+  per queued input and checks `session.allows(epoch)` at every stage), and new script
+  input is refused for the 1.8 s human-input window. The session stays active, so the
+  script continues by itself afterwards, without toggling Run script.
+- Stop, script swap, plugin disable, logout, input faults and Android backgrounding
+  still end the session for good. Foreground resume never renews it.
+- `Rs2Walker` pauses its 15 s stall timer while the human owns input.
+  The pending walk patch also edits `Rs2Walker`, so merge it by hand.
+- Tests: `JavaBridgeScriptInputTest` and `MobileMicrobotPluginTest` now assert the new
+  behaviour (a tap drops queued input and keeps the run; backgrounding still stops it
+  with no auto-resume). The focused suite of 328 tests, checkstyle and PMD pass, all
+  against mocked boundaries.
+
+**Item 2 and the walking fix are implemented in source (Claude 1), not yet in any APK.**
+`pending-walk-resolution.patch` was applied and finished, then removed from the tree
+(it is still in Git history):
+
+- `MobileActions.walk` uses `JavaBridge.onScriptWalk`. This projects the tile to the
+  canvas, waits for the settle gate, and dispatches WALK only when the renderer's
+  selected tile equals the target. It never falls back to an ordinary click. Queued
+  walks follow the same input-epoch rule as taps: a manual tap drops them.
+- `Rs2Walker` no longer stops after 15 s without movement. Each stall replans from the
+  observed position, switches to short steps and backs off (1.2 s × stall count, capped
+  at 6 s), bounded by the 120 s walk deadline. Stop or interrupt still ends it at once.
+  An earlier replan happens at half the stall window.
+- Fixture fixes: scene size 104×104 so `LocalPoint.fromWorld` accepts tiles, and every
+  test class that reaches `JavaBridge` sets `runelite.bridge=true` in a static block,
+  so `JavaBridge.ENABLED` no longer depends on test order.
+- New tests: `stalledWalkRetriesInsteadOfStoppingAndThenArrives` and
+  `stopEndsAStalledRetryingWalkPromptly`. The Lumbridge two-floor descent test passes
+  with the scene-resolved walk.
+- Full focused suite: 330 tests, checkstyle and PMD pass, on two consecutive runs. All
+  of these use a mocked engine and renderer, so this is **not phone evidence**. The stairs
+  were reported broken on the `024f387` APK; retest them on a new build.
+
+Neither change is in the published debug APK; a new APK build is needed before a
+phone test. The requested behavior
 supersedes statements later in this file that describe cancellation in the old
 implementation.
 
@@ -55,8 +94,8 @@ shows WALK arms viewport movement using the scene's already-picked tile; it
 cannot select the desired world tile solely from those arguments. The old fake
 engine test incorrectly treated those parameters as a destination, hiding this.
 
-**Uncommitted experimental code is in the current workspace** and preserved in
-[the pending patch](pending-walk-resolution.patch) for a fresh checkout:
+*Historical (superseded by the update above):* the experimental code below was kept in
+`pending-walk-resolution.patch`, which has now been applied, finished and removed:
 
 - JavaBridge.onScriptWalk projects a world tile to canvas, waits for the bridge
   settle gate and requires the renderer's selected tile to match before WALK.
@@ -128,7 +167,12 @@ Implementation commit `024f3872` addresses these:
 5. Build helper accepts `--debug`; GitHub mobile workflow builds/uploads a
    debuggable APK and checks its debug flag and absence of bundled tokens.json.
 
-**These fixes have not been retested on a phone. Do not claim live-game success.**
+**Phone retest, user-reported 2026-10-23:** with the `024f387` debug APK, the user
+reports that dropping a full inventory now works (fix 1). This is the user's report; no
+logs or recording were attached. The user did not separately report whether the axe was
+kept (fix 3) or how the upstairs Lumbridge bank start behaved (fix 4), so both remain
+unconfirmed on a phone. Later walking-stall reports are tracked in the walking
+investigation above.
 
 ## Validation completed
 
@@ -154,6 +198,20 @@ Evidence: `docs/microbot/build-logs/drop-stairs-checks.log`,
 `debug-apk-alignment.log`, `debug-apk-badging.log`.
 
 ## APK and browser delivery (next step)
+
+**Newest GitHub debug APK (source `d6b4be0`):** run 39911072637 succeeded
+(contract preflight, build, APK verification and upload). It adds two Claude 2
+fixes on top of `024f387`: exact `Rs2Inventory.contains(name)` matching
+(upstream semantics, so `"Logs"` no longer matches `"Oak logs"`) and
+ground-item scans on the player's actual floor. It does **not** contain the
+pending walk-resolution patch or the tap/retry changes requested above.
+Artifact `runemobile-mobile-debug-arm64`, ID 12483336024, digest
+`sha256:f72e0069b3fd3cc60c78f5f6d5f0b2a60cdba91e175eb1827bee0c0685fb5210`,
+expires 2026-11-06. Direct browser download (signed-in GitHub required):
+
+https://github.com/thomasleeblankenship-svg/rsmod/actions/runs/39911072637/artifacts/12483336024
+
+The `024f387` details below remain the last locally verified build.
 
 Verified local APK:
 `/workspace/artifacts/runemobile-woodcutting-debug-024f387-arm64.apk`

@@ -155,8 +155,23 @@ public final class Rs2Inventory
 
 	public static boolean hasItem(int id) { return count(id) > 0; }
 	public static boolean hasItem(String name) { return count(name) > 0; }
-	public static boolean contains(int id) { return hasItem(id); }
-	public static boolean contains(String name) { return hasItem(name); }
+	/** Upstream: any of {@code ids} is in the inventory. */
+	public static boolean contains(int... ids)
+	{
+		return ids != null && items(i -> Arrays.stream(ids).anyMatch(id -> id == i.getId())).findAny().isPresent();
+	}
+
+	/** Upstream default is an exact, case-insensitive name match ("Logs" does not match "Oak logs"). */
+	public static boolean contains(String... names) { return contains(true, names); }
+
+	public static boolean contains(String name, boolean exact) { return contains(exact, name); }
+
+	/** Any of {@code names} is in the inventory, matched exactly or as a substring, case-insensitively. */
+	public static boolean contains(boolean exact, String... names)
+	{
+		return names != null && items(i -> Arrays.stream(names).anyMatch(n -> matches(i.getName(), n, exact)))
+			.findAny().isPresent();
+	}
 	public static boolean isFull() { return count() >= 28; }
 	public static int emptySlotCount() { return Math.max(0, 28 - count()); }
 	public static List<Rs2ItemModel> getList(Predicate<Rs2ItemModel> predicate) { return items(predicate).collect(Collectors.toList()); }

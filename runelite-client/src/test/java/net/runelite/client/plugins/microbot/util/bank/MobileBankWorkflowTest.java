@@ -29,6 +29,12 @@ import static org.mockito.Mockito.*;
 /** Confirmed bank transfers against real read services and event bus, with mock action boundaries. */
 public class MobileBankWorkflowTest
 {
+	static
+	{
+		// JavaBridge captures this flag on first load; set it before any test reaches the bridge.
+		System.setProperty("runelite.bridge", "true");
+	}
+
 	private Client client;
 	private final AtomicBoolean clientThread = new AtomicBoolean(true);
 	private final EventBus events = new EventBus();

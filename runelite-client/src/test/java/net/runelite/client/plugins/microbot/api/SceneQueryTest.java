@@ -145,6 +145,27 @@ public class SceneQueryTest
 	}
 
 	@Test
+	public void cachesScanThePlayersFloorWhenTheWorldViewPlaneLags()
+	{
+		// After a stair climb the player reports floor 1 before the view's plane updates.
+		f.placePlayer(new WorldPoint(ReadApiFixture.BASE_X + 5, ReadApiFixture.BASE_Y + 5, 1));
+		objectDefinition(10, "Staircase");
+		GameObject stairs = mock(GameObject.class);
+		when(stairs.getId()).thenReturn(10);
+		when(stairs.getSceneMinLocation()).thenReturn(new Point(5, 6));
+		when(stairs.getWorldLocation()).thenReturn(new WorldPoint(ReadApiFixture.BASE_X + 5, ReadApiFixture.BASE_Y + 6, 1));
+		tile(5, 6, 1).getGameObjects()[0] = stairs;
+		TileItem coins = mock(TileItem.class);
+		when(coins.getId()).thenReturn(995);
+		tile(5, 7, 1).getGroundItems().add(coins);
+		groundItem(5, 8, 1, "Bones", 1, TileItem.OWNERSHIP_NONE);
+
+		assertEquals(1, f.services.getRs2TileObjectCache().query().within(5).count());
+		assertEquals(1, f.services.getRs2TileItemCache().query().within(5).count());
+		assertEquals(995, f.services.getRs2TileItemCache().query().first().getId());
+	}
+
+	@Test
 	public void groundItemLootabilityFollowsOwnership()
 	{
 		groundItem(6, 5, 1, "Bones", 1, TileItem.OWNERSHIP_OTHER);
