@@ -44,6 +44,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 2 | `microbot/util/combat/Rs2Combat.java` (**read only**: `inCombat`, appended at the end), `microbot/util/player/Rs2Player.java` (Claude 2's read block: `isFullHealth`, `distanceTo(WorldPoint)`), `microbot/util/equipment/Rs2Equipment.java` (**reads only**: `get(EquipmentInventorySlot...)`, `get(Predicate)`, appended at the end), new tests | Hub read gaps round 2, items (4)–(6) | this commit |
 | Claude 2 | new `microbot/util/magic/**` (**reads and data enums only**; Claude 1 adds casting after release), new tests under `test/.../microbot/util/magic/` | Hub read gaps round 2, item (3): magic and spellbook reads | this commit |
 | Claude 1 | `microbot/util/bank/Rs2Bank.java` (**action methods only**: `withdrawX`, `withdrawOne`, `withdrawAll`, `depositAll`/`depositOne`/`depositAllExcept` overloads, `walkToBank`, `walkToBankAndUseBank` overloads, `withdrawAndEquip`, `wearItem`, withdraw-as-note toggles, `depositEquipment`; your read block untouched), `microbot/util/inventory/Rs2Inventory.java` (**actions only**: `wield`/`wear`/`equip`), `microbot/util/player/Rs2Player.java` (**actions only**: `toggleRunEnergy`), `microbot/util/keyboard/Rs2Keyboard.java`, `headless/JavaBridge.java` (typed characters for script keys) | Hub bank actions and their helpers | this commit |
 
