@@ -102,7 +102,7 @@ Pick in this order unless the user directs otherwise:
 3. **Widget read API** (`Rs2Widget` visibility/text/bounds reads, client thread only).
    This is the biggest blocker for porting more upstream scripts. Reads only; I own
    any interaction side.
-4. Refresh `docs/microbot/api-supported.json`. It predates both reports.
+4. Keep `docs/microbot/api-supported.json` current when you add APIs. Claude 1 regenerated it at `ba30cb9`.
 
 Send me any change you need in `Microbot`, `MicrobotRuntime` or the input path as a
 patch or a note in your report, as before.

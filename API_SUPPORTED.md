@@ -30,5 +30,5 @@ live-game evidence unless a row says so. Per-method detail is in
 | Widgets, menus, NPC/object interaction helpers, equipment, combat, GE, magic | unsupported | — | Not ported |
 | Agent server, `microbot-cli`, JAR loading, desktop input injection | unsupported | — | Not ported, by design |
 
-Machine-readable companion: [API matrix](docs/microbot/api-supported.json). It predates
-this rewrite; the reports above have current per-method status.
+Machine-readable companion: [API matrix](docs/microbot/api-supported.json), with the same
+rows, the test classes behind each one, and pass counts from the `ba30cb9` Gradle run.

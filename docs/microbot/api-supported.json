@@ -1,57 +1,360 @@
 {
   "runemobile_sha": "a8c4f22f8ac170b654793df2fd85372f31b18c64",
   "microbot_reference_sha": "e01e0d77d79b354472a5737b3aaab2449eb034fc",
-  "scope": "mobilemicrobot package only; no desktop ABI",
+  "source_commit": "ba30cb9877cbd78567e87c957ec154691a10ebdb",
+  "scope": "net.runelite.client.plugins.microbot (mobile subset) and mobilemicrobot plugin; no desktop ABI or JAR compatibility",
+  "status_values": {
+    "native": "upstream signature and semantics",
+    "adapted": "same name, documented difference",
+    "partial": "subset",
+    "unsupported": "absent; callers fail to compile"
+  },
   "evidence": {
     "full_client_compile": "passed",
-    "focused_client_tests": {
-      "passed": 9,
-      "failed": 0,
+    "checkstyle_main": "passed",
+    "pmd_main": "passed",
+    "focused_gradle_tests": {
+      "tests": 330,
+      "failures": 0,
+      "errors": 0,
       "skipped": 0,
-      "uses_service_mocks": true
+      "uses_mocked_boundaries": true,
+      "selection": "microbot.*, mobilemicrobot.*, headless.*, ClientThreadOptionalTest"
     },
-    "portable_standin_tests": {
-      "passed": 25,
-      "failed": 0
-    },
-    "game_device_tests": "unrun"
+    "game_device_tests": "user phone reports only, per module 'phone' fields"
   },
   "modules": [
     {
-      "module": "inventory",
-      "status": "partial"
+      "module": "script_lifecycle",
+      "api": [
+        "Script",
+        "IScript",
+        "ScriptStarted"
+      ],
+      "status": "adapted",
+      "tests": [
+        {
+          "class": "ScriptLifecycleTest",
+          "tests": 14,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "MicrobotScriptAdapterTest",
+          "tests": 11,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      ],
+      "limits": "no fatigue, tutorial-island, auto-run or stamina logic"
+    },
+    {
+      "module": "statemachine",
+      "api": [
+        "StateMachineScript",
+        "Transition",
+        "StateSnapshot",
+        "PendingTransition"
+      ],
+      "status": "native",
+      "tests": [
+        {
+          "class": "StateMachineScriptTest",
+          "tests": 8,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      ],
+      "limits": "unchanged upstream source"
+    },
+    {
+      "module": "microbot_singleton",
+      "api": [
+        "Microbot"
+      ],
+      "status": "partial",
+      "tests": [
+        {
+          "class": "MicrobotRuntimeTest",
+          "tests": 12,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      ],
+      "limits": "client/thread/event-bus/config getters, 3 cache getters, isLoggedIn, logging, varbit reads; mouse, hopping, plugin control, popups absent"
+    },
+    {
+      "module": "mobile_runtime",
+      "api": [
+        "MicrobotRuntime",
+        "MicrobotRuntimeService"
+      ],
+      "status": "adapted",
+      "tests": [
+        {
+          "class": "MicrobotRuntimeTest",
+          "tests": 12,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      ],
+      "limits": "mobile-only lifecycle, snapshots, stale-tick stop, human-input window"
+    },
+    {
+      "module": "global_waits",
+      "api": [
+        "Global"
+      ],
+      "status": "adapted",
+      "tests": [
+        {
+          "class": "GlobalWaitTest",
+          "tests": 7,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      ],
+      "limits": "fatigue variants absent"
+    },
+    {
+      "module": "client_thread",
+      "api": [
+        "ClientThread.runOnClientThreadOptional"
+      ],
+      "status": "native",
+      "tests": [
+        {
+          "class": "ClientThreadOptionalTest",
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      ],
+      "limits": ""
+    },
+    {
+      "module": "blocking_events",
+      "api": [
+        "BlockingEventManager",
+        "BlockingEvent"
+      ],
+      "status": "partial",
+      "tests": [
+        {
+          "class": "ScriptLifecycleTest",
+          "tests": 14,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      ],
+      "limits": "no default events registered"
+    },
+    {
+      "module": "entity_caches",
+      "api": [
+        "Rs2NpcCache",
+        "Rs2TileObjectCache",
+        "Rs2TileItemCache"
+      ],
+      "status": "adapted",
+      "tests": [
+        {
+          "class": "NpcQueryTest",
+          "tests": 9,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "SceneQueryTest",
+          "tests": 7,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      ],
+      "limits": "read-only per-tick snapshots"
     },
     {
       "module": "player",
-      "status": "adapted"
+      "api": [
+        "Rs2Player"
+      ],
+      "status": "partial",
+      "tests": [
+        {
+          "class": "PlayerInventoryReadTest",
+          "tests": 12,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      ],
+      "limits": "isAnimating, isMoving, getAnimation, getPoseAnimation"
     },
     {
-      "module": "objects",
-      "status": "partial"
+      "module": "inventory",
+      "api": [
+        "Rs2Inventory"
+      ],
+      "status": "partial",
+      "tests": [
+        {
+          "class": "PlayerInventoryReadTest",
+          "tests": 12,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "MobileDropWorkflowTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "MobileInventoryDispatchTest",
+          "tests": 17,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      ],
+      "limits": "count (occupied slots), items, contains, woodcutting drop/use",
+      "phone": "full-inventory drop works (user report, 024f387 APK)"
+    },
+    {
+      "module": "bank",
+      "api": [
+        "Rs2Bank"
+      ],
+      "status": "partial",
+      "tests": [
+        {
+          "class": "MobileBankWorkflowTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      ],
+      "limits": "woodcutting-port deposit/withdraw, automatic bank selection"
     },
     {
       "module": "walker",
-      "status": "partial"
-    },
-    {
-      "module": "script_lifecycle",
-      "status": "partial"
+      "api": [
+        "Rs2Walker"
+      ],
+      "status": "partial",
+      "tests": [
+        {
+          "class": "MobileWalkerIntegrationTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "MobileActionsTest",
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      ],
+      "limits": "same-plane collision walking, scene-resolved WALK, stall retry, Lumbridge castle stairs only",
+      "phone": "stairs failed on 024f387 APK; reworked in ba30cb9, retest needed"
     },
     {
       "module": "input",
-      "status": "adapted"
+      "api": [
+        "JavaBridge script input",
+        "ScriptInputSession"
+      ],
+      "status": "adapted",
+      "tests": [
+        {
+          "class": "JavaBridgeScriptInputTest",
+          "tests": 21,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "MobileMicrobotPluginTest",
+          "tests": 21,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      ],
+      "limits": "manual tap drops queued script input and pauses ~1.8 s; Stop/logout/background end the run"
     },
     {
-      "module": "desktop_runtime",
-      "status": "unsupported"
+      "module": "upstream_example",
+      "api": [
+        "StateMachineExampleScript"
+      ],
+      "status": "native",
+      "tests": [
+        {
+          "class": "StateMachineExampleIntegrationTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "class": "UpstreamExampleIntegrationTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      ],
+      "limits": "copied unchanged; mocked engine only"
     },
     {
-      "module": "npc_widget_bank_equipment_caches",
-      "status": "unsupported"
+      "module": "woodcutting_port",
+      "api": [
+        "AutoWoodcuttingPlugin",
+        "AutoWoodcuttingScript"
+      ],
+      "status": "adapted",
+      "tests": [
+        {
+          "class": "AutoWoodcuttingHostTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      ],
+      "limits": "source port of uploaded v1.8.7"
     },
     {
-      "module": "native_android_controls",
-      "status": "unsupported"
+      "module": "widgets_menus_interaction_equipment_combat_ge_magic",
+      "api": [],
+      "status": "unsupported",
+      "tests": [],
+      "limits": "not ported"
+    },
+    {
+      "module": "agent_server_cli_jar_loading_desktop_input",
+      "api": [],
+      "status": "unsupported",
+      "tests": [],
+      "limits": "not ported by design"
     }
-  ]
+  ],
+  "human_readable": "API_SUPPORTED.md"
 }
