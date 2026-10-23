@@ -5,7 +5,10 @@ import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.plugins.microbot.autochompykiller.AutoChompyKillerPlugin;
 import net.runelite.client.plugins.microbot.birdhunter.BirdHunterPlugin;
+import net.runelite.client.plugins.microbot.HueycoatlPrayer.HueyPrayerPlugin;
 import net.runelite.client.plugins.microbot.fishingtrawler.FishingTrawlerPlugin;
+import net.runelite.client.plugins.microbot.salamanders.SalamanderPlugin;
+import net.runelite.client.plugins.microbot.toweroflife_creaturecreation.TowerOfLifeCCPlugin;
 import org.junit.Test;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -20,7 +23,8 @@ public class HubPortedPluginsTest
 	}
 
 	private static final List<Class<? extends Plugin>> PORTED = List.of(
-		AutoChompyKillerPlugin.class, FishingTrawlerPlugin.class, BirdHunterPlugin.class);
+		AutoChompyKillerPlugin.class, FishingTrawlerPlugin.class, BirdHunterPlugin.class,
+		TowerOfLifeCCPlugin.class, SalamanderPlugin.class, HueyPrayerPlugin.class);
 
 	@Test
 	public void portedPluginsAreHubPluginsAndDisabledByDefault() throws Exception
