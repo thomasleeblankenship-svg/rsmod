@@ -46,6 +46,7 @@ Focused verification command (expect 0 failures and 0 skips):
 | --- | --- | --- | --- |
 | *(none)* | | | |
 | Claude 1 | new `microbot/util/mouse/Mouse.java`, `Microbot.java` (`getMouse`), `mobile/MobileActions.java` (`tap`), new `util/depositbox/Rs2DepositBox.java`, new `util/text/Rs2TextSanitizer.java` (copy), new `kspwillowchopper/**`, `kspsupport/**`, `kspmule/**` (KSP copy and inert stand-ins), new `third_party/ksp/**` (untouched original) | KSP Chopper mobile port (user request) | this commit |
+| Claude 1 | `util/inventory/Rs2Inventory.java` (`ordered`, private), `MobileInventoryHelpersTest` | Drop order parity with upstream `calculateInteractOrder` | this commit |
 
 ## Requests
 
