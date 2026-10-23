@@ -61,4 +61,6 @@ unchanged.
 
 | Plugin | Status |
 | --- | --- |
-| all 15 | Hub base done; ports not started |
+| Hub base | Done (`PluginDescriptor` metadata, `PluginConstants`, `Overlay.setNaughty`) |
+| autochompykiller | Claude 1 half done; 5 compile errors left, all Claude 2 reads |
+| the other 14 | Not started |
