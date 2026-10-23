@@ -19,6 +19,10 @@ import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.headless.JavaBridge;
 import net.runelite.client.headless.ScriptInputSession;
 import net.runelite.client.plugins.microbot.mobile.MobileActions;
+import net.runelite.client.plugins.microbot.Microbot;
+import net.runelite.client.plugins.microbot.api.tileobject.models.Rs2TileObjectModel;
+import net.runelite.client.plugins.microbot.util.gameobject.Rs2GameObject;
+import net.runelite.client.plugins.microbot.util.walker.WalkerState;
 import net.runelite.client.plugins.microbot.util.walker.Rs2Walker;
 import org.junit.After;
 import org.junit.Before;
@@ -233,4 +237,38 @@ public class MobileWalkerIntegrationTest
 			worker.shutdownNow();
 		}
 	}
+
+	@Test
+	public void walkStepIsNonBlockingAndReportsUpstreamStates() throws Exception
+	{
+		position.set(new WorldPoint(3209, 3220, 0));
+		WorldPoint destination = new WorldPoint(3214, 3222, 0);
+		assertEquals(WalkerState.UNREACHABLE, Rs2Walker.walkStep(new WorldPoint(3214, 3222, 1), 0));
+		WalkerState state = Rs2Walker.walkStep(destination, 0);
+		assertEquals(WalkerState.MOVING, state);
+		long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+		while (state != WalkerState.ARRIVED && System.nanoTime() < deadline)
+		{
+			Thread.sleep(50);
+			state = Rs2Walker.walkStep(destination, 0);
+		}
+		assertEquals(WalkerState.ARRIVED, state);
+		assertTrue(actions.contains("walk:0"));
+		permission.close();
+		assertEquals(WalkerState.EXIT, Rs2Walker.walkStep(destination, 0));
+	}
+
+	@Test
+	public void gameObjectInteractDispatchesTheModelsExactAction()
+	{
+		position.set(new WorldPoint(3205, 3228, 2));
+		fixture.tick++;
+		Rs2TileObjectModel staircase = Microbot.getRs2TileObjectCache().query()
+			.where(o -> o.getId() == 16673).nearest();
+		assertTrue("staircase must be in the snapshot", staircase != null);
+		assertTrue(Rs2GameObject.interact(staircase, "Climb-down", false));
+		assertTrue(actions.toString(), actions.contains("stairs:2>1"));
+		assertFalse(Rs2GameObject.interact(null, "Climb-down", false));
+	}
 }
+
