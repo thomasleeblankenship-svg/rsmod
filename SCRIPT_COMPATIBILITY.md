@@ -1,3 +1,5 @@
+> Latest woodcutting source port: [mobile loading, scope and acceptance](docs/microbot/WOODCUTTING_MOBILE.md). The baseline results below predate that port.
+
 # Script compatibility
 
 Pinned Microbot: `e01e0d77d79b354472a5737b3aaab2449eb034fc`.

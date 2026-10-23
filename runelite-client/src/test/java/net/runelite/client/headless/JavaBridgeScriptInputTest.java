@@ -304,4 +304,50 @@ public class JavaBridgeScriptInputTest
 		assertFalse(session.isActive());
 		assertTrue(events.isEmpty());
 	}
+	@Test
+	public void scriptKeyDoesNotClaimHumanInputAndAlwaysReleases() throws Exception
+	{
+		List<Integer> keys = new CopyOnWriteArrayList<>();
+		ScriptInputSession owner = new ScriptInputSession();
+		canvas.addKeyListener(new java.awt.event.KeyAdapter()
+		{
+			@Override public void keyPressed(java.awt.event.KeyEvent event)
+			{
+				keys.add(event.getID());
+				owner.close();
+			}
+			@Override public void keyReleased(java.awt.event.KeyEvent event) { keys.add(event.getID()); }
+			@Override public void keyTyped(java.awt.event.KeyEvent event) { keys.add(event.getID()); }
+		});
+		assertTrue(JavaBridge.onScriptKey(java.awt.event.KeyEvent.VK_SPACE, owner));
+		pump();
+		assertEquals(List.of(java.awt.event.KeyEvent.KEY_PRESSED, java.awt.event.KeyEvent.KEY_RELEASED), keys);
+	}
+
+	@Test
+	public void keyQueuedBeforeStopCannotReachListeners() throws Exception
+	{
+		List<Integer> keys = new CopyOnWriteArrayList<>();
+		canvas.addKeyListener(new java.awt.event.KeyAdapter()
+		{
+			@Override public void keyPressed(java.awt.event.KeyEvent event) { keys.add(event.getID()); }
+		});
+		blockEdt();
+		ScriptInputSession owner = new ScriptInputSession();
+		assertTrue(JavaBridge.onScriptKey(java.awt.event.KeyEvent.VK_ENTER, owner));
+		owner.close();
+		unblock.countDown();
+		pump();
+		assertTrue(keys.isEmpty());
+	}
+
+	@Test
+	public void keyAcceptedByEngineKeepsItsScriptPermission() throws Exception
+	{
+		ScriptInputSession owner = new ScriptInputSession();
+		assertTrue(JavaBridge.onScriptKey(java.awt.event.KeyEvent.VK_SPACE, owner));
+		pump();
+		assertTrue(owner.isActive());
+	}
+
 }

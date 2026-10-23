@@ -118,6 +118,14 @@ public class Global {
         }
     }
 
+    public static void sleep(int min, int max) {
+        sleep(ThreadLocalRandom.current().nextInt(Math.max(0, min), Math.max(min + 1, max + 1)));
+    }
+
+    public static void sleepGaussian(int mean, int deviation) {
+        sleep(Math.max(0, (int) Math.min(10000, mean + ThreadLocalRandom.current().nextGaussian() * deviation)));
+    }
+
     private static final int TICK_MS = 600;
     private static final int TICK_JITTER_SIGMA_MS = 80;
 

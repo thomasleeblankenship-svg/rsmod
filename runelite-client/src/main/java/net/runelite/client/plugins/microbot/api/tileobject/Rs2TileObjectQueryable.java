@@ -19,4 +19,15 @@ public final class Rs2TileObjectQueryable extends AbstractEntityQueryable<Rs2Til
 	{
 		super(services, source);
 	}
+	/** Model reads and live action resolution already marshal to the client thread. */
+	public Rs2TileObjectModel nearestOnClientThread()
+	{
+		return nearest();
+	}
+
+	public java.util.List<Rs2TileObjectModel> toListOnClientThread()
+	{
+		return toList();
+	}
+
 }

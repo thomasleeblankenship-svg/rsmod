@@ -5,7 +5,7 @@ BUILD="$(mktemp -d)"
 trap 'rm -rf "$BUILD"' EXIT
 python3 "$ROOT/tests/generate_stubs.py" "$BUILD/stubs"
 mkdir -p "$BUILD/classes"
-find "$BUILD/stubs" "$ROOT/runelite-client/src/main/java/net/runelite/client/plugins/mobilemicrobot" -name '*.java' > "$BUILD/sources.txt"
+find "$BUILD/stubs" "$ROOT/runelite-client/src/main/java/net/runelite/client/plugins/mobilemicrobot" -name '*.java' ! -path "$ROOT/runelite-client/src/main/java/net/runelite/client/plugins/mobilemicrobot/MobileAutoWoodcuttingScript.java" > "$BUILD/sources.txt"
 printf '%s\n' "$ROOT/runelite-client/src/main/java/net/runelite/client/headless/ScriptInputSession.java" "$ROOT/tests/PortableChecks.java" "$ROOT/runelite-client/src/main/java/net/runelite/client/plugins/microbot/statemachineexample/StateMachineExampleConfig.java" >> "$BUILD/sources.txt"
 javac --release 21 -d "$BUILD/classes" @"$BUILD/sources.txt"
 java -ea -cp "$BUILD/classes" net.runelite.client.plugins.mobilemicrobot.PortableChecks

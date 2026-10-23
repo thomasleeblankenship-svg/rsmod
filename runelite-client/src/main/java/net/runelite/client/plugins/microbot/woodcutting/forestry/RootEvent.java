@@ -1,0 +1,105 @@
+/*
+ * Mobile adaptation of uploaded Auto Woodcutting v1.8.7, source commit
+ * 080d9674fe87f282c958c25b5bb8f6b96665fe36. Original algorithms retained;
+ * desktop host/lifecycle and client-thread API access adapted for RuneMobile.
+ */
+package net.runelite.client.plugins.microbot.woodcutting.forestry;
+
+import lombok.extern.slf4j.Slf4j;
+import net.runelite.api.gameval.ItemID;
+import net.runelite.api.gameval.ObjectID;
+import net.runelite.client.plugins.microbot.BlockingEvent;
+import net.runelite.client.plugins.microbot.BlockingEventPriority;
+import net.runelite.client.plugins.microbot.Microbot;
+import net.runelite.client.plugins.microbot.util.combat.Rs2Combat;
+import net.runelite.client.plugins.microbot.util.equipment.Rs2Equipment;
+import net.runelite.client.plugins.microbot.util.gameobject.Rs2GameObject;
+import net.runelite.client.plugins.microbot.util.player.Rs2Player;
+import net.runelite.client.plugins.microbot.util.walker.Rs2Walker;
+import net.runelite.client.plugins.microbot.woodcutting.AutoWoodcuttingPlugin;
+import net.runelite.client.plugins.microbot.woodcutting.enums.ForestryEvents;
+
+@Slf4j
+public class RootEvent implements BlockingEvent {
+
+    private final AutoWoodcuttingPlugin plugin;
+    public RootEvent(AutoWoodcuttingPlugin plugin) {
+        this.plugin = plugin;
+    }
+
+    @Override
+    public boolean validate() {
+        try {
+            if (plugin == null || !plugin.isActive()) return false;
+            if (Microbot.getClient() == null || !Microbot.isLoggedIn()) return false;
+            var root = plugin.rs2TileObjectCache.query().where(x -> x.getId() == ObjectID.GATHERING_EVENT_RISING_ROOTS).nearest();
+            var specialRoot = plugin.rs2TileObjectCache.query().where(x -> x.getId() == ObjectID.GATHERING_EVENT_RISING_ROOTS_SPECIAL).nearest();
+
+            // Is the hasAction Check needed?
+            // If special root is present
+            if (specialRoot != null)
+                return Rs2GameObject.hasAction(specialRoot.getObjectComposition(), "Chop down");
+            // If regular root is present
+            if (root != null)
+                return (Rs2GameObject.hasAction(root.getObjectComposition(), "Chop down"));
+
+            return false; // No roots found
+        } catch (Exception e) {
+            log.error("RootEvent: Exception in validate method", e);
+            return false;
+        }
+
+    }
+
+    @Override
+    public boolean execute() {
+        Microbot.log("RootEvent: Executing Root event");
+        plugin.currentForestryEvent = ForestryEvents.TREE_ROOT;
+        Rs2Walker.setTarget(null); // stop walking, stop moving to bank for example
+        while (plugin.isActive() && !Thread.currentThread().isInterrupted() && this.validate()) {
+            var root = plugin.rs2TileObjectCache.query().where(x -> x.getId() == ObjectID.GATHERING_EVENT_RISING_ROOTS).nearest();
+            var specialRoot = plugin.rs2TileObjectCache.query().where(x -> x.getId() == ObjectID.GATHERING_EVENT_RISING_ROOTS_SPECIAL).nearest();
+
+            // Use special attack if available
+            if ( Rs2Equipment.isWearing(ItemID.DRAGON_AXE) || Rs2Equipment.isWearing(ItemID.DRAGON_AXE_2H) || Rs2Equipment.isWearing(ItemID.CRYSTAL_AXE) ||
+                    Rs2Equipment.isWearing(ItemID.CRYSTAL_AXE_2H) || Rs2Equipment.isWearing(ItemID.INFERNAL_AXE) ||
+                    Rs2Equipment.isWearing(ItemID.TRAILBLAZER_AXE))
+                Rs2Combat.setSpecState(true, 1000);
+
+            // If special root is present
+            if (specialRoot != null) {
+                // Interact with the special root
+                Microbot.log("RootEvent: Interacting with special root at " + specialRoot.getWorldLocation());
+                specialRoot.click("Chop down");
+                waitForChoppingToFinish();
+            }
+            // If regular root is present
+            else if (root != null) {
+                // Interact with the regular root
+                Microbot.log("RootEvent: Interacting with regular root at " + root.getWorldLocation());
+                root.click("Chop down");
+                waitForChoppingToFinish();
+            }
+        }
+        plugin.incrementForestryEventCompleted();
+        return true;
+    }
+
+    private void waitForChoppingToFinish() {
+        if (waitUntil(Rs2Player::isAnimating, 5000)) {
+            waitUntil(() -> !Rs2Player.isAnimating() || !this.validate(), 40000);
+        }
+    }
+
+    @Override
+    public BlockingEventPriority priority() {
+        return BlockingEventPriority.NORMAL;
+    }
+    /** Bound every wait to this host, so stopping cannot leave an old Forestry task waiting. */
+    private boolean waitUntil(java.util.function.BooleanSupplier condition, long timeoutMillis) {
+        boolean completed = net.runelite.client.plugins.microbot.util.Global.sleepUntil(
+                () -> !plugin.isActive() || Thread.currentThread().isInterrupted() || condition.getAsBoolean(), (int) Math.min(Integer.MAX_VALUE, Math.max(0, timeoutMillis)));
+        return completed && plugin.isActive() && !Thread.currentThread().isInterrupted();
+    }
+
+}

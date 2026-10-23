@@ -70,6 +70,7 @@ public class MobileMicrobotPluginTest
 		inject("clientThread", thread);
 		inject("configManager", manager);
 		inject("config", config);
+		inject("overlayManager", mock(net.runelite.client.ui.overlay.OverlayManager.class));
         EventBus events = new EventBus();
         inject("eventBus", events);
         inject("readServices", new MicrobotReadServices(client, thread, events));
@@ -319,4 +320,18 @@ public class MobileMicrobotPluginTest
 		assertFalse(MicrobotRuntime.isInstalled());
 		assertNull(MicrobotReadServices.current());
 	}
+	@Test
+	public void woodcuttingConfigurationIsVisibleAndAutoHopIsAbsent() throws Exception
+	{
+		assertNotNull(MobileMicrobotConfig.class.getMethod("TREE").getAnnotation(net.runelite.client.config.ConfigItem.class));
+		assertNotNull(MobileMicrobotConfig.class.getMethod("primaryAction").getAnnotation(net.runelite.client.config.ConfigItem.class));
+		assertNotNull(MobileMicrobotConfig.class.getMethod("enableForestry").getAnnotation(net.runelite.client.config.ConfigItem.class));
+		assertTrue(MobileScriptBridge.scriptsJson().contains("AUTO_WOODCUTTING"));
+		for (java.lang.reflect.Method method : MobileMicrobotConfig.class.getMethods())
+		{
+			net.runelite.client.config.ConfigItem item = method.getAnnotation(net.runelite.client.config.ConfigItem.class);
+			assertFalse(item != null && "Hop".equals(item.keyName()));
+		}
+	}
+
 }

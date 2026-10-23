@@ -5,7 +5,8 @@ public enum ScriptKind
 	DIAGNOSTICS("Diagnostics (read-only)"),
 	SCENE_SCAN("Scene scan (read-only)"),
 	STATE_MACHINE_EXAMPLE("Upstream state machine example (read-only)"),
-	WOODCUTTING("Woodcutting (example)");
+	WOODCUTTING("Woodcutting (example)"),
+	AUTO_WOODCUTTING("Auto Woodcutting (mobile port)");
 
 	private final String display;
 

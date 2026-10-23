@@ -6,6 +6,11 @@
 package net.runelite.client.plugins.microbot.util.inventory;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.Locale;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.BooleanSupplier;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Predicate;
@@ -18,10 +23,11 @@ import net.runelite.api.ItemContainer;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.gameval.InventoryID;
 import net.runelite.client.plugins.microbot.Microbot;
+import net.runelite.client.plugins.microbot.mobile.MobileActions;
 import net.runelite.client.plugins.microbot.api.MicrobotReadServices;
 
 /**
- * Read-only view of the local player's inventory with upstream semantics.
+ * Inventory snapshots and cancellation-aware mobile actions with upstream slot-count semantics.
  * <p>
  * The item list is an immutable snapshot rebuilt on the client thread from
  * {@link ItemContainerChanged} for {@link InventoryID#INV}. If it is empty while
@@ -29,9 +35,9 @@ import net.runelite.client.plugins.microbot.api.MicrobotReadServices;
  * thread (upstream fallback). {@code count(...)} counts occupied slots, not
  * stack quantities: 1,000 coins in one slot count as 1.
  * <p>
- * Adaptation: only the read surface needed by the first upstream script is
- * ported (no interactions, selection, dropping or banking). The snapshot is
- * cleared on logout, hop and connection loss; upstream keeps it.
+ * Actions use MobileActions and never synthesize desktop input. Batch operations
+ * wait for observed container changes, stop on failed actions, and refuse to block
+ * the client thread. The snapshot is cleared when the runtime is disabled.
  */
 public final class Rs2Inventory
 {
@@ -70,7 +76,7 @@ public final class Rs2Inventory
 		for (int i = 0; i < slots.length; i++)
 		{
 			Item item = slots[i];
-			if (item.getId() == -1)
+			if (item == null || item.getId() == -1)
 			{
 				continue;
 			}
@@ -143,4 +149,173 @@ public final class Rs2Inventory
 	{
 		return count(item -> item.getName().toLowerCase().contains(name.toLowerCase()));
 	}
+
+	public static boolean hasItem(int id) { return count(id) > 0; }
+	public static boolean hasItem(String name) { return count(name) > 0; }
+	public static boolean contains(int id) { return hasItem(id); }
+	public static boolean contains(String name) { return hasItem(name); }
+	public static boolean isFull() { return count() >= 28; }
+	public static int emptySlotCount() { return Math.max(0, 28 - count()); }
+	public static List<Rs2ItemModel> getList(Predicate<Rs2ItemModel> predicate) { return items(predicate).collect(Collectors.toList()); }
+	public static Rs2ItemModel get(int id) { return items(i -> i.getId() == id).findFirst().orElse(null); }
+	public static Rs2ItemModel get(String name) { return items(i -> matches(i.getName(), name, false)).findFirst().orElse(null); }
+
+	private static boolean matches(String candidate, String search, boolean exact)
+	{
+		if (candidate == null || search == null || search.trim().isEmpty()) return false;
+		return exact ? candidate.equalsIgnoreCase(search.trim())
+			: candidate.toLowerCase(Locale.ROOT).contains(search.trim().toLowerCase(Locale.ROOT));
+	}
+
+	public static boolean interact(int id, String action)
+	{
+		Rs2ItemModel item = get(id);
+		return item != null && MobileActions.inventory(item.getSlot(), item.getId(), action);
+	}
+
+	public static boolean use(String name)
+	{
+		Rs2ItemModel item = get(name);
+		return item != null && MobileActions.inventory(item.getSlot(), item.getId(), "Use");
+	}
+
+	public static boolean use(int id) { return interact(id, "Use"); }
+
+	public static boolean useLast(int id)
+	{
+		List<Rs2ItemModel> candidates = getList(i -> i.getId() == id);
+		return !candidates.isEmpty() && MobileActions.inventory(candidates.get(candidates.size() - 1).getSlot(), id, "Use");
+	}
+
+	public static boolean isItemSelected()
+	{
+		return MobileActions.read(() -> Microbot.getClient().isWidgetSelected(), false);
+	}
+
+	public static boolean combineClosest(String primary, String secondary)
+	{
+		Rs2ItemModel first = get(primary);
+		Rs2ItemModel second = get(secondary);
+		return first != null && second != null && first.getSlot() != second.getSlot()
+			&& MobileActions.itemOnItem(first.getSlot(), second.getSlot());
+	}
+
+	public static boolean combine(int firstId, int secondId)
+	{
+		Rs2ItemModel first = get(firstId);
+		Rs2ItemModel second = get(secondId);
+		return first != null && second != null && first.getSlot() != second.getSlot()
+			&& MobileActions.itemOnItem(first.getSlot(), second.getSlot());
+	}
+
+	public static boolean useItemOnObject(int itemId, int objectId)
+	{
+		Rs2ItemModel item = get(itemId);
+		return item != null && MobileActions.itemOnObject(item.getSlot(), objectId);
+	}
+
+	/** Orders a copied list; never mutates a published inventory snapshot. */
+	static List<Rs2ItemModel> ordered(List<Rs2ItemModel> source, InteractOrder order)
+	{
+		List<Rs2ItemModel> copy = new ArrayList<>(source);
+		if (order == InteractOrder.RANDOM)
+		{
+			Collections.shuffle(copy, ThreadLocalRandom.current());
+			return copy;
+		}
+		copy.sort(Comparator.comparingInt(i -> orderKey(i.getSlot(), order)));
+		return copy;
+	}
+
+	private static int orderKey(int slot, InteractOrder order)
+	{
+		int row = slot / 4;
+		int column = slot % 4;
+		if (order == InteractOrder.COLUMN) return column * 7 + row;
+		if (order == InteractOrder.EFFICIENT_COLUMN) return column * 7 + (column % 2 == 0 ? row : 6 - row);
+		if (order == InteractOrder.EFFICIENT_ROW || order == InteractOrder.ZIGZAG)
+			return row * 4 + (row % 2 == 0 ? column : 3 - column);
+		return slot;
+	}
+
+	public static boolean dropAllExcept(boolean exact, InteractOrder order, String... names)
+	{
+		Predicate<Rs2ItemModel> removable = i -> Arrays.stream(names).noneMatch(n -> matches(i.getName(), n, exact));
+		for (Rs2ItemModel item : ordered(getList(removable), order))
+		{
+			if (!dropSlot(item)) return false;
+		}
+		return count(removable) == 0;
+	}
+
+	public static boolean drop(String name)
+	{
+		Rs2ItemModel item = get(name);
+		return item != null && dropSlot(item);
+	}
+
+	public static int dropAmount(String name, int amount, InteractOrder order)
+	{
+		int dropped = 0;
+		for (Rs2ItemModel item : ordered(getList(i -> matches(i.getName(), name, false)), order))
+		{
+			if (dropped >= Math.max(0, amount) || !dropSlot(item)) break;
+			dropped++;
+		}
+		return dropped;
+	}
+
+	private static boolean dropSlot(Rs2ItemModel item)
+	{
+		if (!canWait() || !slotMatches(item) || !waitFor(() -> slotMatches(item) && MobileActions.inventory(item.getSlot(), item.getId(), "Drop"), 2_000)) return false;
+		return waitFor(() -> items(i -> i.getSlot() == item.getSlot() && i.getId() == item.getId()).findAny().isEmpty(), 3_000);
+	}
+
+	private static boolean slotMatches(Rs2ItemModel expected)
+	{
+		return items(i -> i.getSlot() == expected.getSlot() && i.getId() == expected.getId()
+			&& i.getQuantity() == expected.getQuantity()).findAny().isPresent();
+	}
+
+	private static List<String> fingerprint()
+	{
+		return items().map(i -> i.getSlot() + ":" + i.getId() + ":" + i.getQuantity()).collect(Collectors.toList());
+	}
+
+	public static boolean waitForInventoryChanges(int timeout)
+	{
+		List<String> before = fingerprint();
+		return waitFor(() -> !before.equals(fingerprint()), timeout);
+	}
+
+	public static boolean waitForInventoryChanges(Runnable action, int interval, int timeout)
+	{
+		if (!canWait()) return false;
+		List<String> before = fingerprint();
+		action.run();
+		return waitFor(() -> !before.equals(fingerprint()), timeout);
+	}
+
+	/** Script-thread polling only; a takeover, Stop or pause aborts the wait. */
+	public static boolean waitFor(BooleanSupplier condition, int timeout)
+	{
+		if (!canWait()) return false;
+		long deadline = System.nanoTime() + Math.max(0, timeout) * 1_000_000L;
+		do
+		{
+			if (!MobileActions.active() || Thread.currentThread().isInterrupted()) return false;
+			if (condition.getAsBoolean()) return true;
+			try { Thread.sleep(40); }
+			catch (InterruptedException e) { Thread.currentThread().interrupt(); return false; }
+		}
+		while (System.nanoTime() < deadline);
+		return false;
+	}
+
+	private static boolean canWait()
+	{
+		Client client = Microbot.getClient();
+		return client != null && !client.isClientThread() && MobileActions.active();
+	}
+
 }

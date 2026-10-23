@@ -1,0 +1,55 @@
+package net.runelite.client.plugins.microbot.util.grounditem;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
+import net.runelite.client.plugins.microbot.Microbot;
+import net.runelite.client.plugins.microbot.mobile.MobileActions;
+import net.runelite.client.plugins.microbot.api.tileitem.models.Rs2TileItemModel;
+import net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory;
+import net.runelite.client.plugins.microbot.util.player.Rs2Player;
+
+/** Named ground-item pickup through the live scene, confirmed by an inventory delta. */
+public final class Rs2GroundItem
+{
+	private Rs2GroundItem() { }
+	public static boolean lootItemsBasedOnNames(LootingParameters parameters)
+	{
+		if (parameters == null || !MobileActions.active() || Microbot.getRs2TileItemCache() == null
+			|| 28 - Rs2Inventory.count() < parameters.getMinInvSlots()) { return false; }
+		List<Rs2TileItemModel> candidates = Microbot.getRs2TileItemCache().query().within(parameters.getRange())
+			.where(item -> accepts(item, parameters)).toList();
+		if (candidates.size() < parameters.getMinItems()) { return false; }
+		for (Rs2TileItemModel item : candidates)
+		{
+			int before = inventoryQuantity(item.getId());
+			if (MobileActions.groundItem(item.getId(), item.getWorldLocation(), "Take"))
+			{
+				return Rs2Player.waitFor(() -> inventoryQuantity(item.getId()) > before, 5000);
+			}
+		}
+		return false;
+	}
+	static boolean accepts(Rs2TileItemModel item, LootingParameters parameters)
+	{
+		if (item.getQuantity() < parameters.getMinQuantity() || !item.isLootAble()
+			|| (parameters.isAntiLureProtection() && !item.isOwned()) || item.getName() == null) { return false; }
+		String name = item.getName().toLowerCase(Locale.ROOT);
+		return Arrays.stream(parameters.getNames()).filter(java.util.Objects::nonNull)
+			.anyMatch(part -> name.contains(part.toLowerCase(Locale.ROOT)));
+	}
+	private static int inventoryQuantity(int itemId)
+	{
+		return MobileActions.read(() ->
+		{
+			net.runelite.api.ItemContainer inventory = Microbot.getClient().getItemContainer(net.runelite.api.InventoryID.INVENTORY);
+			if (inventory == null || inventory.getItems() == null) { return 0; }
+			int quantity = 0;
+			for (net.runelite.api.Item item : inventory.getItems())
+			{
+				if (item != null && item.getId() == itemId) { quantity += item.getQuantity(); }
+			}
+			return quantity;
+		}, 0);
+	}
+}

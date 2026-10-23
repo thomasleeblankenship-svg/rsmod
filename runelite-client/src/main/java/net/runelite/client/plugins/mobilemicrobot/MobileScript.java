@@ -17,6 +17,12 @@ public interface MobileScript
 	{
 	}
 
+	/** Whether a background script has reached a terminal state. */
+	default boolean finished()
+	{
+		return false;
+	}
+
 	default String status()
 	{
 		return "Running";

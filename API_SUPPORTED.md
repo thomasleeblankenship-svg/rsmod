@@ -1,3 +1,5 @@
+> Latest woodcutting source port: [mobile loading, scope and acceptance](docs/microbot/WOODCUTTING_MOBILE.md). The baseline results below predate that port.
+
 # Mobile adapter API coverage
 
 This is the `mobilemicrobot` API, not desktop Microbot's package or ABI.

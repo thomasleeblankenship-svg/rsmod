@@ -5,6 +5,15 @@ on:
     branches: [feat/android-microbot-compat]
     paths:
       - .github/workflows/mobile-test-apk.yml
+      - runelite-client/**
+      - runelite-api/**
+      - android/**
+      - scripts/**
+      - tools/**
+      - ios/app/**
+      - gradle*
+      - '*.toml'
+      - '*.gradle.kts'
   workflow_dispatch:
 
 permissions:
@@ -32,6 +41,14 @@ jobs:
           packages: platform-tools platforms;android-35 build-tools;35.0.0 ndk;26.1.10909125 ndk;27.0.12077973 cmake;3.22.1
       - name: Contract preflight
         run: ./android/dev-tools/ci/release-gate.sh --contract-only
+      - name: Runtime and woodcutting checks
+        run: >-
+          ./gradlew --no-daemon --max-workers=2 :client:test
+          --tests 'net.runelite.client.plugins.microbot.*'
+          --tests 'net.runelite.client.plugins.mobilemicrobot.*'
+          --tests 'net.runelite.client.headless.JavaBridge*Test'
+          --tests net.runelite.client.callback.ClientThreadOptionalTest
+          :client:checkstyleMain :client:pmdMain
       - name: Build test APK
         run: bash scripts/build-android.sh "$GITHUB_WORKSPACE"
         env:

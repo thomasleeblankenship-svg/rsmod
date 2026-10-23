@@ -47,4 +47,17 @@ public class Rs2NpcModel extends Rs2ActorModel implements IEntity
 	{
 		return index;
 	}
+	public int getAnimation()
+	{
+		return net.runelite.client.plugins.microbot.mobile.MobileActions.read(npc::getAnimation, -1);
+	}
+	public String getOverheadText()
+	{
+		return net.runelite.client.plugins.microbot.mobile.MobileActions.read(npc::getOverheadText, null);
+	}
+	public boolean click(String action)
+	{
+		return net.runelite.client.plugins.microbot.mobile.MobileActions.npcAt(id, index, action);
+	}
+
 }

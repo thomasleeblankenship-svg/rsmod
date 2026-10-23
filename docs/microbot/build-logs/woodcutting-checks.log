@@ -1,0 +1,62 @@
+Picked up JAVA_TOOL_OPTIONS: -Dhttp.proxyHost=proxy -Dhttp.proxyPort=8080 -Dhttps.proxyHost=proxy -Dhttps.proxyPort=8080 -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.8/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+> Task :runelite-gradle-plugin:pluginDescriptors UP-TO-DATE
+> Task :cache:generateGrammarSource UP-TO-DATE
+> Task :cache:generateEffectiveLombokConfig UP-TO-DATE
+> Task :runelite-gradle-plugin:processResources UP-TO-DATE
+> Task :cache:compileJava UP-TO-DATE
+> Task :cache:processResources UP-TO-DATE
+> Task :cache:classes UP-TO-DATE
+> Task :cache:jar UP-TO-DATE
+> Task :runelite-gradle-plugin:compileJava UP-TO-DATE
+> Task :runelite-gradle-plugin:classes UP-TO-DATE
+> Task :runelite-gradle-plugin:jar UP-TO-DATE
+> Task :runelite-api:generateEffectiveLombokConfig UP-TO-DATE
+> Task :jshell:generateEffectiveLombokConfig UP-TO-DATE
+> Task :jshell:compileJava UP-TO-DATE
+> Task :jshell:processResources UP-TO-DATE
+> Task :jshell:classes UP-TO-DATE
+> Task :jshell:jar UP-TO-DATE
+> Task :client:assembleRs2asm UP-TO-DATE
+> Task :client:buildRs2asmIndex UP-TO-DATE
+> Task :runelite-api:compileJava UP-TO-DATE
+> Task :runelite-api:processResources NO-SOURCE
+> Task :runelite-api:classes UP-TO-DATE
+> Task :runelite-api:jar UP-TO-DATE
+> Task :client:processResources UP-TO-DATE
+> Task :client:processTestResources UP-TO-DATE
+> Task :client:generateEffectiveLombokConfig
+
+> Task :client:compileJava
+Picked up JAVA_TOOL_OPTIONS: -Dhttp.proxyHost=proxy -Dhttp.proxyPort=8080 -Dhttps.proxyHost=proxy -Dhttps.proxyPort=8080 -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts
+Note: /workspace/rsmod/runelite-client/src/main/java/net/runelite/client/plugins/microbot/util/bank/Rs2Bank.java uses or overrides a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+
+> Task :client:classes
+> Task :client:generateTestEffectiveLombokConfig
+
+> Task :client:compileTestJava
+/workspace/rsmod/runelite-client/src/test/java/net/runelite/client/menus/TestMenuEntry.java:53: warning: Not generating setItemId(): A method with that name already exists
+	private int itemId = -1;
+	            ^
+/workspace/rsmod/runelite-client/src/test/java/net/runelite/client/menus/TestMenuEntry.java:60: warning: Not generating setWorldViewId(): A method with that name already exists
+	private int worldViewId;
+	            ^
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+Note: Some input files use unchecked or unsafe operations.
+Note: Recompile with -Xlint:unchecked for details.
+2 warnings
+
+> Task :client:testClasses
+OpenJDK 64-Bit Server VM warning: Sharing is only supported for boot loader classes because bootstrap classpath has been appended
+
+> Task :client:test
+Picked up JAVA_TOOL_OPTIONS: -Dhttp.proxyHost=proxy -Dhttp.proxyPort=8080 -Dhttps.proxyHost=proxy -Dhttps.proxyPort=8080 -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts
+
+> Task :client:checkstyleMain
+> Task :client:pmdMain
+
+BUILD SUCCESSFUL in 34s
+27 actionable tasks: 7 executed, 20 up-to-date

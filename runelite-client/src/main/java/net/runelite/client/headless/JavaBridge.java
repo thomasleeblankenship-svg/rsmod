@@ -908,6 +908,50 @@ public final class JavaBridge
 		}
 	}
 
+	/** Called on the client thread before exact script menu actions. */
+	public static boolean scriptInputBusy()
+	{
+		discardCancelledScriptTap();
+		return tapState != TapState.IDLE || queuedTap || pressed || shiftHeld || ctrlHeld || altHeld
+			|| camHoldDxPerSec != 0 || camHoldDyPerSec != 0;
+	}
+
+	/** Script keyboard input never enters the native/manual-input path. */
+	public static boolean onScriptKey(int keyCode, ScriptInputSession owner)
+	{
+		final Client c = client;
+		final Canvas canvas = liveCanvas();
+		if (owner == null || !owner.isActive() || c == null || !c.isClientThread()
+			|| canvas == null || c.getGameState() != GameState.LOGGED_IN || c.isMenuOpen()
+			|| pressed || shiftHeld || ctrlHeld || altHeld || tapState != TapState.IDLE)
+		{
+			return false;
+		}
+		char typed = keyCode == KeyEvent.VK_SPACE ? ' ' : keyCode == KeyEvent.VK_ENTER ? '\n'
+			: keyCode >= KeyEvent.VK_0 && keyCode <= KeyEvent.VK_9 ? (char) keyCode : KeyEvent.CHAR_UNDEFINED;
+		EventQueue.invokeLater(() ->
+		{
+			if (!owner.isActive()) { return; }
+			long now = System.currentTimeMillis();
+			try
+			{
+				KeyEvent down = new KeyEvent(canvas, KeyEvent.KEY_PRESSED, now, 0, keyCode, typed);
+				for (java.awt.event.KeyListener listener : canvas.getKeyListeners()) { listener.keyPressed(down); }
+				if (owner.isActive() && typed != KeyEvent.CHAR_UNDEFINED)
+				{
+					KeyEvent text = new KeyEvent(canvas, KeyEvent.KEY_TYPED, now, 0, KeyEvent.VK_UNDEFINED, typed);
+					for (java.awt.event.KeyListener listener : canvas.getKeyListeners()) { listener.keyTyped(text); }
+				}
+			}
+			finally
+			{
+				KeyEvent up = new KeyEvent(canvas, KeyEvent.KEY_RELEASED, now, 0, keyCode, typed);
+				for (java.awt.event.KeyListener listener : canvas.getKeyListeners()) { listener.keyReleased(up); }
+			}
+		});
+		return true;
+	}
+
 	/** Native lifecycle bridge; resume permits explicit starts but never renews old sessions. */
 	public static void setScriptInputSuspended(boolean suspended)
 	{

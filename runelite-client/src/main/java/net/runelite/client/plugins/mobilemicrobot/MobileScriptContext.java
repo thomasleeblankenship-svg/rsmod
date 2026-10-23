@@ -48,6 +48,11 @@ public final class MobileScriptContext
 	}
 
 	/** The host's cancellation signal, also safe for a background script guard to read. */
+	ScriptInputSession inputPermission()
+	{
+		return inputSession;
+	}
+
 	public boolean inputActive()
 	{
 		return inputSession != null && inputSession.isActive();

@@ -1,0 +1,28 @@
+{
+  "source_commit": "080d9674fe87f282c958c25b5bb8f6b96665fe36",
+  "files": {
+    "AutoWoodcuttingScript.java": "2df22bd23f744835d0df756b094a89e095079c7201b5233ede58d4fdca196460",
+    "LocationOption.java": "67b1c2a1fc981ec31cfdeb3b670e7dc98538a5af81f2721ef20c718353ef44d8",
+    "AutoWoodcuttingConfig.java": "8d5ed972e924bce01bbe1e10ea355ee8d79d90b83e9c7dbfc6bcc29d45e209ec",
+    "AutoWoodcuttingPlugin.java": "e72402a7d31a71855df91a42d400bb7399e9ce9adc9a0c3f210c66a599b5d04c",
+    "AutoWoodcuttingOverlay.java": "1528f3e2584f62f664407d227029d39951c08854d42dea8c527da7009e12cc43",
+    "SOURCE_COMMIT.txt": "078b65e6a04129aa919aebab07da461ba14cfef2022c5dff2529af64d9f41d25",
+    "ResourceLocationOption.java": "3c2c6e7a65fae357cbc6c226c69cc95097ae97a9c3b6119abe99a7a32c9a28f9",
+    "Forestry/RootEvent.java": "d618d54107bccb7fdf6ea48ec639f3f22938d429c832a90613e1637e4f3fb55a",
+    "Forestry/FoxEvent.java": "273a310c5841cf00696a487b0722e96cb48ea056186814978e45ecc5046896c1",
+    "Forestry/LeprechaunEvent.java": "c01d9ab78548c4e82b7d68392acd9d16631349dd90601eada52fff71d8ff41a1",
+    "Forestry/RitualEvent.java": "58a959174773cc6eac0205698671af30d40ddc23d6c2e6ea3aa99f02f2302e4d",
+    "Forestry/HivesEvent.java": "bdc2892560ca445288b3381bbb28fc8c93f13f6ee6090159ecd70c0560a3418c",
+    "Forestry/FlowersEvent.java": "4bf30fd0aec3e2db14e6fdb3d9e8c1cc61b6e780172e5299c676726fa254ae3e",
+    "Forestry/EntlingsEvent.java": "d2ffff1335e6dfcb93ed357d90842989ab7c49bf41b2599d3cdcf274d9b340d3",
+    "Forestry/StrugglingSaplingEvent.java": "92de0b3be171289d39f661f05a6385cebce7a4bb8c6e98f1d6fd21858b2d8ad7",
+    "Forestry/EggEvent.java": "33370fd0a5c9b4b1f1a36f6cfb9fcc00e029a4b9e964927084319d22c68e61c1",
+    "enums/WoodcuttingTree.java": "04b749a4691ffb0eef3cb6e16415c2931d403c0741bcae4dbb5efd9557a58321",
+    "enums/WoodcuttingWalkBack.java": "f52e8c99b94ce4c9390f12dd452d261ebd88b9395e704a64034fb529ff7fa407",
+    "enums/ForestryEvents.java": "b95aed273984942d3be5142dc5c76318cc57442f64ce2e8e6a500fb87305936f",
+    "enums/WoodcuttingPrimaryAction.java": "a7235e1e1295962e51400765451c517becd7b68262f0914bedbb76de6a138743",
+    "enums/WoodcuttingScriptState.java": "0d617fd0d724fe6d75668c4a9c0d2845640184731729843c1abad9eeec4b9bf6",
+    "enums/WoodcuttingTreeLocations.java": "c6d9cd5d09bac57417d06830cda010e1afdb7add777e287530102d7b7837b0c0",
+    "enums/WoodcuttingSecondaryAction.java": "f0fc076b2c685afb9c6b20c95ecc7bf601874bca2bbba1eec5fdbf2c8b276905"
+  }
+}

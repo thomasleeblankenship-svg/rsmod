@@ -44,6 +44,7 @@ public class MobileMicrobotPlugin extends Plugin
 	@Inject private MobileMicrobotConfig config;
 	@Inject private EventBus eventBus;
 	@Inject private MicrobotReadServices readServices;
+	@Inject private net.runelite.client.ui.overlay.OverlayManager overlayManager;
 
 	private final AtomicLong commandGeneration = new AtomicLong();
 	private final AtomicLong lifecycleGeneration = new AtomicLong();
@@ -179,6 +180,13 @@ public class MobileMicrobotPlugin extends Plugin
 			stopActive("Stopped");
 			return;
 		}
+		if (current != null && current.finished())
+		{
+			String reason = current.status();
+			stopActive(reason);
+			setRun(false);
+			return;
+		}
 		if (inputSession != null && !inputSession.isActive())
 		{
 			stopActive("Stopped: manual input or cancelled input session");
@@ -236,6 +244,8 @@ public class MobileMicrobotPlugin extends Plugin
 				return new MicrobotScriptAdapter<>("Upstream state machine example",
 					StateMachineExampleScript::new,
 					script -> script.run(configManager.getConfig(StateMachineExampleConfig.class)));
+			case AUTO_WOODCUTTING:
+				return new MobileAutoWoodcuttingScript(config, overlayManager);
 			case WOODCUTTING:
 				return new WoodcuttingScript();
 			case SCENE_SCAN:

@@ -3,6 +3,10 @@ from pathlib import Path
 import sys
 out=Path(sys.argv[1]);out.mkdir(parents=True, exist_ok=True)
 f={
+# Full woodcutting is tested by Gradle, never by these Phase 2 stand-ins.
+'net/runelite/client/plugins/microbot/woodcutting/AutoWoodcuttingConfig.java':'package net.runelite.client.plugins.microbot.woodcutting;public interface AutoWoodcuttingConfig extends net.runelite.client.config.Config {}',
+'net/runelite/client/ui/overlay/OverlayManager.java':'package net.runelite.client.ui.overlay;public class OverlayManager {}',
+'net/runelite/client/plugins/mobilemicrobot/MobileAutoWoodcuttingScript.java':'package net.runelite.client.plugins.mobilemicrobot;public class MobileAutoWoodcuttingScript implements MobileScript {public MobileAutoWoodcuttingScript(Object c,Object o){} public void onStart(MobileScriptContext c){throw new UnsupportedOperationException("Run real Gradle woodcutting tests");} public void onGameTick(MobileScriptContext c){throw new UnsupportedOperationException();}}',
 # Runtime integration is deliberately outside the portable Phase 2 runner.
 # Real runtime/API/example verification uses the actual Gradle project.
 'net/runelite/client/eventbus/EventBus.java':'package net.runelite.client.eventbus; public class EventBus {}',

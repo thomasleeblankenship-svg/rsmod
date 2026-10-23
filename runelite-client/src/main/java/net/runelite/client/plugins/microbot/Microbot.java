@@ -190,4 +190,18 @@ public class Microbot {
         }
         return false;
     }
+    public static int getVarbitValue(int id) {
+        return net.runelite.client.plugins.microbot.mobile.MobileActions.read(() -> client.getVarbitValue(id), 0);
+    }
+    public static int getVarbitPlayerValue(int id) {
+        return net.runelite.client.plugins.microbot.mobile.MobileActions.read(() -> client.getVarpValue(id), 0);
+    }
+    public static boolean isPluginEnabled(net.runelite.client.plugins.microbot.woodcutting.AutoWoodcuttingPlugin plugin) {
+        return plugin != null && plugin.isActive();
+    }
+    public static void showMessage(String message) {
+        status = message;
+        log.info("[Mobile script] {}", message);
+    }
+
 }

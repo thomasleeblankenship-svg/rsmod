@@ -1,3 +1,5 @@
+> Latest woodcutting source port: [mobile loading, scope and acceptance](docs/microbot/WOODCUTTING_MOBILE.md). The baseline results below predate that port.
+
 # RuneMobile Phase 2 build report
 
 Prepared 2026-10-22 (America/New_York). Baseline mobile adapter build;

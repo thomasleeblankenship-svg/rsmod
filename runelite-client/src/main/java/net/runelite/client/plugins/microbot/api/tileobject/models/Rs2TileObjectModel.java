@@ -150,6 +150,33 @@ public class Rs2TileObjectModel implements IEntity
 		return raw == null || raw.isEmpty() ? "" : COLOR_TAG_STRIP.matcher(raw).replaceAll("");
 	}
 
+	/** Resolve transformations on the client thread; callers must not retain the live definition. */
+	public ObjectComposition getObjectComposition()
+	{
+		return services.read(() ->
+		{
+			ObjectComposition c = services.getClient().getObjectDefinition(id);
+			return c != null && c.getImpostorIds() != null ? c.getImpostor() : c;
+		}).orElse(null);
+	}
+
+	public boolean click(String action)
+	{
+		return net.runelite.client.plugins.microbot.mobile.MobileActions.objectAt(id, worldLocation, action);
+	}
+
+	public boolean click()
+	{
+		String action = services.read(() ->
+		{
+			ObjectComposition c = getObjectComposition();
+			if (c == null || c.getActions() == null) { return null; }
+			for (String a : c.getActions()) { if (a != null && !a.isEmpty()) { return a; } }
+			return null;
+		}).orElse(null);
+		return action != null && click(action);
+	}
+
 	@Override
 	public WorldPoint getWorldLocation()
 	{

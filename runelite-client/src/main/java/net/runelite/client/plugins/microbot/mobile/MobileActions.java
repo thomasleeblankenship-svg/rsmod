@@ -1,0 +1,347 @@
+package net.runelite.client.plugins.microbot.mobile;
+
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.function.BooleanSupplier;
+import net.runelite.api.*;
+import net.runelite.api.coords.WorldPoint;
+import net.runelite.api.widgets.Widget;
+import net.runelite.api.widgets.WidgetInfo;
+import net.runelite.client.headless.JavaBridge;
+import net.runelite.client.headless.ScriptInputSession;
+import net.runelite.client.plugins.microbot.MicrobotRuntime;
+import net.runelite.client.plugins.microbot.api.MicrobotReadServices;
+import net.runelite.client.plugins.microbot.api.tileobject.models.Rs2TileObjectModel;
+
+/** Exact live-target engine actions, confined to the client thread and a revocable host session.
+ * True means dispatched, never game success. Callers must observe inventory/animation/location changes.
+ */
+public final class MobileActions
+{
+	private static volatile ScriptInputSession permission;
+	private static int lastTick = Integer.MIN_VALUE;
+	private static ScriptInputSession lastPermission;
+	private MobileActions() { }
+
+	public static void bind(ScriptInputSession session)
+	{
+		if (permission != null && permission != session) { permission.close(); }
+		permission = session;
+	}
+
+	public static void unbind(ScriptInputSession session)
+	{
+		if (session != null) { session.close(); }
+		if (permission == session) { permission = null; }
+	}
+
+	public static ScriptInputSession currentPermission() { return permission; }
+
+	public static boolean active()
+	{
+		ScriptInputSession owner = permission;
+		return owner != null && owner.isActive() && MicrobotRuntime.isInstalled()
+			&& !Thread.currentThread().isInterrupted();
+	}
+
+	public static <T> T read(Callable<T> operation, T fallback)
+	{
+		MicrobotReadServices services = MicrobotReadServices.current();
+		return services == null ? fallback : services.getClientThread()
+			.runOnClientThreadOptional(operation, 1500).orElse(fallback);
+	}
+
+	private static boolean perform(BooleanSupplier action)
+	{
+		final ScriptInputSession owner = permission;
+		return read(() ->
+		{
+			MicrobotReadServices services = MicrobotReadServices.current();
+			if (services == null || owner == null || permission != owner || !owner.isActive()
+				|| !MicrobotRuntime.isInstalled() || MicrobotRuntime.humanOwnsInput()) { return false; }
+			Client client = services.getClient();
+			if (!client.isClientThread() || client.getGameState() != GameState.LOGGED_IN
+				|| client.getLocalPlayer() == null || client.isMenuOpen() || JavaBridge.scriptInputBusy()) { return false; }
+			int tick = client.getTickCount();
+			if (lastPermission == owner && lastTick == tick) { return false; }
+			if (!action.getAsBoolean()) { return false; }
+			lastPermission = owner;
+			lastTick = tick;
+			return true;
+		}, false);
+	}
+
+	private static Client client() { return MicrobotReadServices.require().getClient(); }
+	private static int actionIndex(String[] actions, String wanted)
+	{
+		if (actions == null || wanted == null) { return -1; }
+		for (int i = 0; i < actions.length; i++)
+		{
+			if (actions[i] != null && actions[i].equalsIgnoreCase(wanted)) { return i; }
+		}
+		return -1;
+	}
+
+	public static boolean inventory(int slot, String action)
+	{
+		return inventory(slot, -1, action);
+	}
+
+	/** Expected-id binding prevents a delayed retry from acting on an item that replaced its slot. */
+	public static boolean inventory(int slot, int expectedId, String action)
+	{
+		return perform(() -> inventoryNow(slot, expectedId, action));
+	}
+
+	private static boolean inventoryNow(int slot, int expectedId, String action)
+	{
+		Client c = client();
+		ItemContainer inventory = c.getItemContainer(InventoryID.INVENTORY);
+		if (inventory == null || inventory.getItems() == null || slot < 0 || slot >= inventory.getItems().length
+			|| action == null || action.trim().isEmpty()) { return false; }
+		Item item = inventory.getItems()[slot];
+		if (item == null || item.getId() < 0 || (expectedId >= 0 && item.getId() != expectedId)) { return false; }
+		Widget bankInventory = c.getWidget(WidgetInfo.BANK_INVENTORY_ITEMS_CONTAINER);
+		boolean bankOpen = bankInventory != null && !bankInventory.isHidden();
+		Widget parent = bankOpen ? bankInventory : c.getWidget(WidgetInfo.INVENTORY);
+		if (parent == null || parent.isHidden()) { return false; }
+		Widget itemWidget = parent.getChild(slot);
+		if (itemWidget == null || itemWidget.isHidden() || itemWidget.getItemId() != item.getId()) { return false; }
+		ItemComposition definition = c.getItemDefinition(item.getId());
+		if (definition == null) { return false; }
+		int widgetId = parent.getId();
+		if ("Use".equalsIgnoreCase(action))
+		{
+			c.menuAction(slot, widgetId, c.isWidgetSelected() ? MenuAction.WIDGET_TARGET_ON_WIDGET : MenuAction.WIDGET_TARGET,
+				0, item.getId(), "Use", definition.getName());
+			return true;
+		}
+		// Never turn an intended Drop/Deposit into an item-on-item action.
+		if (c.isWidgetSelected()) { return false; }
+		String[] actions = itemWidget.getActions();
+		if (actions == null) { actions = definition.getInventoryActions(); }
+		int op = actionIndex(actions, action);
+		int identifier = op + 1;
+		if (op < 0)
+		{
+			String[][] subops = definition.getSubops();
+			String[] baseOps = definition.getInventoryActions();
+			if (subops != null && baseOps != null)
+			{
+				for (int parentOp = 0; parentOp < subops.length && parentOp < baseOps.length; parentOp++)
+				{
+					int sub = actionIndex(subops[parentOp], action);
+					int liveParent = actionIndex(actions, baseOps[parentOp]);
+					if (sub >= 0 && liveParent >= 0)
+					{
+						op = liveParent;
+						identifier = ((sub + 1) << 16) | (liveParent + 1);
+						break;
+					}
+				}
+			}
+		}
+		if (op < 0) { return false; }
+		c.menuAction(slot, widgetId, op < 5 ? MenuAction.CC_OP : MenuAction.CC_OP_LOW_PRIORITY,
+			identifier, item.getId(), action, definition.getName());
+		return true;
+	}
+
+	public static boolean bank(int slot, String action)
+	{
+		return bank(slot, -1, action);
+	}
+
+	public static boolean bank(int slot, int expectedId, String action)
+	{
+		return widget(WidgetInfo.BANK_ITEM_CONTAINER.getId(), slot, expectedId, action);
+	}
+
+	public static boolean widget(int packedId, int childIndex, String action)
+	{
+		return widget(packedId, childIndex, -1, action);
+	}
+
+	private static boolean widget(int packedId, int childIndex, int expectedId, String action)
+	{
+		return perform(() ->
+		{
+			Widget parent = client().getWidget(packedId);
+			if (parent == null || parent.isHidden()) { return false; }
+			Widget w = childIndex < 0 ? parent : parent.getChild(childIndex);
+			if (w == null || w.isHidden()) { return false; }
+			if (packedId == WidgetInfo.BANK_ITEM_CONTAINER.getId())
+			{
+				ItemContainer bank = client().getItemContainer(InventoryID.BANK);
+				if (bank == null || bank.getItems() == null || childIndex < 0 || childIndex >= bank.getItems().length) { return false; }
+				Item item = bank.getItems()[childIndex];
+				if (item == null || item.getId() < 0 || item.getQuantity() <= 0 || w.getItemId() != item.getId()
+					|| (expectedId >= 0 && item.getId() != expectedId)) { return false; }
+			}
+			String[] actions = w.getActions();
+			int op = actionIndex(actions, action);
+			if ((action == null || action.isEmpty()) && actions != null)
+			{
+				for (int i = 0; i < actions.length; i++)
+				{
+					if (actions[i] != null && !actions[i].isEmpty()) { op = i; break; }
+				}
+			}
+			if (op >= 0)
+			{
+				client().menuAction(childIndex, packedId, op < 5 ? MenuAction.CC_OP : MenuAction.CC_OP_LOW_PRIORITY,
+					op + 1, w.getItemId(), actions[op], w.getName());
+				return true;
+			}
+			if (action == null || action.isEmpty())
+			{
+				java.awt.Rectangle b = w.getBounds();
+				return b != null && !b.isEmpty() && JavaBridge.onScriptClick(
+					b.x + b.width / 2, b.y + b.height / 2, permission);
+			}
+			return false;
+		});
+	}
+
+	public static boolean object(int id, String action) { return objectAt(id, null, action); }
+	public static boolean objectAt(int id, WorldPoint position, String action)
+	{
+		return perform(() ->
+		{
+			Rs2TileObjectModel model = MicrobotReadServices.require().getRs2TileObjectCache().query()
+				.where(x -> x.getId() == id && (position == null || position.equals(x.getWorldLocation())))
+				.nearest();
+			if (model == null || model.getWorldView() != client().getTopLevelWorldView()) { return false; }
+			ObjectComposition definition = model.getObjectComposition();
+			if (definition == null) { return false; }
+			int op = actionIndex(definition.getActions(), action);
+			if (op < 0 || op > 4) { return false; }
+			WorldPoint at = model.getWorldLocation();
+			WorldView view = client().getTopLevelWorldView();
+			MenuAction type = op == 4 ? MenuAction.GAME_OBJECT_FIFTH_OPTION
+				: MenuAction.of(MenuAction.GAME_OBJECT_FIRST_OPTION.getId() + op);
+			client().menuAction(at.getX() - view.getBaseX(), at.getY() - view.getBaseY(), type,
+				id, -1, action, definition.getName());
+			return true;
+		});
+	}
+
+	public static boolean npc(int id, String action) { return npcAt(id, -1, action); }
+	public static boolean npcAt(int id, int index, String action)
+	{
+		return perform(() ->
+		{
+			NPC nearest = null;
+			int distance = Integer.MAX_VALUE;
+			for (NPC npc : client().getTopLevelWorldView().npcs())
+			{
+				if (npc.getId() != id || (index >= 0 && index != npc.getIndex())) { continue; }
+				int d = npc.getWorldLocation().distanceTo(client().getLocalPlayer().getWorldLocation());
+				if (d < distance) { nearest = npc; distance = d; }
+			}
+			if (nearest == null || distance > 20) { return false; }
+			NPCComposition definition = nearest.getTransformedComposition();
+			int op = definition == null ? -1 : actionIndex(definition.getActions(), action);
+			if (op < 0 || op > 4) { return false; }
+			client().menuAction(0, 0, MenuAction.of(MenuAction.NPC_FIRST_OPTION.getId() + op),
+				nearest.getIndex(), -1, action, nearest.getName());
+			return true;
+		});
+	}
+
+	public static boolean walk(WorldPoint destination)
+	{
+		return perform(() ->
+		{
+			WorldView view = client().getTopLevelWorldView();
+			if (destination == null || view == null || destination.getPlane() != view.getPlane()) { return false; }
+			int x = destination.getX() - view.getBaseX(), y = destination.getY() - view.getBaseY();
+			if (x < 0 || y < 0 || x >= 104 || y >= 104) { return false; }
+			client().menuAction(x, y, MenuAction.WALK, 0, -1, "Walk here", "");
+			return true;
+		});
+	}
+
+	public static boolean groundItem(int id, WorldPoint position, String action)
+	{
+		return perform(() ->
+		{
+			WorldView view = client().getTopLevelWorldView();
+			if (view == null || position == null || position.getPlane() != view.getPlane()) { return false; }
+			int x = position.getX() - view.getBaseX(), y = position.getY() - view.getBaseY();
+			Tile[][] tiles = view.getScene().getTiles()[view.getPlane()];
+			if (x < 0 || x >= tiles.length || y < 0 || y >= tiles[x].length || tiles[x][y] == null) { return false; }
+			List<TileItem> items = tiles[x][y].getGroundItems();
+			if (items == null || items.stream().noneMatch(t -> t.getId() == id)) { return false; }
+			ItemComposition def = client().getItemDefinition(id);
+			int op = def != null && "Take".equalsIgnoreCase(action) ? 2 : -1;
+			if (op < 0 || op > 4) { return false; }
+			client().menuAction(x, y, MenuAction.of(MenuAction.GROUND_ITEM_FIRST_OPTION.getId() + op), id, -1, action, def.getName());
+			return true;
+		});
+	}
+
+	public static boolean key(int keyCode)
+	{
+		return perform(() -> JavaBridge.onScriptKey(keyCode, permission));
+	}
+
+	private static boolean waitFor(BooleanSupplier condition, int millis)
+	{
+		if (MicrobotReadServices.current() == null || MicrobotReadServices.current().getClient().isClientThread()) { return false; }
+		long deadline = System.nanoTime() + millis * 1_000_000L;
+		while (active() && System.nanoTime() < deadline)
+		{
+			if (condition.getAsBoolean()) { return true; }
+			try { Thread.sleep(40); }
+			catch (InterruptedException e) { Thread.currentThread().interrupt(); return false; }
+		}
+		return false;
+	}
+
+	private static int inventoryId(int slot)
+	{
+		return read(() ->
+		{
+			ItemContainer inv = client().getItemContainer(InventoryID.INVENTORY);
+			if (inv == null || slot < 0 || slot >= inv.getItems().length || inv.getItems()[slot] == null) { return -1; }
+			return inv.getItems()[slot].getId();
+		}, -1);
+	}
+
+	public static boolean itemOnItem(int firstSlot, int secondSlot)
+	{
+		int firstId = inventoryId(firstSlot), secondId = inventoryId(secondSlot);
+		if (firstId < 0 || secondId < 0 || !waitFor(() -> inventory(firstSlot, firstId, "Use"), 1800)) { return false; }
+		return waitFor(() -> perform(() ->
+		{
+			ItemContainer inv = client().getItemContainer(InventoryID.INVENTORY);
+			Widget selected = client().getSelectedWidget();
+			if (!client().isWidgetSelected() || selected == null || selected.getIndex() != firstSlot || selected.getItemId() != firstId
+				|| inv == null || secondSlot < 0 || secondSlot >= inv.getItems().length) { return false; }
+			Item item = inv.getItems()[secondSlot];
+			if (item == null || item.getId() != secondId) { return false; }
+			client().menuAction(secondSlot, WidgetInfo.INVENTORY.getId(), MenuAction.WIDGET_TARGET_ON_WIDGET,
+				0, item.getId(), "Use", "");
+			return true;
+		}), 1800);
+	}
+
+	public static boolean itemOnObject(int slot, int objectId)
+	{
+		int firstId = inventoryId(slot);
+		if (firstId < 0 || !waitFor(() -> inventory(slot, firstId, "Use"), 1800)) { return false; }
+		return waitFor(() -> perform(() ->
+		{
+			Widget selected = client().getSelectedWidget();
+			if (!client().isWidgetSelected() || selected == null || selected.getIndex() != slot || selected.getItemId() != firstId) { return false; }
+			Rs2TileObjectModel model = MicrobotReadServices.require().getRs2TileObjectCache().query().withId(objectId).nearest();
+			if (model == null || model.getWorldView() != client().getTopLevelWorldView()) { return false; }
+			WorldPoint p = model.getWorldLocation();
+			WorldView v = client().getTopLevelWorldView();
+			client().menuAction(p.getX() - v.getBaseX(), p.getY() - v.getBaseY(), MenuAction.WIDGET_TARGET_ON_GAME_OBJECT,
+				objectId, -1, "Use", model.getName());
+			return true;
+		}), 1800);
+	}
+}
