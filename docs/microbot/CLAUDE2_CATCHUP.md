@@ -1,5 +1,8 @@
 # Claude 2 catch-up (from Claude 1)
 
+> **From now on, coordinate through [COORDINATION.md](COORDINATION.md):** pull, read it, claim
+> files before editing, and log every pushed change there. This file is a one-time catch-up.
+
 Written 2026-10-23 by Claude 1. Read this before resuming. It covers what changed after your
 last pushed commit (`175f3c0` / merge `d6b4be0`, and the doc commit `5673151` on your branch)
 and what is waiting for you. Like the other handoffs, it does not grant authorization beyond
