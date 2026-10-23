@@ -24,6 +24,7 @@
  */
 package net.runelite.client.plugins;
 
+import java.awt.Color;
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -35,6 +36,43 @@ import java.lang.annotation.Target;
 @Documented
 public @interface PluginDescriptor
 {
+	// Microbot fork: author name prefixes used in Microbot and Microbot Hub plugin names, copied
+	// unchanged from chsami/Microbot e01e0d77d79b354472a5737b3aaab2449eb034fc.
+    String Bee = "<html>[<font color=#FFD700><b>B</b></font>] ";
+    String Nate = "<html>[<font color=orange>N</font>] ";
+    String Mocrosoft = "<html>[<font color=#b8f704M>M</font>] ";
+    String Default = "<html>[<font color=green>D</font>] ";
+    String Bank = "<html>[<font color=#9900ff>B</font>] ";
+    String Forn = "<html>[<font color=#AF2B1E>F</font>] ";
+    String See1Duck = "<html>[<font color=#ffff1a>\uD83E\uDD86</font>] ";
+    String TaFCat = "<html>[<font color=#ffff1a>\uD83D\uDC31</font>] ";
+    String GMason = "<html>[<font color=#0077B6>G</font>] ";
+    String Pumster = "<html>[<font color=#03ff4e>P</font>] ";
+    String Basche = "<html>[<font color=#07A6F0>B</font>] ";
+    String Vince = "<html>[<font color=#5bffe4>V</font>] ";
+    String Basm = "<html>[<font color=#b3b3b3>W</font>] ";
+    String Geoff = "<html>[<font color=#ffbc03>G</font>] ";
+    String Bttqjs = "<html>[<font color=#e57373>J</font>] ";
+	String VOX = "<html>[<font color=#5F0F40>\uD83C\uDF33</font>] ";
+    String Gabulhas = "<html>[<font color=#F44FB0>Gab</font>] ";
+    String zerozero ="<html>[<font color=#000000>00</font>] " ;
+    String LiftedMango = "<html>[<font color=#00FFFF>LM</font>] ";
+    String eXioStorm = "<html>[<font color=#ff00dc>§</font>] "; Color stormColor = new Color(255, 0, 220);
+    String Girdy = "<html>[<font color=#3DED97>\u01E5</font>] ";
+    String Cicire = "<html>[<font color=#68ff00>Ci</font>] ";
+    String ChillX = "<html>[<font color=#05e1f5>C</font>] ";
+    String Gage = "<html>[<font color=#00008B>Gage</font>] ";
+	String Bradley = "<html>[<font color=#E32636>BR</font>] ";
+	String Frosty = "<html>[<font color=#00FFFF>\u2744</font>] ";
+	String Maxxin = "<html>[<font color='#8B0000'>MX</font>] ";
+	String Hal = "<html>[<font color=#000000>Hal</font>] ";
+	String Funk = "<html>[<font color=#ffff1a>\uD83C\uDF19</font>] ";
+	String Cardew = "<html>[<font color=#824BA3>CD</font>]";
+	String Bolado = "<html>[<font color=#FF0000><b>\uD83D\uDE21</b></font>] ";
+	String Choken = "<html>[<font color=#8A2BE2>\u03A9</font>] ";
+
+	
+
 	String name();
 
 	/**
@@ -87,4 +125,39 @@ public @interface PluginDescriptor
 	boolean developerPlugin() default false;
 
 	boolean loadInSafeMode() default true;
+
+	// Microbot fork metadata (chsami/Microbot e01e0d77). On mobile these are descriptive only:
+	// there is no Hub download, version gate, icon/card display or start-order priority.
+
+	boolean priority() default false;
+
+	/**
+	 * The author of the plugin.
+	 */
+	String[] authors() default { "Unknown" };
+
+	/**
+	 * The version of the plugin.
+	 */
+	String version() default "1.0.0";
+
+	/**
+	 * The minimum client version required for this plugin to work.
+	 */
+	String minClientVersion() default "1.0.0";
+
+	/**
+	 * An optional URL to an icon for the plugin.
+	 */
+	String iconUrl() default "";
+
+	/**
+	 * An optional URL to a banner image for the plugin.
+	 */
+	String cardUrl() default "";
+
+	/**
+	 * A flag to denote if a plugin is an external plugin (loaded from a JAR file) or a native plugin.
+	 */
+	boolean isExternal() default false;
 }
