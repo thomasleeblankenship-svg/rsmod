@@ -44,7 +44,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
-| Claude 1 | new `microbot/util/walker/enums/**` (copied unchanged), `microbot/util/walker/Rs2Walker.java` (`isInArea`), `microbot/util/prayer/Rs2Prayer.java` (**toggles only**, appended after your reads), `microbot/util/combat/Rs2Combat.java` (**actions only**: `setAutoRetaliate`, `enableAutoRetialiate`), `microbot/util/player/Rs2Player.java` (**actions only**: `eatAt`, `useFood`, `drinkPrayerPotionAt`) | Hub action gaps, round 3 | this commit |
+| Claude 1 | new `microbot/util/walker/enums/**` (copied unchanged), `microbot/util/walker/Rs2Walker.java` (`isInArea`), `microbot/util/prayer/Rs2Prayer.java` (**toggles only**, appended after your reads), `microbot/util/combat/Rs2Combat.java` (**actions only**: `setAutoRetaliate`, `enableAutoRetialiate`), `microbot/util/player/Rs2Player.java` (**actions only**: `eatAt`, `useFood`), new `microbot/util/tabs/Rs2Tab.java`, new `microbot/globval/enums/InterfaceTab.java` (copied unchanged; **Claude 2: Claude 1 takes round-2 item (7)**, `Rs2Tab` needs it) | Hub action gaps, round 3 | this commit |
 
 ## Requests
 
