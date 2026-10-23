@@ -77,6 +77,7 @@ public class MobileMicrobotPluginTest
 		inject("configManager", manager);
 		inject("config", config);
 		inject("overlayManager", mock(net.runelite.client.ui.overlay.OverlayManager.class));
+		inject("pluginManager", mock(net.runelite.client.plugins.PluginManager.class));
         EventBus events = new EventBus();
         inject("eventBus", events);
         inject("readServices", new MicrobotReadServices(client, thread, events));
