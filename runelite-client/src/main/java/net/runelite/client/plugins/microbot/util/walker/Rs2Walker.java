@@ -4,6 +4,7 @@ import com.google.common.annotations.VisibleForTesting;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -24,6 +25,9 @@ import net.runelite.client.plugins.microbot.MicrobotRuntime;
 import net.runelite.client.plugins.microbot.api.MicrobotReadServices;
 import net.runelite.client.plugins.microbot.api.tileobject.models.Rs2TileObjectModel;
 import net.runelite.client.plugins.microbot.mobile.MobileActions;
+import net.runelite.client.plugins.microbot.shortestpath.MobilePathfinder;
+import net.runelite.client.plugins.microbot.shortestpath.PathResult;
+import net.runelite.client.plugins.microbot.shortestpath.TransportType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,6 +52,10 @@ public final class Rs2Walker
 	/** While moving, the next click waits until the player is this close to the last target. */
 	static final int RECLICK_DISTANCE = 4;
 	private static volatile long stallMillis = DEFAULT_STALL_MILLIS;
+	/** Plan with {@link MobilePathfinder} first (Microbot Mobile setting; on by default). */
+	private static volatile boolean usePathfinder = true;
+	/** As upstream: when true, routes use no teleports. Read by the pathfinder. */
+	public static boolean disableTeleports = false;
 	private static final long STALL_RETRY_BACKOFF_MILLIS = 1_200;
 	private static final long STALL_RETRY_MAX_BACKOFF_MILLIS = 6_000;
 
@@ -60,6 +68,17 @@ public final class Rs2Walker
 
 	private Rs2Walker()
 	{
+	}
+
+	/** Turns {@link MobilePathfinder} planning on or off for later walks. */
+	public static void setUsePathfinder(boolean enabled)
+	{
+		usePathfinder = enabled;
+	}
+
+	public static boolean isUsingPathfinder()
+	{
+		return usePathfinder;
 	}
 
 	public static String getLastStatus()
@@ -207,7 +226,8 @@ public final class Rs2Walker
 				return true;
 			}
 			Set<ObjectTransports.Step> unusable = new HashSet<>();
-			WalkLeg leg = selectLeg(scene, destination, radius, unusable);
+			boolean pathfinder = usePathfinder;
+			WalkLeg leg = nextLeg(scene, destination, radius, unusable, pathfinder);
 			if (leg == null)
 			{
 				return fail("No walking route; a transport or an unmapped region may be required");
@@ -247,9 +267,11 @@ public final class Rs2Walker
 						}
 						// The live object does not offer this action here: try the next transport.
 						unusable.add(leg.stairs);
+						// A pathfinder transport missing from the live scene: finish on the same-plane planner.
+						pathfinder &= !leg.fromPathfinder;
 						LOG.info("Mobile walk: transport unavailable, trying another: {}", leg.stairs);
 						scene = awaitSnapshot(generation, deadline);
-						leg = scene == null ? null : selectLeg(scene, destination, radius, unusable);
+						leg = scene == null ? null : nextLeg(scene, destination, radius, unusable, pathfinder);
 						if (leg == null)
 						{
 							return fail("No usable transport toward " + destination);
@@ -266,7 +288,7 @@ public final class Rs2Walker
 					{
 						return fail("No collision snapshot after transport " + used);
 					}
-					leg = selectLeg(scene, destination, radius, unusable);
+					leg = nextLeg(scene, destination, radius, unusable, pathfinder);
 					if (leg == null)
 					{
 						return fail("No walking route after transport " + used);
@@ -425,20 +447,91 @@ public final class Rs2Walker
 		return ObjectTransports.verticalChainExists(origin, destination);
 	}
 
-	private static final class WalkLeg
+	static final class WalkLeg
 	{
 		final WorldPoint destination;
 		final int radius;
 		final ObjectTransports.Step stairs;
 		final List<WorldPoint> route;
+		/** Planned by {@link MobilePathfinder} rather than the same-plane planner. */
+		final boolean fromPathfinder;
 
 		WalkLeg(WorldPoint destination, int radius, ObjectTransports.Step stairs, List<WorldPoint> route)
+		{
+			this(destination, radius, stairs, route, false);
+		}
+
+		WalkLeg(WorldPoint destination, int radius, ObjectTransports.Step stairs, List<WorldPoint> route, boolean fromPathfinder)
 		{
 			this.destination = destination;
 			this.radius = radius;
 			this.stairs = stairs;
 			this.route = route;
+			this.fromPathfinder = fromPathfinder;
 		}
+	}
+
+	/** Transport types the walker can execute; the pathfinder is told to admit only these. */
+	static final Set<TransportType> EXECUTABLE_TRANSPORTS = EnumSet.of(TransportType.TRANSPORT, TransportType.AGILITY_SHORTCUT);
+
+	/**
+	 * The next leg: {@link MobilePathfinder} when enabled (whole-world map and transports), else
+	 * or when it finds no full route, the same-plane planner and its staircases.
+	 */
+	private static WalkLeg nextLeg(MobileRoutePlanner.Scene scene, WorldPoint destination, int radius,
+		Set<ObjectTransports.Step> excluded, boolean pathfinder)
+	{
+		if (pathfinder && !scene.instance)
+		{
+			WalkLeg leg = pathfinderLeg(scene.player, destination, radius);
+			if (leg != null)
+			{
+				return leg;
+			}
+		}
+		return selectLeg(scene, destination, radius, excluded);
+	}
+
+	/**
+	 * Walks the pathfinder's tiles up to its first transport, which becomes the leg's transport
+	 * (arrival within one tile of its destination); null unless the route is complete and every
+	 * transport on it is one the walker executes.
+	 */
+	static WalkLeg pathfinderLeg(WorldPoint start, WorldPoint destination, int radius)
+	{
+		PathResult result;
+		try
+		{
+			result = MobilePathfinder.find(start, destination);
+		}
+		catch (RuntimeException e)
+		{
+			LOG.warn("Mobile walk: pathfinder failed for {} -> {}", start, destination, e);
+			return null;
+		}
+		List<WorldPoint> tiles = result.getTiles();
+		if (result.getStatus() != PathResult.Status.FOUND || tiles.isEmpty())
+		{
+			LOG.info("Mobile walk: pathfinder {} for {} -> {}; using the same-plane planner", result.getStatus(), start, destination);
+			return null;
+		}
+		for (int i = 0; i < tiles.size() - 1; i++)
+		{
+			PathResult.TransportStep transport = result.transportAt(i);
+			if (transport == null)
+			{
+				continue;
+			}
+			if (!EXECUTABLE_TRANSPORTS.contains(transport.getType()) || transport.getAction() == null)
+			{
+				LOG.info("Mobile walk: route needs {} ({}); using the same-plane planner", transport.getType(), transport);
+				return null;
+			}
+			ObjectTransports.Step step = new ObjectTransports.Step(transport.getOrigin(), transport.getDestination(),
+				transport.getObjectId(), transport.getAction(), transport.getName(), 1);
+			return new WalkLeg(transport.getOrigin(), 1, step, new ArrayList<>(tiles.subList(0, i + 1)), true);
+		}
+		return new WalkLeg(destination, radius, null, new ArrayList<>(tiles), true);
 	}
 
 	private static WalkLeg selectLeg(MobileRoutePlanner.Scene scene, WorldPoint destination, int radius)

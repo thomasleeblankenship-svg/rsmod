@@ -54,6 +54,8 @@ public class MobileWalkerIntegrationTest
 	public void setUp() throws Exception
 	{
 		JavaBridge.setScriptInputSuspended(false);
+		// These scenarios exercise the same-plane planner and its staircases; PathfinderLegTest covers the pathfinder.
+		Rs2Walker.setUsePathfinder(false);
 		fixture = new ReadApiFixture();
 		permission = new ScriptInputSession();
 		MobileActions.bind(permission);
@@ -136,6 +138,7 @@ public class MobileWalkerIntegrationTest
 	public void tearDown() throws Exception
 	{
 		Rs2Walker.setStallMillis(0);
+		Rs2Walker.setUsePathfinder(true);
 		Rs2Walker.setTarget(null);
 		MobileActions.unbind(permission);
 		JavaBridge.setScriptInputSuspended(false);

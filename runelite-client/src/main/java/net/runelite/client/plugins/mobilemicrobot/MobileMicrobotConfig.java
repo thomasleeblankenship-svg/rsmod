@@ -26,6 +26,14 @@ public interface MobileMicrobotConfig extends AutoWoodcuttingConfig
 		return false;
 	}
 
+	@ConfigItem(keyName = "usePathfinder", name = "Webwalker: whole-world pathfinder",
+		description = "Plan walks with the whole-world pathfinder (stairs, doors, ladders and agility shortcuts). "
+			+ "Off uses the older same-floor planner only.", position = 4)
+	default boolean usePathfinder()
+	{
+		return true;
+	}
+
 	@ConfigItem(keyName = "treeType", name = "Example woodcutting tree", description = "Tree type for the example woodcutting script", position = 2)
 	default TreeType treeType()
 	{

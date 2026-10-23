@@ -36,14 +36,22 @@ final class ObjectTransports
 		final int objectId;
 		final String action;
 		final String target;
+		/** How close to {@link #arrival} counts as arrived (staircases land loosely, doors do not). */
+		final int arrivalRadius;
 
 		Step(WorldPoint origin, WorldPoint arrival, int objectId, String action, String target)
+		{
+			this(origin, arrival, objectId, action, target, 4);
+		}
+
+		Step(WorldPoint origin, WorldPoint arrival, int objectId, String action, String target, int arrivalRadius)
 		{
 			this.origin = origin;
 			this.arrival = arrival;
 			this.objectId = objectId;
 			this.action = action;
-			this.target = target;
+			this.target = target == null ? "" : target;
+			this.arrivalRadius = arrivalRadius;
 		}
 
 		/**
@@ -57,12 +65,12 @@ final class ObjectTransports
 			{
 				return false;
 			}
-			return id == objectId || target.equalsIgnoreCase(name);
+			return id == objectId || (!target.isEmpty() && target.equalsIgnoreCase(name));
 		}
 
 		boolean observedArrival(WorldPoint player)
 		{
-			return player != null && player.getPlane() == arrival.getPlane() && player.distanceTo(arrival) <= 4;
+			return player != null && player.getPlane() == arrival.getPlane() && player.distanceTo(arrival) <= arrivalRadius;
 		}
 
 		@Override

@@ -87,6 +87,7 @@ public class MobileMicrobotPlugin extends Plugin
 				MicrobotRuntime.install(client, clientThread, eventBus, configManager, pluginManager, worldService,
 					java.util.List.of(readServices));
 				runtimeInstalled = true;
+				net.runelite.client.plugins.microbot.util.walker.Rs2Walker.setUsePathfinder(config.usePathfinder());
 				setRun(false);
 				enabled = true;
 				// RuneLite remembers enabled plugins; a Hub plugin back on after a restart was not
@@ -153,6 +154,7 @@ public class MobileMicrobotPlugin extends Plugin
 		if (GROUP.equals(event.getGroup()))
 		{
 			tickCount = 0;
+			net.runelite.client.plugins.microbot.util.walker.Rs2Walker.setUsePathfinder(config.usePathfinder());
 			if ("runScript".equals(event.getKey()))
 			{
 				if (!config.runScript())
