@@ -1,0 +1,45 @@
+Picked up JAVA_TOOL_OPTIONS: -Dhttp.proxyHost=proxy -Dhttp.proxyPort=8080 -Dhttps.proxyHost=proxy -Dhttps.proxyPort=8080 -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.8/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+> Task :runelite-gradle-plugin:pluginDescriptors UP-TO-DATE
+> Task :cache:generateGrammarSource UP-TO-DATE
+> Task :runelite-gradle-plugin:processResources UP-TO-DATE
+> Task :cache:generateEffectiveLombokConfig UP-TO-DATE
+> Task :cache:compileJava UP-TO-DATE
+> Task :cache:processResources UP-TO-DATE
+> Task :cache:classes UP-TO-DATE
+> Task :cache:jar UP-TO-DATE
+> Task :runelite-gradle-plugin:compileJava UP-TO-DATE
+> Task :runelite-gradle-plugin:classes UP-TO-DATE
+> Task :runelite-gradle-plugin:jar UP-TO-DATE
+> Task :jshell:generateEffectiveLombokConfig UP-TO-DATE
+> Task :jshell:compileJava UP-TO-DATE
+> Task :jshell:processResources UP-TO-DATE
+> Task :jshell:classes UP-TO-DATE
+> Task :runelite-api:generateEffectiveLombokConfig UP-TO-DATE
+> Task :jshell:jar UP-TO-DATE
+> Task :client:assembleRs2asm UP-TO-DATE
+> Task :client:buildRs2asmIndex UP-TO-DATE
+> Task :runelite-api:compileJava UP-TO-DATE
+> Task :runelite-api:processResources NO-SOURCE
+> Task :runelite-api:classes UP-TO-DATE
+> Task :runelite-api:jar UP-TO-DATE
+> Task :client:processResources UP-TO-DATE
+> Task :client:generateTestEffectiveLombokConfig UP-TO-DATE
+> Task :client:processTestResources UP-TO-DATE
+> Task :client:generateEffectiveLombokConfig
+
+> Task :client:compileJava
+Picked up JAVA_TOOL_OPTIONS: -Dhttp.proxyHost=proxy -Dhttp.proxyPort=8080 -Dhttps.proxyHost=proxy -Dhttps.proxyPort=8080 -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+
+> Task :client:classes
+> Task :client:compileTestJava UP-TO-DATE
+> Task :client:testClasses UP-TO-DATE
+> Task :client:test UP-TO-DATE
+> Task :client:pmdMain
+> Task :client:checkstyleMain
+
+BUILD SUCCESSFUL in 22s
+27 actionable tasks: 4 executed, 23 up-to-date

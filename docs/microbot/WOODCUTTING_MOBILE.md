@@ -51,7 +51,7 @@ and [port notes](../../runelite-client/src/main/java/net/runelite/client/plugins
 
 ## Cloud validation
 
-The integrated source passes 210 focused Gradle client tests (zero failures,
+The integrated source passes 211 focused Gradle client tests (zero failures,
 errors or skips), Checkstyle and PMD. The bridge/auth contract preflight passes.
 The older Phase 2 portable harness separately passes 25 tests; its stand-ins do
 not exercise the uploaded woodcutting port. The GitHub APK workflow repeats the

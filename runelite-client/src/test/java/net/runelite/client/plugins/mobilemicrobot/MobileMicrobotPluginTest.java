@@ -323,14 +323,34 @@ public class MobileMicrobotPluginTest
 	@Test
 	public void woodcuttingConfigurationIsVisibleAndAutoHopIsAbsent() throws Exception
 	{
-		assertNotNull(MobileMicrobotConfig.class.getMethod("TREE").getAnnotation(net.runelite.client.config.ConfigItem.class));
-		assertNotNull(MobileMicrobotConfig.class.getMethod("primaryAction").getAnnotation(net.runelite.client.config.ConfigItem.class));
-		assertNotNull(MobileMicrobotConfig.class.getMethod("enableForestry").getAnnotation(net.runelite.client.config.ConfigItem.class));
+		assertNotNull(MobileMicrobotConfig.class.getDeclaredMethod("TREE").getAnnotation(net.runelite.client.config.ConfigItem.class));
+		assertNotNull(MobileMicrobotConfig.class.getDeclaredMethod("primaryAction").getAnnotation(net.runelite.client.config.ConfigItem.class));
+		assertNotNull(MobileMicrobotConfig.class.getDeclaredMethod("enableForestry").getAnnotation(net.runelite.client.config.ConfigItem.class));
 		assertTrue(MobileScriptBridge.scriptsJson().contains("AUTO_WOODCUTTING"));
 		for (java.lang.reflect.Method method : MobileMicrobotConfig.class.getMethods())
 		{
 			net.runelite.client.config.ConfigItem item = method.getAnnotation(net.runelite.client.config.ConfigItem.class);
 			assertFalse(item != null && "Hop".equals(item.keyName()));
+		}
+	}
+
+	@Test
+	public void nativeSettingsDescriptorIncludesSectionsAndDeclaredWoodcuttingDefaults()
+	{
+		ConfigManager manager = mock(ConfigManager.class, CALLS_REAL_METHODS);
+		net.runelite.client.config.ConfigDescriptor descriptor = manager.getConfigDescriptor(config);
+		assertEquals("mobilemicrobot", descriptor.getGroup().value());
+		assertEquals(3, descriptor.getSections().size());
+		for (java.lang.reflect.Method original : net.runelite.client.plugins.microbot.woodcutting.AutoWoodcuttingConfig.class.getDeclaredMethods())
+		{
+			if (original.getAnnotation(net.runelite.client.config.ConfigItem.class) == null) { continue; }
+			try
+			{
+				java.lang.reflect.Method forwarded = MobileMicrobotConfig.class.getDeclaredMethod(original.getName());
+				assertNotNull(forwarded.getAnnotation(net.runelite.client.config.ConfigItem.class));
+				assertEquals(original.invoke(new net.runelite.client.plugins.microbot.woodcutting.AutoWoodcuttingConfig() {}), forwarded.invoke(config));
+			}
+			catch (ReflectiveOperationException e) { throw new AssertionError(e); }
 		}
 	}
 

@@ -37,7 +37,7 @@ public interface Client { GameState getGameState(); Player getLocalPlayer(); Ite
 'net/runelite/client/callback/ClientThread.java':'package net.runelite.client.callback;public class ClientThread {public boolean queued; private final java.util.Queue<Runnable> tasks=new java.util.ArrayDeque<>(); public void invokeLater(Runnable run){if(queued)tasks.add(run);else run.run();} public void drain(){while(!tasks.isEmpty())tasks.remove().run();}}',
 'net/runelite/client/config/Config.java':'package net.runelite.client.config;public interface Config {}',
 'net/runelite/client/config/ConfigGroup.java':'package net.runelite.client.config;public @interface ConfigGroup {String value();}',
-'net/runelite/client/config/ConfigItem.java':'package net.runelite.client.config;public @interface ConfigItem {String keyName();String name();String description();int position();}',
+'net/runelite/client/config/ConfigItem.java':'package net.runelite.client.config;public @interface ConfigItem {String keyName();String name();String description();int position();String section() default "";boolean hidden() default false;}',
 'net/runelite/client/config/ConfigManager.java':'package net.runelite.client.config;import java.util.*;public class ConfigManager {public final Map<String,Object> state=new HashMap<>();public <T> T getConfig(Class<T> t){return null;}public void setConfiguration(String group,String key,Object value){state.put(key,value);} }',
 'net/runelite/client/eventbus/Subscribe.java':'package net.runelite.client.eventbus;public @interface Subscribe {}',
 'net/runelite/client/events/ConfigChanged.java':'package net.runelite.client.events;public class ConfigChanged{private final String group; public ConfigChanged(String group){this.group=group;}public String getGroup(){return group;}public String getKey(){return "";}}',
@@ -48,6 +48,29 @@ public interface Client { GameState getGameState(); Player getLocalPlayer(); Ite
 'com/google/gson/JsonObject.java':'''package com.google.gson;import java.util.*;public class JsonObject{final Map<String,String> props=new LinkedHashMap<>();public void addProperty(String k,String v){props.put(k,\"\\\"\"+v+\"\\\"\");}public void addProperty(String k,Boolean v){props.put(k,v.toString());}public String toString(){List<String> a=new ArrayList<>();props.forEach((k,v)->a.add(\"\\\"\"+k+\"\\\":\"+v));return \"{\"+String.join(\",\",a)+\"}\";}}''',
 'com/google/gson/JsonArray.java':'package com.google.gson;import java.util.*;public class JsonArray{final List<JsonObject> items=new ArrayList<>();public void add(JsonObject o){items.add(o);}public String toString(){return items.toString();}}',
 }
+# Mirror configuration declarations only so forwarding defaults compile in the old harness.
+# Enum stand-ins have no game behavior; the real woodcutting script is excluded and tested by Gradle.
+import re
+config_root = Path(__file__).resolve().parent.parent / 'runelite-client/src/main/java'
+config_path = 'net/runelite/client/plugins/microbot/woodcutting/AutoWoodcuttingConfig.java'
+f[config_path] = (config_root / config_path).read_text()
+f['net/runelite/client/config/ConfigSection.java'] = 'package net.runelite.client.config;public @interface ConfigSection {String name();String description();int position();boolean closedByDefault() default false;}'
+for type_path in [
+    'net/runelite/client/plugins/microbot/woodcutting/enums/WoodcuttingPrimaryAction',
+    'net/runelite/client/plugins/microbot/woodcutting/enums/WoodcuttingSecondaryAction',
+    'net/runelite/client/plugins/microbot/woodcutting/enums/WoodcuttingTree',
+    'net/runelite/client/plugins/microbot/woodcutting/enums/WoodcuttingWalkBack',
+    'net/runelite/client/plugins/microbot/util/skills/fletching/data/FletchingItem',
+    'net/runelite/client/plugins/microbot/util/inventory/InteractOrder',
+]:
+    source = (config_root / (type_path + '.java')).read_text()
+    enum_name = type_path.rsplit('/', 1)[1]
+    body = source[source.index('{', source.index('enum ' + enum_name)) + 1:].split(';', 1)[0]
+    constants = re.findall(r'(?m)^[ \t]*([A-Z][A-Z0-9_]*)\s*\(', body)
+    if not constants:
+        constants = re.findall(r'\b[A-Z][A-Z0-9_]*\b', body)
+    package = type_path.rsplit('/', 1)[0].replace('/', '.')
+    f[type_path + '.java'] = 'package ' + package + ';public enum ' + enum_name + '{' + ','.join(constants) + '}'
 for n,s in f.items():
     fp=out/n;fp.parent.mkdir(parents=True,exist_ok=True);fp.write_text(s+'\n')
 print('Created',len(f),'compile-only stubs')
