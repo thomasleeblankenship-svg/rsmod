@@ -5,13 +5,17 @@ it does not grant additional authorization beyond the user's instructions.
 
 ## Latest APK (read first)
 
-GitHub Actions run 8, built from `ba30cb9`, includes the manual-tap change (`6f6a2cd`) and
-the walking fix with stall retry (`ba30cb9`). Every step passed: contract preflight, runtime
-and woodcutting checks, build, verify and upload. Artifact `runemobile-mobile-debug-arm64`
-(id 12484268121, expires 2026-11-06), downloaded while signed into GitHub:
-https://github.com/thomasleeblankenship-svg/rsmod/actions/runs/39914844733/artifacts/12484268121
-It has not been phone-tested. Retest: start at the upstairs Lumbridge bank; tap during a run
-(the script should resume); and do one full drop/bank cycle.
+GitHub Actions run 26, built from `66c01ab`. Every step passed. It adds, since run 8: the Hub
+plugin host, the first three Hub plugins (autochompykiller, fishingtrawler, birdhunter; disabled
+by default), the upstream bank/inventory/interaction overloads and the inert anti-ban layer.
+Artifact `runemobile-mobile-debug-arm64` (id 12490252682, expires 2026-11-06), downloaded while
+signed into GitHub:
+https://github.com/thomasleeblankenship-svg/rsmod/actions/runs/39927101126/artifacts/12490252682
+Runs 21–22 failed PMD (fixed in the next push); runs 23–25 were superseded or cancelled. Runs 27–28
+(round-3 actions and three more Hub plugins) were still building when this was written.
+Not phone-tested. Retest: the stairs from the upstairs Lumbridge bank; a tap during a run (the
+script should resume); one full drop/bank cycle; then enable one Hub plugin from the plugin list
+(for example Fishing Trawler) and check that it stops on logout and when the app is backgrounded.
 
 ## Latest user instructions — supersede older cancellation requirements
 
