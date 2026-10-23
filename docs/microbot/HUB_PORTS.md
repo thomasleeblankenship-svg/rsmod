@@ -91,7 +91,10 @@ Number of plugins blocked by each gap. Packages missing entirely: `util.prayer` 
 `Microbot.getMouse` (8), `Rs2Player.eatAt` (8), `Rs2Dialogue.clickOption` (7),
 `Rs2Keyboard.typeString` (7). Full list: regenerate with `hubcheck.sh` (see *Measured gap*).
 
-## Next large gap: inventory setups (11 plugins)
+## Inventory setups (done 2026-10-23)
+
+Done: setups load from the desktop plugin's config keys and `Rs2InventorySetup` loads them through
+the mobile bank actions. Setups cannot yet be created on the phone; the plan was:
 
 `sandcrabs` and ten others use upstream's `inventorysetups` (about 12,300 lines, mostly the
 Inventory Setups panel UI) through `InventorySetup` and `Rs2InventorySetup`. The plan: the setup
@@ -131,7 +134,7 @@ unchanged.
 | Plugin | Status |
 | --- | --- |
 | Hub base | Done (`PluginDescriptor` metadata, `PluginConstants`, `Overlay.setNaughty`) |
-| autochompykiller, fishingtrawler, birdhunter, toweroflife_creaturecreation, salamanders, HueycoatlPrayer | **Ported (6)**: Hub sources copied byte-identical (Hub `ee6e066`) into `plugins/microbot/<name>/` with their resources; hosted by `HubPluginHost`, disabled by default (`HubPortedPluginsTest`). Style-only checkstyle/PMD exemptions are scoped to these directories. Not yet run on a phone |
+| autochompykiller, fishingtrawler, birdhunter, toweroflife_creaturecreation, salamanders, HueycoatlPrayer, sandcrabs | **Ported (7)**: Hub sources copied byte-identical (Hub `ee6e066`) into `plugins/microbot/<name>/` with their resources; hosted by `HubPluginHost`, disabled by default (`HubPortedPluginsTest`). Style-only checkstyle/PMD exemptions are scoped to these directories. Not yet run on a phone |
 | woodcutting (Hub) | Compiles unchanged, **not copied**: `plugins/microbot/woodcutting` is our mobile-adapted AutoWoodcutting (phone-tested), which a copy would overwrite. Batch 3's tenth slot passes to the next eligible plugin |
 | shared Hub APIs | Done: `@ConfigInformation`, break-handler lock state, camera, `Rs2Random`, plugin control, `interact`/`isWearing`, `waitForWalking`, inert anti-ban types, `dropAll`, `Rs2Inventory.interact`/`wield`/`wear`, `waitForXpDrop`, `IEntity.click`/queryable `interact`, public `HunterTrap`, `Rs2Bank` withdraw/deposit/walk overloads, `Rs2Keyboard.typeString`, `Rs2Tab`, `InterfaceTab`, walker location enums, `isInArea`, prayer toggles, auto retaliate, `eatAt`/`useFood`, `toggleRunEnergy` |
 | errors now (2026-10-23) | AmmoniteCrabs 5, scurrius 7, sandcrabs 10, virewatch 10, gotr 15, sulphurnaguafigther 16, cluesolver 17, tutorialisland 18, microhunter 19, nmz 19, mining 21, ourania 24, shootingstar 32, crafting 32, blackjack 37, farmtreerun 38, thieving 42, mahoganyhomez 43, moonsofperil 63, drokbd 65, magetrainingarena 69, mke_wintertodt 80, drozulrah 85, barrows 91, drofirecape 110, sailing 112, geflipper 128, slayer 160, aiofighter 237 |
