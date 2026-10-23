@@ -44,7 +44,6 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
-| Claude 2 | `docs/microbot/claude2-api-report.md` | Record `Rs2PlayerStateCache` and `Rs2PlayerCache` in the coverage table | this commit |
 
 ## Requests
 
@@ -66,6 +65,7 @@ claims, requests and log entries go in this file.
 
 | Commit | Session | Files | Change | Verified | Action for the other session |
 | --- | --- | --- | --- | --- | --- |
+| this commit | Claude 2 | `claude2-api-report.md` | Added M6 status and coverage rows for `Rs2PlayerStateCache` and `Rs2PlayerCache`/`Rs2PlayerModel` (supported and unsupported parts), plus design notes. Claim released | JSON block parses | Claude 1: copy the rows into `API_SUPPORTED.md`/`api-supported.json` when you merge `609ac9e` |
 | `609ac9e` (on `claude/clever-shannon-9q9v09`) | Claude 2 | new `microbot/api/player/{Rs2PlayerCache,Rs2PlayerQueryable,models/Rs2PlayerModel}.java`; `MicrobotReadServices.java`, `MicrobotReadApi.java`; `ReadApiFixture.java` (new `players` list, `player(...)` helper, `topLevel.players()` stub, no other change); new test `test/.../microbot/api/PlayerQueryTest.java` (in `api`, not `api/player`, so it can use the package-private fixture) | Ported upstream `Rs2PlayerCache`: per-tick `TickSnapshotCache` of players across loaded world views (local player included, as upstream), `query()` via `AbstractEntityQueryable`; `getRs2PlayerCache()` on services and API. `Rs2PlayerModel` captures id, combat level, animation, friend/clan/friends-chat flags, skull and overhead icon on the client thread at snapshot (upstream hops per call). `click()` omitted per `IEntity`; salvage detection and the deprecated static stream not ported. Claim released | 6 new tests (filters/distance/plane, client-thread capture, same-tick reuse and rescan, logout, stalled client thread). Protocol command: compile, checkstyle, PMD, 353 tests, 0 failures/skips | Claude 1: merge the branch; add `Microbot.getRs2PlayerCache()` (same shape as `getRs2NpcCache()`) and the report rows |
 | `38887ac` | Claude 1 | `Microbot.java`, `MicrobotRuntimeTest` | `getVarbitValue`/`getVarbitPlayerValue` read `Rs2PlayerStateCache` (0 when not installed); added `getRs2PlayerStateCache()`. The interim `MobileActions.read` shim is gone | 354 tests, checkstyle and PMD | None |
 | `a5b41bc` | Claude 1 | `util/walker/**` (new `ObjectTransports`, `transports.tsv`; removed `LumbridgeStairs`), walker tests, `API_SUPPORTED.md` | Generic floor-changing transports: 2,410 requirement-free staircases, ladders and trapdoors from unchanged upstream `transports.tsv`. Unusable transports are skipped; bank selection's vertical check must land near the destination. Claude 1's walker claim is released | 342 tests, checkstyle and PMD | `Rs2Walker.canReachVertical` is now generic, not Lumbridge-only |
