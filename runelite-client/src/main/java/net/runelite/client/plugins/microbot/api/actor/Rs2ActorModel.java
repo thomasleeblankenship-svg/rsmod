@@ -104,7 +104,7 @@ public class Rs2ActorModel
 	public static WorldPoint localPlayerLocation(MicrobotReadServices services)
 	{
 		Client client = services.getClient();
-		return services.getClientThreadCalls().call(() ->
+		return services.read(() ->
 		{
 			Player player = client.getLocalPlayer();
 			return player == null ? null : mainWorldLocation(client, player);
@@ -115,7 +115,7 @@ public class Rs2ActorModel
 	public static WorldView localPlayerWorldView(MicrobotReadServices services)
 	{
 		Client client = services.getClient();
-		return services.getClientThreadCalls().call(() ->
+		return services.read(() ->
 		{
 			Player player = client.getLocalPlayer();
 			return player == null ? null : player.getWorldView();

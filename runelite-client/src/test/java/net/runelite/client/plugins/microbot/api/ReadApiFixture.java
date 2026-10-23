@@ -1,5 +1,6 @@
 package net.runelite.client.plugins.microbot.api;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -17,10 +18,14 @@ import net.runelite.api.WorldView;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.client.callback.ClientThread;
+import net.runelite.client.config.ConfigManager;
+import net.runelite.client.eventbus.EventBus;
+import net.runelite.client.plugins.microbot.MicrobotRuntime;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 /**
@@ -30,7 +35,7 @@ import static org.mockito.Mockito.when;
  * every read from the JUnit (script) thread performs a real cross-thread hop.
  * No game, cache or device is involved.
  */
-final class ReadApiFixture implements AutoCloseable
+public final class ReadApiFixture implements AutoCloseable
 {
 	static final int TOP_LEVEL_ID = -1;
 	static final int BASE_X = 3200;
@@ -39,7 +44,8 @@ final class ReadApiFixture implements AutoCloseable
 	final ExecutorService clientExecutor = Executors.newSingleThreadExecutor(r -> new Thread(r, "fake-client-thread"));
 	final AtomicReference<Thread> clientThreadRef = new AtomicReference<>();
 	final Client client = mock(Client.class);
-	final ClientThread clientThread = mock(ClientThread.class);
+	final ClientThread clientThread;
+	final EventBus eventBus = new EventBus();
 	final WorldView topLevel = mock(WorldView.class);
 	final Scene scene = mock(Scene.class);
 	final Tile[][][] tiles = new Tile[4][32][32];
@@ -53,6 +59,7 @@ final class ReadApiFixture implements AutoCloseable
 	ReadApiFixture() throws Exception
 	{
 		clientExecutor.submit(() -> clientThreadRef.set(Thread.currentThread())).get();
+		clientThread = clientThreadFor(client);
 		when(client.isClientThread()).thenAnswer(i -> Thread.currentThread() == clientThreadRef.get());
 		doAnswer(call ->
 		{
@@ -82,8 +89,23 @@ final class ReadApiFixture implements AutoCloseable
 		when(localPlayer.getWorldView()).thenReturn(topLevel);
 		placePlayer(new WorldPoint(BASE_X + 5, BASE_Y + 5, 0));
 
-		services = new MicrobotReadServices(client, new ClientThreadCalls(client, clientThread, 2_000));
-		MicrobotReadServices.install(services);
+		services = new MicrobotReadServices(client, clientThread, eventBus, 2_000);
+		MicrobotRuntime.install(client, clientThread, eventBus, mock(ConfigManager.class), List.of(services));
+		gameState(GameState.LOGGED_IN);
+	}
+
+	/**
+	 * A real {@link ClientThread} (so {@code runOnClientThreadOptional} is the
+	 * production code) bound to {@code client}, with {@code invoke(Runnable)} left
+	 * to the caller to stub. Mockito spy; no game loop drains its queues.
+	 */
+	public static ClientThread clientThreadFor(Client client) throws ReflectiveOperationException
+	{
+		ClientThread thread = spy(new ClientThread());
+		Field field = ClientThread.class.getDeclaredField("client");
+		field.setAccessible(true);
+		field.set(thread, client);
+		return thread;
 	}
 
 	@SuppressWarnings("unchecked")
@@ -125,13 +147,13 @@ final class ReadApiFixture implements AutoCloseable
 		gameState = state;
 		GameStateChanged event = new GameStateChanged();
 		event.setGameState(state);
-		services.onGameStateChanged(event);
+		eventBus.post(event);
 	}
 
 	@Override
 	public void close() throws Exception
 	{
-		MicrobotReadServices.uninstall(services);
+		MicrobotRuntime.uninstall();
 		clientExecutor.shutdownNow();
 		clientExecutor.awaitTermination(5, TimeUnit.SECONDS);
 	}

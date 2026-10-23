@@ -2,6 +2,7 @@ package net.runelite.client.plugins.microbot.util;
 
 import java.time.Instant;
 import java.lang.reflect.Constructor;
+import java.util.List;
 import net.runelite.api.AnimationID;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
@@ -14,8 +15,12 @@ import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.gameval.InventoryID;
 import net.runelite.client.callback.ClientThread;
-import net.runelite.client.plugins.microbot.api.ClientThreadCalls;
+import net.runelite.client.config.ConfigManager;
+import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.plugins.microbot.api.MicrobotReadServices;
+import net.runelite.client.plugins.microbot.api.ReadApiFixture;
+import net.runelite.client.plugins.microbot.Microbot;
+import net.runelite.client.plugins.microbot.MicrobotRuntime;
 import net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory;
 import net.runelite.client.plugins.microbot.util.player.Rs2Player;
 import org.junit.After;
@@ -28,16 +33,18 @@ import static org.mockito.Mockito.*;
 /**
  * Rs2Player/Rs2Inventory read semantics against the upstream methods, with
  * mocked RuneLite interfaces. Here the test thread is the client thread
- * (reads run inline); cross-thread hops are covered by NpcQueryTest.
+ * (reads run inline); cross-thread hops are covered by NpcQueryTest. Services
+ * are installed through the real MicrobotRuntime and EventBus.
  */
 public class PlayerInventoryReadTest
 {
 	private Client client;
 	private Player player;
 	private MicrobotReadServices services;
+	private final EventBus eventBus = new EventBus();
 
 	@Before
-	public void setUp()
+	public void setUp() throws Exception
 	{
 		client = mock(Client.class);
 		player = mock(Player.class);
@@ -45,14 +52,16 @@ public class PlayerInventoryReadTest
 		when(client.getGameState()).thenReturn(GameState.LOGGED_IN);
 		when(client.getLocalPlayer()).thenReturn(player);
 		when(player.getAnimation()).thenReturn(AnimationID.IDLE);
-		services = new MicrobotReadServices(client, new ClientThreadCalls(client, mock(ClientThread.class)));
-		MicrobotReadServices.install(services);
+		ClientThread clientThread = ReadApiFixture.clientThreadFor(client);
+		services = new MicrobotReadServices(client, clientThread, eventBus);
+		// Installed on the client thread while logged in, so Microbot.isLoggedIn() seeds at once.
+		MicrobotRuntime.install(client, clientThread, eventBus, mock(ConfigManager.class), List.of(services));
 	}
 
 	@After
 	public void tearDown()
 	{
-		MicrobotReadServices.uninstall(services);
+		MicrobotRuntime.uninstall();
 	}
 
 	private ItemContainer inventory(Item... items)
@@ -73,7 +82,7 @@ public class PlayerInventoryReadTest
 
 	private void inventoryChanged(ItemContainer container)
 	{
-		services.onItemContainerChanged(new ItemContainerChanged(InventoryID.INV, container));
+		eventBus.post(new ItemContainerChanged(InventoryID.INV, container));
 	}
 
 	private static AnimationChanged animationChanged(Player actor)
@@ -108,7 +117,7 @@ public class PlayerInventoryReadTest
 	{
 		define(995, "Coins", true);
 		inventoryChanged(inventory(new Item(995, 5)));
-		services.onItemContainerChanged(new ItemContainerChanged(InventoryID.BANK, inventory(new Item(995, 9), new Item(995, 9))));
+		eventBus.post(new ItemContainerChanged(InventoryID.BANK, inventory(new Item(995, 9), new Item(995, 9))));
 		assertEquals(1, Rs2Inventory.count());
 	}
 
@@ -131,9 +140,9 @@ public class PlayerInventoryReadTest
 		when(client.getGameState()).thenReturn(GameState.LOGIN_SCREEN);
 		GameStateChanged event = new GameStateChanged();
 		event.setGameState(GameState.LOGIN_SCREEN);
-		services.onGameStateChanged(event);
+		eventBus.post(event);
 
-		assertFalse(services.isLoggedIn());
+		assertFalse(Microbot.isLoggedIn());
 		assertEquals(0, Rs2Inventory.count());
 		assertNull(Rs2Player.lastAnimationTime);
 		assertFalse(Rs2Player.isAnimating());
@@ -148,7 +157,7 @@ public class PlayerInventoryReadTest
 		assertTrue(Rs2Player.isAnimating());
 
 		// Event for the local player records history for the 600 ms window.
-		services.onAnimationChanged(animationChanged(player));
+		eventBus.post(animationChanged(player));
 		when(player.getAnimation()).thenReturn(AnimationID.IDLE);
 		assertTrue(Rs2Player.isAnimating());
 		assertEquals(879, Rs2Player.getLastAnimationID());
@@ -163,7 +172,7 @@ public class PlayerInventoryReadTest
 	{
 		Player other = mock(Player.class);
 		when(other.getAnimation()).thenReturn(879);
-		services.onAnimationChanged(animationChanged(other));
+		eventBus.post(animationChanged(other));
 		assertNull(Rs2Player.lastAnimationTime);
 		assertFalse(Rs2Player.isAnimating());
 	}
@@ -184,9 +193,14 @@ public class PlayerInventoryReadTest
 	}
 
 	@Test
-	public void withoutInstalledServicesReadsReportIdleAndRequireFails()
+	public void runtimeUninstallStopsServicesAndReadsReportIdle()
 	{
-		MicrobotReadServices.uninstall(services);
+		define(1511, "Logs", false);
+		inventoryChanged(inventory(new Item(1511, 1)));
+		MicrobotRuntime.uninstall();
+
+		// Unsubscribed: later events no longer reach the snapshot.
+		inventoryChanged(inventory(new Item(1511, 1), new Item(1511, 1)));
 		assertNull(MicrobotReadServices.current());
 		assertFalse(Rs2Player.isMoving());
 		assertEquals(-1, Rs2Player.getAnimation());
@@ -203,14 +217,18 @@ public class PlayerInventoryReadTest
 	}
 
 	@Test
-	public void uninstallOfAStaleProviderKeepsTheCurrentOne()
+	public void aSecondProviderCannotStartWhileOneIsInstalled()
 	{
-		MicrobotReadServices replacement = new MicrobotReadServices(client, new ClientThreadCalls(client, mock(ClientThread.class)));
-		MicrobotReadServices.install(replacement);
-		MicrobotReadServices.uninstall(services);
-		assertSame(replacement, MicrobotReadServices.require());
-		assertSame(replacement.getRs2NpcCache(), MicrobotReadServices.require().getRs2NpcCache());
-		services = replacement;
+		MicrobotReadServices second = new MicrobotReadServices(client, mock(ClientThread.class), new EventBus());
+		try
+		{
+			second.startUp();
+			fail("two providers must not be installed at once");
+		}
+		catch (IllegalStateException expected)
+		{
+			assertSame(services, MicrobotReadServices.require());
+		}
 	}
 
 	@Test
@@ -226,14 +244,5 @@ public class PlayerInventoryReadTest
 				assertFalse(type + " exposes a public constructor", java.lang.reflect.Modifier.isPublic(constructor.getModifiers()));
 			}
 		}
-	}
-
-	@Test
-	public void clientThreadCallRunsInlineOnTheClientThread()
-	{
-		ClientThread thread = mock(ClientThread.class);
-		ClientThreadCalls calls = new ClientThreadCalls(client, thread);
-		assertEquals("ok", calls.call(() -> "ok").orElse(null));
-		verify(thread, never()).invoke(any(Runnable.class));
 	}
 }
