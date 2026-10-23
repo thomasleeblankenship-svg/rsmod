@@ -41,6 +41,59 @@ public final class Rs2Dialogue
 		net.runelite.api.widgets.ComponentID.DIALOG_DOUBLE_SPRITE_TEXT,
 	};
 
+	/** As upstream: picks the shown option containing {@code text} (ignoring case). */
+	public static boolean clickOption(String text)
+	{
+		return clickOption(text, false);
+	}
+
+	/**
+	 * As upstream: picks the shown option equal to ({@code exact}) or containing {@code text},
+	 * ignoring case and colour tags, by pressing its number key. {@code true} means the key was sent.
+	 */
+	public static boolean clickOption(String text, boolean exact)
+	{
+		return text != null && clickOption(exact, text);
+	}
+
+	public static boolean clickOption(String... texts)
+	{
+		return clickOption(false, texts);
+	}
+
+	/** As upstream: the first shown option matching any of {@code texts}. */
+	public static boolean clickOption(boolean exact, String... texts)
+	{
+		int number = MobileActions.read(() ->
+		{
+			net.runelite.api.widgets.Widget menu = Microbot.getClient().getWidget(net.runelite.api.widgets.ComponentID.DIALOG_OPTION_OPTIONS);
+			net.runelite.api.widgets.Widget[] rows = menu == null || menu.isHidden() ? null : menu.getDynamicChildren();
+			if (rows == null)
+			{
+				return -1;
+			}
+			// Row 0 is the "Select an option" title; options are numbered from 1 in screen order.
+			int option = 0;
+			for (int i = 1; i < rows.length; i++)
+			{
+				if (rows[i] == null || rows[i].isHidden() || rows[i].getText() == null || rows[i].getText().isBlank())
+				{
+					continue;
+				}
+				option++;
+				for (String text : texts)
+				{
+					if (text != null && textMatches(rows[i].getText(), text, exact))
+					{
+						return option;
+					}
+				}
+			}
+			return -1;
+		}, -1);
+		return number >= 1 && number <= 9 && MobileActions.key(KeyEvent.VK_0 + number);
+	}
+
 	/** Whether a visible "Click here to continue" prompt is showing. */
 	public static boolean hasContinue()
 	{

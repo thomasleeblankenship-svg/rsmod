@@ -23,11 +23,14 @@ import net.runelite.client.headless.JavaBridge;
 import net.runelite.client.plugins.microbot.Microbot;
 import net.runelite.client.plugins.microbot.MicrobotRuntime;
 import net.runelite.client.plugins.microbot.api.MicrobotReadServices;
+import net.runelite.client.plugins.microbot.api.npc.models.Rs2NpcModel;
 import net.runelite.client.plugins.microbot.api.tileobject.models.Rs2TileObjectModel;
 import net.runelite.client.plugins.microbot.mobile.MobileActions;
 import net.runelite.client.plugins.microbot.shortestpath.MobilePathfinder;
+import net.runelite.client.plugins.microbot.shortestpath.MobileTransportPolicy;
 import net.runelite.client.plugins.microbot.shortestpath.PathResult;
 import net.runelite.client.plugins.microbot.shortestpath.TransportType;
+import net.runelite.client.plugins.microbot.util.dialogues.Rs2Dialogue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -259,7 +262,7 @@ public final class Rs2Walker
 				}
 				if (arrived(scene.player, leg.destination, leg.radius) && leg.stairs != null)
 				{
-					if (!useStairs(leg.stairs, generation, deadline))
+					if (!(leg.stairs.travel ? useTravel(leg.stairs, generation, deadline) : useStairs(leg.stairs, generation, deadline)))
 					{
 						if (!STAIRS_UNAVAILABLE.equals(lastStatus))
 						{
@@ -471,8 +474,24 @@ public final class Rs2Walker
 		}
 	}
 
+	/** Rides on an NPC or vehicle: interact, answer the destination dialogue, wait for the landing. */
+	static final Set<TransportType> TRAVEL_TRANSPORTS = EnumSet.of(TransportType.BOAT, TransportType.SHIP, TransportType.NPC);
+
 	/** Transport types the walker can execute; the pathfinder is told to admit only these. */
-	static final Set<TransportType> EXECUTABLE_TRANSPORTS = EnumSet.of(TransportType.TRANSPORT, TransportType.AGILITY_SHORTCUT);
+	static final Set<TransportType> EXECUTABLE_TRANSPORTS = EnumSet.of(TransportType.TRANSPORT, TransportType.AGILITY_SHORTCUT,
+		TransportType.BOAT, TransportType.SHIP, TransportType.NPC);
+
+	/** A ride lands roughly where the catalogue says (gangplanks and docks shift by a few tiles). */
+	private static final int TRAVEL_ARRIVAL_TILES = 5;
+	/** Longest a ride (interaction, dialogue, the trip and its scene load) may take. */
+	private static final long TRAVEL_MILLIS = 45_000;
+	/** NPC options upstream treats as explicit; any other configured option also tries "Travel". */
+	private static final Set<String> EXPLICIT_TRAVEL_OPTIONS = Set.of("travel", "talk-to", "quick-travel", "take-boat");
+
+	static
+	{
+		MobilePathfinder.setTransportPolicy(MobileTransportPolicy.admitting(EXECUTABLE_TRANSPORTS));
+	}
 
 	/**
 	 * The next leg: {@link MobilePathfinder} when enabled (whole-world map and transports), else
@@ -527,8 +546,10 @@ public final class Rs2Walker
 				LOG.info("Mobile walk: route needs {} ({}); using the same-plane planner", transport.getType(), transport);
 				return null;
 			}
+			boolean travel = TRAVEL_TRANSPORTS.contains(transport.getType());
 			ObjectTransports.Step step = new ObjectTransports.Step(transport.getOrigin(), transport.getDestination(),
-				transport.getObjectId(), transport.getAction(), transport.getName(), 1);
+				transport.getObjectId(), transport.getAction(), transport.getName(), travel ? TRAVEL_ARRIVAL_TILES : 1,
+				travel, transport.getDisplayInfo());
 			return new WalkLeg(transport.getOrigin(), 1, step, new ArrayList<>(tiles.subList(0, i + 1)), true);
 		}
 		return new WalkLeg(destination, radius, null, new ArrayList<>(tiles), true);
@@ -623,6 +644,126 @@ public final class Rs2Walker
 		lastStatus = !MobileActions.active() || GENERATION.get() != generation
 			? "staircase cancelled" : dispatched ? "plane change was not observed" : STAIRS_UNAVAILABLE;
 		return false;
+	}
+
+	/**
+	 * Rides an NPC or vehicle transport: interacts with the catalogued NPC (or, failing that, an
+	 * object at the origin) using its option, answers the destination dialogue, and requires an
+	 * observed landing near the catalogued destination.
+	 */
+	private static boolean useTravel(ObjectTransports.Step step, long generation, long walkDeadline) throws InterruptedException
+	{
+		long deadline = Math.min(walkDeadline, System.currentTimeMillis() + TRAVEL_MILLIS);
+		long lastAttempt = 0;
+		boolean dispatched = false;
+		int missingLookups = 0;
+		lastStatus = "Travelling: " + step;
+		while (System.currentTimeMillis() < deadline && GENERATION.get() == generation
+			&& MobileActions.active() && !Thread.currentThread().isInterrupted())
+		{
+			MobileRoutePlanner.Scene scene = awaitSnapshot(generation, deadline);
+			if (scene == null)
+			{
+				lastStatus = "no collision snapshot, loading timed out or game state changed";
+				return false;
+			}
+			if (dispatched && step.observedArrival(scene.player))
+			{
+				return true;
+			}
+			if (Rs2Dialogue.hasSelectAnOption())
+			{
+				if (!Rs2Dialogue.clickOption(travelOptions(step)))
+				{
+					lastStatus = "unexpected travel dialogue options for " + step;
+					return false;
+				}
+			}
+			else if (Rs2Dialogue.hasContinue())
+			{
+				Rs2Dialogue.clickContinue();
+			}
+			else if (scene.player.getPlane() == step.origin.getPlane() && scene.player.distanceTo(step.origin) <= 3
+				&& System.currentTimeMillis() - lastAttempt >= 3_000)
+			{
+				lastAttempt = System.currentTimeMillis();
+				if (dispatchTravel(step))
+				{
+					dispatched = true;
+					missingLookups = 0;
+				}
+				else if (!dispatched && ++missingLookups >= 3)
+				{
+					lastStatus = STAIRS_UNAVAILABLE;
+					return false;
+				}
+			}
+			long remaining = deadline - System.currentTimeMillis();
+			if (remaining > 0) { Thread.sleep(Math.min(300, remaining)); }
+		}
+		lastStatus = !MobileActions.active() || GENERATION.get() != generation
+			? "travel cancelled" : dispatched ? "travel landing was not observed" : STAIRS_UNAVAILABLE;
+		return false;
+	}
+
+	/** Dialogue choices that mean "go to this step's destination", most specific first. */
+	static String[] travelOptions(ObjectTransports.Step step)
+	{
+		List<String> options = new ArrayList<>();
+		if (!step.destinationText.isBlank())
+		{
+			options.add(step.destinationText);
+		}
+		if (step.action != null && !EXPLICIT_TRAVEL_OPTIONS.contains(step.action.toLowerCase(java.util.Locale.ROOT)))
+		{
+			options.add(step.action);
+		}
+		options.add("Yes");
+		return options.toArray(new String[0]);
+	}
+
+	/** One interaction: the catalogued NPC with its option (or "Travel"), else an object at the origin. */
+	private static boolean dispatchTravel(ObjectTransports.Step step)
+	{
+		Rs2NpcModel npc = MobileActions.read(() -> MicrobotReadServices.require().getRs2NpcCache().query()
+			.where(candidate -> candidate.getWorldLocation() != null
+				&& candidate.getWorldLocation().getPlane() == step.origin.getPlane()
+				&& candidate.getWorldLocation().distanceTo(step.origin) <= 12
+				&& (candidate.getId() == step.objectId || (!step.target.isEmpty() && step.target.equalsIgnoreCase(candidate.getName()))))
+			.nearest(), null);
+		if (npc != null)
+		{
+			for (String option : npcOptions(step))
+			{
+				if (MobileActions.npcAt(npc.getId(), npc.getIndex(), option))
+				{
+					return true;
+				}
+			}
+			return false;
+		}
+		Rs2TileObjectModel object = MobileActions.read(() -> MicrobotReadServices.require().getRs2TileObjectCache().query()
+			.where(candidate -> candidate.getWorldLocation().getPlane() == step.origin.getPlane()
+				&& candidate.getWorldLocation().distanceTo(step.origin) <= 6
+				&& candidate.getObjectComposition() != null
+				&& step.matches(candidate.getId(), candidate.getObjectComposition().getName(), candidate.getObjectComposition().getActions()))
+			.nearest(), null);
+		return object != null && MobileActions.objectAt(object.getId(), object.getWorldLocation(), step.action);
+	}
+
+	/** As upstream: the configured option, and "Travel" when the configured one is a destination name. */
+	static List<String> npcOptions(ObjectTransports.Step step)
+	{
+		List<String> options = new ArrayList<>();
+		if (step.action != null && !step.action.isBlank())
+		{
+			options.add(step.action);
+		}
+		if (step.action == null || !EXPLICIT_TRAVEL_OPTIONS.contains(step.action.toLowerCase(java.util.Locale.ROOT)))
+		{
+			options.add("Travel");
+		}
+		return options;
 	}
 
 	public static List<WorldPoint> getWalkableTilesAroundPlayer(int distance)
