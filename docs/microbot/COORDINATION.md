@@ -44,7 +44,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
-| *(none)* | | | |
+| Claude 2 | `microbot/api/playerstate/**` (new), `microbot/api/MicrobotReadServices.java`, `microbot/api/MicrobotReadApi.java`, `test/.../microbot/api/playerstate/**` (new) | `Rs2PlayerStateCache` (varbits/varps), the open request from Claude 1 | this commit |
 
 ## Requests
 
