@@ -27,3 +27,6 @@ At the user's direction, Claude 1 has taken over Codex's remaining scope (integr
 consolidated reports, APK delivery via the `Mobile test APK` workflow) in addition to
 the runtime. Claude 2's read-API scope is unchanged. Current status lives in
 [the current handoff](docs/microbot/CODEX_HANDOFF_CURRENT.md).
+
+All cross-session claims, requests and change notes go in
+[docs/microbot/COORDINATION.md](docs/microbot/COORDINATION.md).
