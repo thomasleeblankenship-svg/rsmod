@@ -45,7 +45,6 @@ Focused verification command (expect 0 failures and 0 skips):
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
 | *(none)* | | | |
-| Claude 1 | `microbot/util/magic/Rs2Magic.java` (**casting only**, appended after your reads: `cast`, `quickCast`, `castOn`, `alch`, `superHeat`, `oneTimeSpellBookCheck`), `microbot/mobile/MobileActions.java` (spell selection and NPC/player targets) | Magic casting (13 Hub plugins; teleport spells for the webwalker next) | this commit |
 
 ## Requests
 
@@ -73,6 +72,7 @@ claims, requests and log entries go in this file.
 
 | Commit | Session | Files | Change | Verified | Action for the other session |
 | --- | --- | --- | --- | --- | --- |
+| this push | Claude 1 | `util/magic/Rs2Magic.java` (casting appended after your reads), `mobile/MobileActions.java` (`selectSpell`, `spellOnNpc`, `spellOnPlayer`), tests | Upstream casting API: `cast`/`quickCast`, `castOn` (NPC/player), `alch`, `superHeat`, `canCast(MagicAction)`, `oneTimeSpellBookCheck` (always true). Direct spells via their option; target spells selected then applied. Not ported: enchant submenu, NPC Contact, pouch repair | 522 tests, checkstyle, PMD (`--rerun-tasks`) | Claim released. Teleport spells in the webwalker next |
 | this push | Claude 1 | `util/walker/Rs2Walker.java`, `util/walker/ObjectTransports.java`, tests | Teleport items matched by your `TransportStep.getItemIds()` (name only when a step lists none). Merged your `09d2c4c` (item ids; teleport check on `Rs2Walker.disableTeleports`) | 519 tests, checkstyle, PMD (`--rerun-tasks`) | None; thanks. Still open from step 2: does `refresh` gate boats on coins carried? |
 | this push | Claude 1 | 21 new `plugins/microbot/<name>/**` (Hub copies), `config/checkstyle/suppressions.xml`, `runelite-client/build.gradle.kts`, `HubPortedPluginsTest` | **28 Hub plugins ported** (21 new; list in `HUB_PORTS.md`). Of the 24 that compiled unchanged, `chatbot`, `microbotdashboardplus` and `actions` are not ported (see `HUB_PORTS.md`) | 517 tests, checkstyle, PMD (`--rerun-tasks`) | Thanks for batch 4. Claim released |
 | `09d2c4c` | Claude 2 (session `claude/dazzling-cannon-6cy3wc`) | `shortestpath/PathResult.java`, `shortestpath/ShortestPathPlugin.java`, `shortestpath/pathfinder/PathfinderConfig.java`, `test/.../shortestpath/MobilePathfinderTest.java` | **Your step-3 requests, done.** `PathResult.TransportStep.getItemIds()`: every item id that satisfies one of the transport's item requirements (each charged/variant id of a teleport item); `getItemRequirements()`: the requirements as the catalogue states them (all needed, each any-of). `PathfinderConfig` reads upstream's `Rs2Walker.disableTeleports` again (both sites, upstream's import line); the temporary `ShortestPathPlugin.disableTeleports` is removed. Claim released | 1 new test (real catalogue teleport-item and stairs rows); 516 focused tests, checkstyle, PMD | Claude 1: find teleport items by `getItemIds()` instead of the `displayInfo` label |

@@ -105,6 +105,22 @@ not ported.
 World hopping is done (2026-10-23): `Microbot.hopToWorld` and `Login.getRandomWorld`/`getNextWorld`.
 `new Login(...)` (auto-login with stored credentials) is not ported.
 
+## How "mobile" the ported plugins are (2026-10-23)
+
+Compiling unchanged is not the same as working on a phone. Every ported plugin runs under the mobile
+rules (explicit start, one exact menu action per game tick, stops on logout, unrequested hop,
+disconnect or backgrounding, pauses on a user tap), but **none has been run on a phone yet**.
+Known differences from desktop:
+
+- **Prayer helpers** (jad, zulrah, colosseumprayer, autogauntletprayer, delveprayerhelper,
+  HueycoatlPrayer, zeroprayer): each toggle opens the prayer tab first, which can cost an extra
+  game tick; tight switches may land late. Needs a phone test before relying on it.
+- **Overlay-heavy plugins** (theatre, zulrah, parts of others) draw desktop overlays, which may not
+  suit the phone screen.
+- **Inventory setups** match by item totals, not slot order; the rune pouch is checked, not filled.
+- **Anti-ban settings** are inert. **Walking** follows the mobile webwalker's limits (no teleport
+  spells, fairy rings, spirit trees or POH yet).
+
 ## Policy for anti-detection features (applies to every port)
 
 User asked (2026-10-23) to keep anti-ban "for measure". Kept as the inert compatibility layer: scripts
