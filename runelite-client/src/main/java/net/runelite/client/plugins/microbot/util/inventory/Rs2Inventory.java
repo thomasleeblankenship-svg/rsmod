@@ -283,9 +283,50 @@ public final class Rs2Inventory
 
 	public static boolean dropAllExcept(boolean exact, InteractOrder order, String... names)
 	{
+		return dropWhile(i -> !isProtectedAxe(i.getId(), i.getName())
+			&& Arrays.stream(names).noneMatch(n -> matches(i.getName(), n, exact)), order);
+	}
+
+	/** As upstream: drops every inventory item matching {@code predicate}; axes are not protected. */
+	public static boolean dropAll(Predicate<Rs2ItemModel> predicate)
+	{
+		return dropAll(predicate, InteractOrder.STANDARD);
+	}
+
+	public static boolean dropAll(Predicate<Rs2ItemModel> predicate, InteractOrder order)
+	{
+		return dropWhile(predicate, order);
+	}
+
+	public static boolean dropAll()
+	{
+		return dropAll(i -> true);
+	}
+
+	public static boolean dropAll(int... ids)
+	{
+		return dropAll(i -> Arrays.stream(ids).anyMatch(id -> id == i.getId()));
+	}
+
+	/** As upstream: names match exactly (case-insensitive). */
+	public static boolean dropAll(String... names)
+	{
+		return dropAll(true, names);
+	}
+
+	public static boolean dropAll(boolean exact, String... names)
+	{
+		return dropAll(i -> Arrays.stream(names).anyMatch(n -> matches(i.getName(), n, exact)), InteractOrder.STANDARD);
+	}
+
+	/**
+	 * Mobile: drops one matching item per dispatched action, re-reading the inventory before each,
+	 * until none match. Upstream fires every drop from one stale list with fixed sleeps. Returns
+	 * false, with {@link #dropFailure()} set, when the inventory cannot be read or a drop is refused.
+	 */
+	private static boolean dropWhile(Predicate<Rs2ItemModel> removable, InteractOrder order)
+	{
 		dropFailure = "";
-		Predicate<Rs2ItemModel> removable = i -> !isProtectedAxe(i.getId(), i.getName())
-			&& Arrays.stream(names).noneMatch(n -> matches(i.getName(), n, exact));
 		// A full reset never completes merely because the first drop freed one slot.
 		// Allow logs awarded by an already-running chop while the batch is draining.
 		final int maxDrops = 56;
@@ -294,12 +335,12 @@ public final class Rs2Inventory
 			List<Rs2ItemModel> live = refreshInventory();
 			if (live == null) { dropFailure = "Inventory could not be read"; return false; }
 			List<Rs2ItemModel> targets = ordered(live.stream().filter(removable).collect(Collectors.toList()), order);
-			if (dropped == 0) { LOG.info("Mobile inventory reset: {} eligible items; axes protected", targets.size()); }
-			if (targets.isEmpty()) { LOG.info("Mobile inventory reset complete: {} drops", dropped); return true; }
+			if (dropped == 0) { LOG.info("Mobile drop batch: {} eligible items", targets.size()); }
+			if (targets.isEmpty()) { LOG.info("Mobile drop batch complete: {} drops", dropped); return true; }
 			if (dropped == maxDrops) { dropFailure = "Inventory kept refilling during the drop batch"; }
 			if (dropped == maxDrops || !dropSlot(targets.get(0)))
 			{
-				LOG.warn("Mobile inventory reset failed after {} drops, slot {} item {}: {}",
+				LOG.warn("Mobile drop batch failed after {} drops, slot {} item {}: {}",
 					dropped, targets.get(0).getSlot(), targets.get(0).getId(), dropFailure);
 				return false;
 			}

@@ -146,4 +146,30 @@ public class MobileDropWorkflowTest
 		assertFalse(Rs2Inventory.isProtectedAxe(1511, "Logs"));
 		assertFalse(Rs2Inventory.isProtectedAxe(1265, "Bronze pickaxe"));
 	}
+
+	@Test
+	public void dropAllByNameDropsOnlyExactMatchesOnePerRead()
+	{
+		assertTrue(Rs2Inventory.dropAll("logs"));
+		assertEquals(27, drops);
+		assertEquals(List.of(1351), contents);
+	}
+
+	@Test
+	public void dropAllByIdIgnoresOtherItemsAndReportsDoneWhenNoneMatch()
+	{
+		assertTrue(Rs2Inventory.dropAll(1511));
+		assertEquals(27, drops);
+		assertTrue(Rs2Inventory.dropAll(9999));
+		assertEquals(27, drops);
+	}
+
+	@Test
+	public void dropAllInexactNameRequiresTheFlag()
+	{
+		assertTrue(Rs2Inventory.dropAll(true, "Log"));
+		assertEquals(0, drops);
+		assertTrue(Rs2Inventory.dropAll(false, "Log"));
+		assertEquals(27, drops);
+	}
 }
