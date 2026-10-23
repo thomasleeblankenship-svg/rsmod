@@ -46,6 +46,7 @@ Focused verification command (expect 0 failures and 0 skips):
 | --- | --- | --- | --- |
 | *(none)* | | | |
 | Claude 2 (session `claude/dazzling-cannon-6cy3wc`) | `api/IEntity.java`, `api/AbstractEntityQueryable.java` (reachability helper made public), `api/npc/models/Rs2NpcModel.java` (doc); read blocks appended in `util/inventory/Rs2Inventory.java`, `util/player/Rs2Player.java`, `util/dialogues/Rs2Dialogue.java`, `util/grounditem/Rs2GroundItem.java`; new `util/misc/SpecialAttackWeaponEnum.java`, `util/equipment/JewelleryLocationEnum.java`; new tests | Hub read batch 5: `IEntity.isReachable()`, `calculateInteractOrder`, `getSelectedItemId`, `getQuestion`/`hasQuestion`, potion boost reads, `Rs2GroundItem.exists`, two data enums. Reads only | this commit |
+| Claude 1 | `util/bank/Rs2Bank.java` (actions: `depositItems`, `emptyFishBarrel`), `util/inventory/Rs2Inventory.java` (actions: `useUnNotedItemOnObject`, `combine(String,String)`, `dropAllExcept(String...)`, `calculateInteractOrder`), `util/npc/Rs2Npc.java` (**action only**: `validateInteractable`, appended), `Microbot.java`/`MicrobotRuntime.java`/`MobileMicrobotPlugin.java` (`getItemManager`), new Hub copies of F2P plugins | User request: free-to-play Hub plugins for testing | this commit |
 
 ## Requests
 
