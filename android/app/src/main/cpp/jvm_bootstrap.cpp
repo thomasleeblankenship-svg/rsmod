@@ -77,6 +77,7 @@ static jmethodID g_midKeybind = nullptr;
 static jmethodID g_midSetCtrlHeld = nullptr, g_midSetAltHeld = nullptr, g_midMiddleClick = nullptr;
 static jmethodID g_midTapMove = nullptr;
 static jmethodID g_midArmTap = nullptr, g_midCancelArmedTap = nullptr;
+static jmethodID g_midScriptInputSuspended = nullptr;
 // FIX-10b: JavaBridge.invokeMenuEntry(int parentDisplayIndex, int childIndex) — commit a native tap-menu row /
 // submenu child directly (child<0 = the parent entry itself). Optional resolve (older jars lack it).
 static jmethodID g_midInvokeMenuEntry = nullptr;
@@ -242,6 +243,18 @@ static std::atomic<bool> g_directPresent{false};
 // the GPU draw thread's swapBuffers paces itself (librlawt, keyed off the absent Surface). Stops a pinned CPU
 // core / Mali GPU while screen-locked. Foreground (paused=false) is unchanged.
 static std::atomic<bool> g_paused{false};
+// High bits count suspensions; low bit is current suspension. Keep both in one
+// atomic so a pause+resume between render drains still revokes old Java tokens.
+static std::atomic<uint64_t> g_scriptInputLifecycle{0};
+
+static void setScriptInputSuspended(bool suspended) {
+    uint64_t old = g_scriptInputLifecycle.load(std::memory_order_acquire);
+    uint64_t next;
+    do {
+        next = suspended ? ((old + 2) | uint64_t{1}) : (old & ~uint64_t{1});
+    } while (!g_scriptInputLifecycle.compare_exchange_weak(
+        old, next, std::memory_order_acq_rel, std::memory_order_acquire));
+}
 
 // Present seam handed to librlawt.cpp (it links EGL/GLES but not libandroid). librlawt owns the EGL window
 // surface; these let it borrow the SurfaceView window + watch for surface recreate, with libandroid kept here.
@@ -706,6 +719,7 @@ static bool publishBridge(JNIEnv *env) {
     g_midTapMove = midOpt(env, global, "onTapMove", "(II)V");
     g_midArmTap = midOpt(env, global, "armTap", "(II)V");
     g_midCancelArmedTap = midOpt(env, global, "cancelArmedTap", "()V");
+    g_midScriptInputSuspended = midOpt(env, global, "setScriptInputSuspended", "(Z)V");
     g_midHeapStats = midOpt(env, global, "heapStats", "()Ljava/lang/String;"); // P2-1 dev panel (optional)
     g_midSimReconnect = midOpt(env, global, "devSimulateReconnect", "(I)V");   // P2-1 dev panel (optional)
     g_bridgeCls = global;   // publish only once fully resolved
@@ -1104,6 +1118,27 @@ static bool callStaticVoidNoArg(JNIEnv *env, const char *cls, const char *method
 // Drain the input queue and dispatch each event into the bridge (called from the render thread, which is
 // HotSpot-attached). The UI thread only ever pushes onto the queue, so it never attaches to HotSpot.
 static void drainInput(JNIEnv *env) {
+    // The render thread already owns a HotSpot JNIEnv. Do not attach the ART UI
+    // thread: synchronize before draining input, including while backgrounded.
+    static uint64_t observedScriptLifecycle = UINT64_MAX;
+    const uint64_t lifecycle = g_scriptInputLifecycle.load(std::memory_order_acquire);
+    if (g_midScriptInputSuspended && lifecycle != observedScriptLifecycle) {
+        const bool suspended = (lifecycle & 1) != 0;
+        const bool missedSuspension = (lifecycle >> 1) != 0
+            && (lifecycle >> 1) != (observedScriptLifecycle >> 1);
+        if (suspended || missedSuspension) {
+            env->CallStaticVoidMethod(g_bridgeCls, g_midScriptInputSuspended, JNI_TRUE);
+        }
+        if (!env->ExceptionCheck() && !suspended) {
+            env->CallStaticVoidMethod(g_bridgeCls, g_midScriptInputSuspended, JNI_FALSE);
+        }
+        if (env->ExceptionCheck()) {
+            env->ExceptionClear();
+            LOGE("bridge: script lifecycle synchronization failed; retrying next drain");
+        } else {
+            observedScriptLifecycle = lifecycle;
+        }
+    }
     std::deque<InputEvent> batch;
     {
         std::lock_guard<std::mutex> lk(g_inLock);
@@ -1812,8 +1847,14 @@ Java_dev_audaro_runemobile_JvmLauncher_nativeSetSurface(JNIEnv *env, jobject, jo
 // Paused -> the render thread idles at 4 Hz (drainInput only) instead of the 60 Hz snapshot-republish batch.
 extern "C" JNIEXPORT void JNICALL
 Java_dev_audaro_runemobile_JvmLauncher_nativeSetPaused(JNIEnv *, jobject, jboolean paused) {
+    if (paused) setScriptInputSuspended(true);
     g_paused.store(paused ? true : false, std::memory_order_release);
     LOGI("render %s", paused ? "paused (backgrounded)" : "resumed (foreground)");
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_dev_audaro_runemobile_JvmLauncher_nativeSetScriptInputSuspended(JNIEnv *, jobject, jboolean suspended) {
+    setScriptInputSuspended(suspended != JNI_FALSE);
 }
 
 // ---- Input ingress (called from the ART UI thread; pushes onto the queue, never attaches to HotSpot) --

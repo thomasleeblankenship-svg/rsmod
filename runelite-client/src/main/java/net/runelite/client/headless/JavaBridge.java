@@ -224,6 +224,8 @@ public final class JavaBridge
 	}
 
 	private static TapState tapState = TapState.IDLE;
+	// Client-thread ownership only. Script taps cannot queue behind/replace native taps.
+	private static ScriptInputSession scriptTap;
 	private static int tapX;              // the pending tap point (canvas px) — also the click point
 	private static int tapY;
 	private static int settleFrames;      // frames spent in AWAIT_ENGINE since the move was posted
@@ -839,6 +841,7 @@ public final class JavaBridge
 	 */
 	public static void onClick(int x, int y, int button)
 	{
+		ScriptInputSession.manualInput();
 		final Canvas canvas = liveCanvas();
 		if (canvas == null)
 		{
@@ -864,6 +867,66 @@ public final class JavaBridge
 	}
 
 	/**
+	 * Submit one script-owned left tap through the existing engine settle gate.
+	 * Client thread only; true means accepted for settling, NOT game action success.
+	 * Refuses an open menu, held input/modifiers, or another tap already in flight.
+	 */
+	public static boolean onScriptClick(int x, int y, ScriptInputSession session)
+	{
+		final Client c = client;
+		final Canvas canvas = liveCanvas();
+		if (session == null || !session.isActive() || c == null || clientThread == null
+			|| !c.isClientThread() || canvas == null || c.getGameState() != GameState.LOGGED_IN
+			|| c.isMenuOpen() || x < 0 || y < 0 || x >= c.getCanvasWidth() || y >= c.getCanvasHeight())
+		{
+			return false;
+		}
+		discardCancelledScriptTap();
+		if (tapState != TapState.IDLE || queuedTap || pressed || shiftHeld || ctrlHeld || altHeld
+			|| camHoldDxPerSec != 0 || camHoldDyPerSec != 0)
+		{
+			return false;
+		}
+		try
+		{
+			diagGeometry(c, "script", x, y);
+			hideClickCross(c);
+			ensureTruthSubscribed();
+			if (!session.isActive())
+			{
+				return false;
+			}
+			scriptTap = session;
+			beginAwait(canvas, x, y);
+			return true;
+		}
+		catch (RuntimeException exception)
+		{
+			session.close();
+			discardCancelledScriptTap();
+			throw exception;
+		}
+	}
+
+	/** Native lifecycle bridge; resume permits explicit starts but never renews old sessions. */
+	public static void setScriptInputSuspended(boolean suspended)
+	{
+		ScriptInputSession.setSuspended(suspended);
+	}
+
+	/** Drop only input owned by a cancelled script; never reset a native tap. */
+	private static void discardCancelledScriptTap()
+	{
+		if (scriptTap != null && !scriptTap.isActive())
+		{
+			scriptTap = null;
+			tapState = TapState.IDLE;
+			tapUncommitted = false;
+			queuedTap = false;
+		}
+	}
+
+	/**
 	 * The finger LANDED at {@code (x,y)} — start resolving that point now, click nothing. A left tap is only
 	 * posted when the finger lifts, but the engine-resolved gate it then has to pass ({@link #tapTick}: move the
 	 * synthetic cursor, wait for the engine to demonstrably resolve the point) does not have to run after the
@@ -875,6 +938,7 @@ public final class JavaBridge
 	 */
 	public static void armTap(int x, int y)
 	{
+		ScriptInputSession.manualInput();
 		final Canvas canvas = liveCanvas();
 		final ClientThread ct = clientThread;
 		final Client c = client;
@@ -884,6 +948,7 @@ public final class JavaBridge
 		}
 		ct.invoke(() ->
 		{
+			discardCancelledScriptTap();
 			// Only ever from rest: a tap already settling, clicked or armed owns the state machine, and a finger
 			// landing is not a reason to disturb it. With a menu open the tap selects the row under it directly
 			// and needs no gate at all, so there is nothing to arm.
@@ -926,6 +991,7 @@ public final class JavaBridge
 	 */
 	public static void onTapMove(int x, int y)
 	{
+		ScriptInputSession.manualInput();
 	}
 
 	/**
@@ -936,6 +1002,7 @@ public final class JavaBridge
 	 */
 	private static void startRightClick(Canvas canvas, ClientThread ct, Client c, int x, int y)
 	{
+		discardCancelledScriptTap();
 		diagGeometry(c, "R", x, y);
 		hideClickCross(c);
 		postMove(canvas, x, y);
@@ -952,6 +1019,7 @@ public final class JavaBridge
 	 */
 	private static void startLeftTap(Canvas canvas, ClientThread ct, Client c, int x, int y)
 	{
+		discardCancelledScriptTap();
 		diagGeometry(c, "L", x, y);
 		hideClickCross(c);
 		ensureTruthSubscribed();
@@ -1084,6 +1152,11 @@ public final class JavaBridge
 			tapState = TapState.IDLE;
 			tapUncommitted = false;
 			queuedTap = false;
+			if (scriptTap != null)
+			{
+				scriptTap.close();
+				scriptTap = null;
+			}
 			BridgeFaults.note("JavaBridge.tapTick", t);
 		}
 	}
@@ -1094,6 +1167,7 @@ public final class JavaBridge
 	 */
 	private static void tapTickImpl(Client c)
 	{
+		discardCancelledScriptTap();
 		feedCameraHold();          // a held arrow button turns by feeding the same accumulators a drag uses
 		applyCameraDrag(c);        // drain accumulated two-finger-pan deltas (camera writes are client-thread-only)
 		snapshotTextInputOpen(c);  // publish INPUT_TYPE for isTextInputOpen() to read off the client thread
@@ -1122,6 +1196,11 @@ public final class JavaBridge
 		final Canvas canvas = liveCanvas();
 		if (c.getGameState() != GameState.LOGGED_IN || canvas == null)
 		{
+			if (scriptTap != null)
+			{
+				scriptTap.close();
+				scriptTap = null;
+			}
 			tapState = TapState.IDLE;   // world went away mid-tap: drop it (nothing sensible to click)
 			tapUncommitted = false;     // ... including any finger-down arm (the invariant: set only in AWAIT_ENGINE/ARMED)
 			queuedTap = false;
@@ -1189,7 +1268,7 @@ public final class JavaBridge
 				clickFp = fp;
 				clickedFrames = 0;
 				tapState = TapState.CLICKED;
-				postClickButtons(canvas, tapX, tapY, MouseEvent.BUTTON1);
+				postSettledClickButtons(canvas, tapX, tapY);
 			}
 		}
 		else if (tapState == TapState.ARMED)
@@ -1213,6 +1292,10 @@ public final class JavaBridge
 			clickedFrames++;
 			if (clickedFrames >= CLICKED_TIMEOUT)
 			{
+				if (scriptTap != null)
+				{
+					scriptTap.close();
+				}
 				log.info("[touchdiag] L CLICKED timeout after {} frames — no MenuOptionClicked/MenuOpened (unexpected)",
 					clickedFrames);
 				finishTap();
@@ -1261,6 +1344,7 @@ public final class JavaBridge
 	 */
 	private static void onMenuOptionClicked(MenuOptionClicked ev)
 	{
+		discardCancelledScriptTap();
 		if (tapState != TapState.CLICKED)
 		{
 			return;
@@ -1594,6 +1678,7 @@ public final class JavaBridge
 	 */
 	private static void onMenuOpened(MenuOpened ev)
 	{
+		discardCancelledScriptTap();
 		if (tapState != TapState.CLICKED)
 		{
 			return;
@@ -1603,6 +1688,11 @@ public final class JavaBridge
 			log.info("[touchdiag] L click force-opened the engine menu -> native menu flow");
 		}
 		queuedTap = false;
+		if (scriptTap != null)
+		{
+			scriptTap.close();
+			scriptTap = null;
+		}
 		tapState = TapState.IDLE;
 	}
 
@@ -1637,6 +1727,7 @@ public final class JavaBridge
 	 */
 	private static void finishTap()
 	{
+		scriptTap = null;
 		final Canvas canvas = liveCanvas();
 		if (queuedTap && canvas != null)
 		{
@@ -1880,6 +1971,7 @@ public final class JavaBridge
 	 */
 	public static void onClickPrecise(int x, int y, int button)
 	{
+		ScriptInputSession.manualInput();
 		final Canvas canvas = liveCanvas();
 		if (canvas == null)
 		{
@@ -1910,6 +2002,7 @@ public final class JavaBridge
 	 */
 	public static void selectMenuPoint(int x, int y)
 	{
+		ScriptInputSession.manualInput();
 		final Canvas canvas = liveCanvas();
 		final ClientThread ct = clientThread;
 		if (canvas == null || ct == null)
@@ -1945,6 +2038,7 @@ public final class JavaBridge
 	 */
 	public static void invokeMenuEntry(int parentDisplayIndex, int childIndex)
 	{
+		ScriptInputSession.manualInput();
 		final ClientThread ct = clientThread;
 		final Client c = client;
 		if (ct == null || c == null)
@@ -2039,7 +2133,43 @@ public final class JavaBridge
 		postPointer(q, new MouseEvent(canvas, MouseEvent.MOUSE_MOVED, t + 1, 0, x, y, 0, false));
 	}
 
-	/** Post press + release + click at {@code (x,y)} for {@code awtButton} (no preceding move). */
+	/** Deliver a settled script tap only while its session is still active on the EDT. */
+	private static void postSettledClickButtons(Canvas canvas, int x, int y)
+	{
+		final ScriptInputSession owner = scriptTap;
+		if (owner != null)
+		{
+			// Check again on the EDT: stop/takeover may happen AFTER the settle gate
+			// queues this batch. Once a press is delivered, always deliver its release.
+			EventQueue.invokeLater(() ->
+			{
+				if (!owner.isActive())
+				{
+					return;
+				}
+				final long time = System.currentTimeMillis();
+				try
+				{
+					canvas.dispatchEvent(new MouseEvent(canvas, MouseEvent.MOUSE_PRESSED, time,
+						InputEvent.BUTTON1_DOWN_MASK, x, y, 1, false, MouseEvent.BUTTON1));
+				}
+				finally
+				{
+					canvas.dispatchEvent(new MouseEvent(canvas, MouseEvent.MOUSE_RELEASED, time + 1,
+						0, x, y, 1, false, MouseEvent.BUTTON1));
+				}
+				if (owner.isActive())
+				{
+					canvas.dispatchEvent(new MouseEvent(canvas, MouseEvent.MOUSE_CLICKED, time + 2,
+						0, x, y, 1, false, MouseEvent.BUTTON1));
+				}
+			});
+			return;
+		}
+		postClickButtons(canvas, x, y, MouseEvent.BUTTON1);
+	}
+
+	/** Post native press + release + click without changing the established delivery path. */
 	private static void postClickButtons(Canvas canvas, int x, int y, int awtButton)
 	{
 		final EventQueue q = Toolkit.getDefaultToolkit().getSystemEventQueue();
@@ -2095,6 +2225,7 @@ public final class JavaBridge
 	 */
 	public static void onMove(int x, int y)
 	{
+		ScriptInputSession.manualInput();
 		final Canvas canvas = liveCanvas();
 		if (canvas == null)
 		{
@@ -2114,6 +2245,10 @@ public final class JavaBridge
 	 */
 	public static void onWheel(int x, int y, int rotation)
 	{
+		if (rotation != 0)
+		{
+			ScriptInputSession.manualInput();
+		}
 		final Canvas canvas = liveCanvas();
 		if (canvas == null || rotation == 0)
 		{
@@ -2135,6 +2270,10 @@ public final class JavaBridge
 	 */
 	public static void onCameraDrag(int dxPixels, int dyPixels)
 	{
+		if (dxPixels != 0 || dyPixels != 0)
+		{
+			ScriptInputSession.manualInput();
+		}
 		if (!ENABLED || client == null)
 		{
 			return;
@@ -2155,6 +2294,10 @@ public final class JavaBridge
 	 */
 	public static void setCameraHold(int dxPixelsPerSec, int dyPixelsPerSec)
 	{
+		if (dxPixelsPerSec != 0 || dyPixelsPerSec != 0)
+		{
+			ScriptInputSession.manualInput();
+		}
 		camHoldDxPerSec = dxPixelsPerSec;
 		camHoldDyPerSec = dyPixelsPerSec;
 	}
@@ -2408,6 +2551,7 @@ public final class JavaBridge
 	 */
 	public static void onText(String s)
 	{
+		ScriptInputSession.manualInput();
 		final Canvas canvas = liveCanvas();
 		if (canvas == null || s == null || s.isEmpty())
 		{
@@ -2795,6 +2939,7 @@ public final class JavaBridge
 	 */
 	public static void onKeyStroke(int vk)
 	{
+		ScriptInputSession.manualInput();
 		final Canvas canvas = liveCanvas();
 		if (canvas == null)
 		{
@@ -2852,6 +2997,7 @@ public final class JavaBridge
 	 */
 	public static void onKeybind(int keyCode, int modifiers)
 	{
+		ScriptInputSession.manualInput();
 		final Canvas canvas = liveCanvas();
 		if (canvas == null || keyCode == KeyEvent.VK_UNDEFINED)
 		{
@@ -2879,6 +3025,10 @@ public final class JavaBridge
 	 */
 	public static void setShiftHeld(boolean held)
 	{
+		if (held)
+		{
+			ScriptInputSession.manualInput();
+		}
 		shiftHeld = postModifierHeld(held, shiftHeld, KeyEvent.VK_SHIFT, InputEvent.SHIFT_DOWN_MASK);
 	}
 
@@ -2888,6 +3038,10 @@ public final class JavaBridge
 	 */
 	public static void setCtrlHeld(boolean held)
 	{
+		if (held)
+		{
+			ScriptInputSession.manualInput();
+		}
 		ctrlHeld = postModifierHeld(held, ctrlHeld, KeyEvent.VK_CONTROL, InputEvent.CTRL_DOWN_MASK);
 	}
 
@@ -2897,6 +3051,10 @@ public final class JavaBridge
 	 */
 	public static void setAltHeld(boolean held)
 	{
+		if (held)
+		{
+			ScriptInputSession.manualInput();
+		}
 		altHeld = postModifierHeld(held, altHeld, KeyEvent.VK_ALT, InputEvent.ALT_DOWN_MASK);
 	}
 
@@ -2963,6 +3121,7 @@ public final class JavaBridge
 	 */
 	public static void onMiddleClick(int x, int y)
 	{
+		ScriptInputSession.manualInput();
 		final Canvas canvas = liveCanvas();
 		if (canvas == null)
 		{
@@ -2984,6 +3143,7 @@ public final class JavaBridge
 	 */
 	public static void onTouch(int type, int x, int y, int button)
 	{
+		ScriptInputSession.manualInput();
 		final ClientThread ct = clientThread;
 		if (ct == null)
 		{

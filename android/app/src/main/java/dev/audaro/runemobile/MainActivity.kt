@@ -4621,6 +4621,16 @@ class MainActivity : AppCompatActivity() {
         if (developerModeEnabled()) onDeveloperModeChanged(true)
     }
 
+    override fun onResume() {
+        super.onResume()
+        JvmLauncher.nativeSetScriptInputSuspended(false)
+    }
+
+    override fun onPause() {
+        JvmLauncher.nativeSetScriptInputSuspended(true)
+        super.onPause()
+    }
+
     override fun onStop() {
         // A8: the app is backgrounded (and may be killed) — persist any pending plugin-config writes now so a
         // toggle/setting isn't lost. Off the UI thread (it dispatches to the client thread); fire-and-forget.
@@ -4654,6 +4664,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        JvmLauncher.nativeSetScriptInputSuspended(true)
         frameCallback?.let { Choreographer.getInstance().removeFrameCallback(it) }
         frameCallback = null
         stopDevTicker() // P2-1: kill the perf ticker

@@ -4,8 +4,6 @@ import net.runelite.api.Perspective;
 import net.runelite.api.Point;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldPoint;
-import java.awt.event.MouseEvent;
-import net.runelite.client.headless.JavaBridge;
 
 /**
  * LIMITED same-scene minimap movement (no shortest path, doors, teleports,
@@ -48,11 +46,6 @@ public final class Rs2Walker
             return false;
         }
         Point point = Perspective.localToMinimap(context.client(), local);
-        if (point == null || !context.reserveInput())
-        {
-            return false;
-        }
-        JavaBridge.onClick(point.getX(), point.getY(), MouseEvent.BUTTON1);
-        return true;
+        return context.queueClick(point);
     }
 }

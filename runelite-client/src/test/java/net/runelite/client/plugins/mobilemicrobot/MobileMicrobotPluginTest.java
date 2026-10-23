@@ -10,6 +10,8 @@ import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.events.ConfigChanged;
+import net.runelite.client.headless.JavaBridge;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -51,6 +53,10 @@ public class MobileMicrobotPluginTest
 			String key = call.getArgument(1);
 			if ("runScript".equals(key)) { config.run = call.getArgument(2); }
 			if ("selectedScript".equals(key)) { config.kind = call.getArgument(2); }
+			ConfigChanged changed = new ConfigChanged();
+			changed.setGroup("mobilemicrobot");
+			changed.setKey(key);
+			plugin.onConfigChanged(changed);
 			return null;
 		}).when(manager).setConfiguration(eq("mobilemicrobot"), anyString(), any(Object.class));
 		plugin = new MobileMicrobotPlugin();
@@ -185,5 +191,107 @@ public class MobileMicrobotPluginTest
 		when(player.getPoseAnimation()).thenReturn(808);
 		when(player.getAnimation()).thenReturn(-1);
 		assertTrue(context.player().isIdle());
+	}
+
+	@Test
+	public void stopRevokesPermissionBeforeClientQueueDrains()
+	{
+		start("DIAGNOSTICS");
+		assertTrue(plugin.inputActive());
+		MobileScriptBridge.stop();
+		assertFalse(plugin.inputActive());
+		assertTrue(MobileScriptBridge.statusJson().contains("\"running\":false"));
+		drain();
+		assertFalse(config.run);
+	}
+
+	@Test
+	public void nativeInputInvalidatesQueuedStart()
+	{
+		MobileScriptBridge.start("DIAGNOSTICS");
+		JavaBridge.onMove(0, 0);
+		drain();
+		plugin.onGameTick(new GameTick());
+		assertFalse(config.run);
+		assertFalse(plugin.inputActive());
+	}
+
+	@Test
+	public void nativeInputBeforeFirstTickDoesNotMintNewPermission()
+	{
+		MobileScriptBridge.start("DIAGNOSTICS");
+		drain();
+		JavaBridge.onMove(0, 0);
+		plugin.onGameTick(new GameTick());
+		assertFalse(config.run);
+		assertFalse(plugin.inputActive());
+	}
+
+	@Test
+	public void nativeTakeoverNeedsExplicitRestart()
+	{
+		start("DIAGNOSTICS");
+		JavaBridge.onMove(0, 0);
+		assertFalse(plugin.inputActive());
+		assertTrue(MobileScriptBridge.statusJson().contains("\"running\":false"));
+		plugin.onGameTick(new GameTick());
+		assertFalse(config.run);
+		plugin.onGameTick(new GameTick());
+		assertFalse(config.run);
+		start("DIAGNOSTICS");
+		assertTrue(plugin.inputActive());
+	}
+
+	private void userRunToggle(boolean run)
+	{
+		config.run = run;
+		ConfigChanged changed = new ConfigChanged();
+		changed.setGroup("mobilemicrobot");
+		changed.setKey("runScript");
+		plugin.onConfigChanged(changed);
+	}
+
+	@Test
+	public void configStopIsImmediateAndRapidExplicitRestartWorks()
+	{
+		start("DIAGNOSTICS");
+		userRunToggle(false);
+		assertFalse(plugin.inputActive());
+		userRunToggle(true);
+		plugin.onGameTick(new GameTick());
+		assertTrue(plugin.inputActive());
+		assertTrue(config.run);
+	}
+
+	@Test
+	public void laterExplicitStartWinsOverQueuedStop()
+	{
+		start("DIAGNOSTICS");
+		MobileScriptBridge.stop();
+		MobileScriptBridge.start("SCENE_SCAN");
+		drain();
+		plugin.onGameTick(new GameTick());
+		assertTrue(config.run);
+		assertTrue(MobileScriptBridge.statusJson().contains("SCENE_SCAN"));
+	}
+
+	@Test
+	public void latestQueuedScriptSelectionWins()
+	{
+		MobileScriptBridge.start("DIAGNOSTICS");
+		MobileScriptBridge.start("SCENE_SCAN");
+		drain();
+		assertEquals(ScriptKind.SCENE_SCAN, config.kind);
+		assertTrue(config.run);
+	}
+
+	@Test
+	public void invalidScriptRequestCannotLeaveOldScriptRunning()
+	{
+		start("DIAGNOSTICS");
+		MobileScriptBridge.start("NOT_A_SCRIPT");
+		assertFalse(plugin.inputActive());
+		drain();
+		assertFalse(config.run);
 	}
 }

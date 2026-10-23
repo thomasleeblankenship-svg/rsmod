@@ -20,6 +20,7 @@ with tempfile.TemporaryDirectory() as directory:
     sources = [str(p) for p in (build / "stubs").rglob("*.java")
                if not p.relative_to(build / "stubs").as_posix().startswith("net/runelite/api/")]
     sources += [str(p) for p in (root / "runelite-client/src/main/java/net/runelite/client/plugins/mobilemicrobot").glob("*.java")]
+    sources.append(str(root / "runelite-client/src/main/java/net/runelite/client/headless/ScriptInputSession.java"))
     subprocess.run(["javac", "--release", "11", "-cp", str(api),
                     "-d", str(build / "classes"), *sources], check=True)
 print("PASS: real RuneMobile API surface; client/library stand-ins remain. Full client compilation is still required.")

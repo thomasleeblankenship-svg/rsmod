@@ -67,6 +67,8 @@ object JvmLauncher {
 
     // PERF-BATTERY-NETWORK-01: visibility gate. Paused (backgrounded) -> the render thread idles at 4 Hz.
     external fun nativeSetPaused(paused: Boolean)
+    /** Revoke scripting on activity pause without changing the rendering policy. */
+    external fun nativeSetScriptInputSuspended(suspended: Boolean)
 
     /** A discrete tap at game-canvas (x,y); button 1 = left (walk/interact), 3 = long-press menu. */
     external fun nativeClick(

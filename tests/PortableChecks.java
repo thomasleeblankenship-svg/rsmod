@@ -9,6 +9,7 @@ import net.runelite.api.events.GameTick;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.headless.JavaBridge;
+import net.runelite.client.headless.ScriptInputSession;
 
 /** Deterministic smoke tests against compile-only mocks, not a device test. */
 public final class PortableChecks
@@ -77,7 +78,7 @@ public final class PortableChecks
         Fake game=new Fake();
         Config config=new Config();
         Manager manager=new Manager(config);
-        MobileScriptContext ctx=new MobileScriptContext(game,config);
+        MobileScriptContext ctx=new MobileScriptContext(game,config,new ScriptInputSession());
         check(ctx.player().isIdle(),"idle pose is idle");
         game.moving=true;
         check(ctx.player().isMoving() && !ctx.player().isIdle(),"movement pose blocks idle");
@@ -95,7 +96,7 @@ public final class PortableChecks
         JavaBridge.calls=0;
         check(ctx.objects().interact(new Obj()),"first input reserved");
         check(!ctx.objects().interact(new Obj()) && JavaBridge.calls==1,"one input per tick");
-        MobileScriptContext second=new MobileScriptContext(game,config);
+        MobileScriptContext second=new MobileScriptContext(game,config,new ScriptInputSession());
         check(second.walker().walkToVisible(new WorldPoint(3204,3203,0)) && JavaBridge.calls==2,"near minimap walk");
         check(!second.walker().walkToVisible(new WorldPoint(3300,3300,0)),"distant path explicitly unsupported");
         check(!second.walker().walkToVisible(new WorldPoint(3204,3203,0)),"shared input budget");

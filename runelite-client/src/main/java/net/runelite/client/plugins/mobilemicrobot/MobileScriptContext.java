@@ -2,7 +2,6 @@ package net.runelite.client.plugins.mobilemicrobot;
 
 import java.awt.Rectangle;
 import java.awt.Shape;
-import java.awt.event.MouseEvent;
 import net.runelite.api.Client;
 import net.runelite.api.GameObject;
 import net.runelite.api.GameState;
@@ -13,6 +12,7 @@ import net.runelite.api.Scene;
 import net.runelite.api.Tile;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.headless.JavaBridge;
+import net.runelite.client.headless.ScriptInputSession;
 
 /**
  * Called solely from RuneLite's client/game thread through GameTick.
@@ -22,12 +22,19 @@ public final class MobileScriptContext
 {
     private final Client client;
     private final MobileMicrobotConfig config;
+    private final ScriptInputSession inputSession;
     private boolean inputReserved;
 
     MobileScriptContext(Client client, MobileMicrobotConfig config)
     {
+        this(client, config, null);
+    }
+
+    MobileScriptContext(Client client, MobileMicrobotConfig config, ScriptInputSession session)
+    {
         this.client = client;
         this.config = config;
+        this.inputSession = session;
     }
 
     public Client client()
@@ -73,7 +80,7 @@ public final class MobileScriptContext
     // At most one mobile-generated input per game-tick context.
     boolean reserveInput()
     {
-        if (inputReserved)
+        if (inputReserved || inputSession == null || !inputSession.isActive())
         {
             return false;
         }
@@ -170,12 +177,13 @@ public final class MobileScriptContext
         {
             return false;
         }
-        if (!reserveInput())
-        {
-            return false;
-        }
-        JavaBridge.onClick(point.getX(), point.getY(), MouseEvent.BUTTON1);
-        return true; // input queued, NOT an assertion of a successful game interaction
+        return queueClick(point);
+    }
+
+    boolean queueClick(Point point)
+    {
+        return point != null && loggedIn() && reserveInput()
+            && JavaBridge.onScriptClick(point.getX(), point.getY(), inputSession);
     }
 
     private Point clickPoint(GameObject object)

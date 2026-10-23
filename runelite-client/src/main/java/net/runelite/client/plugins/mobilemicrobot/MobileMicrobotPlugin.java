@@ -11,6 +11,7 @@ import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
+import net.runelite.client.headless.ScriptInputSession;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import org.slf4j.Logger;
@@ -38,6 +39,9 @@ public class MobileMicrobotPlugin extends Plugin
 
     private final AtomicLong commandGeneration = new AtomicLong();
     private volatile boolean enabled;
+    private volatile ScriptInputSession inputSession;
+    private volatile boolean restartRequested;
+    private final ThreadLocal<Boolean> updatingRun = ThreadLocal.withInitial(() -> false);
     private MobileScript current;
     private ScriptKind activeKind;
     private int tickCount;
@@ -54,7 +58,7 @@ public class MobileMicrobotPlugin extends Plugin
         enabled = true;
         commandGeneration.incrementAndGet();
         // Never auto-resume on launch, even if a synced config previously had Run=true.
-        configManager.setConfiguration(GROUP, "runScript", false);
+        setRun(false);
         MobileScriptBridge.attach(this);
         MobileScriptBridge.update("Choose a script and enable Run script", "", false);
     }
@@ -65,8 +69,9 @@ public class MobileMicrobotPlugin extends Plugin
         // Fail closed immediately for the native-side status surface, even when
         // engine ticks are paused/backgrounded.
         enabled = false;
+        cancelInput();
         commandGeneration.incrementAndGet();
-        configManager.setConfiguration(GROUP, "runScript", false);
+        setRun(false);
         MobileScriptBridge.detach(this);
         clientThread.invokeLater(() -> stopActive("Plugin disabled"));
     }
@@ -77,6 +82,24 @@ public class MobileMicrobotPlugin extends Plugin
         if (GROUP.equals(event.getGroup()))
         {
             tickCount = 0;
+            if ("runScript".equals(event.getKey()))
+            {
+                if (!config.runScript())
+                {
+                    if (!updatingRun.get())
+                    {
+                        commandGeneration.incrementAndGet();
+                    }
+                    cancelInput();
+                }
+                else if (!updatingRun.get())
+                {
+                    commandGeneration.incrementAndGet();
+                    cancelInput();
+                    inputSession = new ScriptInputSession();
+                    restartRequested = true;
+                }
+            }
         }
     }
 
@@ -91,7 +114,7 @@ public class MobileMicrobotPlugin extends Plugin
             // This avoids a surprise restart after RuneMobile's automatic relogin.
             if (config.runScript())
             {
-                configManager.setConfiguration(GROUP, "runScript", false);
+                setRun(false);
             }
         }
     }
@@ -108,6 +131,12 @@ public class MobileMicrobotPlugin extends Plugin
             stopActive("Stopped");
             return;
         }
+        if (inputSession != null && !inputSession.isActive())
+        {
+            stopActive("Stopped: manual input or cancelled input session");
+            setRun(false);
+            return;
+        }
         if (client.getGameState() != GameState.LOGGED_IN || client.getLocalPlayer() == null)
         {
             stopActive("Paused: not logged in");
@@ -115,30 +144,39 @@ public class MobileMicrobotPlugin extends Plugin
         }
 
         ScriptKind desired = config.selectedScript();
-        MobileScriptContext context = new MobileScriptContext(client, config);
         try
         {
-            if (current == null || activeKind != desired)
+            if (current == null || activeKind != desired || restartRequested)
             {
+                ScriptInputSession next = inputSession == null
+                    ? new ScriptInputSession() : inputSession.successor();
                 stopActive("Changing scripts");
+                inputSession = next;
+                if (!next.isActive())
+                {
+                    stopActive("Stopped: manual input during script start");
+                    setRun(false);
+                    return;
+                }
                 current = newScript(desired);
                 activeKind = desired;
-                current.onStart(context);
+                current.onStart(new MobileScriptContext(client, config, inputSession));
             }
+            MobileScriptContext context = new MobileScriptContext(client, config, inputSession);
             tickCount++;
             current.onGameTick(context);
             MobileScriptBridge.update(current.status() + " (tick " + tickCount + ")", activeKind.name(), true);
             if (desired == ScriptKind.WOODCUTTING && context.inventoryFull())
             {
                 stopActive("Inventory full; automatically stopped");
-                configManager.setConfiguration(GROUP, "runScript", false);
+                setRun(false);
             }
         }
         catch (Exception exception)
         {
             LOG.error("Mobile script failed: {}", desired, exception);
             stopActive("Script error: " + exception.getClass().getSimpleName());
-            configManager.setConfiguration(GROUP, "runScript", false);
+            setRun(false);
         }
     }
 
@@ -158,6 +196,9 @@ public class MobileMicrobotPlugin extends Plugin
 
     private void stopActive(String reason)
     {
+        cancelInput();
+        inputSession = null;
+        restartRequested = false;
         MobileScript old = current;
         current = null;
         activeKind = null;
@@ -175,6 +216,35 @@ public class MobileMicrobotPlugin extends Plugin
         MobileScriptBridge.update(reason, "", false);
     }
 
+    private void cancelInput()
+    {
+        ScriptInputSession session = inputSession;
+        if (session != null)
+        {
+            session.close();
+        }
+    }
+
+    boolean inputActive()
+    {
+        ScriptInputSession session = inputSession;
+        return enabled && session != null && session.isActive();
+    }
+
+    private void setRun(boolean value)
+    {
+        boolean previous = updatingRun.get();
+        updatingRun.set(true);
+        try
+        {
+            configManager.setConfiguration(GROUP, "runScript", value);
+        }
+        finally
+        {
+            updatingRun.set(previous);
+        }
+    }
+
     // This facade is optional. RuneMobile already supplies a mobile plugin
     // configuration panel; a separate JNI toolbar is not necessary to operate it.
     void requestStart(String kind)
@@ -186,27 +256,37 @@ public class MobileMicrobotPlugin extends Plugin
         }
         catch (IllegalArgumentException | NullPointerException exception)
         {
+            requestStop();
             MobileScriptBridge.update("Unknown script: " + kind, "", false);
             return;
         }
-        final long generation = commandGeneration.get();
+        final long generation = commandGeneration.incrementAndGet();
+        cancelInput();
+        final ScriptInputSession permission = new ScriptInputSession();
+        clientThread.invokeLater(() ->
+        {
+            if (!enabled || generation != commandGeneration.get() || !permission.isActive())
+            {
+                return;
+            }
+            stopActive("Starting script");
+            inputSession = permission;
+            configManager.setConfiguration(GROUP, "selectedScript", selected);
+            setRun(true);
+        });
+    }
+
+    void requestStop()
+    {
+        final long generation = commandGeneration.incrementAndGet();
+        cancelInput();
         clientThread.invokeLater(() ->
         {
             if (!enabled || generation != commandGeneration.get())
             {
                 return;
             }
-            configManager.setConfiguration(GROUP, "selectedScript", selected);
-            configManager.setConfiguration(GROUP, "runScript", true);
-        });
-    }
-
-    void requestStop()
-    {
-        commandGeneration.incrementAndGet();
-        clientThread.invokeLater(() ->
-        {
-            configManager.setConfiguration(GROUP, "runScript", false);
+            setRun(false);
             stopActive("Stopped by user");
         });
     }

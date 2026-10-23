@@ -33,11 +33,13 @@ public final class MobileScriptBridge
 
     public static String statusJson()
     {
+        MobileMicrobotPlugin current = plugin;
+        boolean active = running && current != null && current.inputActive();
         JsonObject obj = new JsonObject();
-        obj.addProperty("ready", plugin != null);
-        obj.addProperty("running", running);
+        obj.addProperty("ready", current != null);
+        obj.addProperty("running", active);
         obj.addProperty("script", selected);
-        obj.addProperty("status", status);
+        obj.addProperty("status", running && !active ? "Stopped: input permission cancelled" : status);
         return obj.toString();
     }
 
