@@ -29,4 +29,103 @@ public final class Rs2Dialogue
 		Rs2Random.waitEx(150, 20);
 		return accepted;
 	}
+
+	// ---- Dialogue reads requested for the Hub plugins (Microbot API names, written for mobile) ----
+
+	/** Text components of the NPC, player, message-box and item dialogues. */
+	private static final int[] DIALOGUE_TEXT = {
+		net.runelite.api.widgets.ComponentID.DIALOG_NPC_TEXT,
+		net.runelite.api.widgets.ComponentID.DIALOG_PLAYER_TEXT,
+		net.runelite.api.gameval.InterfaceID.Messagebox.TEXT,
+		net.runelite.api.widgets.ComponentID.DIALOG_SPRITE_TEXT,
+		net.runelite.api.widgets.ComponentID.DIALOG_DOUBLE_SPRITE_TEXT,
+	};
+
+	/** Whether a visible "Click here to continue" prompt is showing. */
+	public static boolean hasContinue()
+	{
+		return MobileActions.read(() ->
+		{
+			net.runelite.api.widgets.Widget prompt = Rs2Widget.findWidget("click here to continue", null, false);
+			return prompt != null && !prompt.isHidden();
+		}, false);
+	}
+
+	/** Whether the "Select an option" menu is showing. */
+	public static boolean hasSelectAnOption()
+	{
+		return Rs2Widget.isWidgetVisible(net.runelite.api.widgets.ComponentID.DIALOG_OPTION_OPTIONS);
+	}
+
+	/** Whether the open dialogue's text contains {@code text}, ignoring case and colour tags. */
+	public static boolean hasDialogueText(String text)
+	{
+		return hasDialogueText(text, false);
+	}
+
+	/** Whether the open dialogue's text equals ({@code exact}) or contains {@code text}, ignoring case. */
+	public static boolean hasDialogueText(String text, boolean exact)
+	{
+		if (text == null)
+		{
+			return false;
+		}
+		return MobileActions.read(() ->
+		{
+			for (int id : DIALOGUE_TEXT)
+			{
+				net.runelite.api.widgets.Widget widget = Microbot.getClient().getWidget(id);
+				if (widget != null && !widget.isHidden() && textMatches(widget.getText(), text, exact))
+				{
+					return true;
+				}
+			}
+			return false;
+		}, false);
+	}
+
+	/** Whether one of the shown options contains {@code text}, ignoring case. */
+	public static boolean hasDialogueOption(String text)
+	{
+		return hasDialogueOption(text, false);
+	}
+
+	/** Whether one of the shown options equals ({@code exact}) or contains {@code text}, ignoring case. */
+	public static boolean hasDialogueOption(String text, boolean exact)
+	{
+		if (text == null)
+		{
+			return false;
+		}
+		return MobileActions.read(() ->
+		{
+			net.runelite.api.widgets.Widget menu = Microbot.getClient().getWidget(net.runelite.api.widgets.ComponentID.DIALOG_OPTION_OPTIONS);
+			net.runelite.api.widgets.Widget[] rows = menu == null || menu.isHidden() ? null : menu.getDynamicChildren();
+			if (rows == null)
+			{
+				return false;
+			}
+			// Row 0 is the "Select an option" title, not an option.
+			for (int i = 1; i < rows.length; i++)
+			{
+				if (rows[i] != null && !rows[i].isHidden() && textMatches(rows[i].getText(), text, exact))
+				{
+					return true;
+				}
+			}
+			return false;
+		}, false);
+	}
+
+	private static boolean textMatches(String shown, String text, boolean exact)
+	{
+		if (shown == null)
+		{
+			return false;
+		}
+		// Dialogue text carries colour tags and <br> line breaks; compare the words the player reads.
+		String clean = shown.replace("<br>", " ").replaceAll("<[^>]*>", "").trim().toLowerCase(java.util.Locale.ROOT);
+		String wanted = text.trim().toLowerCase(java.util.Locale.ROOT);
+		return exact ? clean.equals(wanted) : clean.contains(wanted);
+	}
 }

@@ -25,7 +25,14 @@ import net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel;
 import net.runelite.client.plugins.microbot.util.inventory.Rs2LogBasket;
 import net.runelite.client.plugins.microbot.util.walker.Rs2Walker;
 
-/** Mobile bank workflow: live reads, bounded navigation, and observed item transfers. No cached-bank guesses. */
+/**
+ * Mobile bank workflow: live reads, bounded navigation, and observed item transfers. No cached-bank guesses.
+ * <p>
+ * The Hub read methods at the end ({@link #bankItems()}, {@code hasItem}, {@code hasAllItems},
+ * {@code hasBankItem}, {@code getBankItem}) answer from the bank contents last seen while it was
+ * open, as Microbot scripts expect when planning a trip; that memory is cleared on logout. The
+ * workflow methods above still read the live bank.
+ */
 public final class Rs2Bank
 {
 	public static final int BANK_ITEM_CONTAINER = 786444;
@@ -204,5 +211,179 @@ public final class Rs2Bank
 	private static int inventoryQuantity(int id)
 	{
 		return Rs2Inventory.items(i -> i.getId() == id).mapToInt(Rs2ItemModel::getQuantity).sum();
+	}
+
+	// ---- Hub read APIs: remembered bank contents (Microbot API names, written for mobile) ----
+
+	private static volatile List<Rs2ItemModel> rememberedBank = java.util.Collections.emptyList();
+
+	/** Event hook (client thread); routed by {@code MicrobotReadServices} for the bank container. */
+	public static void storeBankItemsInMemory(net.runelite.api.events.ItemContainerChanged event)
+	{
+		if (event.getContainerId() != InventoryID.BANK.getId() || event.getItemContainer() == null)
+		{
+			return;
+		}
+		Item[] slots = event.getItemContainer().getItems();
+		List<Rs2ItemModel> seen = new java.util.ArrayList<>();
+		for (int slot = 0; slots != null && slot < slots.length; slot++)
+		{
+			Item stack = slots[slot];
+			if (stack == null || stack.getId() < 0 || stack.getQuantity() <= 0)
+			{
+				continue;
+			}
+			seen.add(new Rs2ItemModel(stack, Microbot.getClient().getItemDefinition(stack.getId()), null, slot));
+		}
+		rememberedBank = java.util.Collections.unmodifiableList(seen);
+	}
+
+	/** Forgets the remembered bank (logout, hop, connection loss, provider uninstall). */
+	public static void clearMemory()
+	{
+		rememberedBank = java.util.Collections.emptyList();
+	}
+
+	/** Bank contents last seen while the bank was open; empty until it has been opened this session. */
+	public static List<Rs2ItemModel> bankItems()
+	{
+		return rememberedBank;
+	}
+
+	private static boolean nameMatches(Rs2ItemModel item, String name, boolean exact)
+	{
+		String itemName = item.getName();
+		if (itemName == null || name == null)
+		{
+			return false;
+		}
+		return exact ? itemName.equalsIgnoreCase(name)
+			: itemName.toLowerCase(Locale.ROOT).contains(name.toLowerCase(Locale.ROOT));
+	}
+
+	private static int remembered(Predicate<Rs2ItemModel> filter)
+	{
+		return bankItems().stream().filter(filter).mapToInt(Rs2ItemModel::getQuantity).sum();
+	}
+
+	/** Whether at least {@code amount} of item {@code id} is banked. */
+	private static boolean banked(int id, int amount)
+	{
+		return id > 0 && remembered(item -> item.getId() == id) >= Math.max(1, amount);
+	}
+
+	/** Whether at least {@code amount} of an item matching {@code name} is banked (one stack). */
+	private static boolean banked(String name, boolean exact, int amount)
+	{
+		return bankItems().stream().anyMatch(item -> nameMatches(item, name, exact) && item.getQuantity() >= Math.max(1, amount));
+	}
+
+	public static boolean hasItem(int id)
+	{
+		return banked(id, 1);
+	}
+
+	/** Partial, case-insensitive name. */
+	public static boolean hasItem(String name)
+	{
+		return hasItem(name, false);
+	}
+
+	public static boolean hasItem(String name, boolean exact)
+	{
+		return banked(name, exact, 1);
+	}
+
+	/** Whether any of {@code names} (partial) is banked. */
+	public static boolean hasItem(java.util.Collection<String> names)
+	{
+		return hasItem(names, false, 1);
+	}
+
+	public static boolean hasItem(java.util.Collection<String> names, boolean exact)
+	{
+		return hasItem(names, exact, 1);
+	}
+
+	public static boolean hasItem(java.util.Collection<String> names, int amount)
+	{
+		return hasItem(names, false, amount);
+	}
+
+	/** Whether any of {@code names} is banked with at least {@code amount} in one stack. */
+	public static boolean hasItem(java.util.Collection<String> names, boolean exact, int amount)
+	{
+		return names.stream().anyMatch(name -> banked(name, exact, amount));
+	}
+
+	/** Whether every one of {@code names} is banked with at least {@code amount} in one stack. */
+	public static boolean hasAllItems(java.util.Collection<String> names, boolean exact, int amount)
+	{
+		return names.stream().allMatch(name -> banked(name, exact, amount));
+	}
+
+	public static boolean hasItem(int[] ids)
+	{
+		return hasItem(ids, 1);
+	}
+
+	public static boolean hasAllItems(int[] ids)
+	{
+		return hasAllItems(ids, 1);
+	}
+
+	public static boolean hasItem(int[] ids, int amount)
+	{
+		return Arrays.stream(ids).anyMatch(id -> banked(id, amount));
+	}
+
+	public static boolean hasAllItems(int[] ids, int amount)
+	{
+		return Arrays.stream(ids).allMatch(id -> banked(id, amount));
+	}
+
+	/** Partial name, at least one. */
+	public static boolean hasBankItem(String name)
+	{
+		return hasBankItem(name, 1, false);
+	}
+
+	public static boolean hasBankItem(String name, boolean exact)
+	{
+		return hasBankItem(name, 1, exact);
+	}
+
+	/** Partial name, at least {@code amount}. */
+	public static boolean hasBankItem(String name, int amount)
+	{
+		return hasBankItem(name, amount, false);
+	}
+
+	/** At least {@code amount} of an item matching {@code name}; an amount of 0 or less is always true. */
+	public static boolean hasBankItem(String name, int amount, boolean exact)
+	{
+		return amount <= 0 || banked(name, exact, amount);
+	}
+
+	/** At least {@code amount} of item {@code id}; an amount of 0 or less is always true. */
+	public static boolean hasBankItem(int id, int amount)
+	{
+		return amount <= 0 || banked(id, amount);
+	}
+
+	public static Rs2ItemModel getBankItem(int itemId)
+	{
+		return bankItems().stream().filter(item -> item.getId() == itemId).findFirst().orElse(null);
+	}
+
+	public static Rs2ItemModel getBankItem(String itemName, boolean exact)
+	{
+		return bankItems().stream().filter(item -> nameMatches(item, itemName, exact)).findFirst().orElse(null);
+	}
+
+	/** Partial, case-insensitive name. */
+	public static Rs2ItemModel getBankItem(String itemName)
+	{
+		return getBankItem(itemName, false);
 	}
 }

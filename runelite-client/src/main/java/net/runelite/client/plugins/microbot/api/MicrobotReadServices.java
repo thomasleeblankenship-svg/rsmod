@@ -58,7 +58,8 @@ import net.runelite.client.plugins.microbot.util.player.Rs2Player;
  * clicks, game messages and inventory changes. Additionally, any game-state or world-view change invalidates every snapshot,
  * and any state other than {@code LOGGED_IN} or {@code LOADING} (logout, hop,
  * connection loss, login) clears world-view ids, inventory and the
- * {@code Rs2Player} animation, stamina and combat state, and resets pouch tracking.
+ * {@code Rs2Player} animation, stamina and combat state, the remembered bank, and
+ * resets pouch tracking.
  */
 @Singleton
 public final class MicrobotReadServices implements MicrobotReadApi, MicrobotRuntimeService
@@ -144,6 +145,7 @@ public final class MicrobotReadServices implements MicrobotReadApi, MicrobotRunt
 		snapshots.forEach(TickSnapshotCache::clear);
 		playerStateCache.clear();
 		pouchTracker.reset();
+		net.runelite.client.plugins.microbot.util.bank.Rs2Bank.clearMemory();
 		Rs2Inventory.clear();
 		Rs2Player.clear();
 	}
@@ -266,6 +268,7 @@ public final class MicrobotReadServices implements MicrobotReadApi, MicrobotRunt
 			Rs2Inventory.clear();
 			Rs2Player.clear();
 			pouchTracker.reset();
+			net.runelite.client.plugins.microbot.util.bank.Rs2Bank.clearMemory();
 		}
 	}
 
@@ -287,6 +290,7 @@ public final class MicrobotReadServices implements MicrobotReadApi, MicrobotRunt
 	public void onItemContainerChanged(ItemContainerChanged event)
 	{
 		Rs2Inventory.storeInventoryItemsInMemory(event);
+		net.runelite.client.plugins.microbot.util.bank.Rs2Bank.storeBankItemsInMemory(event);
 		pouchTracker.onItemContainerChanged(event);
 	}
 
