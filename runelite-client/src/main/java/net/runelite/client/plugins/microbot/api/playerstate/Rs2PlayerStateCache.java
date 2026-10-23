@@ -1,13 +1,15 @@
 /*
- * Adapted from chsami/Microbot e01e0d77d79b354472a5737b3aaab2449eb034fc,
+ * Adapted from chsami/Microbot e01e0d77d79b354472a5737b3aaab2449eb034fc, with the varp range
+ * guard and isValidVarpId from a2114401bbbc35e9762db9e8aa666d70ffcd24d8 (2.6.38),
  * runelite-client/src/main/java/net/runelite/client/plugins/microbot/api/playerstate/Rs2PlayerStateCache.java.
  * BSD 2-Clause License; see LICENSE.
  */
 package net.runelite.client.plugins.microbot.api.playerstate;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.IntUnaryOperator;
+import java.util.function.IntFunction;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.annotations.Varbit;
@@ -44,13 +46,38 @@ public final class Rs2PlayerStateCache
 	/** The varbit's value, from the cache or, on a miss, from the client. */
 	public int getVarbitValue(@Varbit int varbitId)
 	{
-		return read(varbits, varbitId, services.getClient()::getVarbitValue);
+		return read(varbits, varbitId, id -> services.getClient().getVarbitValue(id));
 	}
 
-	/** The varp's value, from the cache or, on a miss, from the client. */
+	/**
+	 * The varp's value, from the cache or, on a miss, from the client. An id outside the client's
+	 * varp array reads 0 and is not cached (2.6.38).
+	 */
 	public int getVarpValue(@Varp int varpId)
 	{
-		return read(varps, varpId, services.getClient()::getVarpValue);
+		return read(varps, varpId, id ->
+		{
+			Client client = services.getClient();
+			return isVarpIdInRange(client.getVarps(), id) ? client.getVarpValue(id) : null;
+		});
+	}
+
+	/**
+	 * Whether {@code varpId} indexes the client's varp array: {@code false} for a negative id without
+	 * a client read, empty when the client thread cannot be reached (2.6.38).
+	 */
+	public Optional<Boolean> isValidVarpId(int varpId)
+	{
+		if (varpId < 0)
+		{
+			return Optional.of(false);
+		}
+		return services.read(() -> isVarpIdInRange(services.getClient().getVarps(), varpId));
+	}
+
+	static boolean isVarpIdInRange(int[] varpValues, int varpId)
+	{
+		return varpValues != null && varpId >= 0 && varpId < varpValues.length;
 	}
 
 	/** Called by {@link MicrobotReadServices} on every game-state change. */
@@ -89,7 +116,8 @@ public final class Rs2PlayerStateCache
 		varps.clear();
 	}
 
-	private int read(Map<Integer, Integer> cache, int id, IntUnaryOperator clientRead)
+	/** {@code clientRead} returns {@code null} for an id the client cannot hold; that reads 0 and is not cached. */
+	private int read(Map<Integer, Integer> cache, int id, IntFunction<Integer> clientRead)
 	{
 		Integer cached = cache.get(id);
 		if (cached != null)
@@ -98,7 +126,11 @@ public final class Rs2PlayerStateCache
 		}
 		return services.read(() ->
 		{
-			int value = clientRead.applyAsInt(id);
+			Integer value = clientRead.apply(id);
+			if (value == null)
+			{
+				return 0;
+			}
 			// Before the initial varp sync the client returns default or stale values, and a wrong
 			// entry for a varp the server never re-sends would stick until the next flush.
 			Client client = services.getClient();

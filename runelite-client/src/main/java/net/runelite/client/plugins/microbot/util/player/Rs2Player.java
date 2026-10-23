@@ -2,7 +2,10 @@
  * Adapted from chsami/Microbot e01e0d77d79b354472a5737b3aaab2449eb034fc,
  * runelite-client/src/main/java/net/runelite/client/plugins/microbot/util/player/Rs2Player.java
  * (lastAnimationTime, lastAnimationID, handleAnimationChanged, isAnimating,
- * isMoving, getAnimation, getPoseAnimation). BSD 2-Clause License; see LICENSE.
+ * isMoving, getAnimation, getPoseAnimation), and from a2114401bbbc35e9762db9e8aa666d70ffcd24d8
+ * (2.6.38: isInCombat/updateCombatTime, getRunEnergy, getHealthPercentage, getBoostedSkillLevel,
+ * hasStaminaBuffActive, isRunEnabled, getWorld, getPlayers, getLocalPlayer, getInteracting).
+ * BSD 2-Clause License; see LICENSE.
  */
 package net.runelite.client.plugins.microbot.util.player;
 
@@ -23,9 +26,10 @@ import net.runelite.client.plugins.microbot.api.MicrobotReadServices;
  * when the pose animation differs from the idle pose animation. Reads hop to
  * the client thread; with no client or local player they report idle.
  * <p>
- * Adaptation: only the read surface needed by the first upstream script is
- * ported (no waits, actions, run energy, combat, prayer, quests or varbits).
- * Animation history is cleared on logout/hop/connection loss.
+ * Adaptation: a read subset of upstream, plus the mobile additions below and the
+ * Hub reads at the end; prayer, potion timers other than stamina, and PvP helpers
+ * are not ported. Animation, stamina and combat state are cleared on
+ * logout/hop/connection loss.
  */
 public final class Rs2Player
 {
@@ -33,6 +37,11 @@ public final class Rs2Player
 	public static volatile Instant lastAnimationTime = null;
 	/** Id of that animation. */
 	public static volatile int lastAnimationID = AnimationID.IDLE;
+	/** Stamina effect varbit value; positive while the buff is active. Written on the client thread. */
+	public static volatile int staminaBuffTime = -1;
+
+	private static final long COMBAT_TIMEOUT_MS = 10000;
+	private static volatile long lastCombatTime = 0;
 
 	private Rs2Player()
 	{
@@ -70,6 +79,8 @@ public final class Rs2Player
 	{
 		lastAnimationTime = null;
 		lastAnimationID = AnimationID.IDLE;
+		staminaBuffTime = -1;
+		lastCombatTime = 0;
 		playerDetectionTimes.clear();
 	}
 
@@ -354,4 +365,168 @@ public final class Rs2Player
 			net.runelite.client.plugins.microbot.Microbot.getClient().getWorldType().contains(net.runelite.api.WorldType.MEMBERS), false);
 	}
 
+	// ---- Hub read APIs (upstream 2.6.38) ----
+
+	/**
+	 * Event hook (client thread); routed by {@code MicrobotReadServices}. Adaptation: of upstream's
+	 * potion timers only the stamina effect is tracked, for {@link #hasStaminaBuffActive()}.
+	 */
+	public static void handlePotionTimers(net.runelite.api.events.VarbitChanged event)
+	{
+		if (event.getVarbitId() == net.runelite.api.Varbits.STAMINA_EFFECT)
+		{
+			staminaBuffTime = event.getValue();
+		}
+	}
+
+	public static boolean hasStaminaBuffActive()
+	{
+		return staminaBuffTime > 0;
+	}
+
+	/**
+	 * Event hook (client thread); routed by {@code MicrobotReadServices}. Same cases as upstream
+	 * {@code MicrobotPlugin.onHitsplatApplied}: a hitsplat on the local player that is not someone
+	 * else's, or one of the local player's own hitsplats on another player or an NPC.
+	 */
+	public static void handleHitsplatApplied(net.runelite.api.events.HitsplatApplied event)
+	{
+		MicrobotReadServices services = MicrobotReadServices.current();
+		if (services == null || event.getActor() == null)
+		{
+			return;
+		}
+		net.runelite.api.Actor actor = event.getActor();
+		if (actor.equals(services.getClient().getLocalPlayer()))
+		{
+			if (!event.getHitsplat().isOthers())
+			{
+				updateCombatTime();
+			}
+		}
+		else if ((actor instanceof Player || actor instanceof net.runelite.api.NPC) && event.getHitsplat().isMine())
+		{
+			updateCombatTime();
+		}
+	}
+
+	/** Marks the local player as in combat now, if there is one. */
+	public static void updateCombatTime()
+	{
+		MicrobotReadServices services = MicrobotReadServices.current();
+		if (services == null)
+		{
+			return;
+		}
+		Client client = services.getClient();
+		services.read(() ->
+		{
+			if (client.getLocalPlayer() != null)
+			{
+				lastCombatTime = System.currentTimeMillis();
+			}
+			return null;
+		});
+	}
+
+	/** True within 10 s of the last combat hitsplat involving the local player. */
+	public static boolean isInCombat()
+	{
+		return System.currentTimeMillis() - lastCombatTime < COMBAT_TIMEOUT_MS;
+	}
+
+	/** Run energy as a whole percentage (0-100); 0 without a client. */
+	public static int getRunEnergy()
+	{
+		return net.runelite.client.plugins.microbot.mobile.MobileActions.read(() ->
+			net.runelite.client.plugins.microbot.Microbot.getClient().getEnergy(), 0) / 100;
+	}
+
+	public static int getBoostedSkillLevel(net.runelite.api.Skill skill)
+	{
+		return net.runelite.client.plugins.microbot.mobile.MobileActions.read(() ->
+			net.runelite.client.plugins.microbot.Microbot.getClient().getBoostedSkillLevel(skill), 0);
+	}
+
+	/**
+	 * Boosted over real hitpoints, as a percentage (150.0 boosted, 80.0 drained). Adaptation: 0.0
+	 * when the real level cannot be read, where upstream would divide by zero.
+	 */
+	public static double getHealthPercentage()
+	{
+		int real = getRealSkillLevel(net.runelite.api.Skill.HITPOINTS);
+		return real <= 0 ? 0.0 : (double) (getBoostedSkillLevel(net.runelite.api.Skill.HITPOINTS) * 100) / real;
+	}
+
+	/** Upstream: varp 173 equals 1. */
+	public static boolean isRunEnabled()
+	{
+		return net.runelite.client.plugins.microbot.Microbot.getVarbitPlayerValue(173) == 1;
+	}
+
+	/** Current world; read on the client thread (upstream reads it directly). 0 without a client. */
+	public static int getWorld()
+	{
+		return net.runelite.client.plugins.microbot.mobile.MobileActions.read(() ->
+			net.runelite.client.plugins.microbot.Microbot.getClient().getWorld(), 0);
+	}
+
+	/**
+	 * Other players matching {@code predicate}. Deprecated upstream in favour of
+	 * {@code Rs2PlayerCache}; adaptation: it reads that cache, so it covers every loaded world view
+	 * rather than only the top-level one.
+	 */
+	@Deprecated
+	public static java.util.stream.Stream<net.runelite.client.plugins.microbot.api.player.models.Rs2PlayerModel> getPlayers(
+		java.util.function.Predicate<net.runelite.client.plugins.microbot.api.player.models.Rs2PlayerModel> predicate)
+	{
+		return getPlayers(predicate, false);
+	}
+
+	/** {@link #getPlayers(java.util.function.Predicate)}, optionally including the local player. */
+	@Deprecated
+	public static java.util.stream.Stream<net.runelite.client.plugins.microbot.api.player.models.Rs2PlayerModel> getPlayers(
+		java.util.function.Predicate<net.runelite.client.plugins.microbot.api.player.models.Rs2PlayerModel> predicate,
+		boolean includeLocalPlayer)
+	{
+		MicrobotReadServices services = MicrobotReadServices.current();
+		if (services == null)
+		{
+			return java.util.stream.Stream.empty();
+		}
+		Player local = services.read(() -> services.getClient().getLocalPlayer()).orElse(null);
+		return services.getRs2PlayerCache().getStream()
+			.filter(player -> includeLocalPlayer || player.getPlayer() != local)
+			.filter(predicate);
+	}
+
+	/** The local player as a snapshot model, or {@code null} without one. */
+	public static net.runelite.client.plugins.microbot.api.player.models.Rs2PlayerModel getLocalPlayer()
+	{
+		MicrobotReadServices services = MicrobotReadServices.current();
+		if (services == null)
+		{
+			return null;
+		}
+		Client client = services.getClient();
+		return services.read(() ->
+		{
+			Player player = client.getLocalPlayer();
+			return player == null ? null : new net.runelite.client.plugins.microbot.api.player.models.Rs2PlayerModel(client, player);
+		}).orElse(null);
+	}
+
+	/**
+	 * The actor the local player is interacting with, or {@code null}. Adaptation: upstream wraps an
+	 * NPC in {@code Rs2NpcModel}, which is an {@code Actor} there; the mobile model is a snapshot
+	 * that is not, so the live actor is returned. Read it on the client thread.
+	 */
+	public static net.runelite.api.Actor getInteracting()
+	{
+		return net.runelite.client.plugins.microbot.mobile.MobileActions.read(() ->
+		{
+			Player player = net.runelite.client.plugins.microbot.Microbot.getClient().getLocalPlayer();
+			return player == null ? null : player.getInteracting();
+		}, null);
+	}
 }
