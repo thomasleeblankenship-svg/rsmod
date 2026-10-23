@@ -138,6 +138,27 @@ public class ScriptLifecycleTest {
     }
 
     @Test
+    public void revokedMobilePermissionStopsScriptAndRestoringItDoesNotResume() throws Exception {
+        new RuntimeFixture().installLoggedIn();
+        AtomicBoolean permitted = new AtomicBoolean(true);
+        TestScript script = new TestScript();
+        script.setMobilePermission(permitted::get);
+        script.start(1);
+        assertTrue(script.firstLoop.await(WAIT_SECONDS, TimeUnit.SECONDS));
+
+        permitted.set(false);
+        assertTrue(awaitStopped(script));
+        assertTrue("revocation stops the loop rather than pausing it", script.mainScheduledFuture.isCancelled());
+        assertFalse(script.run());
+        int loopsAtStop = script.loops.get();
+
+        permitted.set(true);
+        assertFalse("restoring permission must not resume the old loop", script.isRunning());
+        assertEquals(loopsAtStop, script.loops.get());
+        script.scheduledExecutorService.shutdownNow();
+    }
+
+    @Test
     public void runAnnouncesStartOncePerRun() throws Exception {
         RuntimeFixture fx = new RuntimeFixture().installLoggedIn();
         List<ScriptStarted> events = new ArrayList<>();

@@ -27,6 +27,34 @@ and stop leaves nothing running. **This is still not live-game, device or APK ev
 The earlier pre-check (plain `javac` with out-of-repo shadows) is superseded by the Gradle runs
 above.
 
+## Codex integration review (`adc4e7d`, `91b7304`)
+
+I reviewed Codex's changes to runtime-owned files and re-verified them on `91b7304`:
+
+- `Script`: Codex added a package-private `setMobilePermission(BooleanSupplier)`. `run()` now
+  calls `shutdown()` and returns false once the plugin's `ScriptInputSession` is no longer
+  active (stop, manual input, Android pause, native cancel). This is a hard stop, not a pause:
+  restoring permission never resumes the loop. It is covered by
+  `ScriptLifecycleTest.revokedMobilePermissionStopsScriptAndRestoringItDoesNotResume`. Because
+  manual input now *stops* the script, the softer `MicrobotRuntime.humanOwnsInput()` idle window
+  only matters for scripts that run without a plugin input session.
+- `MicrobotScriptAdapter.onStart` installs that permission from the context before launching.
+- `ScriptInputSession.manualInput()` calls `MicrobotRuntime.noteHumanInput()`.
+- `BlockingEventManager` and `Global` received whitespace-only edits from Codex (brace spacing,
+  trailing whitespace, `+` spacing). So the "adapted" files now differ from upstream by those
+  formatting edits as well as the documented `Mobile:` changes. The copied-verbatim files listed
+  below are still byte-identical.
+- Checkstyle now exempts `plugins/microbot/**` from the brace and indent rules only, plus one
+  line in `ScriptHeartbeatRegistry`.
+
+Verification on `91b7304` with the new test added: `./gradlew --no-daemon --max-workers=2
+:client:compileJava :client:checkstyleMain :client:pmdMain :client:test --rerun --tests
+'net.runelite.client.plugins.microbot.*' --tests
+net.runelite.client.callback.ClientThreadOptionalTest --tests
+'net.runelite.client.plugins.mobilemicrobot.*' --tests 'net.runelite.client.headless.*'`
+exits 0 (see the commit message for the final count). This uses mocked boundaries; there is
+still no live-game or device evidence.
+
 ## Provenance
 
 Upstream: `chsami/Microbot` at `e01e0d77d79b354472a5737b3aaab2449eb034fc`, BSD 2-Clause
