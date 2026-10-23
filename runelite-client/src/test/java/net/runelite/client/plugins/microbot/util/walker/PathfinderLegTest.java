@@ -120,4 +120,34 @@ public class PathfinderLegTest
 			Rs2Walker.disableTeleports = false;
 		}
 	}
+
+	private static net.runelite.api.widgets.Widget widget(String text, String[] actions, net.runelite.api.widgets.Widget... children)
+	{
+		net.runelite.api.widgets.Widget widget = org.mockito.Mockito.mock(net.runelite.api.widgets.Widget.class);
+		org.mockito.Mockito.when(widget.getText()).thenReturn(text);
+		org.mockito.Mockito.when(widget.getActions()).thenReturn(actions);
+		org.mockito.Mockito.when(widget.getDynamicChildren()).thenReturn(children);
+		return widget;
+	}
+
+	@Test
+	public void aCharterDestinationIsFoundAnywhereInTheMapIgnoringColourTags()
+	{
+		net.runelite.api.widgets.Widget catherby = widget("<col=ffffff>Catherby</col>", null);
+		net.runelite.api.widgets.Widget sarim = widget("Port Sarim", null);
+		net.runelite.api.widgets.Widget group = widget("", null, sarim, catherby);
+		net.runelite.api.widgets.Widget root = widget("", null, group);
+		assertSame(catherby, Rs2Walker.findCharterEntry(root, "catherby"));
+		assertNull(Rs2Walker.findCharterEntry(root, "musa point"));
+	}
+
+	@Test
+	public void aCharterShipIsATravelStep()
+	{
+		Rs2Walker.WalkLeg leg = legFor(result(PathResult.Status.FOUND, TILES,
+			Map.of(1, transport(B, GOAL, TransportType.CHARTER_SHIP, "Charter", "Catherby", 9318))));
+		assertNotNull(leg);
+		assertTrue(leg.stairs.travel);
+		assertEquals(List.of("Charter", "Travel"), Rs2Walker.npcOptions(leg.stairs));
+	}
 }
