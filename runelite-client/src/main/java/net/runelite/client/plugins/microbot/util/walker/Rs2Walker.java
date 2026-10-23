@@ -38,6 +38,7 @@ import net.runelite.client.plugins.microbot.util.equipment.Rs2Equipment;
 import net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory;
 import net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel;
 import net.runelite.client.plugins.microbot.util.tabs.Rs2Tab;
+import net.runelite.client.util.Text;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -484,11 +485,16 @@ public final class Rs2Walker
 	}
 
 	/** Rides on an NPC or vehicle: interact, answer the destination dialogue, wait for the landing. */
-	static final Set<TransportType> TRAVEL_TRANSPORTS = EnumSet.of(TransportType.BOAT, TransportType.SHIP, TransportType.NPC);
+	static final Set<TransportType> TRAVEL_TRANSPORTS = EnumSet.of(TransportType.BOAT, TransportType.SHIP, TransportType.NPC,
+		TransportType.CHARTER_SHIP);
+
+	/** The charter-ship destination map (upstream: widget 885, child 4). */
+	private static final int CHARTER_GROUP = 885;
+	private static final int CHARTER_CHILD = 4;
 
 	/** Transport types the walker can execute; the pathfinder is told to admit only these. */
 	static final Set<TransportType> EXECUTABLE_TRANSPORTS = EnumSet.of(TransportType.TRANSPORT, TransportType.AGILITY_SHORTCUT,
-		TransportType.BOAT, TransportType.SHIP, TransportType.NPC, TransportType.TELEPORTATION_ITEM);
+		TransportType.BOAT, TransportType.SHIP, TransportType.NPC, TransportType.CHARTER_SHIP, TransportType.TELEPORTATION_ITEM);
 
 	/** Teleports land in an area rather than on one tile. */
 	private static final int TELEPORT_ARRIVAL_TILES = 8;
@@ -708,6 +714,16 @@ public final class Rs2Walker
 			{
 				return true;
 			}
+			if (charterMapVisible())
+			{
+				if (!chooseCharterDestination(step.destinationText))
+				{
+					lastStatus = "charter map does not offer " + step.destinationText;
+					return false;
+				}
+				Thread.sleep(600);
+				continue;
+			}
 			if (Rs2Dialogue.hasSelectAnOption())
 			{
 				if (!Rs2Dialogue.clickOption(travelOptions(step)))
@@ -851,6 +867,80 @@ public final class Rs2Walker
 			.filter(candidate -> Arrays.stream(carried.getInventoryActions()).anyMatch(candidate::equalsIgnoreCase))
 			.findFirst().orElse(null);
 		return option != null && Global.sleepUntil(() -> Rs2Inventory.interact(carried, option), 2_000);
+	}
+
+	private static boolean charterMapVisible()
+	{
+		return MobileActions.read(() ->
+		{
+			net.runelite.api.widgets.Widget map = Microbot.getClient().getWidget(CHARTER_GROUP, CHARTER_CHILD);
+			return map != null && !map.isHidden();
+		}, false);
+	}
+
+	/**
+	 * As upstream: the charter map entry whose text, name or option names {@code destination}, or its
+	 * nearest ancestor with an option, dispatched with its first option.
+	 */
+	private static boolean chooseCharterDestination(String destination)
+	{
+		if (destination == null || destination.isBlank())
+		{
+			return false;
+		}
+		String needle = Text.removeTags(destination).trim().toLowerCase(java.util.Locale.ROOT);
+		Object[] target = MobileActions.read(() ->
+		{
+			net.runelite.api.widgets.Widget root = Microbot.getClient().getWidget(CHARTER_GROUP, CHARTER_CHILD);
+			net.runelite.api.widgets.Widget match = root == null ? null : findCharterEntry(root, needle);
+			for (net.runelite.api.widgets.Widget current = match; current != null; current = current == root ? null : current.getParent())
+			{
+				String option = current.getActions() == null ? null : Arrays.stream(current.getActions())
+					.filter(action -> action != null && !action.isEmpty()).findFirst().orElse(null);
+				if (option != null)
+				{
+					// A dynamic child is addressed through its parent's id and its index.
+					return new Object[]{current.getId(), current.getIndex(), option};
+				}
+			}
+			return null;
+		}, null);
+		return target != null && Global.sleepUntil(() -> MobileActions.widget((int) target[0], (int) target[1], (String) target[2]), 2_000);
+	}
+
+	static net.runelite.api.widgets.Widget findCharterEntry(net.runelite.api.widgets.Widget widget, String needle)
+	{
+		if (widget == null || widget.isHidden())
+		{
+			return null;
+		}
+		if (charterText(widget.getText()).contains(needle) || charterText(widget.getName()).contains(needle)
+			|| (widget.getActions() != null && Arrays.stream(widget.getActions()).anyMatch(action -> charterText(action).contains(needle))))
+		{
+			return widget;
+		}
+		for (net.runelite.api.widgets.Widget[] children : new net.runelite.api.widgets.Widget[][]{
+			widget.getStaticChildren(), widget.getDynamicChildren(), widget.getNestedChildren()})
+		{
+			if (children == null)
+			{
+				continue;
+			}
+			for (net.runelite.api.widgets.Widget child : children)
+			{
+				net.runelite.api.widgets.Widget found = findCharterEntry(child, needle);
+				if (found != null)
+				{
+					return found;
+				}
+			}
+		}
+		return null;
+	}
+
+	private static String charterText(String text)
+	{
+		return text == null ? "" : Text.removeTags(text).trim().toLowerCase(java.util.Locale.ROOT);
 	}
 
 	/** Dialogue choices that mean "go to this step's destination", most specific first. */
