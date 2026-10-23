@@ -767,4 +767,34 @@ public final class Rs2Inventory
 			return null;
 		}, null);
 	}
+
+	/** As upstream: inventory items with a "Drink" action. */
+	public static List<Rs2ItemModel> getPotions()
+	{
+		return items(item -> Arrays.stream(item.getInventoryActions()).anyMatch("drink"::equalsIgnoreCase))
+			.collect(Collectors.toList());
+	}
+
+	/** As upstream: drinkable items named {@code potionName}, ignoring the dose suffix such as "(3)". */
+	public static List<Rs2ItemModel> getFilteredPotionItemsInInventory(String potionName)
+	{
+		return getFilteredPotionItemsInInventory(Collections.singletonList(potionName));
+	}
+
+	/** As upstream: drinkable items whose name without the dose suffix equals one of {@code potionNames}. */
+	public static List<Rs2ItemModel> getFilteredPotionItemsInInventory(List<String> potionNames)
+	{
+		return getPotionsInInventory(potionNames.toArray(String[]::new)).collect(Collectors.toList());
+	}
+
+	private static final java.util.regex.Pattern POTION_USES = java.util.regex.Pattern.compile("^(.*?)(?:\\(\\d+\\))?$");
+
+	private static Stream<Rs2ItemModel> getPotionsInInventory(String... potionNames)
+	{
+		return getPotions().stream().filter(item ->
+		{
+			java.util.regex.Matcher matcher = POTION_USES.matcher(item.getName());
+			return matcher.matches() && Arrays.stream(potionNames).anyMatch(name -> name.equalsIgnoreCase(matcher.group(1).trim()));
+		});
+	}
 }
