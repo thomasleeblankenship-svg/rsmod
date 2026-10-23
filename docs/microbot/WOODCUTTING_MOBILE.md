@@ -8,7 +8,7 @@ The verified local woodcutting APK is built from `ce1baea`.
 ## Install and load
 
 1. Open the repository's [Mobile test APK workflow](https://github.com/thomasleeblankenship-svg/rsmod/actions/workflows/mobile-test-apk.yml).
-2. Open [the woodcutting settings build](https://github.com/thomasleeblankenship-svg/rsmod/actions/runs/39902376810) once it succeeds. Under **Artifacts**, download `runemobile-mobile-test-arm64` while signed into GitHub.
+2. Open [the successful woodcutting build](https://github.com/thomasleeblankenship-svg/rsmod/actions/runs/39902376810). Under **Artifacts**, download `runemobile-mobile-test-arm64` while signed into GitHub.
 3. Unzip the download, transfer `runemobile-mobile-test-arm64.apk` to an ARM64 Android 9+ phone, and install it. The APK is locally/debug signed; an existing app signed with another key may require uninstalling first, which removes its local data.
 4. In the app's plugin panel, enable **Microbot Mobile (phase 2)** and open its settings.
 5. Set **Script** to **Auto Woodcutting (mobile port)**. Configure **Tree**, **Distance to Stray**, **Primary action**, retained items and Forestry options. The settings labelled **Example woodcutting tree** and **Example tree distance** belong to the old example script.
@@ -62,3 +62,6 @@ The fresh local release APK also passes signature/alignment checks. All 131 sele
 Microbot/mobile/input classes and the packaged collision map match the compiled
 source, and the embedded source commit is `ce1baea`. GitHub's independent build
 has its own signing key and SHA; use the checksum file inside its artifact.
+
+The independent GitHub checks, build, APK verification and upload succeeded.
+[Download its artifact ZIP](https://github.com/thomasleeblankenship-svg/rsmod/actions/runs/39902376810/artifacts/12479551976) while signed into GitHub.

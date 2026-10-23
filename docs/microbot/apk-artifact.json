@@ -24,5 +24,7 @@
   "bank_selection": "automatic only",
   "github_download_build": "https://github.com/thomasleeblankenship-svg/rsmod/actions/runs/39902376810",
   "github_artifact_name": "runemobile-mobile-test-arm64",
-  "github_artifact_identity": "separate build; do not assume same hash or signing certificate"
+  "github_artifact_identity": "separate build; do not assume same hash or signing certificate",
+  "github_download_status": "checks, build, verify, and upload succeeded; artifact visible on run page",
+  "github_artifact_url": "https://github.com/thomasleeblankenship-svg/rsmod/actions/runs/39902376810/artifacts/12479551976"
 }
