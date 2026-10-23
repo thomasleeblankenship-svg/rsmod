@@ -91,6 +91,17 @@ Number of plugins blocked by each gap. Packages missing entirely: `util.prayer` 
 `Microbot.getMouse` (8), `Rs2Player.eatAt` (8), `Rs2Dialogue.clickOption` (7),
 `Rs2Keyboard.typeString` (7). Full list: regenerate with `hubcheck.sh` (see *Measured gap*).
 
+## Next large gap: inventory setups (11 plugins)
+
+`sandcrabs` and ten others use upstream's `inventorysetups` (about 12,300 lines, mostly the
+Inventory Setups panel UI) through `InventorySetup` and `Rs2InventorySetup`. The plan: the setup
+data model and its config loading (reads) from Claude 2, then `Rs2InventorySetup`'s bank
+withdraw, equip and check actions from Claude 1 over the new `Rs2Bank` actions. The panel UI is
+not ported.
+
+World hopping is done (2026-10-23): `Microbot.hopToWorld` and `Login.getRandomWorld`/`getNextWorld`.
+`new Login(...)` (auto-login with stored credentials) is not ported.
+
 ## Policy for anti-detection features (applies to every port)
 
 User asked (2026-10-23) to keep anti-ban "for measure". Kept as the inert compatibility layer: scripts
