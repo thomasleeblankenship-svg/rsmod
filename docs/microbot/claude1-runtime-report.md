@@ -4,20 +4,28 @@ Scope: Microbot `Script`/`IScript` lifecycle, scheduler, cancellation, heartbeat
 gate, the `Microbot` service subset, the state-machine framework, and a `MobileScript` adapter.
 Branch: `claude/laughing-volta-i6l45s`, based on `feat/android-microbot-compat` at `ee9bdc7`.
 
-## Status in one paragraph
+## Status
 
-The runtime sources and 55 focused tests are written. **The real `:client:compileJava` and
-`:client:test` have not run** in this session. The environment's network policy returns HTTP
-403 for `repo.runelite.net`, so Gradle cannot resolve `net.runelite.arn:http-api`, `discord`,
-`rlawt`, `flatlaf` and the other RuneLite-hosted artifacts. The work was checked with a
-**local pre-check only**: plain `javac --release 11` plus Lombok, compiled against the real
-RuneMobile `runelite-api` and `runelite-client` sources. Three classes whose real dependencies
-are on that host (`ConfigManager`, `headless.JavaBridge`, `ui.SplashScreen`) were replaced by
-shadow classes that live outside the repository and are never committed. Under that pre-check
-all 55 tests passed in one JUnit 4 run (`OK (55 tests)`). A repeated-run flakiness check was
-started and then interrupted, so it has no result. Every test uses Mockito `Client`,
-`ClientThread` and `ConfigManager` doubles with a real RuneLite `EventBus`. **None of this is
-live-game or device evidence.**
+**Update after integrating Claude 2 (branch head after `2558ad2`).** `repo.runelite.net` is
+now reachable, and the real Gradle build ran on the integrated tree:
+
+| Command | Result |
+| --- | --- |
+| `./gradlew --no-daemon --max-workers=2 :client:compileJava` (merged `2558ad2`, before the integration commit) | exit 0 |
+| `./gradlew --no-daemon --max-workers=2 :client:compileJava :client:test --tests 'net.runelite.client.plugins.microbot.*' --tests net.runelite.client.callback.ClientThreadOptionalTest --tests 'net.runelite.client.plugins.mobilemicrobot.*' --tests net.runelite.client.headless.JavaBridgeScriptInputTest` | exit 0. **114 tests, 0 failures/errors/skips** (JUnit XML): ClientThreadOptional 5, GlobalWait 6, MicrobotRuntime 12, MicrobotScriptAdapter 11, ScriptLifecycle 13, StateMachineScript 8, StateMachineExampleIntegration 2, plus Claude 2's NpcQuery 9, SceneQuery 6 and PlayerInventoryRead 11, and Codex's MobileMicrobotPlugin 17 and JavaBridgeScriptInput 14 |
+| Same microbot + ClientThread tests with `--rerun`, 3 more times | exit 0 each time |
+| `:client:checkstyleMain` | **not run**: `com.puppycrawl.tools:checkstyle:8.3` failed to resolve |
+
+The unchanged upstream `StateMachineExampleScript` (SHA-256 `aed85889…245dbd`, the same as
+upstream) now sits in `src/main/java` and compiles against the real client.
+`StateMachineExampleIntegrationTest` runs it through `MicrobotScriptAdapter`,
+`MicrobotRuntime` and Claude 2's real caches, on an empty logged-in scene made of Mockito
+RuneLite doubles with a dedicated fake client thread. It completes the full
+SCAN_NPCS → … → REPORT → SCAN_NPCS cycle with no ERROR state. After logout it stops stepping,
+and stop leaves nothing running. **This is still not live-game, device or APK evidence.**
+
+The earlier pre-check (plain `javac` with out-of-repo shadows) is superseded by the Gradle runs
+above.
 
 ## Provenance
 
@@ -99,41 +107,27 @@ plain in-memory map. **No agent server, HTTP endpoint or remote control was port
   plugin pause, chatbox, membership, world-switcher confirmation, roofs): none are registered.
 - `Microbot` members other than: `pauseAllScripts`, `status`, `getClient`, `getClientThread`,
   `getEventBus`, `getConfigManager`, `getBlockingEventManager`, `getGameTickBroadcaster`,
-  `isDebug`, `isLoggedIn`, `log(...)`, `logStackTrace`. Mouse, hopping, plugin control, popups,
+  `isDebug`, `isLoggedIn`, `log(...)`, `logStackTrace`, and the three cache getters. Mouse, hopping, plugin control, popups,
   loot records, item containers and world/overlay services are absent, so scripts that use them
   fail to compile.
 - Agent server, `microbot-cli`, JAR loading, desktop input injection: not ported.
 
-## Contract with Claude 2 (proposed; not implemented here)
+## Contract with Claude 2 (implemented)
 
-No messages were exchanged with Claude 2. **No cache, model or utility classes were created
-here.** Proposed integration once Claude 2's `api/**` lands:
+Claude 2's `MicrobotReadServices` (see `claude2-api-report.md`) is integrated as follows:
 
-1. Each cache singleton (`Rs2NpcCache`, `Rs2TileObjectCache`, `Rs2TileItemCache`) implements
-   `MicrobotRuntimeService`. `startUp()` registers its `EventBus` subscribers and builds its
-   initial client-thread snapshot (queued with `ClientThread.invokeLater` when installed off the
-   client thread). `shutDown()` unregisters and clears every entity.
-2. Claude 2 passes the caches as the `services` list to `MicrobotRuntime.install(...)`.
-3. Claude 1 then adds to `Microbot` (this patch is ready to apply after Claude 2's types exist):
-
-```java
-private static volatile Rs2NpcCache rs2NpcCache;
-private static volatile Rs2TileObjectCache rs2TileObjectCache;
-private static volatile Rs2TileItemCache rs2TileItemCache;
-public static Rs2NpcCache getRs2NpcCache() { return rs2NpcCache; }
-public static Rs2TileObjectCache getRs2TileObjectCache() { return rs2TileObjectCache; }
-public static Rs2TileItemCache getRs2TileItemCache() { return rs2TileItemCache; }
-// bound in MicrobotRuntime.install from a MicrobotReadServices argument, cleared in unbind()
-```
-
-   ```java
-   public interface MicrobotReadServices {
-       Rs2NpcCache npcCache();
-       Rs2TileObjectCache tileObjectCache();
-       Rs2TileItemCache tileItemCache();
-       List<MicrobotRuntimeService> lifecycle(); // usually the three caches
-   }
-   ```
+- `Microbot.getRs2NpcCache()`, `getRs2TileObjectCache()` and `getRs2TileItemCache()` delegate
+  to `MicrobotReadServices.require()`, exactly as Claude 2 proposed. No cache instances are
+  created in `Microbot`.
+- `Microbot.isLoggedIn()` keeps the runtime's client-thread snapshot, rather than
+  `MicrobotReadServices.isLoggedIn()`, which reads `Client#getGameState()` from the calling
+  thread.
+- `MicrobotReadServicesLifecycle` (a `MicrobotRuntimeService`) performs Claude 2's documented
+  register/install and uninstall/unregister, so the plugin passes it to
+  `MicrobotRuntime.install` instead of managing two lifecycles.
+- Claude 2's `ClientThreadCalls` duplicates the `ClientThread.runOnClientThreadOptional` added
+  in `3e66a23`. The two were written concurrently. Both are kept for now; consolidating them
+  is a follow-up for Claude 2 or Codex.
 
 `Rs2Player.isAnimating()/isMoving()` and `Rs2Inventory.count()` must read through
 `Microbot.getClientThread().runOnClientThreadOptional(...)` or a snapshot, never through
@@ -142,9 +136,11 @@ public static Rs2TileItemCache getRs2TileItemCache() { return rs2TileItemCache; 
 ## Integration patch for Codex (not applied to Codex-owned files)
 
 1. **Plugin wiring** (`MobileMicrobotPlugin`, `ScriptKind`):
-   - Call `MicrobotRuntime.install(client, clientThread, eventBus, configManager, services)` in
-     `startUp()` (inject `EventBus`), and `MicrobotRuntime.uninstall()` in `shutDown()` *after*
-     `stopActive(...)` has run on the client thread.
+   - Inject `EventBus` and `MicrobotReadServices`. In `startUp()` call
+     `MicrobotRuntime.install(client, clientThread, eventBus, configManager,
+     List.of(new MicrobotReadServicesLifecycle(eventBus, readServices)))`. Call
+     `MicrobotRuntime.uninstall()` in `shutDown()` *after* `stopActive(...)` has run on the
+     client thread.
    - Add a `ScriptKind.STATE_MACHINE_EXAMPLE` entry, plus this factory case:
      ```java
      case STATE_MACHINE_EXAMPLE:
@@ -152,8 +148,8 @@ public static Rs2TileItemCache getRs2TileItemCache() { return rs2TileItemCache; 
              StateMachineExampleScript::new,
              s -> s.run(configManager.getConfig(StateMachineExampleConfig.class)));
      ```
-     This needs Claude 2's unchanged example and config, and Guice-free construction, which works
-     because the example has a no-arg constructor.
+     The example and config are now in `src/main/java`. `StateMachineExampleIntegrationTest`
+     exercises exactly this factory/launcher pair.
 2. **Manual input priority:** call `MicrobotRuntime.noteHumanInput()` from the RuneMobile touch
    path for real user taps (`JavaBridge` or `MobileUiBridge`), not for script-generated taps.
 3. **Checkstyle:** the copied upstream files keep upstream's K&R/4-space style. To keep them
