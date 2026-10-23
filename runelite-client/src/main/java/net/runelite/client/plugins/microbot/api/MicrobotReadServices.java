@@ -53,9 +53,11 @@ import net.runelite.client.plugins.microbot.util.player.Rs2Player;
  * Event handlers mirror upstream {@code MicrobotPlugin}: world-view ids,
  * {@code Rs2Inventory.storeInventoryItemsInMemory} and
  * {@code Rs2Player.handleAnimationChanged}, {@code Rs2Player.handlePotionTimers}
- * (stamina only) and the hitsplat cases behind {@code Rs2Player.isInCombat}.
+ * and the hitsplat cases behind {@code Rs2Player.isInCombat}.
  * Essence pouch contents are tracked by a {@link PouchTracker} fed with menu
  * clicks, game messages and inventory changes. Additionally, any game-state or world-view change invalidates every snapshot,
+ * and so does any scene object or ground item spawning or despawning (a felled tree's stump appears
+ * within the tick, so a script must not wait for the next tick to see it),
  * and any state other than {@code LOGGED_IN} or {@code LOADING} (logout, hop,
  * connection loss, login) clears world-view ids, inventory and the
  * {@code Rs2Player} animation, stamina and combat state, the remembered bank, and
@@ -284,6 +286,72 @@ public final class MicrobotReadServices implements MicrobotReadApi, MicrobotRunt
 	{
 		worldViewIds.remove(event.getWorldView().getId());
 		generation.incrementAndGet();
+	}
+
+	/** Scene objects and ground items changed: the next query rescans instead of reusing this tick's snapshot. */
+	private void sceneChanged()
+	{
+		generation.incrementAndGet();
+	}
+
+	@Subscribe
+	public void onGameObjectSpawned(net.runelite.api.events.GameObjectSpawned event)
+	{
+		sceneChanged();
+	}
+
+	@Subscribe
+	public void onGameObjectDespawned(net.runelite.api.events.GameObjectDespawned event)
+	{
+		sceneChanged();
+	}
+
+	@Subscribe
+	public void onWallObjectSpawned(net.runelite.api.events.WallObjectSpawned event)
+	{
+		sceneChanged();
+	}
+
+	@Subscribe
+	public void onWallObjectDespawned(net.runelite.api.events.WallObjectDespawned event)
+	{
+		sceneChanged();
+	}
+
+	@Subscribe
+	public void onDecorativeObjectSpawned(net.runelite.api.events.DecorativeObjectSpawned event)
+	{
+		sceneChanged();
+	}
+
+	@Subscribe
+	public void onDecorativeObjectDespawned(net.runelite.api.events.DecorativeObjectDespawned event)
+	{
+		sceneChanged();
+	}
+
+	@Subscribe
+	public void onGroundObjectSpawned(net.runelite.api.events.GroundObjectSpawned event)
+	{
+		sceneChanged();
+	}
+
+	@Subscribe
+	public void onGroundObjectDespawned(net.runelite.api.events.GroundObjectDespawned event)
+	{
+		sceneChanged();
+	}
+
+	@Subscribe
+	public void onItemSpawned(net.runelite.api.events.ItemSpawned event)
+	{
+		sceneChanged();
+	}
+
+	@Subscribe
+	public void onItemDespawned(net.runelite.api.events.ItemDespawned event)
+	{
+		sceneChanged();
 	}
 
 	@Subscribe
