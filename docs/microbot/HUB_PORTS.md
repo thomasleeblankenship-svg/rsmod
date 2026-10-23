@@ -87,5 +87,6 @@ unchanged.
 | --- | --- |
 | Hub base | Done (`PluginDescriptor` metadata, `PluginConstants`, `Overlay.setNaughty`) |
 | autochompykiller | Claude 1 half done; 5 compile errors left, all Claude 2 reads |
-| the other 14 | Not started |
+| shared Hub APIs | Done: `@ConfigInformation`, break-handler lock state, camera, `Rs2Random`, plugin control, more `interact`/`isWearing`, `waitForWalking` |
+| errors now | chompy 5, fishingtrawler 7, birdhunter 24, sandcrabs 27, gotr 38, salamanders 45, microhunter 47, HueycoatlPrayer 54, ourania 73, blackjack 78, sailing 127, crafting 139, geflipper 143, drofirecape 266, barrows 272 |
 | batch 2 (11) | Queued after batch 1 |
