@@ -43,6 +43,10 @@ public final class Rs2Walker
 	private static final long MAX_WALK_MILLIS = 120_000;
 	/** No observed movement for this long triggers a replan and retry, never a stop. */
 	private static final long DEFAULT_STALL_MILLIS = 15_000;
+	/** Route steps from which a waypoint is walked through the minimap rather than a scene tile. */
+	static final int MINIMAP_MIN_STEPS = 4;
+	/** While moving, the next click waits until the player is this close to the last target. */
+	static final int RECLICK_DISTANCE = 4;
 	private static volatile long stallMillis = DEFAULT_STALL_MILLIS;
 	private static final long STALL_RETRY_BACKOFF_MILLIS = 1_200;
 	private static final long STALL_RETRY_MAX_BACKOFF_MILLIS = 6_000;
@@ -88,7 +92,7 @@ public final class Rs2Walker
 	 * progress, {@link WalkerState#UNREACHABLE} when no same-floor route exists, and
 	 * {@link WalkerState#EXIT} when cancelled, called on the client thread or while the human owns
 	 * input. Like upstream it does not cross transports; use {@link #walkTo} for those.
-	 * Mobile: dispatches a scene-resolved walk instead of a minimap click.
+	 * Mobile: a minimap tap for longer steps, otherwise a scene-resolved walk.
 	 */
 	public static WalkerState walkStep(WorldPoint destination, int distance)
 	{
@@ -118,8 +122,14 @@ public final class Rs2Walker
 			return WalkerState.UNREACHABLE;
 		}
 		target = destination;
-		// Furthest scene tile within reach on the route, then nearer ones if it is offscreen.
+		// The furthest route tile within reach through the minimap; otherwise the furthest scene
+		// tile, then nearer ones if it is offscreen.
 		int furthest = Math.min(route.size() - 1, 10);
+		if (furthest >= MINIMAP_MIN_STEPS && MobileActions.walkMinimap(route.get(furthest)))
+		{
+			lastStatus = "Walking to " + destination;
+			return WalkerState.MOVING;
+		}
 		for (int i = furthest; i > 0; i--)
 		{
 			WorldPoint step = route.get(i);
@@ -209,6 +219,7 @@ public final class Rs2Walker
 			boolean recovered = false;
 			int acceptedWalks = 0;
 			int stalls = 0;
+			WorldPoint clicked = null;
 			while (System.currentTimeMillis() < deadline && GENERATION.get() == generation
 				&& MobileActions.active() && !Thread.currentThread().isInterrupted())
 			{
@@ -266,10 +277,13 @@ public final class Rs2Walker
 					lastProgress = System.currentTimeMillis();
 					continue;
 				}
-				if (!scene.player.equals(previous))
+				boolean moved = !scene.player.equals(previous);
+				if (moved)
 				{
 					previous = scene.player;
 					lastProgress = System.currentTimeMillis();
+					// A recovery only shortens steps until the player is moving again.
+					recovered = false;
 				}
 				if (MicrobotRuntime.humanOwnsInput())
 				{
@@ -330,15 +344,29 @@ public final class Rs2Walker
 						lastStatus = "Waiting for a traversable route (door, obstacle or scene load)";
 					}
 				}
+				else if (moved && clicked != null && scene.player.distanceTo(clicked) > RECLICK_DISTANCE)
+				{
+					// Still heading for the last accepted target: do not re-click every tick.
+					lastStatus = "Walking to " + destination;
+				}
 				else if (!waypoint.equals(scene.player))
 				{
 					lastStatus = "Walking to " + destination;
-					// A long waypoint may project offscreen with the current mobile camera.
-					// Try nearer reachable tiles instead of repeating an invisible destination.
 					List<WorldPoint> steps = MobileRoutePlanner.route(scene.player, waypoint, 0, scene::canStep);
-					for (int i = steps.size() - 1; i > 0; i--)
+					// Longer steps go through the minimap, which is visible whatever the camera does.
+					if (steps.size() - 1 >= MINIMAP_MIN_STEPS && MobileActions.walkMinimap(waypoint))
 					{
-						if (MobileActions.walk(steps.get(i))) { acceptedWalks++; break; }
+						acceptedWalks++;
+						clicked = waypoint;
+					}
+					else
+					{
+						// A scene tile must be on screen; try nearer reachable tiles instead of
+						// repeating an invisible destination.
+						for (int i = steps.size() - 1; i > 0; i--)
+						{
+							if (MobileActions.walk(steps.get(i))) { acceptedWalks++; clicked = steps.get(i); break; }
+						}
 					}
 				}
 				long remaining = deadline - System.currentTimeMillis();

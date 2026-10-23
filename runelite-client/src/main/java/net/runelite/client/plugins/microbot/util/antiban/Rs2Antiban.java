@@ -4,14 +4,15 @@ import net.runelite.client.plugins.microbot.util.antiban.enums.Activity;
 import net.runelite.client.plugins.microbot.util.antiban.enums.ActivityIntensity;
 import net.runelite.client.plugins.microbot.util.antiban.enums.Category;
 import net.runelite.client.plugins.microbot.util.antiban.enums.PlayStyle;
-import net.runelite.client.plugins.microbot.util.math.Rs2Random;
 
 /**
  * Compatibility pacing subset. Desktop fatigue/mouse profiles are not reproduced.
  * <p>
  * Upstream's anti-ban entry points (activities, play styles, micro breaks, mouse simulation,
  * setup templates) are accepted so unchanged scripts compile, and do nothing: anti-detection
- * behaviour is not ported. {@link #actionCooldown()} remains a plain bounded wait.
+ * behaviour is not ported. {@link #actionCooldown()} is a no-op too: upstream's is a chance-based
+ * anti-ban pause, and a fixed wait after every action only slowed scripts down (phone report,
+ * 2026-10-23: slow woodcutting between actions).
  */
 public final class Rs2Antiban
 {
@@ -86,11 +87,9 @@ public final class Rs2Antiban
 		Rs2AntibanSettings.cooldownMeanMillis = 400;
 		Rs2AntibanSettings.cooldownDeviationMillis = 200;
 	}
+	/** No-op on mobile (see the class comment); {@link Rs2AntibanSettings#actionCooldownActive} stays false. */
 	public static void actionCooldown()
 	{
-		Rs2AntibanSettings.actionCooldownActive = true;
-		try { Rs2Random.waitEx(Rs2AntibanSettings.cooldownMeanMillis, Rs2AntibanSettings.cooldownDeviationMillis); }
-		finally { Rs2AntibanSettings.actionCooldownActive = false; }
 	}
 	public static final class SetupTemplates
 	{
