@@ -84,6 +84,7 @@ import net.runelite.client.events.ProfileChanged;
 import net.runelite.client.events.RuneScapeProfileChanged;
 import net.runelite.client.events.SessionClose;
 import net.runelite.client.events.SessionOpen;
+import net.runelite.client.plugins.microbot.inventorysetups.InventorySetup;
 import net.runelite.client.util.ColorUtil;
 import net.runelite.client.util.RunnableExceptionLogger;
 import net.runelite.http.api.config.ConfigPatch;
@@ -1283,6 +1284,11 @@ public class ConfigManager
 				return gson.fromJson(str, parameterizedType);
 			}
 		}
+		// Microbot (a2114401): an inventory setup config item is stored as JSON.
+		if (type == InventorySetup.class)
+		{
+			return gson.fromJson(str, type);
+		}
 		if (type instanceof Class)
 		{
 			Class<?> clazz = (Class<?>) type;
@@ -1358,6 +1364,10 @@ public class ConfigManager
 		if (object instanceof Set)
 		{
 			return gson.toJson(object, Set.class);
+		}
+		if (object instanceof InventorySetup)
+		{
+			return gson.toJson(object, InventorySetup.class);
 		}
 		if (object != null)
 		{
