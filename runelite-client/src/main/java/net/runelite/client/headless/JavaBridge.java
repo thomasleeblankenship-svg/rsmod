@@ -2722,6 +2722,19 @@ public final class JavaBridge
 	 * @param typed whether this key also produces a {@code KEY_TYPED} (printable keys do; a bare chord or a
 	 *              navigation key does not)
 	 */
+	/** The last paced key press's timestamp; see {@link #nextPressMs()}. */
+	private static long lastPressMs;
+
+	/**
+	 * Now, or one millisecond after the previous paced press if that is later: under load the pacer can
+	 * run two queued keys within one millisecond, and consecutive presses must not claim the same instant.
+	 */
+	private static synchronized long nextPressMs()
+	{
+		lastPressMs = Math.max(System.currentTimeMillis(), lastPressMs + 1);
+		return lastPressMs;
+	}
+
 	private static void pacedKey(Canvas canvas, int modifiers, int vk, char ch, boolean typed)
 	{
 		if (!KEY_PACING)
@@ -2740,7 +2753,7 @@ public final class JavaBridge
 		{
 			try
 			{
-				final long t = System.currentTimeMillis();
+				final long t = nextPressMs();
 				dispatchKey(canvas, new KeyEvent(canvas, KeyEvent.KEY_PRESSED, t, modifiers, vk, ch));
 				if (typed)
 				{
