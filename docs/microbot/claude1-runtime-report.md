@@ -27,6 +27,28 @@ and stop leaves nothing running. **This is still not live-game, device or APK ev
 The earlier pre-check (plain `javac` with out-of-repo shadows) is superseded by the Gradle runs
 above.
 
+## Review of woodcutting-port edits to runtime files (`e5bf923`…`024f387`)
+
+Codex's Auto Woodcutting port added mobile shims to runtime-owned files. Reviewed and
+adjusted in this commit:
+
+- `Global.sleep(int, int)` was inclusive of `max` and threw `IllegalArgumentException` for
+  ranges such as `sleep(-5, -3)`. `sleepGaussian` capped sleeps at 10 s. Both now inline upstream
+  `Rs2Random.between`/`randomGaussian` semantics: an exclusive upper bound, any argument order,
+  a floor at zero, no cap. Test: `GlobalWaitTest.randomSleepsAcceptUpstreamArgumentShapes`.
+- `Microbot.getVarbitValue`/`getVarbitPlayerValue` now read the installed read-service client
+  on the client thread instead of the static field. They return 0 when not installed or on
+  timeout.
+- `Microbot.isPluginEnabled(AutoWoodcuttingPlugin)` and `showMessage` are kept and documented.
+  The mobile woodcutting plugin is not registered with `PluginManager`, so upstream's
+  `isPluginEnabled(Plugin)` semantics cannot apply. The core singleton now depends on the
+  woodcutting package; a later generalisation should remove that coupling.
+
+Verified on `239cdf5` plus this commit: `:client:compileJava :client:checkstyleMain
+:client:pmdMain` and 321 focused tests (`microbot.*`, `mobilemicrobot.*`, `headless.*`,
+`ClientThreadOptionalTest`) pass with 0 failures and 0 skips. This uses mocked boundaries.
+The phone retest in `CODEX_HANDOFF_CURRENT.md` is still outstanding.
+
 ## Codex integration review (`adc4e7d`, `91b7304`)
 
 I reviewed Codex's changes to runtime-owned files and re-verified them on `91b7304`:
