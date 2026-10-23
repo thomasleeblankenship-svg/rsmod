@@ -9,7 +9,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Locale;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.BooleanSupplier;
 import java.util.Collections;
 import java.util.List;
@@ -398,28 +397,13 @@ public final class Rs2Inventory
 		}, -1);
 	}
 
-	/** Orders a copied list; never mutates a published inventory snapshot. */
+	/**
+	 * Upstream's {@link #calculateInteractOrder} on a copy, so a published inventory snapshot is
+	 * never sorted in place.
+	 */
 	static List<Rs2ItemModel> ordered(List<Rs2ItemModel> source, InteractOrder order)
 	{
-		List<Rs2ItemModel> copy = new ArrayList<>(source);
-		if (order == InteractOrder.RANDOM)
-		{
-			Collections.shuffle(copy, ThreadLocalRandom.current());
-			return copy;
-		}
-		copy.sort(Comparator.comparingInt(i -> orderKey(i.getSlot(), order)));
-		return copy;
-	}
-
-	private static int orderKey(int slot, InteractOrder order)
-	{
-		int row = slot / 4;
-		int column = slot % 4;
-		if (order == InteractOrder.COLUMN) return column * 7 + row;
-		if (order == InteractOrder.EFFICIENT_COLUMN) return column * 7 + (column % 2 == 0 ? row : 6 - row);
-		if (order == InteractOrder.EFFICIENT_ROW || order == InteractOrder.ZIGZAG)
-			return row * 4 + (row % 2 == 0 ? column : 3 - column);
-		return slot;
+		return calculateInteractOrder(new ArrayList<>(source), order);
 	}
 
 	/** Tools are protected independently of the editable keep list, including the leagues tool names. */

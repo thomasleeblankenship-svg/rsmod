@@ -37,6 +37,13 @@ public class MobileInventoryHelpersTest
 	}
 
 	@Test
+	public void dropOrderMatchesUpstreamForZigzagAndRandom()
+	{
+		assertEquals(List.of(0, 4, 1, 5, 2, 6, 3, 7, 11, 15), order(InteractOrder.ZIGZAG).subList(0, 10));
+		assertEquals("RANDOM leaves slot order, as upstream", List.of(0, 1, 2, 3), order(InteractOrder.RANDOM).subList(0, 4));
+	}
+
+	@Test
 	public void everyTraversalIsPermutationAndDoesNotMutateSource()
 	{
 		for (InteractOrder mode : InteractOrder.values())
