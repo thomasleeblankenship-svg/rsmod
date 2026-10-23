@@ -44,6 +44,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 2 | `docs/microbot/claude2-api-report.md` | Record `Rs2PlayerStateCache` and `Rs2PlayerCache` in the coverage table | this commit |
 
 ## Requests
 
