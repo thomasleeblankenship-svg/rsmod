@@ -26,7 +26,14 @@ package net.runelite.client.callback;
 
 import com.google.inject.Inject;
 import java.util.Iterator;
+import java.util.Optional;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
@@ -39,8 +46,97 @@ public class ClientThread
 	private final ConcurrentLinkedQueue<BooleanSupplier> invokes = new ConcurrentLinkedQueue<>();
 	private final ConcurrentLinkedQueue<BooleanSupplier> invokesAtTickEnd = new ConcurrentLinkedQueue<>();
 
+	/**
+	 * Default wait for {@link #runOnClientThreadOptional(Callable)}, matching Microbot
+	 * {@code e01e0d77d79b354472a5737b3aaab2449eb034fc}.
+	 */
+	public static final long DEFAULT_CLIENT_THREAD_TIMEOUT_MILLIS = 10000;
+	private static final long TIMEOUT_WARNING_INTERVAL_NANOS = TimeUnit.SECONDS.toNanos(30);
+
+	private final AtomicLong lastTimeoutWarningNanos = new AtomicLong();
+
 	@Inject
 	private Client client;
+
+	/**
+	 * @return true when the calling thread is the RuneLite client thread
+	 */
+	public boolean isClientThread()
+	{
+		return client.isClientThread();
+	}
+
+	/**
+	 * Runs {@code method} on the client thread and waits for its result, as Microbot's fork of
+	 * this class does. On the client thread it runs inline, so the client thread never waits on
+	 * itself. Off the client thread the caller blocks for at most the default timeout.
+	 *
+	 * @return the result, or empty on a null result, exception, timeout or interrupt
+	 */
+	public <T> Optional<T> runOnClientThreadOptional(Callable<T> method)
+	{
+		return runOnClientThreadOptional(method, DEFAULT_CLIENT_THREAD_TIMEOUT_MILLIS);
+	}
+
+	/**
+	 * Same as {@link #runOnClientThreadOptional(Callable)} with an explicit timeout. A timed-out
+	 * or interrupted task is cancelled, so it never runs later on the client thread with stale
+	 * intent. An interrupt restores the caller's interrupt flag.
+	 */
+	public <T> Optional<T> runOnClientThreadOptional(Callable<T> method, long timeoutMillis)
+	{
+		if (client.isClientThread())
+		{
+			try
+			{
+				return Optional.ofNullable(method.call());
+			}
+			catch (Exception e)
+			{
+				log.error("Exception in client thread execution", e);
+				return Optional.empty();
+			}
+		}
+
+		final FutureTask<T> task = new FutureTask<>(method);
+		invoke(task);
+		try
+		{
+			return Optional.ofNullable(task.get(timeoutMillis, TimeUnit.MILLISECONDS));
+		}
+		catch (InterruptedException e)
+		{
+			task.cancel(false);
+			Thread.currentThread().interrupt();
+			return Optional.empty();
+		}
+		catch (TimeoutException e)
+		{
+			task.cancel(false);
+			logClientThreadTimeout(timeoutMillis);
+			return Optional.empty();
+		}
+		catch (ExecutionException e)
+		{
+			log.error("Exception during client thread task execution", e.getCause());
+			return Optional.empty();
+		}
+	}
+
+	private void logClientThreadTimeout(long timeoutMillis)
+	{
+		long now = System.nanoTime();
+		long last = lastTimeoutWarningNanos.get();
+		if ((last == 0 || now - last >= TIMEOUT_WARNING_INTERVAL_NANOS) && lastTimeoutWarningNanos.compareAndSet(last, now))
+		{
+			log.warn("Client thread did not run task within {}ms (caller thread {}); further timeouts suppressed for {}s",
+				timeoutMillis, Thread.currentThread().getName(), TimeUnit.NANOSECONDS.toSeconds(TIMEOUT_WARNING_INTERVAL_NANOS));
+		}
+		else
+		{
+			log.debug("Client thread did not run task within {}ms (caller thread {})", timeoutMillis, Thread.currentThread().getName());
+		}
+	}
 
 	public void invoke(Runnable r)
 	{
