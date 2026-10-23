@@ -49,7 +49,8 @@ public class HubPortedPluginsTest
 		"net.runelite.client.plugins.microbot.smelting.AutoSmeltingPlugin",
 		"net.runelite.client.plugins.microbot.gefiremaker.GEFiremakerPlugin",
 		"net.runelite.client.plugins.microbot.autofishing.AutoFishingPlugin",
-		"net.runelite.client.plugins.microbot.barbarianvillagefisher.BarbarianVillageFisherPlugin");
+		"net.runelite.client.plugins.microbot.barbarianvillagefisher.BarbarianVillageFisherPlugin",
+		"net.runelite.client.plugins.microbot.banksbankstander.BanksBankStanderPlugin");
 
 	private static Plugin instance(String name) throws Exception
 	{
