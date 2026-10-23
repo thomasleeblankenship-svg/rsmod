@@ -44,6 +44,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 2 | `plugins/skillcalculator/skills/MagicAction.java` (replace with Microbot's fork: extra spells, `getSpellbook`, widget lookups), `microbot/util/inventory/Rs2RunePouch.java` (adds `getRunes()`), new `microbot/util/magic/**` (data enums and **reads only**; Claude 1 adds `cast`/`castOn`/`alch`/`quickCast`/thrall casting after release), new tests under `test/.../microbot/util/magic/` | Round 2 item (3): magic. The user approved taking game data tables from upstream (code still written by Claude 2) | this commit |
 
 ## Requests
 
