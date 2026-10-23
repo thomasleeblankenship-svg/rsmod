@@ -2,7 +2,6 @@
  * Adapted from chsami/Microbot a2114401bbbc35e9762db9e8aa666d70ffcd24d8,
  * runelite-client/src/main/java/net/runelite/client/plugins/microbot/shortestpath/pathfinder/PathfinderConfig.java.
  * BSD 2-Clause License; see LICENSE. Mobile adaptations (marked inline):
- * - the global teleport switch is ShortestPathPlugin.disableTeleports (upstream: Rs2Walker);
  * - hasChronicleCharges does not click "Check charges" (the pathfinder never acts).
  */
 package net.runelite.client.plugins.microbot.shortestpath.pathfinder;
@@ -33,6 +32,7 @@ import net.runelite.client.plugins.microbot.util.magic.Runes;
 import net.runelite.client.plugins.microbot.util.player.Rs2Player;
 import net.runelite.client.plugins.microbot.util.leaguetransport.Rs2LeaguesTransport;
 import net.runelite.client.plugins.microbot.util.poh.PohPresence;
+import net.runelite.client.plugins.microbot.util.walker.Rs2Walker;
 import net.runelite.client.plugins.microbot.shortestpath.WebWalkLog;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -1399,7 +1399,7 @@ public class PathfinderConfig {
         }
 
         // Check if Teleports are globally disabled
-        if (TransportType.isTeleport(transport.getType(), transport.getOrigin()) && ShortestPathPlugin.disableTeleports) {
+        if (TransportType.isTeleport(transport.getType(), transport.getOrigin()) && Rs2Walker.disableTeleports) {
             log.trace("Transport ( O: {} D: {} ) is a teleport but teleports are globally disabled", transport.getOrigin(), transport.getDestination());
             return false;
         }
@@ -2108,7 +2108,7 @@ public class PathfinderConfig {
                 inCombat,
                 invFp,
                 members,
-                ShortestPathPlugin.disableTeleports,
+                Rs2Walker.disableTeleports,
                 leagueType,
                 leaguesCtx.isActive(),
                 unlockedRegionsHash,

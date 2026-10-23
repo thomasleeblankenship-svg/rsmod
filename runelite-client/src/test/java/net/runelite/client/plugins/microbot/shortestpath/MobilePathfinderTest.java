@@ -108,6 +108,28 @@ public class MobilePathfinderTest
 	}
 
 	@Test
+	public void transportStepCarriesTheItemIdsTheWalkerNeeds()
+	{
+		Map<WorldPoint, Set<Transport>> catalogue = Transport.loadAllFromResources();
+		Transport teleportItem = catalogue.values().stream().flatMap(Set::stream)
+			.filter(t -> t.getType() == TransportType.TELEPORTATION_ITEM)
+			.filter(t -> t.getItemRequirements() != null && !t.getItemRequirements().isEmpty())
+			.findFirst().orElseThrow();
+		PathResult.TransportStep step = new PathResult.TransportStep(teleportItem);
+
+		assertEquals(teleportItem.getItemRequirements().size(), step.getItemRequirements().size());
+		Set<Integer> union = teleportItem.getItemRequirements().stream()
+			.flatMap(requirement -> requirement.getItemIds().stream()).collect(Collectors.toSet());
+		assertEquals(union, step.getItemIds());
+		assertFalse(step.getItemIds().isEmpty());
+
+		Transport stairs = catalogue.values().stream().flatMap(Set::stream)
+			.filter(t -> t.getType() == TransportType.TRANSPORT && t.getItemRequirements().isEmpty())
+			.findFirst().orElseThrow();
+		assertTrue(new PathResult.TransportStep(stairs).getItemIds().isEmpty());
+	}
+
+	@Test
 	public void resultIsImmutable()
 	{
 		PathResult result = MobilePathfinder.search(MobileRouteTest.offlineConfig(MobileTransportPolicy.DEFAULT),

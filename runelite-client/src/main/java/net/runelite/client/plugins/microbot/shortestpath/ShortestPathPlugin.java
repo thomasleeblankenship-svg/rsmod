@@ -38,12 +38,6 @@ public final class ShortestPathPlugin
 	@Getter
 	public static volatile PathfinderConfig pathfinderConfig;
 
-	/**
-	 * Global teleport switch read by {@link PathfinderConfig}. Upstream keeps it as
-	 * {@code Rs2Walker.disableTeleports}; it moves there once the walker owns it.
-	 */
-	public static volatile boolean disableTeleports;
-
 	private ShortestPathPlugin()
 	{
 	}
