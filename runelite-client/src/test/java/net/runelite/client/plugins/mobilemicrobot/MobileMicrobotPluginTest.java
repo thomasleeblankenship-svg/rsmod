@@ -70,8 +70,9 @@ public class MobileMicrobotPluginTest
 		inject("clientThread", thread);
 		inject("configManager", manager);
 		inject("config", config);
-        inject("eventBus", new EventBus());
-        inject("readServices", new MicrobotReadServices(client, thread));
+        EventBus events = new EventBus();
+        inject("eventBus", events);
+        inject("readServices", new MicrobotReadServices(client, thread, events));
 		plugin.startUp();
         drain();
 	}

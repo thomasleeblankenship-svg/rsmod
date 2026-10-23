@@ -48,20 +48,21 @@ public final class TickSnapshotCache<T>
 	{
 		this.services = services;
 		this.capture = capture;
+		services.track(this);
+	}
+
+	/** Drops the published snapshot (runtime shutdown). */
+	void clear()
+	{
+		snapshot = null;
 	}
 
 	/** Returns the current tick's entities, rebuilding on the client thread if stale. */
 	public Stream<T> getStream()
 	{
-		return services.getClientThreadCalls().call(this::currentOnClientThread)
+		return services.read(this::currentOnClientThread)
 			.orElse(Collections.emptyList())
 			.stream();
-	}
-
-	/** Drop retained entities when the owning runtime is uninstalled. */
-	public void clear()
-	{
-		snapshot = null;
 	}
 
 	private List<T> currentOnClientThread()

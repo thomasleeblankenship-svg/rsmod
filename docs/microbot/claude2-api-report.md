@@ -54,8 +54,8 @@ Status values: `native` (upstream semantics, same signature), `adapted`
   "upstream": "chsami/Microbot@e01e0d77d79b354472a5737b3aaab2449eb034fc",
   "evidence": "mocked RuneLite interfaces + real cross-thread hop; not live game",
   "methods": [
-    {"api": "Microbot.isLoggedIn()", "status": "adapted", "impl": "MicrobotReadApi.isLoggedIn (Claude 1 delegates)", "tests": ["NpcQueryTest.logoutEmptiesTheSnapshotEvenWithinTheSameTick", "PlayerInventoryReadTest.logoutClearsInventoryAndAnimationState"]},
-    {"api": "Microbot.getRs2NpcCache()", "status": "adapted", "impl": "MicrobotReadApi.getRs2NpcCache (Claude 1 delegates)", "tests": ["PlayerInventoryReadTest.uninstallOfAStaleProviderKeepsTheCurrentOne"]},
+    {"api": "Microbot.isLoggedIn()", "status": "adapted", "impl": "Claude 1 MicrobotRuntime snapshot; used by Rs2Inventory fallback", "tests": ["NpcQueryTest.logoutEmptiesTheSnapshotEvenWithinTheSameTick", "PlayerInventoryReadTest.logoutClearsInventoryAndAnimationState"]},
+    {"api": "Microbot.getRs2NpcCache()", "status": "adapted", "impl": "MicrobotReadApi.getRs2NpcCache (Claude 1 delegates)", "tests": ["PlayerInventoryReadTest.aSecondProviderCannotStartWhileOneIsInstalled"]},
     {"api": "Microbot.getRs2TileObjectCache()", "status": "adapted", "impl": "MicrobotReadApi.getRs2TileObjectCache", "tests": []},
     {"api": "Microbot.getRs2TileItemCache()", "status": "adapted", "impl": "MicrobotReadApi.getRs2TileItemCache", "tests": []},
     {"api": "Rs2NpcCache.query()/getStream()", "status": "adapted", "tests": ["NpcQueryTest.*"]},
@@ -91,12 +91,15 @@ Status values: `native` (upstream semantics, same signature), `adapted`
 
 ## Design and documented deviations from upstream
 
-- **Threading.** Upstream's `ClientThread.runOnClientThreadOptional` is a Microbot
-  fork addition that RuneMobile's `ClientThread` does not have. `ClientThreadCalls`
-  reproduces it on top of the real `ClientThread.invoke(Runnable)`: it runs inline
-  on the client thread, otherwise waits on a `FutureTask` with a 10 s timeout, and
-  returns `Optional.empty()` on timeout, interrupt or exception. Claude 1 may reuse
-  it instead of duplicating it.
+- **Threading.** Every read goes through `MicrobotReadServices.read`, which calls
+  Claude 1's port of upstream `ClientThread.runOnClientThreadOptional(Callable, long)`:
+  inline on the client thread, otherwise a bounded wait (10 s default) that returns
+  `Optional.empty()` on timeout, interrupt or exception. The earlier
+  `ClientThreadCalls` duplicate was removed once that port landed.
+- **Lifecycle.** `MicrobotReadServices` implements Claude 1's
+  `MicrobotRuntimeService`. `startUp()` subscribes it to the `EventBus` and makes it
+  the installed provider (a second provider is refused). `shutDown()` unsubscribes,
+  drops every snapshot and clears inventory and animation state.
 - **Snapshots.** Each cache rebuilds an unmodifiable list on the client thread at
   most once per `(tickCount, generation)`. Upstream keys on the tick alone.
   `MicrobotReadServices` bumps the generation on every `GameStateChanged`,
@@ -131,24 +134,33 @@ Status values: `native` (upstream semantics, same signature), `adapted`
 
 ### For Claude 1 (`Microbot.java`), proposed patch, not applied
 
+`isLoggedIn()` already exists in Claude 1's `Microbot`. Add only the three cache
+getters. They return `null` when the runtime is not installed, like Claude 1's
+other getters:
+
 ```java
 import net.runelite.client.plugins.microbot.api.MicrobotReadServices;
 import net.runelite.client.plugins.microbot.api.npc.Rs2NpcCache;
 import net.runelite.client.plugins.microbot.api.tileitem.Rs2TileItemCache;
 import net.runelite.client.plugins.microbot.api.tileobject.Rs2TileObjectCache;
 
-public static boolean isLoggedIn() {
+public static Rs2NpcCache getRs2NpcCache() {
     MicrobotReadServices s = MicrobotReadServices.current();
-    return s != null && s.isLoggedIn();
+    return s == null ? null : s.getRs2NpcCache();
 }
-public static Rs2NpcCache getRs2NpcCache() { return MicrobotReadServices.require().getRs2NpcCache(); }
-public static Rs2TileObjectCache getRs2TileObjectCache() { return MicrobotReadServices.require().getRs2TileObjectCache(); }
-public static Rs2TileItemCache getRs2TileItemCache() { return MicrobotReadServices.require().getRs2TileItemCache(); }
+public static Rs2TileObjectCache getRs2TileObjectCache() {
+    MicrobotReadServices s = MicrobotReadServices.current();
+    return s == null ? null : s.getRs2TileObjectCache();
+}
+public static Rs2TileItemCache getRs2TileItemCache() {
+    MicrobotReadServices s = MicrobotReadServices.current();
+    return s == null ? null : s.getRs2TileItemCache();
+}
 ```
 
-Upstream exposes these as Guice-static-injected `@Getter` fields. The caches
-here are created by `MicrobotReadServices` and are not separately injectable,
-so use delegation. Do not create cache instances in `Microbot`.
+The caches are created by `MicrobotReadServices` and are not separately
+injectable, so delegate rather than adding fields. Do not create cache
+instances in `Microbot`.
 
 ### For Codex (mobile plugin lifecycle), proposed registration, not applied
 
@@ -157,16 +169,14 @@ so use delegation. Do not create cache instances in `Microbot`.
 @Inject private MicrobotReadServices readServices;
 
 // startUp()
-eventBus.register(readServices);
-MicrobotReadServices.install(readServices);
+MicrobotRuntime.install(client, clientThread, eventBus, configManager, List.of(readServices));
 
-// shutDown()
-MicrobotReadServices.uninstall(readServices);
-eventBus.unregister(readServices);
+// shutDown(), after active scripts have stopped
+MicrobotRuntime.uninstall();
 ```
 
-After Claude 1 lands `Microbot`, `Script` and `statemachine/**`, move the staged
-script to `src/main/java` unchanged and rerun `:client:compileJava`.
+Once the three getters exist, move the staged script to `src/main/java`
+unchanged and rerun `:client:compileJava`.
 
 ## Commands executed (this checkout, JDK 21.0.12 system install)
 
@@ -174,21 +184,23 @@ script to `src/main/java` unchanged and rerun `:client:compileJava`.
 | --- | --- |
 | `./gradlew --no-daemon --max-workers=4 :client:compileJava` (before changes) | exit 1: Maven Central HTTP 429 rate limit while resolving dependencies; not a code error |
 | `./gradlew --no-daemon --max-workers=2 :client:compileJava` (with changes; retried after 429s) | exit 0 on attempt 3; only pre-existing RuneMobile warnings |
-| `./gradlew … :client:test --tests 'net.runelite.client.plugins.microbot.*' --tests 'net.runelite.client.plugins.mobilemicrobot.*'` | exit 0; NpcQueryTest 9/9, SceneQueryTest 6/6, PlayerInventoryReadTest 11/11, existing MobileMicrobotPluginTest 9/9 |
+| `./gradlew … :client:test --tests 'net.runelite.client.plugins.microbot.*' --tests 'net.runelite.client.plugins.mobilemicrobot.*'` (before Claude 1's runtime) | exit 0; NpcQueryTest 9/9, SceneQueryTest 6/6, PlayerInventoryReadTest 11/11, MobileMicrobotPluginTest 9/9 |
+| Same plus `--tests 'net.runelite.client.callback.*' --tests 'net.runelite.client.headless.*'`, on `feat/android-microbot-compat` `2558ad2` with the runtime-lifecycle change | exit 0; NpcQueryTest 9/9, SceneQueryTest 6/6, PlayerInventoryReadTest 10/10 (installed through the real `MicrobotRuntime` and `EventBus`), Claude 1's suites 55/55, MobileMicrobotPluginTest 17/17, headless bridge suites all passing |
 | `javac` of the unchanged `StateMachineExampleScript.java` against the built client only | exit 1; the only unresolved symbols are `Microbot`, `statemachine.StateMachineScript` and `statemachine.Transition` (Claude 1). Every read-API import resolved |
 | `javac` of the unchanged script against the built client plus a **scratch, uncommitted** harness (the adapter above, plus `Script`/`StateMachineScript`/`Transition` signatures copied from upstream) | exit 0. This type-checks the script body against the real read APIs only. It is not runtime evidence, and the harness is not part of the repository |
 
 Test notes: `NpcQueryTest` and `SceneQueryTest` run reads from the JUnit thread
 against a dedicated fake client thread. The mocks throw if live game state is
-read off that thread. Covered cases: logout, hop, scene load, stale entities,
+read off that thread. `ClientThread` is a real instance (Mockito spy) bound to a
+mocked `Client`, so the production `runOnClientThreadOptional` runs. Covered cases: logout, hop, scene load, stale entities,
 concurrent background readers, a stalled client thread (empty result, no hang),
 and a sub-world-view load.
 
 ## Blockers
 
-1. The example cannot compile in-tree until Claude 1's runtime provides
-   `Microbot`, `Script`, `StateMachineScript` and `Transition`. No such branch
-   was visible on the remote when this was written.
+1. The example cannot compile in-tree until `Microbot` gains the three cache
+   getters above. Claude 1 owns that file. `Script`, `StateMachineScript` and
+   `Transition` have landed.
 2. No live game or device run has been done. The cache refresh cost per tick on
    ARM64 is not measured.
 3. The RuneMobile SHA is taken from Codex's report, not from Git history.

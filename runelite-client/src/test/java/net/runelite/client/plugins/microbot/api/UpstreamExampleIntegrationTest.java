@@ -38,7 +38,6 @@ public class UpstreamExampleIntegrationTest
 	public void setUp() throws Exception
 	{
 		fixture = new ReadApiFixture();
-		MicrobotReadServices.uninstall(fixture.services);
 		fixture.npc(1, "Test NPC", new WorldPoint(3206, 3205, 0));
 		when(fixture.localPlayer.getAnimation()).thenReturn(-1);
 		ItemContainer inventory = mock(ItemContainer.class);
@@ -46,10 +45,7 @@ public class UpstreamExampleIntegrationTest
 		when(fixture.client.getItemContainer(InventoryID.INV)).thenReturn(inventory);
 		// Assert the login guard too, not only entity getters, stays on the client thread.
 		when(fixture.client.getGameState()).thenAnswer(call -> fixture.onClientThread(fixture.gameState));
-		events = new EventBus();
-		fixture.clientExecutor.submit(() -> MicrobotRuntime.install(fixture.client, fixture.clientThread,
-			events, mock(ConfigManager.class), Collections.singletonList(
-				new MicrobotReadRuntimeService(fixture.services, events)))).get(3, TimeUnit.SECONDS);
+		events = fixture.eventBus;
 	}
 
 	@After
@@ -117,15 +113,7 @@ public class UpstreamExampleIntegrationTest
 		MicrobotRuntime.uninstall();
 		assertNull(MicrobotReadServices.current());
 		assertEquals(0, fixture.services.getRs2NpcCache().query().toList().size());
-		try
-		{
-			Microbot.getRs2NpcCache();
-			fail("Uninstalled singleton must refuse cache access");
-		}
-		catch (IllegalStateException expected)
-		{
-			// Explicit refusal, rather than stale entity access.
-		}
+		assertNull(Microbot.getRs2NpcCache());
 	}
 
 	@Test

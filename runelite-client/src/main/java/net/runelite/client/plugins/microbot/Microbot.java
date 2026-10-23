@@ -34,7 +34,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *     <li>{@link #getBlockingEventManager()} is created per install and starts with no registered
  *     events: every upstream default event performs game input, which this stage does not
  *     support.</li>
- *     <li>Read-only cache getters delegate to the installed mobile read-service provider.</li>
+ *     <li>The NPC, tile-object and tile-item cache getters delegate to the installed
+ *     {@link MicrobotReadServices} (read-only API stage) instead of Guice-injected fields, and
+ *     return {@code null} when it is not installed, like the other getters here.
+ *     Player, player-state and boat caches are not ported.</li>
  * </ul>
  * Everything else upstream exposes here (mouse, hopping, plugin control, popups, loot records,
  * item containers, world services, overlays) is unsupported on mobile and deliberately absent,
@@ -78,15 +81,18 @@ public class Microbot {
     }
 
     public static Rs2NpcCache getRs2NpcCache() {
-        return MicrobotReadServices.require().getRs2NpcCache();
+        MicrobotReadServices services = MicrobotReadServices.current();
+        return services == null ? null : services.getRs2NpcCache();
     }
 
     public static Rs2TileObjectCache getRs2TileObjectCache() {
-        return MicrobotReadServices.require().getRs2TileObjectCache();
+        MicrobotReadServices services = MicrobotReadServices.current();
+        return services == null ? null : services.getRs2TileObjectCache();
     }
 
     public static Rs2TileItemCache getRs2TileItemCache() {
-        return MicrobotReadServices.require().getRs2TileItemCache();
+        MicrobotReadServices services = MicrobotReadServices.current();
+        return services == null ? null : services.getRs2TileItemCache();
     }
 
     static void bind(Client client, ClientThread clientThread, EventBus eventBus, ConfigManager configManager,

@@ -15,7 +15,6 @@ import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.headless.ScriptInputSession;
 import net.runelite.client.plugins.microbot.MicrobotRuntime;
 import net.runelite.client.plugins.microbot.MicrobotScriptAdapter;
-import net.runelite.client.plugins.microbot.api.MicrobotReadRuntimeService;
 import net.runelite.client.plugins.microbot.api.MicrobotReadServices;
 import net.runelite.client.plugins.microbot.statemachineexample.StateMachineExampleConfig;
 import net.runelite.client.plugins.microbot.statemachineexample.StateMachineExampleScript;
@@ -80,7 +79,7 @@ public class MobileMicrobotPlugin extends Plugin
 			try
 			{
 				MicrobotRuntime.install(client, clientThread, eventBus, configManager,
-					java.util.Collections.singletonList(new MicrobotReadRuntimeService(readServices, eventBus)));
+					java.util.List.of(readServices));
 				runtimeInstalled = true;
 				setRun(false);
 				enabled = true;

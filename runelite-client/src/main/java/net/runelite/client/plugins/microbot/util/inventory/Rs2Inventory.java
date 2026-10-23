@@ -17,6 +17,7 @@ import net.runelite.api.ItemComposition;
 import net.runelite.api.ItemContainer;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.gameval.InventoryID;
+import net.runelite.client.plugins.microbot.Microbot;
 import net.runelite.client.plugins.microbot.api.MicrobotReadServices;
 
 /**
@@ -85,10 +86,10 @@ public final class Rs2Inventory
 	public static Stream<Rs2ItemModel> items()
 	{
 		MicrobotReadServices services = MicrobotReadServices.current();
-		if (inventoryItems.isEmpty() && services != null && services.isLoggedIn())
+		if (inventoryItems.isEmpty() && services != null && Microbot.isLoggedIn())
 		{
 			Client client = services.getClient();
-			services.getClientThreadCalls().call(() ->
+			services.read(() ->
 			{
 				ItemContainer itemContainer = client.getItemContainer(InventoryID.INV);
 				if (itemContainer != null)
