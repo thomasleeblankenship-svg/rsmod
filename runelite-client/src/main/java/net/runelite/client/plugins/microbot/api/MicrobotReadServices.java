@@ -18,9 +18,11 @@ import net.runelite.api.Tile;
 import net.runelite.api.WorldView;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.AnimationChanged;
+import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.HitsplatApplied;
 import net.runelite.api.events.ItemContainerChanged;
+import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.api.events.VarbitChanged;
 import net.runelite.api.events.WorldViewLoaded;
 import net.runelite.api.events.WorldViewUnloaded;
@@ -34,6 +36,7 @@ import net.runelite.client.plugins.microbot.api.player.Rs2PlayerCache;
 import net.runelite.client.plugins.microbot.api.playerstate.Rs2PlayerStateCache;
 import net.runelite.client.plugins.microbot.api.tileitem.Rs2TileItemCache;
 import net.runelite.client.plugins.microbot.api.tileobject.Rs2TileObjectCache;
+import net.runelite.client.plugins.microbot.pouch.PouchTracker;
 import net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory;
 import net.runelite.client.plugins.microbot.util.player.Rs2Player;
 
@@ -51,10 +54,11 @@ import net.runelite.client.plugins.microbot.util.player.Rs2Player;
  * {@code Rs2Inventory.storeInventoryItemsInMemory} and
  * {@code Rs2Player.handleAnimationChanged}, {@code Rs2Player.handlePotionTimers}
  * (stamina only) and the hitsplat cases behind {@code Rs2Player.isInCombat}.
- * Additionally, any game-state or world-view change invalidates every snapshot,
+ * Essence pouch contents are tracked by a {@link PouchTracker} fed with menu
+ * clicks, game messages and inventory changes. Additionally, any game-state or world-view change invalidates every snapshot,
  * and any state other than {@code LOGGED_IN} or {@code LOADING} (logout, hop,
  * connection loss, login) clears world-view ids, inventory and the
- * {@code Rs2Player} animation, stamina and combat state.
+ * {@code Rs2Player} animation, stamina and combat state, and resets pouch tracking.
  */
 @Singleton
 public final class MicrobotReadServices implements MicrobotReadApi, MicrobotRuntimeService
@@ -73,6 +77,7 @@ public final class MicrobotReadServices implements MicrobotReadApi, MicrobotRunt
 	private final Rs2TileItemCache tileItemCache;
 	private final Rs2PlayerStateCache playerStateCache;
 	private final Rs2PlayerCache playerCache;
+	private final PouchTracker pouchTracker;
 
 	@Inject
 	public MicrobotReadServices(Client client, ClientThread clientThread, EventBus eventBus)
@@ -95,6 +100,7 @@ public final class MicrobotReadServices implements MicrobotReadApi, MicrobotRunt
 		this.tileItemCache = new Rs2TileItemCache(this);
 		this.playerStateCache = new Rs2PlayerStateCache(this);
 		this.playerCache = new Rs2PlayerCache(this);
+		this.pouchTracker = new PouchTracker(client);
 	}
 
 	/** The installed provider, or {@code null} while the runtime is not installed. */
@@ -137,6 +143,7 @@ public final class MicrobotReadServices implements MicrobotReadApi, MicrobotRunt
 		generation.incrementAndGet();
 		snapshots.forEach(TickSnapshotCache::clear);
 		playerStateCache.clear();
+		pouchTracker.reset();
 		Rs2Inventory.clear();
 		Rs2Player.clear();
 	}
@@ -258,6 +265,7 @@ public final class MicrobotReadServices implements MicrobotReadApi, MicrobotRunt
 			worldViewIds.clear();
 			Rs2Inventory.clear();
 			Rs2Player.clear();
+			pouchTracker.reset();
 		}
 	}
 
@@ -279,6 +287,19 @@ public final class MicrobotReadServices implements MicrobotReadApi, MicrobotRunt
 	public void onItemContainerChanged(ItemContainerChanged event)
 	{
 		Rs2Inventory.storeInventoryItemsInMemory(event);
+		pouchTracker.onItemContainerChanged(event);
+	}
+
+	@Subscribe
+	public void onMenuOptionClicked(MenuOptionClicked event)
+	{
+		pouchTracker.onMenuOptionClicked(event);
+	}
+
+	@Subscribe
+	public void onChatMessage(ChatMessage event)
+	{
+		pouchTracker.onChatMessage(event);
 	}
 
 	@Subscribe
