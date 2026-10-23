@@ -1,37 +1,52 @@
-# Android validation remaining
+# Android validation
 
-No APK was produced. SDK, NDK, adb, emulator and `/dev/kvm` were absent in
-the inspected environment. Android runtime/JNI checks have not run.
+Phase 2 release-variant APK built; static checks passed. This is a baseline
+mobile adapter, not the upstream Microbot runtime. No device tests ran.
 
-After the client build gate passes, supply Android SDK 35, build tools 35,
-NDK (upstream documents 27.0.12077973), CMake 3.22.1 and an ARM64 Android 9+
-device/emulator. See the complete upstream [Android README](../../android/README.md).
-AGP is 8.6.0, Kotlin 2.0.20, Gradle 8.8, Android Java/Kotlin target 17;
-embedded bionic JRE is 21, Java client target is 11.
+## Verified
 
-From the repository root, follow the ordered stages:
+- JDK 21.0.8+9, Gradle 8.8, SDK platform/build-tools 35, CMake 3.22.1 installed.
+- NDK 27.0.12077973 used for JRE helper; AGP 8.6.0 default NDK 26.1.10909125
+  used for the app's native libraries. Kotlin 2.0.20; embedded JRE 21.
+- Checksum-verified bionic ARM64 JRE, shaded client, probes, GPU and 117HD
+  variants, runtime tag and APK assembly passed.
+- APK v2 signature verified (local Android Debug certificate), ZIP alignment
+  verified, package metadata confirms arm64-v8a / minimum SDK 28 / target 35.
+- All 15 packaged mobile scripting classes match the actual compiled classes.
+- JRE stays in assets; no JRE duplication in jniLibs.
+- Shared bridge/auth contract and hub-pin preflight passed.
+- Android lint passed: zero errors, 47 warnings, 7 informational findings.
+- Android unit-test task was NO-SOURCE: no Android unit tests executed.
+
+Full evidence: [BUILD_REPORT.md](../../BUILD_REPORT.md).
+Artifact identity: [apk-artifact.json](apk-artifact.json).
+
+## Reproduce
 
 ```bash
+cd /workspace/rsmod
 source scripts/activate-java.sh
-tools/stage-android-jre.sh
-./gradlew --max-workers=4 :client:shadowJar
-(cd ios/app && ./build-probes.sh)
-android/dev-tools/gpu/stage-android-gpu-jar.sh
-android/dev-tools/gpu/stage-rlhd-zone-jar.sh
-tools/stage-mobile-runtime.sh --no-build --android-only
-(cd android && ./gradlew --max-workers=4 :app:assembleRelease)
+./scripts/build-android.sh /workspace/rsmod
 ```
 
-These commands have NOT been executed through APK assembly in this task.
-Keep all JRE .so files in assets, not jniLibs; retain all upstream checksum checks.
+The helper performs the upstream documented ordered stages: JRE, shadowJar,
+probes, GPU, 117HD, runtime tag, then Android assembleRelease. It selects the
+pinned Lombok from the active writable Gradle cache. Retain upstream checksum
+verification; see [Android README](../../android/README.md) for architecture.
+Use the saved environment install script to provision tools in a fresh machine.
 
-Device acceptance (all unrun):
+## Device acceptance remaining (all unrun)
 
-- Install and launch APK, verify game login/render/input and plugin discovery.
-- Explicit start/stop, swap, exception cleanup, plugin disable and rapid enable/disable.
+- Install and launch on ARM64 Android 9+, verify login/render/input and plugin discovery.
+- Explicit start/stop, script swap, exception cleanup, disable and rapid enable/disable.
 - Logout/reconnect/hop: no unexpected auto-resume or queued script starts.
 - Confirm interactions by game state, not click enqueue return values.
-- Confirm manual input immediately takes priority and cancels pending generated taps.
-- Background/foreground, VM/service restart, app termination and held-key release.
-- Test actual upstream script only after runtime port; record source SHA and unchanged core logic.
-- Measure FPS/CPU/memory/thermals over long sessions; do not infer background support.
+- Add and verify manual takeover and cancellation of pending generated taps.
+- Background/foreground, VM/service restart, termination and held-key release.
+- Run an actual upstream script after the runtime/API port, recording unchanged core logic.
+- Measure FPS/CPU/memory/thermals over long sessions; no inferred background support.
+
+No compatible device was supplied. In this instance ADB aborts while trying to
+create `/home/agent/.android` on the read-only filesystem; `/dev/kvm` is absent.
+No installation or launch success is claimed. Use an external test phone or
+compatible device-enabled environment for these checks.

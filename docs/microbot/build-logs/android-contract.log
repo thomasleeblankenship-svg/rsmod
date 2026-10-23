@@ -1,0 +1,16 @@
+────────────────────────────────────────────────────────────────────────
+▶ Contract gate (shared iOS/Android bridge + -D flags)
+────────────────────────────────────────────────────────────────────────
+shared contract: UNCHANGED (579 entries)
+  → contract UNCHANGED.
+────────────────────────────────────────────────────────────────────────
+▶ Jagex OAuth wire contract (iOS / Android / script parity)
+────────────────────────────────────────────────────────────────────────
+auth contract: OK (18 pins verified across iOS / Android / script)
+  → auth contract OK.
+────────────────────────────────────────────────────────────────────────
+▶ hub-pin review (RuneLite api/hub version drift, GAP-B-2)
+────────────────────────────────────────────────────────────────────────
+hub-pin: OK (pin 1.13.3, reviewed at project 1.13.4).
+
+✅ contract-only pre-flight PASS.

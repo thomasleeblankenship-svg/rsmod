@@ -1,0 +1,4 @@
+Created 32 compile-only stubs
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+PASS: real RuneMobile API surface; client/library stand-ins remain. Full client compilation is still required.

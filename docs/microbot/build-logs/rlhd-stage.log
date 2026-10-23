@@ -1,0 +1,13 @@
+== rlhd-src absent or != pinned rev — (re)fetching 117HD/RLHD @ 7dded591a21d4c17c2d8c077c8ac0ecfbbd7313f ==
+java overlay applied  : 5 file(s)
+shader overlay applied : 21 file(s)
+facade lwjgl classes : 34
+rlhd classes         : 304   (facade-backed; must be >=290)
+lwjgl/rlawt leak     : 0   (must be 0; facade ships in the gpu jar)
+glsl shaders         : 47   (must be >=40)
+loader json          : 9   (must be >=6)
+ZoneRenderer.class   : 1   (must be 1)
+OpenCLManager.class  : 1   (must be 1)
+staged class md5     : 477763ba93a2103a163ec5d6b57d4547
+staged Android rlhd jar: /workspace/rsmod/android/app/src/main/assets/jvm/client-1.13.4-SNAPSHOT-rlhd.jar
+MEGAVERDICT = ANDROID_RLHD_STAGE_GREEN

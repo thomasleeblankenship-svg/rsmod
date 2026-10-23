@@ -1,0 +1,37 @@
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.8/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build
+> Task :runelite-gradle-plugin:pluginDescriptors
+> Task :runelite-gradle-plugin:processResources
+
+> Task :cache:generateGrammarSource
+
+> Task :cache:processResources
+> Task :cache:generateEffectiveLombokConfig
+
+> Task :cache:compileJava
+/workspace/rsmod/cache/src/main/java/net/runelite/cache/EntityOpsDefinition.java:102: warning: Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+	@Data
+	^
+/workspace/rsmod/cache/src/main/java/net/runelite/cache/EntityOpsDefinition.java:121: warning: Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+	@Data
+	^
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+Note: Some input files use unchecked or unsafe operations.
+Note: Recompile with -Xlint:unchecked for details.
+2 warnings
+
+> Task :cache:classes
+> Task :cache:jar
+> Task :runelite-gradle-plugin:compileJava
+> Task :runelite-gradle-plugin:classes
+> Task :runelite-gradle-plugin:jar
+
+> Task :client:assembleRs2asm
+Assembled 32 scripts
+
+> Task :client:buildRs2asmIndex
+> Task :client:processResources
+
+BUILD SUCCESSFUL in 9s
+12 actionable tasks: 12 executed

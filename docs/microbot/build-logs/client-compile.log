@@ -1,0 +1,91 @@
+Downloading https://services.gradle.org/distributions/gradle-8.8-all.zip
+.....................10%......................20%......................30%......................40%......................50%......................60%......................70%......................80%......................90%......................100%
+
+Welcome to Gradle 8.8!
+
+Here are the highlights of this release:
+ - Running Gradle on Java 22
+ - Configurable Gradle daemon JVM
+ - Improved IDE performance for large projects
+
+For more details see https://docs.gradle.org/8.8/release-notes.html
+
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.8/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build
+> Task :runelite-gradle-plugin:pluginDescriptors
+> Task :runelite-gradle-plugin:processResources
+
+> Task :cache:generateGrammarSource
+
+> Task :cache:processResources
+> Task :cache:generateEffectiveLombokConfig
+
+> Task :cache:compileJava
+/workspace/rsmod/cache/src/main/java/net/runelite/cache/EntityOpsDefinition.java:102: warning: Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+	@Data
+	^
+/workspace/rsmod/cache/src/main/java/net/runelite/cache/EntityOpsDefinition.java:121: warning: Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+	@Data
+	^
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+Note: Some input files use unchecked or unsafe operations.
+Note: Recompile with -Xlint:unchecked for details.
+2 warnings
+
+> Task :cache:classes
+> Task :cache:jar
+> Task :runelite-gradle-plugin:compileJava
+> Task :runelite-gradle-plugin:classes
+> Task :runelite-gradle-plugin:jar
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Could not determine the dependencies of task ':client:compileJava'.
+> Could not resolve all dependencies for configuration ':client:compileClasspath'.
+   > Could not resolve net.runelite.arn:http-api:1.2.26.
+     Required by:
+         project :client
+      > Could not resolve net.runelite.arn:http-api:1.2.26.
+         > Could not get resource 'https://repo.runelite.net/net/runelite/arn/http-api/1.2.26/http-api-1.2.26.pom'.
+            > Could not GET 'https://repo.runelite.net/net/runelite/arn/http-api/1.2.26/http-api-1.2.26.pom'. Received status code 403 from server: Forbidden
+   > Could not resolve net.runelite:discord:1.4.
+     Required by:
+         project :client
+      > Could not resolve net.runelite:discord:1.4.
+         > Could not get resource 'https://repo.runelite.net/net/runelite/discord/1.4/discord-1.4.pom'.
+            > Could not GET 'https://repo.runelite.net/net/runelite/discord/1.4/discord-1.4.pom'. Received status code 403 from server: Forbidden
+   > Could not resolve net.runelite:rlawt:1.8.
+     Required by:
+         project :client
+      > Could not resolve net.runelite:rlawt:1.8.
+         > Could not get resource 'https://repo.runelite.net/net/runelite/rlawt/1.8/rlawt-1.8.pom'.
+            > Could not GET 'https://repo.runelite.net/net/runelite/rlawt/1.8/rlawt-1.8.pom'. Received status code 403 from server: Forbidden
+   > Could not resolve net.runelite:flatlaf:3.2.5-rl4.
+     Required by:
+         project :client
+      > Could not resolve net.runelite:flatlaf:3.2.5-rl4.
+         > Could not get resource 'https://repo.runelite.net/net/runelite/flatlaf/3.2.5-rl4/flatlaf-3.2.5-rl4.pom'.
+            > Could not GET 'https://repo.runelite.net/net/runelite/flatlaf/3.2.5-rl4/flatlaf-3.2.5-rl4.pom'. Received status code 403 from server: Forbidden
+   > Could not resolve net.runelite:orange-extensions:1.1.
+     Required by:
+         project :client
+      > Could not resolve net.runelite:orange-extensions:1.1.
+         > Could not get resource 'https://repo.runelite.net/net/runelite/orange-extensions/1.1/orange-extensions-1.1.pom'.
+            > Could not GET 'https://repo.runelite.net/net/runelite/orange-extensions/1.1/orange-extensions-1.1.pom'. Received status code 403 from server: Forbidden
+   > Could not resolve net.runelite:flatlaf-extras:3.2.5-rl4.
+     Required by:
+         project :client
+      > Could not resolve net.runelite:flatlaf-extras:3.2.5-rl4.
+         > Could not get resource 'https://repo.runelite.net/net/runelite/flatlaf-extras/3.2.5-rl4/flatlaf-extras-3.2.5-rl4.pom'.
+            > Could not GET 'https://repo.runelite.net/net/runelite/flatlaf-extras/3.2.5-rl4/flatlaf-extras-3.2.5-rl4.pom'. Received status code 403 from server: Forbidden
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 50s
+9 actionable tasks: 9 executed

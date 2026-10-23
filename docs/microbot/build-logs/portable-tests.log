@@ -1,0 +1,27 @@
+Created 32 compile-only stubs
+PASS idle pose is idle
+PASS movement pose blocks idle
+PASS inventory empty
+PASS inventory full
+PASS inventory stack quantities
+PASS empty-slot sentinel minus one
+PASS nearest scene object
+PASS object name filtering
+PASS first input reserved
+PASS one input per tick
+PASS near minimap walk
+PASS distant path explicitly unsupported
+PASS shared input budget
+PASS startup does not auto-run
+PASS start facade config scheduling
+PASS diagnostics begins ticking
+PASS registry visible
+PASS disconnect fail-closed
+PASS no surprise restart after reconnection
+PASS scene scanner runs
+PASS stop facade
+PASS world hop fails closed
+PASS stop invalidates queued start
+PASS disable invalidates queued start
+PASS plugin bridge detaches
+ALL 25 TESTS PASSED

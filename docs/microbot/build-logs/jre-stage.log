@@ -1,0 +1,23 @@
+== download bionic jre21 (28 MB) ==
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+
+ 36 27.3M   36 10.0M    0     0  12.5M      0  0:00:02 --:--:--  0:00:02 12.5M
+100 27.3M  100 27.3M    0     0  25.3M      0  0:00:01  0:00:01 --:--:-- 62.0M
+   sha256 OK (db7862e4ec68a71a46cf1fec078938443410805cb61e8f99b75f10893c708c9a)
+== extract ==
+== verify bionic aarch64 (not iOS Mach-O, not glibc) ==
+   bin/java: ELF 64-bit LSB shared object, ARM aarch64, version 1 (SYSV), dynamically linked, interpreter /system/bin/linker64, for Android 21, built by NDK r27d (13750724), not stripped
+   ✓ ELF aarch64, bionic interpreter
+   ✓ libjvm NEEDs only bionic sonames
+== stage -> android/app/src/main/assets/jvm/jre (assets only) ==
+   modules: 110789498 bytes; server/libjvm.so present: yes
+== build fake libawt_xawt.so (NDK) ==
+   ✓ libawt_xawt.so installed into jre/lib
+
+== Android JRE staged. Next: stage the jars in the order android/README.md gives (ending with
+   tools/stage-mobile-runtime.sh --no-build --android-only),
+   then build/run: android/gradlew :app:assembleDebug

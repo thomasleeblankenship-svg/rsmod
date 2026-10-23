@@ -1,0 +1,27 @@
+== fetch cacio-tta-1.18.jar from Maven Central ==
+== fetch cacio-shared-1.18.jar from Maven Central ==
+== verify CACIO jar checksums (SUPPLY-1) ==
+== fold in CACIO classes ==
+== compile Phase-1 probes (javac --release 8) ==
+warning: [options] source value 8 is obsolete and will be removed in a future release
+warning: [options] target value 8 is obsolete and will be removed in a future release
+warning: [options] To suppress warnings about obsolete options, use -Xlint:-options.
+3 warnings
+== compile §6.0 activation + §6.1 smoke probes (javac --release 8, cacio on cp) ==
+warning: [options] source value 8 is obsolete and will be removed in a future release
+warning: [options] target value 8 is obsolete and will be removed in a future release
+warning: [options] To suppress warnings about obsolete options, use -Xlint:-options.
+3 warnings
+== compile §6.2 DeviceHeadlessBoot + GateCensus (javac --release 8, prior classes+cacio+shaded on cp) ==
+warning: [options] source value 8 is obsolete and will be removed in a future release
+warning: [options] target value 8 is obsolete and will be removed in a future release
+warning: [options] To suppress warnings about obsolete options, use -Xlint:-options.
+3 warnings
+== pack jvm-resources/probes.jar ==
+== done ==
+-rw------- 1 agent agent 145243 Oct 23 02:16 jvm-resources/probes.jar
+key classes:
+AwtActivation.class
+UnsafePokeActivation.class
+com/github/caciocavallosilano/cacio/ctc/CTCGraphicsEnvironment.class
+com/github/caciocavallosilano/cacio/ctc/CTCToolkit.class

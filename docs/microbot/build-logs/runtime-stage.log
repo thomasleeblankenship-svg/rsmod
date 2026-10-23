@@ -1,0 +1,15 @@
+== stage shared runtime (version 1.13.4-SNAPSHOT) ==
+  staged -> android/app/src/main/assets/jvm (Android)
+  wrote android/app/src/main/assets/jvm/runtime.tag (5a318bca8572)
+
+# mobile runtime stage manifest — DO NOT COMMIT (generated)
+version       1.13.4-SNAPSHOT
+content-tag   5a318bca8572
+e6c94125c665dfc1fc65ee7f11e6bfcbdeefa18b4c3f3d312bb46bfb82f09402  client-1.13.4-SNAPSHOT-shaded.jar
+5abbe37d46fb51efc9e0e697196170ed57c597af5aaae6bcbce35a31a439f2bd  probes.jar
+ios-dest      ios/app/jvm-resources
+android-dest  android/app/src/main/assets/jvm
+
+== done (content-tag 5a318bca8572). Each port's own jar stages are listed in PORTS.md.
+   Android re-unpacks automatically via jvm/runtime.tag; bump BASE in AssetInstaller.kt
+   only when the embedded JRE / native libs change (jars are tracked by the tag).
