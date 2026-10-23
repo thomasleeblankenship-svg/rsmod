@@ -8,9 +8,9 @@ import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.plugins.microbot.api.MicrobotReadServices;
 import net.runelite.client.plugins.microbot.api.npc.Rs2NpcCache;
+import net.runelite.client.plugins.microbot.api.playerstate.Rs2PlayerStateCache;
 import net.runelite.client.plugins.microbot.api.tileitem.Rs2TileItemCache;
 import net.runelite.client.plugins.microbot.api.tileobject.Rs2TileObjectCache;
-import net.runelite.client.plugins.microbot.mobile.MobileActions;
 import net.runelite.client.plugins.microbot.util.GameTickBroadcaster;
 import net.runelite.client.plugins.microbot.woodcutting.AutoWoodcuttingPlugin;
 import org.slf4j.event.Level;
@@ -39,9 +39,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *     <li>The NPC, tile-object and tile-item cache getters delegate to the installed
  *     {@link MicrobotReadServices} (read-only API stage) instead of Guice-injected fields, and
  *     return {@code null} when it is not installed, like the other getters here.
- *     Player, player-state and boat caches are not ported.</li>
+ *     The player-state cache is exposed through {@link #getRs2PlayerStateCache()}; player and
+ *     boat caches are not ported.</li>
  * </ul>
- * {@link #getVarbitValue}, {@link #getVarbitPlayerValue}, {@link #isPluginEnabled} and
+ * {@link #getVarbitValue} and {@link #getVarbitPlayerValue} read the read-API stage's
+ * {@code Rs2PlayerStateCache}, as upstream does. {@link #isPluginEnabled} and
  * {@link #showMessage} are mobile adaptations for the woodcutting port; each documents how it
  * differs from upstream.
  * <p>
@@ -197,17 +199,22 @@ public class Microbot {
         return false;
     }
 
-    /**
-     * Upstream reads the player-state cache. Mobile reads the client on the client thread and
-     * returns 0 when the read services are not installed or the read times out.
-     */
-    public static int getVarbitValue(int id) {
-        return MobileActions.read(() -> MicrobotReadServices.require().getClient().getVarbitValue(id), 0);
+    /** Upstream's player-state cache; {@code null} when the read services are not installed. */
+    public static Rs2PlayerStateCache getRs2PlayerStateCache() {
+        MicrobotReadServices services = MicrobotReadServices.current();
+        return services == null ? null : services.getRs2PlayerStateCache();
     }
 
-    /** Same contract as {@link #getVarbitValue(int)}, for a varp. */
+    /** As upstream, reads {@link Rs2PlayerStateCache}; returns 0 when the read services are not installed. */
+    public static int getVarbitValue(int id) {
+        Rs2PlayerStateCache cache = getRs2PlayerStateCache();
+        return cache == null ? 0 : cache.getVarbitValue(id);
+    }
+
+    /** As upstream, reads {@link Rs2PlayerStateCache}; returns 0 when the read services are not installed. */
     public static int getVarbitPlayerValue(int id) {
-        return MobileActions.read(() -> MicrobotReadServices.require().getClient().getVarpValue(id), 0);
+        Rs2PlayerStateCache cache = getRs2PlayerStateCache();
+        return cache == null ? 0 : cache.getVarpValue(id);
     }
 
     /**
