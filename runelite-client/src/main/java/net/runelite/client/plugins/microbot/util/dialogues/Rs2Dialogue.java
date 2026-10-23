@@ -110,6 +110,42 @@ public final class Rs2Dialogue
 		return Rs2Widget.isWidgetVisible(net.runelite.api.widgets.ComponentID.DIALOG_OPTION_OPTIONS);
 	}
 
+	/**
+	 * As upstream: the title row of the "Select an option" menu without colour tags, or
+	 * {@code null} when no option menu is showing.
+	 */
+	public static String getQuestion()
+	{
+		if (!hasSelectAnOption())
+		{
+			return null;
+		}
+		String text = MobileActions.read(() ->
+		{
+			net.runelite.api.widgets.Widget menu = Microbot.getClient().getWidget(net.runelite.api.widgets.ComponentID.DIALOG_OPTION_OPTIONS);
+			net.runelite.api.widgets.Widget[] rows = menu == null ? null : menu.getDynamicChildren();
+			return rows == null || rows.length == 0 || rows[0] == null ? null : rows[0].getText();
+		}, null);
+		return text == null ? null : net.runelite.client.plugins.microbot.util.misc.Rs2UiHelper.stripColTags(text);
+	}
+
+	/** Whether the option menu's question contains {@code text}, ignoring case. */
+	public static boolean hasQuestion(String text)
+	{
+		return hasQuestion(text, false);
+	}
+
+	/** Whether the option menu's question equals ({@code exact}) or contains {@code text}, ignoring case. */
+	public static boolean hasQuestion(String text, boolean exact)
+	{
+		String question = getQuestion();
+		if (question == null || text == null)
+		{
+			return false;
+		}
+		return exact ? question.equalsIgnoreCase(text) : question.toLowerCase().contains(text.toLowerCase());
+	}
+
 	/** Whether the open dialogue's text contains {@code text}, ignoring case and colour tags. */
 	public static boolean hasDialogueText(String text)
 	{

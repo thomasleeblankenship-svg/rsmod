@@ -381,6 +381,15 @@ public abstract class AbstractEntityQueryable<
 		return new HashSet<>(net.runelite.client.plugins.microbot.util.walker.Rs2Walker.getWalkableTilesAroundPlayer(radius));
 	}
 
+	/**
+	 * Whether the local player can walk to {@code entity} or stand next to it, searching the
+	 * current floor up to {@link #MAX_REACHABLE_DISTANCE} tiles. Backs {@link IEntity#isReachable()}.
+	 */
+	public static boolean isReachableFromPlayer(IEntity entity)
+	{
+		return isReachable(entity, reachableTiles(MAX_REACHABLE_DISTANCE));
+	}
+
 	private static boolean isReachable(IEntity entity, Set<WorldPoint> reachable)
 	{
 		WorldPoint loc = entity.getWorldLocation();

@@ -116,6 +116,8 @@ public class EntityHubReadTest
 		assertEquals("Free", f.services.getRs2NpcCache().query().nearestReachable().getName());
 		assertEquals("Free", f.services.getRs2NpcCache().query().firstReachable().getName());
 		assertNull(f.services.getRs2NpcCache().query().nearestReachable(4));
+		assertFalse(f.services.getRs2NpcCache().query().withName("Caged").first().isReachable());
+		assertTrue(f.services.getRs2NpcCache().query().withName("Free").first().isReachable());
 	}
 
 	@Test

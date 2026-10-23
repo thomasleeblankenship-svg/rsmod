@@ -14,6 +14,7 @@ import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.plugins.microbot.api.tileitem.models.Rs2TileItemModel;
 import net.runelite.client.plugins.microbot.api.tileobject.models.Rs2TileObjectModel;
 import net.runelite.client.plugins.microbot.api.tileobject.models.TileObjectType;
+import net.runelite.client.plugins.microbot.util.grounditem.Rs2GroundItem;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -185,6 +186,13 @@ public class SceneQueryTest
 		assertEquals(250, nearestLootable.getQuantity());
 		assertTrue(nearestLootable.isOwned());
 		assertEquals(3, f.services.getRs2TileItemCache().query().where(Rs2TileItemModel::isLootAble).within(15).count());
+
+		assertTrue(Rs2GroundItem.exists(2, 15));
+		assertTrue(Rs2GroundItem.exists("ashes", 15));
+		assertFalse("out of range", Rs2GroundItem.exists(5, 15));
+		assertFalse(Rs2GroundItem.exists("Far rune", 15));
+		assertTrue(Rs2GroundItem.exists("Far rune", 16));
+		assertFalse(Rs2GroundItem.exists(null, 15));
 	}
 
 	@Test

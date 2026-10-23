@@ -27,9 +27,8 @@ import net.runelite.client.plugins.microbot.api.MicrobotReadServices;
  * the client thread; with no client or local player they report idle.
  * <p>
  * Adaptation: a read subset of upstream, plus the mobile additions below and the
- * Hub reads at the end; prayer, potion timers other than stamina, and PvP helpers
- * are not ported. Animation, stamina and combat state are cleared on
- * logout/hop/connection loss.
+ * Hub reads at the end (PvP helpers are in {@link Rs2Pvp}). Animation, potion-timer
+ * and combat state are cleared on logout/hop/connection loss.
  */
 public final class Rs2Player
 {
@@ -39,6 +38,15 @@ public final class Rs2Player
 	public static volatile int lastAnimationID = AnimationID.IDLE;
 	/** Stamina effect varbit value; positive while the buff is active. Written on the client thread. */
 	public static volatile int staminaBuffTime = -1;
+	/** Upstream's potion timers: the effect varbit's value, positive while active. Written on the client thread. */
+	public static volatile int antiFireTime = -1;
+	public static volatile int superAntiFireTime = -1;
+	public static volatile int divineRangedTime = -1;
+	public static volatile int divineBastionTime = -1;
+	public static volatile int divineCombatTime = -1;
+	public static volatile int divineMagicTime = -1;
+	public static volatile int goadingTime = -1;
+	public static volatile int moonlightTime = -1;
 
 	private static final long COMBAT_TIMEOUT_MS = 10000;
 	private static volatile long lastCombatTime = 0;
@@ -80,6 +88,14 @@ public final class Rs2Player
 		lastAnimationTime = null;
 		lastAnimationID = AnimationID.IDLE;
 		staminaBuffTime = -1;
+		antiFireTime = -1;
+		superAntiFireTime = -1;
+		divineRangedTime = -1;
+		divineBastionTime = -1;
+		divineCombatTime = -1;
+		divineMagicTime = -1;
+		goadingTime = -1;
+		moonlightTime = -1;
 		lastCombatTime = 0;
 		playerDetectionTimes.clear();
 	}
@@ -432,15 +448,121 @@ public final class Rs2Player
 	// ---- Hub read APIs (upstream 2.6.38) ----
 
 	/**
-	 * Event hook (client thread); routed by {@code MicrobotReadServices}. Adaptation: of upstream's
-	 * potion timers only the stamina effect is tracked, for {@link #hasStaminaBuffActive()}.
+	 * Event hook (client thread); routed by {@code MicrobotReadServices}. As upstream for the
+	 * varbit-backed potion timers; adaptation: the poison-varp (anti-poison/anti-venom) timers are
+	 * not tracked.
 	 */
 	public static void handlePotionTimers(net.runelite.api.events.VarbitChanged event)
 	{
-		if (event.getVarbitId() == net.runelite.api.Varbits.STAMINA_EFFECT)
+		int varbit = event.getVarbitId();
+		int value = event.getValue();
+		if (varbit == net.runelite.api.Varbits.ANTIFIRE)
 		{
-			staminaBuffTime = event.getValue();
+			antiFireTime = value;
 		}
+		if (varbit == net.runelite.api.Varbits.SUPER_ANTIFIRE)
+		{
+			superAntiFireTime = value;
+		}
+		if (varbit == net.runelite.api.Varbits.DIVINE_RANGING)
+		{
+			divineRangedTime = value;
+		}
+		if (varbit == net.runelite.api.Varbits.DIVINE_BASTION)
+		{
+			divineBastionTime = value;
+		}
+		if (varbit == net.runelite.api.Varbits.DIVINE_SUPER_COMBAT)
+		{
+			divineCombatTime = value;
+		}
+		if (varbit == net.runelite.api.Varbits.STAMINA_EFFECT)
+		{
+			staminaBuffTime = value;
+		}
+		if (varbit == net.runelite.api.Varbits.BUFF_GOADING_POTION)
+		{
+			goadingTime = value;
+		}
+		if (varbit == net.runelite.api.Varbits.MOONLIGHT_POTION)
+		{
+			moonlightTime = value;
+		}
+		if (varbit == net.runelite.api.Varbits.DIVINE_MAGIC)
+		{
+			divineMagicTime = value;
+		}
+	}
+
+	public static boolean hasAntiFireActive()
+	{
+		return antiFireTime > 0 || hasSuperAntiFireActive();
+	}
+
+	public static boolean hasSuperAntiFireActive()
+	{
+		return superAntiFireTime > 0;
+	}
+
+	public static boolean hasDivineRangedActive()
+	{
+		return divineRangedTime > 0 || hasDivineBastionActive();
+	}
+
+	public static boolean hasDivineBastionActive()
+	{
+		return divineBastionTime > 0;
+	}
+
+	public static boolean hasDivineCombatActive()
+	{
+		return divineCombatTime > 0;
+	}
+
+	public static boolean hasDivineMagicActive()
+	{
+		return divineMagicTime > 0;
+	}
+
+	public static boolean hasGoadingActive()
+	{
+		return goadingTime > 0;
+	}
+
+	public static boolean hasMoonlightActive()
+	{
+		return moonlightTime > 0;
+	}
+
+	/** As upstream: the boosted level exceeds the real level by more than {@code threshold}. */
+	public static boolean hasAttackActive(int threshold)
+	{
+		return isBoostedAbove(net.runelite.api.Skill.ATTACK, threshold);
+	}
+
+	public static boolean hasStrengthActive(int threshold)
+	{
+		return isBoostedAbove(net.runelite.api.Skill.STRENGTH, threshold);
+	}
+
+	public static boolean hasDefenseActive(int threshold)
+	{
+		return isBoostedAbove(net.runelite.api.Skill.DEFENCE, threshold);
+	}
+
+	public static boolean hasMagicActive(int threshold)
+	{
+		return isBoostedAbove(net.runelite.api.Skill.MAGIC, threshold);
+	}
+
+	public static boolean hasRangingPotionActive(int threshold)
+	{
+		return isBoostedAbove(net.runelite.api.Skill.RANGED, threshold);
+	}
+
+	private static boolean isBoostedAbove(net.runelite.api.Skill skill, int threshold)
+	{
+		return getBoostedSkillLevel(skill) - threshold > getRealSkillLevel(skill);
 	}
 
 	public static boolean hasStaminaBuffActive()
