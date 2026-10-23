@@ -1,6 +1,7 @@
 package net.runelite.client.plugins.microbot.util.gameobject;
 
 import net.runelite.api.ObjectComposition;
+import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.plugins.microbot.api.tileobject.models.Rs2TileObjectModel;
 import net.runelite.client.plugins.microbot.mobile.MobileActions;
 import net.runelite.client.plugins.microbot.util.walker.Rs2Walker;
@@ -33,6 +34,80 @@ public final class Rs2GameObject
 	public static java.util.Optional<String> getCompositionName(net.runelite.api.GameObject object)
 	{
 		return java.util.Optional.ofNullable(object == null ? null : getCompositionName(object.getId()));
+	}
+
+	// --- upstream lookup-and-interact overloads (nearest match in the tile-object snapshot) ---
+
+	public static boolean interact(int id)
+	{
+		return interact(nearest(o -> o.getId() == id, -1), "", false);
+	}
+
+	public static boolean interact(int id, String action)
+	{
+		return interact(nearest(o -> o.getId() == id, -1), action, false);
+	}
+
+	public static boolean interact(int id, boolean checkCanReach)
+	{
+		return interact(nearest(o -> o.getId() == id, -1), "", checkCanReach);
+	}
+
+	/** Within {@code distance} tiles of the player, as upstream. */
+	public static boolean interact(int id, String action, int distance)
+	{
+		return interact(nearest(o -> o.getId() == id, distance), action, false);
+	}
+
+	public static boolean interact(int[] objectIds, String action)
+	{
+		if (objectIds == null) return false;
+		for (int id : objectIds)
+		{
+			if (interact(id, action)) return true;
+		}
+		return false;
+	}
+
+	public static boolean interact(String name)
+	{
+		return interact(name, "", true);
+	}
+
+	public static boolean interact(String name, boolean exact)
+	{
+		return interact(name, "", exact);
+	}
+
+	public static boolean interact(String name, String action)
+	{
+		return interact(name, action, false);
+	}
+
+	/** Upstream name rule: exact is case-insensitive equality, otherwise a case-insensitive substring. */
+	public static boolean interact(String name, String action, boolean exact)
+	{
+		if (name == null) return false;
+		String needle = name.toLowerCase(java.util.Locale.ROOT);
+		return interact(nearest(o -> o.getName() != null && (exact ? o.getName().equalsIgnoreCase(name)
+			: o.getName().toLowerCase(java.util.Locale.ROOT).contains(needle)), -1), action, false);
+	}
+
+	public static boolean interact(WorldPoint location)
+	{
+		return interact(location, "");
+	}
+
+	public static boolean interact(WorldPoint location, String action)
+	{
+		return location != null && interact(nearest(o -> location.equals(o.getWorldLocation()), -1), action, false);
+	}
+
+	private static Rs2TileObjectModel nearest(java.util.function.Predicate<Rs2TileObjectModel> filter, int distance)
+	{
+		if (net.runelite.client.plugins.microbot.Microbot.getRs2TileObjectCache() == null) return null;
+		var query = net.runelite.client.plugins.microbot.Microbot.getRs2TileObjectCache().query().where(filter);
+		return distance >= 0 ? query.within(distance).nearest() : query.nearest();
 	}
 
 	/** Upstream overload: interacts with the model's first action. */

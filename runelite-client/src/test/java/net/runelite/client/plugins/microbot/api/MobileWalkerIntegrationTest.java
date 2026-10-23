@@ -268,7 +268,7 @@ public class MobileWalkerIntegrationTest
 		assertTrue("staircase must be in the snapshot", staircase != null);
 		assertTrue(Rs2GameObject.interact(staircase, "Climb-down", false));
 		assertTrue(actions.toString(), actions.contains("stairs:2>1"));
-		assertFalse(Rs2GameObject.interact(null, "Climb-down", false));
+		assertFalse(Rs2GameObject.interact((Rs2TileObjectModel) null, "Climb-down", false));
 	}
 }
 

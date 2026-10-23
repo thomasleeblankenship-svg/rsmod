@@ -9,6 +9,7 @@ import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.plugins.PluginManager;
 import net.runelite.client.plugins.microbot.util.GameTickBroadcaster;
 
 import java.util.ArrayDeque;
@@ -61,6 +62,20 @@ public final class MicrobotRuntime {
                                ConfigManager configManager, List<? extends MicrobotRuntimeService> services) {
         install(client, clientThread, eventBus, configManager, services, MONOTONIC_MILLIS,
                 DEFAULT_STALE_TICK_MILLIS, DEFAULT_HUMAN_IDLE_RESUME_MILLIS);
+    }
+
+    /**
+     * As {@link #install(Client, ClientThread, EventBus, ConfigManager, List)}, also binding the
+     * {@link PluginManager} so {@code Microbot.startPlugin/stopPlugin/getPlugin/isPluginEnabled}
+     * work as upstream.
+     */
+    public static void install(Client client, ClientThread clientThread, EventBus eventBus,
+                               ConfigManager configManager, PluginManager pluginManager,
+                               List<? extends MicrobotRuntimeService> services) {
+        synchronized (LOCK) {
+            install(client, clientThread, eventBus, configManager, services);
+            Microbot.bindPluginManager(pluginManager);
+        }
     }
 
     /**

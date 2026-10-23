@@ -32,6 +32,18 @@ public final class Rs2Equipment
 		});
 	}
 
+	/** As upstream: exact is case-insensitive equality, otherwise a case-insensitive substring. */
+	public static boolean isWearing(String name, boolean exact)
+	{
+		if (!exact) return isWearing(name);
+		if (name == null || name.trim().isEmpty()) return false;
+		return any(item ->
+		{
+			ItemComposition definition = Microbot.getClient().getItemDefinition(item.getId());
+			return definition != null && name.equalsIgnoreCase(definition.getName());
+		});
+	}
+
 	/** As upstream: true when any of the given slots holds an item. Read on the client thread. */
 	public static boolean isWearing(EquipmentInventorySlot... slots)
 	{
