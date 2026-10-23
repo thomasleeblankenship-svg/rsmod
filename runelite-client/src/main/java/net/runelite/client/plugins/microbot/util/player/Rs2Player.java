@@ -253,6 +253,36 @@ public final class Rs2Player
 			&& net.runelite.client.plugins.microbot.util.Global.sleepUntil(() -> isRunEnabled() == toggle, 2_000);
 	}
 
+	/** As upstream: eats when health is at or below {@code percentage}; true when a food action was dispatched. */
+	public static boolean eatAt(int percentage)
+	{
+		return getHealthPercentage() <= percentage && useFood();
+	}
+
+	/**
+	 * As upstream: eats the first unnoted inventory food, preferring blighted food in the
+	 * Wilderness; jugs of wine are drunk. {@code true} means dispatched.
+	 */
+	public static boolean useFood()
+	{
+		java.util.List<net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel> foods =
+			net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory.getInventoryFood();
+		boolean wilderness = net.runelite.client.plugins.microbot.Microbot.getVarbitValue(net.runelite.api.Varbits.IN_WILDERNESS) == 1;
+		net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel blighted = null;
+		net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel regular = null;
+		for (net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel food : foods)
+		{
+			if (food.isNoted() || food.getName() == null) { continue; }
+			boolean isBlighted = food.getName().toLowerCase(java.util.Locale.ROOT).contains("blighted");
+			if (isBlighted && blighted == null) { blighted = food; }
+			if (!isBlighted && regular == null) { regular = food; }
+		}
+		net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel chosen = wilderness && blighted != null ? blighted : regular;
+		if (chosen == null) { return false; }
+		String action = chosen.getName().toLowerCase(java.util.Locale.ROOT).contains("jug of wine") ? "Drink" : "Eat";
+		return net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory.interact(chosen, action);
+	}
+
 	public static boolean isStandingOnGameObject()
 	{
 		return net.runelite.client.plugins.microbot.mobile.MobileActions.read(() ->

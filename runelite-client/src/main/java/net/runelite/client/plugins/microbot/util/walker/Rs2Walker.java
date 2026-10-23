@@ -132,6 +132,32 @@ public final class Rs2Walker
 		return WalkerState.MOVING;
 	}
 
+	/**
+	 * As upstream: the player stands inside the box spanned by the first two points (floor
+	 * ignored, as upstream). Mobile: false, rather than an exception, without a player location.
+	 */
+	public static boolean isInArea(WorldPoint... worldPoints)
+	{
+		if (worldPoints == null || worldPoints.length < 2 || worldPoints[0] == null || worldPoints[1] == null)
+		{
+			throw new IllegalArgumentException("isInArea requires two WorldPoints.");
+		}
+		WorldPoint player = MobileActions.read(() -> Microbot.getClient().getLocalPlayer() == null ? null
+			: Microbot.getClient().getLocalPlayer().getWorldLocation(), null);
+		if (player == null) { return false; }
+		WorldPoint a = worldPoints[0];
+		WorldPoint b = worldPoints[1];
+		return player.getX() >= Math.min(a.getX(), b.getX()) && player.getX() <= Math.max(a.getX(), b.getX())
+			&& player.getY() >= Math.min(a.getY(), b.getY()) && player.getY() <= Math.max(a.getY(), b.getY());
+	}
+
+	/** As upstream: within {@code range} tiles of {@code centerOfArea} on both axes. */
+	public static boolean isInArea(WorldPoint centerOfArea, int range)
+	{
+		return isInArea(new WorldPoint(centerOfArea.getX() + range, centerOfArea.getY() - range, centerOfArea.getPlane()),
+			new WorldPoint(centerOfArea.getX() - range, centerOfArea.getY() + range, centerOfArea.getPlane()));
+	}
+
 	public static boolean walkTo(WorldPoint destination)
 	{
 		return walkTo(destination, 1);

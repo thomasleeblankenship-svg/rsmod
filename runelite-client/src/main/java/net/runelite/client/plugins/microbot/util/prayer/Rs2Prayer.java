@@ -151,4 +151,73 @@ public final class Rs2Prayer
 		}
 		return null;
 	}
+
+	// ---- Toggles (Claude 1). Mobile: the prayer tab is opened first, because script actions
+	// only reach visible widgets; upstream sends the menu action to the hidden button. ----
+
+	/** As upstream: flips {@code prayer} once; does nothing when out of prayer points. */
+	public static void toggle(Rs2PrayerEnum prayer)
+	{
+		if (prayer != null && !isOutOfPrayer()) { clickPrayer(prayer); }
+	}
+
+	/** As upstream: true once {@code prayer} is in the requested state (waits up to 10 seconds). */
+	public static boolean toggle(Rs2PrayerEnum prayer, boolean on)
+	{
+		if (prayer == null || isOutOfPrayer()) { return false; }
+		if (isPrayerActive(prayer) == on) { return true; }
+		return clickPrayer(prayer)
+			&& net.runelite.client.plugins.microbot.util.Global.sleepUntil(() -> isPrayerActive(prayer) == on, 10_000);
+	}
+
+	/** {@code withMouse} has no mobile meaning (every toggle is a script action); same as {@link #toggle(Rs2PrayerEnum, boolean)}. */
+	public static boolean toggle(Rs2PrayerEnum prayer, boolean on, boolean withMouse)
+	{
+		return toggle(prayer, on);
+	}
+
+	private static boolean clickPrayer(Rs2PrayerEnum prayer)
+	{
+		return net.runelite.client.plugins.microbot.util.tabs.Rs2Tab.switchTo(net.runelite.client.plugins.microbot.globval.enums.InterfaceTab.PRAYER)
+			&& net.runelite.client.plugins.microbot.util.Global.sleepUntil(() ->
+				net.runelite.client.plugins.microbot.mobile.MobileActions.widget(prayer.getIndex(), -1, ""), 2_000);
+	}
+
+	/** As upstream: true once quick prayers are in the requested state; the minimap orb, no tab needed. */
+	public static boolean toggleQuickPrayer(boolean on)
+	{
+		if (isOutOfPrayer()) { return false; }
+		if (isQuickPrayerEnabled() == on) { return true; }
+		return net.runelite.client.plugins.microbot.util.Global.sleepUntil(() ->
+				net.runelite.client.plugins.microbot.mobile.MobileActions.widget(net.runelite.api.gameval.InterfaceID.Orbs.PRAYERBUTTON, -1, ""), 2_000)
+			&& net.runelite.client.plugins.microbot.util.Global.sleepUntil(() -> isQuickPrayerEnabled() == on, 10_000);
+	}
+
+	public static boolean toggleQuickPrayer(boolean on, boolean withMouse)
+	{
+		return toggleQuickPrayer(on);
+	}
+
+	/** As upstream: turns every active prayer off. */
+	public static void disableAllPrayers()
+	{
+		for (Rs2PrayerEnum prayer : getActivePrayers()) { toggle(prayer, false); }
+	}
+
+	public static void disableAllPrayers(boolean withMouse)
+	{
+		disableAllPrayers();
+	}
+
+	/** As upstream: turns each listed prayer on. */
+	public static void enablePrayers(Rs2PrayerEnum[] prayers)
+	{
+		for (Rs2PrayerEnum prayer : prayers) { toggle(prayer, true); }
+	}
+
+	/** As upstream: turns {@code prayer} on unless it is already the active protection prayer. */
+	public static void swapOverHeadPrayer(Rs2PrayerEnum prayer)
+	{
+		if (getActiveProtectionPrayer() != prayer) { toggle(prayer, true); }
+	}
 }

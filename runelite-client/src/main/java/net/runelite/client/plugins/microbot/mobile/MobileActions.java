@@ -84,6 +84,15 @@ public final class MobileActions
 		return -1;
 	}
 
+	/**
+	 * Opens a side-panel tab by its top-level panel index (upstream {@code Rs2Tab}: client script
+	 * 915). One script action; the caller observes the switch.
+	 */
+	public static boolean openTab(int panelIndex)
+	{
+		return panelIndex >= 0 && perform(() -> { client().runScript(915, panelIndex); return true; });
+	}
+
 	/** Inventory must be opened by the script; a user tap would revoke its permission. */
 	public static boolean ensureInventoryVisible()
 	{
