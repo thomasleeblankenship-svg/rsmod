@@ -20,3 +20,10 @@ No agent should edit another owner's files directly in a shared checkout.
 
 The current Phase 2 APK is a baseline mobile scripting build. It does not
 demonstrate source or binary compatibility with upstream Microbot scripts.
+
+## Update, 2026-10-23
+
+At the user's direction, Claude 1 has taken over Codex's remaining scope (integration,
+consolidated reports, APK delivery via the `Mobile test APK` workflow) in addition to
+the runtime. Claude 2's read-API scope is unchanged. Current status lives in
+[the current handoff](docs/microbot/CODEX_HANDOFF_CURRENT.md).

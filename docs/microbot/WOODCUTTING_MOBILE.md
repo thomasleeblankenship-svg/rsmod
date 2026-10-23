@@ -13,7 +13,7 @@ The current build adds a full inventory drop reset, axe protection and corrected
 4. In the app's plugin panel, enable **Microbot Mobile (phase 2)** and open its settings.
 5. Set **Script** to **Auto Woodcutting (mobile port)**. Configure **Tree**, **Distance to Stray**, **Primary action**, retained items and Forestry options. The settings labelled **Example woodcutting tree** and **Example tree distance** belong to the old example script.
 6. For banking, choose **Primary action → Bank logs**. Bank selection is automatic; there is no manual bank selector. Start near the desired trees with a usable axe and enough free inventory space, then enable **Run script**.
-7. Disable **Run script** to stop. Manual game input or backgrounding cancels the run; explicitly start again when ready. Signing out, hopping or disconnecting also requires a new start.
+7. Disable **Run script** to stop. A manual tap no longer cancels the run: it drops any queued script tap and pauses the script for about 1.8 s, then the script carries on (builds from `6f6a2cd` onward). Backgrounding the app, signing out, hopping or disconnecting still end the run and require a new start.
 
 Auto-hop is disabled by request. The port has no Hop setting, and it never reads a saved desktop `Hop=true` value.
 
@@ -36,7 +36,7 @@ anti-ban/fatigue system are not ported. Routes needing unsupported transports
 stop with a diagnostic rather than pretending to arrive. The same-plane collision
 map is a pinned upstream snapshot; changing world geometry can make routes fail.
 
-User phone testing exposed the inventory reset and Lumbridge floor bugs addressed here. These fixes still require a phone retest. Automated tests validate client-thread
+User phone testing exposed the inventory reset and Lumbridge floor bugs addressed here. A user phone test of the `024f387` build reported that full-inventory drop works and the Lumbridge stairs did not. Walking was then changed to scene-resolved dispatch with stall retry (`ba30cb9`), which still requires a phone retest. Automated tests validate client-thread
 marshalling, cancellation, exact inventory/bank parameters, bank selection,
 collision routes, Lumbridge staircase planning, host lifecycle and portions of
 Forestry logic. They do not prove any game interaction succeeds on-device.
