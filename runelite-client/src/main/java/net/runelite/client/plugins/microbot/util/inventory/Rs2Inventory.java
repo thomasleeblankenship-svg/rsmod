@@ -315,6 +315,23 @@ public final class Rs2Inventory
 			&& MobileActions.itemOnItem(first.getSlot(), second.getSlot());
 	}
 
+	/** As upstream: combines the first items with these names (any order). */
+	public static boolean combine(String primary, String secondary)
+	{
+		return combineClosest(primary, secondary);
+	}
+
+	/**
+	 * As upstream: uses the unnoted item with this name (case-insensitive substring) on the nearest
+	 * object with this id. False while the bank is open.
+	 */
+	public static boolean useUnNotedItemOnObject(String itemName, int objectId)
+	{
+		if (net.runelite.client.plugins.microbot.util.bank.Rs2Bank.isOpen()) return false;
+		Rs2ItemModel item = items(i -> !i.isNoted() && matches(i.getName(), itemName, false)).findFirst().orElse(null);
+		return item != null && MobileActions.itemOnObject(item.getSlot(), objectId);
+	}
+
 	public static boolean useItemOnObject(int itemId, int objectId)
 	{
 		Rs2ItemModel item = get(itemId);
@@ -368,6 +385,12 @@ public final class Rs2Inventory
 			inventoryItems = snapshot(c, container);
 			return inventoryItems;
 		}, null);
+	}
+
+	/** As upstream: drops everything but items whose names contain one of {@code names}; axes stay protected. */
+	public static boolean dropAllExcept(String... names)
+	{
+		return dropAllExcept(false, InteractOrder.STANDARD, names);
 	}
 
 	public static boolean dropAllExcept(boolean exact, InteractOrder order, String... names)

@@ -345,6 +345,25 @@ public final class Rs2Bank
 	}
 
 	public static boolean depositOne(int id) { return depositItem(Rs2Inventory.get(id), "Deposit-1"); }
+
+	/** As upstream: one of each id; true when every deposit was observed. */
+	public static boolean depositItems(int... ids)
+	{
+		boolean all = true;
+		for (int id : ids)
+		{
+			all &= depositOne(id);
+		}
+		return all;
+	}
+
+	/** As upstream: empties a carried fish barrel (closed or open) into the bank. */
+	public static boolean emptyFishBarrel()
+	{
+		Rs2ItemModel barrel = Rs2Inventory.items(i -> i.getId() == net.runelite.api.gameval.ItemID.FISH_BARREL_CLOSED
+			|| i.getId() == net.runelite.api.gameval.ItemID.FISH_BARREL_OPEN).findFirst().orElse(null);
+		return isOpen() && barrel != null && Rs2Inventory.waitFor(() -> MobileActions.inventory(barrel.getSlot(), barrel.getId(), "Empty"), 2_000);
+	}
 	public static boolean depositOne(String name) { return depositOne(name, false); }
 
 	public static boolean depositOne(String name, boolean exact)
