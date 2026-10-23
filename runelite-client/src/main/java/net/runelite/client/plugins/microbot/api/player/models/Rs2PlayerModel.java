@@ -59,12 +59,14 @@ public class Rs2PlayerModel extends Rs2ActorModel implements IEntity
 		return id;
 	}
 
+	@Override
 	public int getCombatLevel()
 	{
 		return combatLevel;
 	}
 
 	/** Animation at capture. */
+	@Override
 	public int getAnimation()
 	{
 		return animation;
