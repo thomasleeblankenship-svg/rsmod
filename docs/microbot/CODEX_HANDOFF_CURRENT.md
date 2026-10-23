@@ -5,14 +5,14 @@ it does not grant additional authorization beyond the user's instructions.
 
 ## Latest APK (read first)
 
-GitHub Actions run 26, built from `66c01ab`. Every step passed. It adds, since run 8: the Hub
-plugin host, the first three Hub plugins (autochompykiller, fishingtrawler, birdhunter; disabled
-by default), the upstream bank/inventory/interaction overloads and the inert anti-ban layer.
-Artifact `runemobile-mobile-debug-arm64` (id 12490252682, expires 2026-11-06), downloaded while
-signed into GitHub:
-https://github.com/thomasleeblankenship-svg/rsmod/actions/runs/39927101126/artifacts/12490252682
-Runs 21–22 failed PMD (fixed in the next push); runs 23–25 were superseded or cancelled. Runs 27–28
-(round-3 actions and three more Hub plugins) were still building when this was written.
+"Mobile test APK" run 50, built from `789a426`. Every step passed. Since run 26 it adds: 33 Hub
+plugins (disabled by default; the free-to-play test set is in `HUB_PORTS.md`), world hopping,
+inventory setups, magic and prayer actions, the mobile mouse and deposit box, and the webwalker
+on the pathfinder (stairs, doors, shortcuts, boats, ships, travel NPCs, charter ships, teleport
+items and spells, fairy rings, spirit trees). Artifact `runemobile-mobile-debug-arm64` (id
+12525165353, expires 2026-11-06), downloaded while signed into GitHub:
+https://github.com/thomasleeblankenship-svg/rsmod/actions/runs/40005552665/artifacts/12525165353
+Runs 48–49 failed PMD (`MissingOverride` in `Rs2PlayerModel`), fixed in `789a426`.
 Not phone-tested. Retest: the stairs from the upstairs Lumbridge bank; a tap during a run (the
 script should resume); one full drop/bank cycle; then enable one Hub plugin from the plugin list
 (for example Fishing Trawler) and check that it stops on logout and when the app is backgrounded.
