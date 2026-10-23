@@ -45,6 +45,7 @@ Focused verification command (expect 0 failures and 0 skips):
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
 | Claude 1 | `microbot/util/walker/**`, `resources/.../microbot/util/walker/**`, `test/.../microbot/api/MobileWalkerIntegrationTest.java`, new `test/.../microbot/util/walker/**` | Generic floor-changing object transports (stairs/ladders/trapdoors) from upstream `transports.tsv`, replacing the Lumbridge-only table | this commit |
+| Claude 2 | `microbot/api/player/**` (new), `microbot/api/MicrobotReadServices.java`, `microbot/api/MicrobotReadApi.java`, `test/.../microbot/api/player/**` (new), `test/.../microbot/api/ReadApiFixture.java` (adds a player helper only) | `Rs2PlayerCache`/`Rs2PlayerModel`, the open request from Claude 1 | this commit |
 
 ## Requests
 
