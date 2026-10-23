@@ -338,6 +338,66 @@ public final class Rs2Inventory
 		return item != null && MobileActions.itemOnObject(item.getSlot(), objectId);
 	}
 
+	/**
+	 * As upstream: sorts {@code rs2Items} in place by slot into {@code interactOrder} and returns it.
+	 * {@code STANDARD} and {@code RANDOM} leave the list as it is. Pass a mutable copy, never a
+	 * published snapshot.
+	 */
+	public static List<Rs2ItemModel> calculateInteractOrder(List<Rs2ItemModel> rs2Items, InteractOrder interactOrder)
+	{
+		switch (interactOrder)
+		{
+			case EFFICIENT_ROW:
+				rs2Items.sort(Comparator.comparingInt((Rs2ItemModel i) -> i.getSlot() / COLUMNS)
+					.thenComparingInt(i -> (i.getSlot() / COLUMNS) % 2 == 0 ? i.getSlot() % COLUMNS : -(i.getSlot() % COLUMNS)));
+				return rs2Items;
+			case COLUMN:
+				rs2Items.sort(Comparator.comparingInt((Rs2ItemModel i) -> i.getSlot() % COLUMNS)
+					.thenComparingInt(i -> i.getSlot() / COLUMNS));
+				return rs2Items;
+			case EFFICIENT_COLUMN:
+				rs2Items.sort(Comparator.comparingInt((Rs2ItemModel i) -> i.getSlot() % COLUMNS)
+					.thenComparingInt(i -> (i.getSlot() % COLUMNS) % 2 == 0 ? i.getSlot() / COLUMNS : -(i.getSlot() / COLUMNS)));
+				return rs2Items;
+			case ZIGZAG:
+				rs2Items.sort(Comparator.comparingInt(i -> zigzagRank(i.getSlot())));
+				return rs2Items;
+			case STANDARD:
+			default:
+				return rs2Items;
+		}
+	}
+
+	private static final int COLUMNS = 4;
+	private static final int[] ZIGZAG_ORDER = {
+		0, 4, 1, 5, 2, 6, 3, 7,
+		11, 15, 10, 14, 9, 13, 8, 12,
+		16, 20, 17, 21, 18, 22, 19, 23,
+		27, 26, 25, 24
+	};
+
+	private static int zigzagRank(int slot)
+	{
+		for (int i = 0; i < ZIGZAG_ORDER.length; i++)
+		{
+			if (ZIGZAG_ORDER[i] == slot)
+			{
+				return i;
+			}
+		}
+		return Integer.MAX_VALUE;
+	}
+
+	/** As upstream: the item id of the selected widget (a "Use" item), or -1 when none. */
+	public static int getSelectedItemId()
+	{
+		return MobileActions.read(() ->
+		{
+			net.runelite.api.widgets.Widget widget = Microbot.getClient().getSelectedWidget();
+			return widget == null ? -1 : widget.getItemId();
+		}, -1);
+	}
+
 	/** Orders a copied list; never mutates a published inventory snapshot. */
 	static List<Rs2ItemModel> ordered(List<Rs2ItemModel> source, InteractOrder order)
 	{

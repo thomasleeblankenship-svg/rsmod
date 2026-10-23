@@ -14,8 +14,8 @@ import net.runelite.api.coords.WorldPoint;
  * <p>
  * {@code click()} uses the entity's first action; {@code click(String)} dispatches one action
  * through {@code MobileActions} (one per game tick, only for the bound script session), and
- * returns whether it was dispatched. Adaptation: upstream's {@code isReachable()} is omitted;
- * use the queryables' {@code nearestReachable}.
+ * returns whether it was dispatched. {@code isReachable()} is upstream's default: the local player
+ * can walk to the entity or stand next to it (current floor, up to 32 tiles).
  */
 public interface IEntity
 {
@@ -32,4 +32,10 @@ public interface IEntity
 	boolean click();
 
 	boolean click(String action);
+
+	/** As upstream: the local player can walk to this entity or stand next to it. */
+	default boolean isReachable()
+	{
+		return AbstractEntityQueryable.isReachableFromPlayer(this);
+	}
 }

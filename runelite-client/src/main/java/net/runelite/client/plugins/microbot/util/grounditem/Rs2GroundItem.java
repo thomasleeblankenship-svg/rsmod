@@ -30,6 +30,20 @@ public final class Rs2GroundItem
 		}
 		return false;
 	}
+	/** As upstream: an item with {@code id} lies within {@code range} tiles of the player. */
+	public static boolean exists(int id, int range)
+	{
+		return Microbot.getRs2TileItemCache() != null
+			&& Microbot.getRs2TileItemCache().query().within(range).withId(id).first() != null;
+	}
+
+	/** As upstream: an item named {@code itemName} (ignoring case) lies within {@code range} tiles of the player. */
+	public static boolean exists(String itemName, int range)
+	{
+		return itemName != null && Microbot.getRs2TileItemCache() != null
+			&& Microbot.getRs2TileItemCache().query().within(range)
+			.where(item -> itemName.equalsIgnoreCase(item.getName())).first() != null;
+	}
 	static boolean accepts(Rs2TileItemModel item, LootingParameters parameters)
 	{
 		if (item.getQuantity() < parameters.getMinQuantity() || !item.isLootAble()

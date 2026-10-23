@@ -15,7 +15,9 @@ import net.runelite.client.plugins.microbot.api.ReadApiFixture;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -126,5 +128,22 @@ public class Rs2DialogueReadTest
 		assertTrue(Rs2Dialogue.hasDialogueOption("No thanks.", true));
 		assertFalse(Rs2Dialogue.hasDialogueOption("No", true));
 		assertFalse("the title is not an option", Rs2Dialogue.hasDialogueOption("Select an option"));
+	}
+
+	@Test
+	public void questionIsTheUntaggedTitleRow()
+	{
+		assertNull(Rs2Dialogue.getQuestion());
+		assertFalse(Rs2Dialogue.hasQuestion("travel"));
+
+		Widget menu = widget("", false,
+			widget("<col=800000>Travel to Karamja?</col>", false), widget("Yes.", false));
+		when(client.getWidget(ComponentID.DIALOG_OPTION_OPTIONS)).thenReturn(menu);
+
+		assertEquals("Travel to Karamja?", Rs2Dialogue.getQuestion());
+		assertTrue(Rs2Dialogue.hasQuestion("TRAVEL to"));
+		assertTrue(Rs2Dialogue.hasQuestion("travel to karamja?", true));
+		assertFalse(Rs2Dialogue.hasQuestion("Travel", true));
+		assertFalse(Rs2Dialogue.hasQuestion(null));
 	}
 }

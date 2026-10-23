@@ -14,9 +14,9 @@ import net.runelite.client.plugins.microbot.api.actor.Rs2ActorModel;
 /**
  * Snapshot of one NPC captured by {@code Rs2NpcCache}.
  * <p>
- * Adaptation: read-only subset plus {@code click}. Combat level, health,
- * death and the interacting actor are captured with the snapshot; line of
- * sight is evaluated when asked. Overhead-prayer helpers are not ported.
+ * An {@link net.runelite.api.Actor} as upstream (see {@link Rs2ActorModel}). Combat level,
+ * health, death and the interacting actor are captured with the snapshot; line of sight and the
+ * overhead prayer icon are read when asked.
  */
 public class Rs2NpcModel extends Rs2ActorModel implements IEntity
 {
