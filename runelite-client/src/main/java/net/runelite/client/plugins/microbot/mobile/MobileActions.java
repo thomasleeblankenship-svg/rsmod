@@ -19,6 +19,7 @@ import net.runelite.client.plugins.microbot.api.tileobject.models.Rs2TileObjectM
 public final class MobileActions
 {
 	private static volatile ScriptInputSession permission;
+	private static volatile String inventoryFailure = "";
 	private static int lastTick = Integer.MIN_VALUE;
 	private static ScriptInputSession lastPermission;
 	private MobileActions() { }
@@ -82,6 +83,30 @@ public final class MobileActions
 		return -1;
 	}
 
+	/** Inventory must be opened by the script; a user tap would revoke its permission. */
+	public static boolean ensureInventoryVisible()
+	{
+		return read(() ->
+		{
+			Widget bank = client().getWidget(WidgetInfo.BANK_INVENTORY_ITEMS_CONTAINER);
+			if (bank != null && !bank.isHidden()) { return rejectInventory("Bank inventory is open"); }
+			Widget inventory = client().getWidget(WidgetInfo.INVENTORY);
+			if (inventory != null && !inventory.isHidden()) { return active(); }
+			inventoryFailure = "Inventory panel is not visible";
+			// Upstream Rs2Tab.switchTo: client script 915, inventory tab index 3.
+			perform(() -> { client().runScript(915, 3); return true; });
+			// Wait for the rebuilt, visible item widgets before attempting any item action.
+			return false;
+		}, false);
+	}
+
+	public static String inventoryFailure() { return inventoryFailure; }
+	private static boolean rejectInventory(String reason)
+	{
+		inventoryFailure = reason;
+		return false;
+	}
+
 	public static boolean inventory(int slot, String action)
 	{
 		return inventory(slot, -1, action);
@@ -90,6 +115,7 @@ public final class MobileActions
 	/** Expected-id binding prevents a delayed retry from acting on an item that replaced its slot. */
 	public static boolean inventory(int slot, int expectedId, String action)
 	{
+		inventoryFailure = "Input is unavailable, busy or waiting for the next game tick";
 		return perform(() -> inventoryNow(slot, expectedId, action));
 	}
 
@@ -104,9 +130,10 @@ public final class MobileActions
 		Widget bankInventory = c.getWidget(WidgetInfo.BANK_INVENTORY_ITEMS_CONTAINER);
 		boolean bankOpen = bankInventory != null && !bankInventory.isHidden();
 		Widget parent = bankOpen ? bankInventory : c.getWidget(WidgetInfo.INVENTORY);
-		if (parent == null || parent.isHidden()) { return false; }
+		if (parent == null || parent.isHidden()) { return rejectInventory("Inventory panel is not visible"); }
 		Widget itemWidget = parent.getChild(slot);
-		if (itemWidget == null || itemWidget.isHidden() || itemWidget.getItemId() != item.getId()) { return false; }
+		if (itemWidget == null || itemWidget.isHidden()) { return rejectInventory("Inventory item widget is not ready"); }
+		if (itemWidget.getItemId() != item.getId()) { return rejectInventory("Inventory slot changed before the action"); }
 		ItemComposition definition = c.getItemDefinition(item.getId());
 		if (definition == null) { return false; }
 		int widgetId = parent.getId();
@@ -117,11 +144,22 @@ public final class MobileActions
 			return true;
 		}
 		// Never turn an intended Drop/Deposit into an item-on-item action.
-		if (c.isWidgetSelected()) { return false; }
+		if (c.isWidgetSelected()) { return rejectInventory("An item or spell is selected"); }
+		if ("Drop".equalsIgnoreCase(action)
+			&& net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory.isProtectedAxe(item.getId(), definition.getName()))
+		{
+			return rejectInventory("Axes are protected from dropping");
+		}
 		String[] actions = itemWidget.getActions();
-		if (actions == null) { actions = definition.getInventoryActions(); }
 		int op = actionIndex(actions, action);
 		int identifier = op + 1;
+		// Item-definition indices are NOT widget action ordinals. The injected client's
+		// getItemOp() maps widget 2,3,4,6,7 to definition ops 1..5; widget 5 is Use.
+		if (op < 0 && !bankOpen)
+		{
+			identifier = inventoryWidgetOp(actionIndex(definition.getInventoryActions(), action));
+			op = identifier - 1;
+		}
 		if (op < 0)
 		{
 			String[][] subops = definition.getSubops();
@@ -131,20 +169,34 @@ public final class MobileActions
 				for (int parentOp = 0; parentOp < subops.length && parentOp < baseOps.length; parentOp++)
 				{
 					int sub = actionIndex(subops[parentOp], action);
-					int liveParent = actionIndex(actions, baseOps[parentOp]);
-					if (sub >= 0 && liveParent >= 0)
+					int parentIdentifier = actionIndex(actions, baseOps[parentOp]) + 1;
+					if (parentIdentifier == 0 && !bankOpen) { parentIdentifier = inventoryWidgetOp(parentOp); }
+					if (sub >= 0 && parentIdentifier > 0)
 					{
-						op = liveParent;
-						identifier = ((sub + 1) << 16) | (liveParent + 1);
+						op = parentIdentifier - 1;
+						identifier = ((sub + 1) << 16) | parentIdentifier;
 						break;
 					}
 				}
 			}
 		}
-		if (op < 0) { return false; }
+		if (op < 0) { return rejectInventory("The item does not expose action: " + action); }
 		c.menuAction(slot, widgetId, op < 5 ? MenuAction.CC_OP : MenuAction.CC_OP_LOW_PRIORITY,
 			identifier, item.getId(), action, definition.getName());
 		return true;
+	}
+
+	private static int inventoryWidgetOp(int definitionIndex)
+	{
+		switch (definitionIndex)
+		{
+			case 0: return 2;
+			case 1: return 3;
+			case 2: return 4;
+			case 3: return 6;
+			case 4: return 7;
+			default: return 0;
+		}
 	}
 
 	public static boolean bank(int slot, String action)
@@ -211,7 +263,8 @@ public final class MobileActions
 			Rs2TileObjectModel model = MicrobotReadServices.require().getRs2TileObjectCache().query()
 				.where(x -> x.getId() == id && (position == null || position.equals(x.getWorldLocation())))
 				.nearest();
-			if (model == null || model.getWorldView() != client().getTopLevelWorldView()) { return false; }
+			if (model == null || model.getWorldView() != client().getTopLevelWorldView()
+				|| model.getWorldLocation().getPlane() != client().getLocalPlayer().getWorldLocation().getPlane()) { return false; }
 			ObjectComposition definition = model.getObjectComposition();
 			if (definition == null) { return false; }
 			int op = actionIndex(definition.getActions(), action);
@@ -254,7 +307,7 @@ public final class MobileActions
 		return perform(() ->
 		{
 			WorldView view = client().getTopLevelWorldView();
-			if (destination == null || view == null || destination.getPlane() != view.getPlane()) { return false; }
+			if (destination == null || view == null || destination.getPlane() != client().getLocalPlayer().getWorldLocation().getPlane()) { return false; }
 			int x = destination.getX() - view.getBaseX(), y = destination.getY() - view.getBaseY();
 			if (x < 0 || y < 0 || x >= 104 || y >= 104) { return false; }
 			client().menuAction(x, y, MenuAction.WALK, 0, -1, "Walk here", "");
@@ -336,7 +389,8 @@ public final class MobileActions
 			Widget selected = client().getSelectedWidget();
 			if (!client().isWidgetSelected() || selected == null || selected.getIndex() != slot || selected.getItemId() != firstId) { return false; }
 			Rs2TileObjectModel model = MicrobotReadServices.require().getRs2TileObjectCache().query().withId(objectId).nearest();
-			if (model == null || model.getWorldView() != client().getTopLevelWorldView()) { return false; }
+			if (model == null || model.getWorldView() != client().getTopLevelWorldView()
+				|| model.getWorldLocation().getPlane() != client().getLocalPlayer().getWorldLocation().getPlane()) { return false; }
 			WorldPoint p = model.getWorldLocation();
 			WorldView v = client().getTopLevelWorldView();
 			client().menuAction(p.getX() - v.getBaseX(), p.getY() - v.getBaseY(), MenuAction.WIDGET_TARGET_ON_GAME_OBJECT,

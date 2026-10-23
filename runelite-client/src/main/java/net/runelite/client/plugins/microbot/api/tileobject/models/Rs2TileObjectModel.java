@@ -52,7 +52,8 @@ public class Rs2TileObjectModel implements IEntity
 		this.tileObject = tileObject;
 		this.tileObjectType = typeOf(tileObject);
 		this.id = tileObject.getId();
-		this.plane = tileObject.getPlane();
+		WorldPoint objectLocation = tileObject.getWorldLocation();
+		this.plane = objectLocation == null ? tileObject.getPlane() : objectLocation.getPlane();
 		this.worldView = tileObject.getWorldView();
 		this.worldLocation = worldLocationOf(tileObject, worldView);
 		this.localLocation = tileObject.getLocalLocation();
@@ -94,7 +95,8 @@ public class Rs2TileObjectModel implements IEntity
 			return worldLocation;
 		}
 
-		return WorldPoint.fromScene(wv, sceneMin.getX(), sceneMin.getY(), wv.getPlane());
+		return WorldPoint.fromScene(wv, sceneMin.getX(), sceneMin.getY(),
+			worldLocation == null ? tileObject.getPlane() : worldLocation.getPlane());
 	}
 
 	/** The live object. Read it only on the client thread. */

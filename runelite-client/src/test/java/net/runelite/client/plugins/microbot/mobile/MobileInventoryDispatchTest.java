@@ -197,4 +197,54 @@ public class MobileInventoryDispatchTest
 		verify(client, never()).menuAction(anyInt(), anyInt(), any(), anyInt(), anyInt(), any(), any());
 	}
 
+	@Test
+	public void hiddenInventoryIsOpenedWithoutSendingAnItemAction()
+	{
+		when(inventory.isHidden()).thenReturn(true);
+		assertFalse(MobileActions.ensureInventoryVisible());
+		verify(client).runScript(915, 3);
+		verify(client, never()).menuAction(anyInt(), anyInt(), any(), anyInt(), anyInt(), any(), any());
+		when(inventory.isHidden()).thenReturn(false);
+		assertTrue(MobileActions.ensureInventoryVisible());
+		assertFalse(MobileActions.inventory(0, "Drop")); // Opening the panel consumed this tick's input.
+		when(client.getTickCount()).thenReturn(101);
+		assertTrue(MobileActions.inventory(0, "Drop"));
+	}
+
+	@Test
+	public void cancelledSessionCannotOpenInventory()
+	{
+		when(inventory.isHidden()).thenReturn(true);
+		session.close();
+		assertFalse(MobileActions.ensureInventoryVisible());
+		verify(client, never()).runScript(any(Object[].class));
+	}
+
+	@Test
+	public void missingWidgetActionsMapDefinitionDropToWidgetSevenRatherThanUseFive()
+	{
+		when(itemWidget.getActions()).thenReturn(null);
+		when(definition.getInventoryActions()).thenReturn(new String[]{null, null, null, null, "Drop"});
+		assertTrue(MobileActions.inventory(0, 1511, "Drop"));
+		verify(client).menuAction(0, WidgetInfo.INVENTORY.getId(), MenuAction.CC_OP_LOW_PRIORITY, 7, 1511, "Drop", "Logs");
+	}
+
+	@Test
+	public void emptyWidgetActionsAlsoUseTheDefinitionToWidgetMapping()
+	{
+		when(itemWidget.getActions()).thenReturn(new String[0]);
+		when(definition.getInventoryActions()).thenReturn(new String[]{null, null, null, null, "Drop"});
+		assertTrue(MobileActions.inventory(0, 1511, "Drop"));
+		verify(client).menuAction(0, WidgetInfo.INVENTORY.getId(), MenuAction.CC_OP_LOW_PRIORITY, 7, 1511, "Drop", "Logs");
+	}
+
+	@Test
+	public void axeDropIsRefusedEvenIfCallerOmitsTheExpectedId()
+	{
+		when(definition.getName()).thenReturn("Dragon felling axe");
+		assertFalse(MobileActions.inventory(0, "Drop"));
+		assertEquals("Axes are protected from dropping", MobileActions.inventoryFailure());
+		verify(client, never()).menuAction(anyInt(), anyInt(), any(), anyInt(), anyInt(), any(), any());
+	}
+
 }

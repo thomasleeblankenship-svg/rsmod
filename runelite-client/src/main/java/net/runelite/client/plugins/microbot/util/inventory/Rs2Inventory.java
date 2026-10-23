@@ -42,6 +42,9 @@ import net.runelite.client.plugins.microbot.api.MicrobotReadServices;
 public final class Rs2Inventory
 {
 	private static volatile List<Rs2ItemModel> inventoryItems = Collections.emptyList();
+	private static volatile String dropFailure = "";
+	private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(Rs2Inventory.class);
+	private static final java.util.regex.Pattern AXE_NAME = java.util.regex.Pattern.compile("(?i)(^|[^a-z])axe([^a-z]|$)");
 
 	private Rs2Inventory()
 	{
@@ -238,14 +241,55 @@ public final class Rs2Inventory
 		return slot;
 	}
 
+	/** Tools are protected independently of the editable keep list, including the leagues tool names. */
+	public static boolean isProtectedAxe(int id, String name)
+	{
+		return name != null && AXE_NAME.matcher(name).find()
+			|| id == net.runelite.api.gameval.ItemID.TRAILBLAZER_AXE
+			|| id == net.runelite.api.gameval.ItemID.LEAGUE_TRAILBLAZER_AXE
+			|| id == net.runelite.api.gameval.ItemID.TRAILBLAZER_AXE_EMPTY
+			|| id == net.runelite.api.gameval.ItemID.TRAILBLAZER_AXE_NO_INFERNAL;
+	}
+
+	public static String dropFailure() { return dropFailure; }
+
+	/** Refresh after each drop: a mobile inventory can rebuild/reorder widgets between actions. */
+	private static List<Rs2ItemModel> refreshInventory()
+	{
+		return MobileActions.read(() ->
+		{
+			Client c = Microbot.getClient();
+			ItemContainer container = c.getItemContainer(InventoryID.INV);
+			if (container == null || container.getItems() == null) { return null; }
+			inventoryItems = snapshot(c, container);
+			return inventoryItems;
+		}, null);
+	}
+
 	public static boolean dropAllExcept(boolean exact, InteractOrder order, String... names)
 	{
-		Predicate<Rs2ItemModel> removable = i -> Arrays.stream(names).noneMatch(n -> matches(i.getName(), n, exact));
-		for (Rs2ItemModel item : ordered(getList(removable), order))
+		dropFailure = "";
+		Predicate<Rs2ItemModel> removable = i -> !isProtectedAxe(i.getId(), i.getName())
+			&& Arrays.stream(names).noneMatch(n -> matches(i.getName(), n, exact));
+		// A full reset never completes merely because the first drop freed one slot.
+		// Allow logs awarded by an already-running chop while the batch is draining.
+		final int maxDrops = 56;
+		for (int dropped = 0; dropped <= maxDrops; dropped++)
 		{
-			if (!dropSlot(item)) return false;
+			List<Rs2ItemModel> live = refreshInventory();
+			if (live == null) { dropFailure = "Inventory could not be read"; return false; }
+			List<Rs2ItemModel> targets = ordered(live.stream().filter(removable).collect(Collectors.toList()), order);
+			if (dropped == 0) { LOG.info("Mobile inventory reset: {} eligible items; axes protected", targets.size()); }
+			if (targets.isEmpty()) { LOG.info("Mobile inventory reset complete: {} drops", dropped); return true; }
+			if (dropped == maxDrops) { dropFailure = "Inventory kept refilling during the drop batch"; }
+			if (dropped == maxDrops || !dropSlot(targets.get(0)))
+			{
+				LOG.warn("Mobile inventory reset failed after {} drops, slot {} item {}: {}",
+					dropped, targets.get(0).getSlot(), targets.get(0).getId(), dropFailure);
+				return false;
+			}
 		}
-		return count(removable) == 0;
+		return false;
 	}
 
 	public static boolean drop(String name)
@@ -257,7 +301,7 @@ public final class Rs2Inventory
 	public static int dropAmount(String name, int amount, InteractOrder order)
 	{
 		int dropped = 0;
-		for (Rs2ItemModel item : ordered(getList(i -> matches(i.getName(), name, false)), order))
+		for (Rs2ItemModel item : ordered(getList(i -> !isProtectedAxe(i.getId(), i.getName()) && matches(i.getName(), name, false)), order))
 		{
 			if (dropped >= Math.max(0, amount) || !dropSlot(item)) break;
 			dropped++;
@@ -267,8 +311,29 @@ public final class Rs2Inventory
 
 	private static boolean dropSlot(Rs2ItemModel item)
 	{
-		if (!canWait() || !slotMatches(item) || !waitFor(() -> slotMatches(item) && MobileActions.inventory(item.getSlot(), item.getId(), "Drop"), 2_000)) return false;
-		return waitFor(() -> items(i -> i.getSlot() == item.getSlot() && i.getId() == item.getId()).findAny().isEmpty(), 3_000);
+		if (isProtectedAxe(item.getId(), item.getName())) { dropFailure = "Axes are protected from dropping"; return false; }
+		if (!canWait() || !waitFor(MobileActions::ensureInventoryVisible, 5_000))
+		{
+			dropFailure = "Inventory could not be opened: " + MobileActions.inventoryFailure();
+			return false;
+		}
+		List<Rs2ItemModel> before = refreshInventory();
+		if (before == null) { dropFailure = "Inventory could not be read"; return false; }
+		long quantity = before.stream().filter(i -> i.getId() == item.getId()).mapToLong(Rs2ItemModel::getQuantity).sum();
+		if (!slotMatches(item) || !waitFor(() -> slotMatches(item)
+			&& MobileActions.inventory(item.getSlot(), item.getId(), "Drop"), 2_000))
+		{
+			dropFailure = MobileActions.inventoryFailure();
+			return false;
+		}
+		boolean changed = waitFor(() ->
+		{
+			List<Rs2ItemModel> now = refreshInventory();
+			return now != null && now.stream().filter(i -> i.getId() == item.getId())
+				.mapToLong(Rs2ItemModel::getQuantity).sum() < quantity;
+		}, 3_000);
+		if (!changed) { dropFailure = "Drop was sent but the inventory did not change"; }
+		return changed;
 	}
 
 	private static boolean slotMatches(Rs2ItemModel expected)

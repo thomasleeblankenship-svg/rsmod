@@ -282,8 +282,8 @@ public class AutoWoodcuttingScript extends Script {
             return true;
         }
 
-        if (!Rs2Inventory.hasItem("axe")) {
-            if (!Rs2Equipment.isWearing("axe")) {
+        if (Rs2Inventory.items(i -> Rs2Inventory.isProtectedAxe(i.getId(), i.getName())).findAny().isEmpty()) {
+            if (!Rs2Equipment.hasWoodcuttingAxe()) {
                 Microbot.showMessage("Unable to find axe in inventory/equipped");
                 shutdown();
                 return true;
@@ -307,7 +307,8 @@ public class AutoWoodcuttingScript extends Script {
             case DROP:
                 var itemNames = Arrays.stream(config.itemsToKeep().split(",")).map(String::trim).toArray(String[]::new);
                 if (!Rs2Inventory.dropAllExcept(false, config.interactOrder(), itemNames) || Rs2Inventory.isFull()) {
-                    stopForActionFailure("Inventory drop failed or every item is configured to keep");
+                    stopForActionFailure("Inventory drop failed: " + Rs2Inventory.dropFailure()
+                            + "; check Items to keep if every item was retained");
                     return;
                 }
                 woodcuttingScriptState = WoodcuttingScriptState.WOODCUTTING;

@@ -12,6 +12,7 @@ import java.util.stream.Stream;
 import net.runelite.api.Client;
 import net.runelite.api.GameObject;
 import net.runelite.api.Scene;
+import net.runelite.api.Player;
 import net.runelite.api.Tile;
 import net.runelite.api.WorldView;
 import net.runelite.client.plugins.microbot.api.MicrobotReadServices;
@@ -65,7 +66,18 @@ public final class Rs2TileObjectCache
 				continue;
 			}
 
-			for (Tile[] tileRow : scene.getTiles()[worldView.getPlane()])
+			Player player = client.getLocalPlayer();
+			int plane = worldView.getPlane();
+			if (player != null && player.getWorldLocation() != null && player.getWorldView() == worldView)
+			{
+				plane = player.getWorldLocation().getPlane();
+			}
+			Tile[][][] tiles = scene.getTiles();
+			if (tiles == null || plane < 0 || plane >= tiles.length || tiles[plane] == null)
+			{
+				continue;
+			}
+			for (Tile[] tileRow : tiles[plane])
 			{
 				for (Tile tile : tileRow)
 				{

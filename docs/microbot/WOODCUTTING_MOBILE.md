@@ -3,13 +3,13 @@
 This is a source port of the uploaded Auto Woodcutting v1.8.7 (source reference
 `080d9674fe87f282c958c25b5bb8f6b96665fe36`), bundled into RuneMobile. It is not a
 ZIP/JAR loader. The previous APK built from `131c232` does not include this port.
-The verified local woodcutting APK is built from `ce1baea`.
+The current build adds a full inventory drop reset, axe protection and corrected Lumbridge staircase resolution.
 
 ## Install and load
 
 1. Open the repository's [Mobile test APK workflow](https://github.com/thomasleeblankenship-svg/rsmod/actions/workflows/mobile-test-apk.yml).
-2. Open [the successful woodcutting build](https://github.com/thomasleeblankenship-svg/rsmod/actions/runs/39902376810). Under **Artifacts**, download `runemobile-mobile-test-arm64` while signed into GitHub.
-3. Unzip the download, transfer `runemobile-mobile-test-arm64.apk` to an ARM64 Android 9+ phone, and install it. The APK is locally/debug signed; an existing app signed with another key may require uninstalling first, which removes its local data.
+2. Open the latest successful **debug** build. Under **Artifacts**, download `runemobile-mobile-debug-arm64` while signed into GitHub.
+3. Unzip the download, transfer `runemobile-mobile-debug-arm64.apk` to an ARM64 Android 9+ phone, and install it. The APK is locally/debug signed; an existing app signed with another key may require uninstalling first, which removes its local data.
 4. In the app's plugin panel, enable **Microbot Mobile (phase 2)** and open its settings.
 5. Set **Script** to **Auto Woodcutting (mobile port)**. Configure **Tree**, **Distance to Stray**, **Primary action**, retained items and Forestry options. The settings labelled **Example woodcutting tree** and **Example tree distance** belong to the old example script.
 6. For banking, choose **Primary action → Bank logs**. Bank selection is automatic; there is no manual bank selector. Start near the desired trees with a usable axe and enough free inventory space, then enable **Run script**.
@@ -36,7 +36,7 @@ anti-ban/fatigue system are not ported. Routes needing unsupported transports
 stop with a diagnostic rather than pretending to arrive. The same-plane collision
 map is a pinned upstream snapshot; changing world geometry can make routes fail.
 
-No phone or live game has been available. Automated tests validate client-thread
+User phone testing exposed the inventory reset and Lumbridge floor bugs addressed here. These fixes still require a phone retest. Automated tests validate client-thread
 marshalling, cancellation, exact inventory/bank parameters, bank selection,
 collision routes, Lumbridge staircase planning, host lifecycle and portions of
 Forestry logic. They do not prove any game interaction succeeds on-device.
@@ -52,16 +52,40 @@ and [port notes](../../runelite-client/src/main/java/net/runelite/client/plugins
 
 ## Cloud validation
 
-The integrated source passes 211 focused Gradle client tests (zero failures,
+The integrated source passes 222 focused Gradle client tests (zero failures,
 errors or skips), Checkstyle and PMD. The bridge/auth contract preflight passes.
 The older Phase 2 portable harness separately passes 25 tests; its stand-ins do
 not exercise the uploaded woodcutting port. The GitHub APK workflow repeats the
 real focused checks before building and uploading its APK.
 
-The fresh local release APK also passes signature/alignment checks. All 131 selected
-Microbot/mobile/input classes and the packaged collision map match the compiled
-source, and the embedded source commit is `ce1baea`. GitHub's independent build
-has its own signing key and SHA; use the checksum file inside its artifact.
+The debug workflow checks signing, native-library alignment, debuggability and
+absence of bundled `tokens.json`. GitHub builds have their own signing key and
+SHA; use the checksum file inside the artifact.
 
-The independent GitHub checks, build, APK verification and upload succeeded.
-[Download its artifact ZIP](https://github.com/thomasleeblankenship-svg/rsmod/actions/runs/39902376810/artifacts/12479551976) while signed into GitHub.
+## Debug logs and fixes to retest
+
+With **Primary action → Drop logs**, a full inventory must drain all eligible
+items before chopping resumes. Axes are protected independently of **Items to
+keep**. The test exercises 27 logs plus an axe, hidden inventory, rebuilt slot
+actions, changing slots and cancellation. Drop dispatch now maps definition
+operations to the inventory widget's actual operation numbers. Each drop is
+confirmed against a fresh inventory read; diagnostics record failures.
+
+Lumbridge stairs resolve live object IDs/actions using the player's actual
+floor. The integration test starts upstairs with a stale world-view plane and
+requires both observed descents before ground travel.
+
+This build is debuggable. With Android platform-tools, USB debugging enabled
+and the phone authorized, read the private client log using:
+
+```sh
+adb exec-out run-as dev.audaro.runemobile cat files/.runelite/logs/client.log > client.log
+```
+
+To list available logs:
+
+```sh
+adb shell run-as dev.audaro.runemobile ls files/.runelite/logs
+```
+
+These commands require the debug APK; a release APK rejects `run-as`.

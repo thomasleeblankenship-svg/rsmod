@@ -50,23 +50,25 @@ jobs:
           --tests net.runelite.client.callback.ClientThreadOptionalTest
           :client:checkstyleMain :client:pmdMain
       - name: Build test APK
-        run: bash scripts/build-android.sh "$GITHUB_WORKSPACE"
+        run: bash scripts/build-android.sh "$GITHUB_WORKSPACE" --debug
         env:
           GRADLE_OPTS: -Dorg.gradle.workers.max=2 -Dorg.gradle.daemon=false
       - name: Verify and prepare download
         run: |
           set -euo pipefail
-          apk=android/app/build/outputs/apk/release/app-release.apk
+          apk=android/app/build/outputs/apk/debug/app-debug.apk
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$apk"
           "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 4 "$apk"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$apk" | grep -q '^application-debuggable'
+          python3 -c 'import zipfile; z=zipfile.ZipFile("android/app/build/outputs/apk/debug/app-debug.apk"); assert not any(n.endswith("tokens.json") for n in z.namelist())'
           mkdir -p download
-          cp "$apk" download/runemobile-mobile-test-arm64.apk
+          cp "$apk" download/runemobile-mobile-debug-arm64.apk
           git rev-parse HEAD > download/SOURCE_COMMIT.txt
           (cd download && sha256sum *.apk > SHA256SUMS.txt)
       - name: Upload APK
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: runemobile-mobile-test-arm64
+          name: runemobile-mobile-debug-arm64
           path: download/
           if-no-files-found: error
           retention-days: 14

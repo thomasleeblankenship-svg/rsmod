@@ -27,6 +27,17 @@ final class LumbridgeStairs
 			this.action = action;
 		}
 
+		/** Restrict fallback IDs to a nearby live staircase exposing the exact requested direction. */
+		boolean matches(int id, String name, String[] actions)
+		{
+			if (actions == null || !java.util.Arrays.stream(actions).anyMatch(action::equalsIgnoreCase))
+			{
+				return false;
+			}
+			return id == objectId || id == 16671 || id == 16672 || id == 16673
+				|| id == 56230 || id == 56231 || "Staircase".equalsIgnoreCase(name) || "Stairs".equalsIgnoreCase(name);
+		}
+
 		boolean observedArrival(WorldPoint player)
 		{
 			return player != null && player.getPlane() == arrival.getPlane() && player.distanceTo(arrival) <= 4;

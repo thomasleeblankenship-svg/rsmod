@@ -306,26 +306,23 @@ public final class Rs2Walker
 				&& scene.player.distanceTo(stairs.origin) <= 2 && System.currentTimeMillis() - lastAttempt >= 1200)
 			{
 				lastAttempt = System.currentTimeMillis();
-				WorldPoint objectLocation = MobileActions.read(() ->
+				Rs2TileObjectModel staircase = MobileActions.read(() ->
 				{
 					Player player = Microbot.getClient().getLocalPlayer();
 					if (player == null || player.getWorldLocation().getPlane() != stairs.origin.getPlane())
 					{
 						return null;
 					}
-					Rs2TileObjectModel model = MicrobotReadServices.require().getRs2TileObjectCache().query()
-						.where(object -> object.getId() == stairs.objectId
-							&& object.getWorldLocation().getPlane() == stairs.origin.getPlane()
+					return MicrobotReadServices.require().getRs2TileObjectCache().query()
+						.where(object -> object.getWorldLocation().getPlane() == stairs.origin.getPlane()
 							&& object.getWorldLocation().distanceTo(stairs.origin) <= 3
 							&& object.getObjectComposition() != null
-							&& object.getObjectComposition().getActions() != null
-							&& Arrays.stream(object.getObjectComposition().getActions())
-								.anyMatch(stairs.action::equalsIgnoreCase)).nearest();
-					return model == null ? null : model.getWorldLocation();
+							&& stairs.matches(object.getId(), object.getObjectComposition().getName(),
+								object.getObjectComposition().getActions())).nearest();
 				}, null);
-				if (objectLocation != null)
+				if (staircase != null)
 				{
-					dispatched |= MobileActions.objectAt(stairs.objectId, objectLocation, stairs.action);
+					dispatched |= MobileActions.objectAt(staircase.getId(), staircase.getWorldLocation(), stairs.action);
 				}
 			}
 			long remaining = deadline - System.currentTimeMillis();
@@ -429,7 +426,10 @@ public final class Rs2Walker
 			{
 				return null;
 			}
-			int plane = view.getPlane();
+			WorldPoint position = player.getWorldLocation();
+			if (position == null) { return null; }
+			// The actor is authoritative during floor transitions; a worldview plane can lag behind.
+			int plane = position.getPlane();
 			CollisionData[] maps = view.getCollisionMaps();
 			if (maps == null || plane < 0 || plane >= maps.length || maps[plane] == null)
 			{
@@ -446,7 +446,7 @@ public final class Rs2Walker
 				flags[i] = live[i] == null ? null : Arrays.copyOf(live[i], live[i].length);
 			}
 			return new MobileRoutePlanner.Scene(view.getBaseX(), view.getBaseY(), plane, flags,
-				player.getWorldLocation(), view.isInstance());
+				position, view.isInstance());
 		}, null);
 	}
 
@@ -462,7 +462,7 @@ public final class Rs2Walker
 				return false;
 			}
 			Tile[][][] tiles = view.getScene().getTiles();
-			int plane = view.getPlane();
+			int plane = player.getWorldLocation().getPlane();
 			if (tiles == null || plane < 0 || plane >= tiles.length || tiles[plane] == null)
 			{
 				return false;

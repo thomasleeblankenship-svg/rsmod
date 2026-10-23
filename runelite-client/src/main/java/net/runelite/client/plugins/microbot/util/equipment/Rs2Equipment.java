@@ -31,6 +31,16 @@ public final class Rs2Equipment
 		});
 	}
 
+	public static boolean hasWoodcuttingAxe()
+	{
+		return any(item ->
+		{
+			ItemComposition definition = Microbot.getClient().getItemDefinition(item.getId());
+			return net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory.isProtectedAxe(
+				item.getId(), definition == null ? null : definition.getName());
+		});
+	}
+
 	private static boolean any(Predicate<Item> predicate)
 	{
 		return MobileActions.read(() ->

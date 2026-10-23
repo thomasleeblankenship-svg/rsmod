@@ -8,6 +8,18 @@ import static org.junit.Assert.*;
 public class LumbridgeStairsTest
 {
 	@Test
+	public void liveStaircaseDirectionIsRequiredAcrossOldAndNewIds()
+	{
+		LumbridgeStairs.Step stairs = LumbridgeStairs.candidates(new WorldPoint(3209, 3220, 2),
+			new WorldPoint(3218, 3225, 0)).get(0);
+		assertTrue(stairs.matches(56231, "Staircase", new String[]{"Climb-down"}));
+		assertTrue(stairs.matches(16673, "Staircase", new String[]{"Climb-down"}));
+		assertTrue(stairs.matches(99999, "Staircase", new String[]{"Climb-down"}));
+		assertFalse(stairs.matches(56231, "Staircase", new String[]{"Climb-up"}));
+		assertFalse(stairs.matches(99999, "Ladder", new String[]{"Climb-down"}));
+	}
+
+	@Test
 	public void groundToBankPlansAnObservedFirstFloorLanding()
 	{
 		WorldPoint player = new WorldPoint(3206, 3207, 0);
