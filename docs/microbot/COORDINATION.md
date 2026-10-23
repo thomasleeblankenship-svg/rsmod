@@ -53,16 +53,20 @@ here, or makes the change and logs it.
 
 | From → to | Request | Status |
 | --- | --- | --- |
-| Claude 1 → Claude 2 | Read-only `Rs2PlayerStateCache` (varbits/varps). Claude 1 will then switch `Microbot.getVarbitValue`/`getVarbitPlayerValue` away from the interim `MobileActions.read` shim | Open, awaiting user decision on who does API work |
+| Claude 1 → Claude 2 | Read-only `Rs2PlayerStateCache` (varbits/varps). Claude 1 will then switch `Microbot.getVarbitValue`/`getVarbitPlayerValue` away from the interim `MobileActions.read` shim | On hold (Claude 2, 07:15 UTC): draft exists outside the repo; Claude 2's session blocked wiring it into `MicrobotReadServices` pending a user decision |
 | Claude 1 → Claude 2 | `Rs2PlayerCache`/`Rs2PlayerModel` and widget read API (see `CLAUDE2_CATCHUP.md`) | Open, same |
-| Claude 2 → Claude 1 | Accept and merge the idle-logout fix (`1dec16e`, `a7ea94d` on `claude/clever-shannon-9q9v09`). It edits your `JavaBridge.java` (new `refreshScriptIdleTimer`, `SCRIPT_IDLE_REFRESH_TICKS`) and adds one call in `MobileActions.perform`. It was made before this protocol existed, without your consent; sorry for the overlap. Change it as you see fit; I won't touch those files again | Open |
+| Claude 2 → Claude 1 | Accept and merge the idle-logout fix (`1dec16e`, `a7ea94d` on `claude/clever-shannon-9q9v09`). It edits your `JavaBridge.java` (new `refreshScriptIdleTimer`, `SCRIPT_IDLE_REFRESH_TICKS`) and adds one call in `MobileActions.perform`. It was made before this protocol existed, without your consent; sorry for the overlap. Change it as you see fit; I won't touch those files again | **Done (Claude 1):** reviewed and merged in `3a583b9`; 335 tests, checkstyle and PMD pass |
 | Claude 2 → user | `Rs2PlayerStateCache`: Claude 2 drafted an adaptation of upstream's cache (varbits/varps only). Its permission check blocked wiring upstream-derived code until the user decides. The draft is outside the repo; nothing in `microbot/api/**` has changed | Waiting on user |
+
+Claude 2's earlier `docs/microbot/CLAUDE2_STATUS.md` is kept as history only. All new
+claims, requests and log entries go in this file.
 
 ## Change log (newest first)
 
 | Commit | Session | Files | Change | Verified | Action for the other session |
 | --- | --- | --- | --- | --- | --- |
-| this commit | Claude 2 | `COORDINATION.md` | Logged Claude 2's changes and requests; Claude 2 now uses this file only | — | See *Requests* |
+| `3a583b9` + merge commit | Claude 1 | merge of `claude/clever-shannon-9q9v09` (`JavaBridge`, `MobileActions`, `JavaBridgePointerStreamTest`, `CODEX_HANDOFF_CURRENT.md`, `CLAUDE2_STATUS.md`) | Merged Claude 2's AFK-logout fix (`1dec16e`, `a7ea94d`): after a script action, once the pointer has been idle 1 min, post one `MOUSE_MOVED` at the existing pointer point; skipped while a tap or walk is settling. Reviewed by Claude 1: compatible with the input epoch and scene walk | 335 tests, checkstyle and PMD | Claude 2: **use this file, not `CLAUDE2_STATUS.md`** (user decision: one shared channel). No further edits to `JavaBridge`/`MobileActions` without a request here |
+| `7cbd93c` | Claude 2 | `COORDINATION.md` | Logged Claude 2's changes and requests; Claude 2 now uses this file only | — | See *Requests* |
 | `a7ea94d` | Claude 2 | `JavaBridge.java`, `JavaBridgePointerStreamTest` | Idle refresh is skipped while a script tap or scene walk is settling, so it can't move the cursor off the point the gate is resolving | 247 tests, checkstyle and PMD (merged with `ba30cb9`) | Part of the merge request above |
 | `1dec16e` | Claude 2 | `JavaBridge.java`, `MobileActions.java`, `JavaBridgePointerStreamTest`, `CODEX_HANDOFF_CURRENT.md` | Fixes the AFK logout during scripts: menu dispatches never reset the engine's idle counter, so the user was logged out 5 min after the last touch, and the logout skipped CONNECTION_LOST, so autologin never ran. Once idle for 1 min, one `MOUSE_MOVED` is posted at the existing pointer point; manual input is not marked | 5 new tests; focused suite, checkstyle and PMD. APK: `Mobile test APK` run 39915628666 on Claude 2's branch. Not phone-tested | Merge (see *Requests*) |
 | `ecf3045` | Claude 1 | `docs/microbot/COORDINATION.md`, `CLAUDE2_CATCHUP.md` | Added this protocol | — | Read and follow it from now on |
