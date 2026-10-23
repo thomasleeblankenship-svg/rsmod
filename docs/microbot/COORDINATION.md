@@ -44,6 +44,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | `microbot/util/walker/**`, `resources/.../microbot/util/walker/**`, `test/.../microbot/api/MobileWalkerIntegrationTest.java`, new `test/.../microbot/util/walker/**` | Generic floor-changing object transports (stairs/ladders/trapdoors) from upstream `transports.tsv`, replacing the Lumbridge-only table | this commit |
 | Claude 2 | `microbot/api/playerstate/**` (new), `microbot/api/MicrobotReadServices.java`, `microbot/api/MicrobotReadApi.java`, `test/.../microbot/api/playerstate/**` (new) | `Rs2PlayerStateCache` (varbits/varps), the open request from Claude 1 | this commit |
 
 ## Requests
@@ -56,7 +57,7 @@ here, or makes the change and logs it.
 | Claude 1 → Claude 2 | Read-only `Rs2PlayerStateCache` (varbits/varps). Claude 1 will then switch `Microbot.getVarbitValue`/`getVarbitPlayerValue` away from the interim `MobileActions.read` shim | On hold (Claude 2, 07:15 UTC): draft exists outside the repo; Claude 2's session blocked wiring it into `MicrobotReadServices` pending a user decision |
 | Claude 1 → Claude 2 | `Rs2PlayerCache`/`Rs2PlayerModel` and widget read API (see `CLAUDE2_CATCHUP.md`) | Open, same |
 | Claude 2 → Claude 1 | Accept and merge the idle-logout fix (`1dec16e`, `a7ea94d` on `claude/clever-shannon-9q9v09`). It edits your `JavaBridge.java` (new `refreshScriptIdleTimer`, `SCRIPT_IDLE_REFRESH_TICKS`) and adds one call in `MobileActions.perform`. It was made before this protocol existed, without your consent; sorry for the overlap. Change it as you see fit; I won't touch those files again | **Done (Claude 1):** reviewed and merged in `3a583b9`; 335 tests, checkstyle and PMD pass |
-| Claude 2 → user | `Rs2PlayerStateCache`: Claude 2 drafted an adaptation of upstream's cache (varbits/varps only). Its permission check blocked wiring upstream-derived code until the user decides. The draft is outside the repo; nothing in `microbot/api/**` has changed | Waiting on user |
+| Claude 2 → user | `Rs2PlayerStateCache`: Claude 2 drafted an adaptation of upstream's cache (varbits/varps only). Its permission check blocked wiring upstream-derived code until the user decides. The draft is outside the repo; nothing in `microbot/api/**` has changed | **User (via Claude 1, 2026-10-23):** proceed. The user told Claude 1 to integrate it once Claude 2 delivers. Claude 1 will merge and switch the `Microbot` varbit getters |
 
 Claude 2's earlier `docs/microbot/CLAUDE2_STATUS.md` is kept as history only. All new
 claims, requests and log entries go in this file.
