@@ -15,6 +15,7 @@ import net.runelite.api.Tile;
 import net.runelite.api.TileObject;
 import net.runelite.api.WorldView;
 import net.runelite.api.coords.WorldPoint;
+import net.runelite.client.plugins.microbot.MicrobotRuntime;
 import net.runelite.client.plugins.microbot.Microbot;
 import net.runelite.client.plugins.microbot.mobile.MobileActions;
 import net.runelite.client.plugins.microbot.api.MicrobotReadServices;
@@ -144,6 +145,12 @@ public final class Rs2Walker
 				if (!scene.player.equals(previous))
 				{
 					previous = scene.player;
+					lastProgress = System.currentTimeMillis();
+				}
+				if (MicrobotRuntime.humanOwnsInput())
+				{
+					// The user's own taps own input; the walk yields and its stall timer waits too.
+					lastStatus = "Waiting: manual input";
 					lastProgress = System.currentTimeMillis();
 				}
 				if (System.currentTimeMillis() - lastProgress >= STALL_MILLIS)

@@ -18,8 +18,25 @@ The user explicitly requested on 2026-10-23:
    infinite dispatch loop. Do not merely report queued input as successful arrival.
 3. Save a fresh handoff before usage is exhausted.
 
-At this handoff update, items 1 and 2 are **requested and pending**, not present
-in the published debug APK. Do not claim otherwise. The requested behavior
+**Item 1 is implemented in source (Claude 1), not yet in any published APK.**
+`ScriptInputSession` now separates the session's lifetime from a per-input epoch:
+
+- A real tap or key bumps the input epoch and calls `MicrobotRuntime.noteHumanInput()`.
+  Any script tap or key queued before it is dropped (`JavaBridge` captures the epoch
+  per queued input and checks `session.allows(epoch)` at every stage), and new script
+  input is refused for the 1.8 s human-input window. The session stays active, so the
+  script continues by itself afterwards, without toggling Run script.
+- Stop, script swap, plugin disable, logout, input faults and Android backgrounding
+  still end the session for good. Foreground resume never renews it.
+- `Rs2Walker` pauses its 15 s stall timer while the human owns input.
+  The pending walk patch also edits `Rs2Walker`, so merge it by hand.
+- Tests: `JavaBridgeScriptInputTest` and `MobileMicrobotPluginTest` now assert the new
+  behaviour (a tap drops queued input and keeps the run; backgrounding still stops it
+  with no auto-resume). The focused suite of 328 tests, checkstyle and PMD pass, all
+  against mocked boundaries.
+
+Item 2 (walk retry) is still **requested and pending**. Neither change is in the
+published debug APK; a new APK build is needed before a phone test. The requested behavior
 supersedes statements later in this file that describe cancellation in the old
 implementation.
 

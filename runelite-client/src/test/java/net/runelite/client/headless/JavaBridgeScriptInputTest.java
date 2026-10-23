@@ -188,15 +188,45 @@ public class JavaBridgeScriptInputTest
 	}
 
 	@Test
-	public void nativeTouchTakesOverWithoutScriptClick() throws Exception
+	public void nativeTouchDropsPendingScriptTapButKeepsTheSession() throws Exception
 	{
 		ScriptInputSession session = new ScriptInputSession();
 		assertTrue(JavaBridge.onScriptClick(X, Y, session));
 		JavaBridge.armTap(X, Y);
-		assertFalse(session.isActive());
+		assertTrue("a manual tap must not end the run", session.isActive());
+		settle();
+		pump();
+		assertTrue("the queued script tap yields to the user's tap", events.isEmpty());
+	}
+
+	@Test
+	public void scriptInputContinuesAfterManualTapWithTheSameSession() throws Exception
+	{
+		ScriptInputSession session = new ScriptInputSession();
+		assertTrue(JavaBridge.onScriptClick(X, Y, session));
+		ScriptInputSession.manualInput();
 		settle();
 		pump();
 		assertTrue(events.isEmpty());
+
+		assertTrue("the same session can queue new input after the takeover", JavaBridge.onScriptClick(X, Y, session));
+		settle();
+		pump();
+		assertEquals(1, count(MouseEvent.MOUSE_CLICKED));
+	}
+
+	@Test
+	public void manualTapAfterSettleButBeforeEdtDispatchDropsBatch() throws Exception
+	{
+		blockEdt();
+		ScriptInputSession session = new ScriptInputSession();
+		assertTrue(JavaBridge.onScriptClick(X, Y, session));
+		settle();
+		ScriptInputSession.manualInput();
+		unblock.countDown();
+		pump();
+		assertTrue(events.isEmpty());
+		assertTrue(session.isActive());
 	}
 
 	@Test
@@ -206,7 +236,7 @@ public class JavaBridgeScriptInputTest
 		assertTrue(JavaBridge.onScriptClick(X, Y, session));
 		JavaBridge.onClick(50, 60, MouseEvent.BUTTON3);
 		pump();
-		assertFalse(session.isActive());
+		assertTrue(session.isActive());
 		assertEquals(1, count(MouseEvent.MOUSE_PRESSED));
 		assertEquals(MouseEvent.BUTTON3, events.get(0).getButton());
 	}
@@ -271,9 +301,25 @@ public class JavaBridgeScriptInputTest
 		old.close();
 		assertTrue(next.isActive());
 		ScriptInputSession.manualInput();
+		assertTrue("manual input does not revoke", next.isActive());
+		JavaBridge.setScriptInputSuspended(true);
+		JavaBridge.setScriptInputSuspended(false);
 		assertFalse(next.isActive());
 		assertFalse(next.successor().isActive());
 		assertTrue(new ScriptInputSession().isActive());
+	}
+
+	@Test
+	public void epochTokensExpireOnRealInputOnly()
+	{
+		ScriptInputSession session = new ScriptInputSession();
+		long epoch = ScriptInputSession.inputEpoch();
+		assertTrue(session.allows(epoch));
+		ScriptInputSession.manualInput();
+		assertFalse(session.allows(epoch));
+		assertTrue(session.allows(ScriptInputSession.inputEpoch()));
+		session.close();
+		assertFalse(session.allows(ScriptInputSession.inputEpoch()));
 	}
 
 	@Test
@@ -339,6 +385,24 @@ public class JavaBridgeScriptInputTest
 		unblock.countDown();
 		pump();
 		assertTrue(keys.isEmpty());
+	}
+
+	@Test
+	public void keyQueuedBeforeManualInputIsDroppedButSessionSurvives() throws Exception
+	{
+		List<Integer> keys = new CopyOnWriteArrayList<>();
+		canvas.addKeyListener(new java.awt.event.KeyAdapter()
+		{
+			@Override public void keyPressed(java.awt.event.KeyEvent event) { keys.add(event.getID()); }
+		});
+		blockEdt();
+		ScriptInputSession owner = new ScriptInputSession();
+		assertTrue(JavaBridge.onScriptKey(java.awt.event.KeyEvent.VK_ENTER, owner));
+		ScriptInputSession.manualInput();
+		unblock.countDown();
+		pump();
+		assertTrue(keys.isEmpty());
+		assertTrue(owner.isActive());
 	}
 
 	@Test

@@ -63,6 +63,7 @@ import net.runelite.api.widgets.Widget;
 import net.runelite.client.RuneLite;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.eventbus.EventBus;
+import net.runelite.client.plugins.microbot.MicrobotRuntime;
 import net.runelite.client.ui.overlay.outline.ModelOutlineRenderer;
 
 /**
@@ -226,6 +227,8 @@ public final class JavaBridge
 	private static TapState tapState = TapState.IDLE;
 	// Client-thread ownership only. Script taps cannot queue behind/replace native taps.
 	private static ScriptInputSession scriptTap;
+	/** Input epoch captured when {@link #scriptTap} was queued; a later real input invalidates it. */
+	private static long scriptTapEpoch;
 	private static int tapX;              // the pending tap point (canvas px) — also the click point
 	private static int tapY;
 	private static int settleFrames;      // frames spent in AWAIT_ENGINE since the move was posted
@@ -873,9 +876,10 @@ public final class JavaBridge
 	 */
 	public static boolean onScriptClick(int x, int y, ScriptInputSession session)
 	{
+		final long epoch = ScriptInputSession.inputEpoch();
 		final Client c = client;
 		final Canvas canvas = liveCanvas();
-		if (session == null || !session.isActive() || c == null || clientThread == null
+		if (session == null || !session.isActive() || MicrobotRuntime.humanOwnsInput() || c == null || clientThread == null
 			|| !c.isClientThread() || canvas == null || c.getGameState() != GameState.LOGGED_IN
 			|| c.isMenuOpen() || x < 0 || y < 0 || x >= c.getCanvasWidth() || y >= c.getCanvasHeight())
 		{
@@ -892,11 +896,12 @@ public final class JavaBridge
 			diagGeometry(c, "script", x, y);
 			hideClickCross(c);
 			ensureTruthSubscribed();
-			if (!session.isActive())
+			if (!session.allows(epoch))
 			{
 				return false;
 			}
 			scriptTap = session;
+			scriptTapEpoch = epoch;
 			beginAwait(canvas, x, y);
 			return true;
 		}
@@ -919,9 +924,10 @@ public final class JavaBridge
 	/** Script keyboard input never enters the native/manual-input path. */
 	public static boolean onScriptKey(int keyCode, ScriptInputSession owner)
 	{
+		final long epoch = ScriptInputSession.inputEpoch();
 		final Client c = client;
 		final Canvas canvas = liveCanvas();
-		if (owner == null || !owner.isActive() || c == null || !c.isClientThread()
+		if (owner == null || !owner.isActive() || MicrobotRuntime.humanOwnsInput() || c == null || !c.isClientThread()
 			|| canvas == null || c.getGameState() != GameState.LOGGED_IN || c.isMenuOpen()
 			|| pressed || shiftHeld || ctrlHeld || altHeld || tapState != TapState.IDLE)
 		{
@@ -931,13 +937,13 @@ public final class JavaBridge
 			: keyCode >= KeyEvent.VK_0 && keyCode <= KeyEvent.VK_9 ? (char) keyCode : KeyEvent.CHAR_UNDEFINED;
 		EventQueue.invokeLater(() ->
 		{
-			if (!owner.isActive()) { return; }
+			if (!owner.allows(epoch)) { return; }
 			long now = System.currentTimeMillis();
 			try
 			{
 				KeyEvent down = new KeyEvent(canvas, KeyEvent.KEY_PRESSED, now, 0, keyCode, typed);
 				for (java.awt.event.KeyListener listener : canvas.getKeyListeners()) { listener.keyPressed(down); }
-				if (owner.isActive() && typed != KeyEvent.CHAR_UNDEFINED)
+				if (owner.allows(epoch) && typed != KeyEvent.CHAR_UNDEFINED)
 				{
 					KeyEvent text = new KeyEvent(canvas, KeyEvent.KEY_TYPED, now, 0, KeyEvent.VK_UNDEFINED, typed);
 					for (java.awt.event.KeyListener listener : canvas.getKeyListeners()) { listener.keyTyped(text); }
@@ -958,10 +964,10 @@ public final class JavaBridge
 		ScriptInputSession.setSuspended(suspended);
 	}
 
-	/** Drop only input owned by a cancelled script; never reset a native tap. */
+	/** Drop only script input that was cancelled or overtaken by real input; never reset a native tap. */
 	private static void discardCancelledScriptTap()
 	{
-		if (scriptTap != null && !scriptTap.isActive())
+		if (scriptTap != null && !scriptTap.allows(scriptTapEpoch))
 		{
 			scriptTap = null;
 			tapState = TapState.IDLE;
@@ -2181,13 +2187,14 @@ public final class JavaBridge
 	private static void postSettledClickButtons(Canvas canvas, int x, int y)
 	{
 		final ScriptInputSession owner = scriptTap;
+		final long epoch = scriptTapEpoch;
 		if (owner != null)
 		{
 			// Check again on the EDT: stop/takeover may happen AFTER the settle gate
 			// queues this batch. Once a press is delivered, always deliver its release.
 			EventQueue.invokeLater(() ->
 			{
-				if (!owner.isActive())
+				if (!owner.allows(epoch))
 				{
 					return;
 				}
@@ -2202,7 +2209,7 @@ public final class JavaBridge
 					canvas.dispatchEvent(new MouseEvent(canvas, MouseEvent.MOUSE_RELEASED, time + 1,
 						0, x, y, 1, false, MouseEvent.BUTTON1));
 				}
-				if (owner.isActive())
+				if (owner.allows(epoch))
 				{
 					canvas.dispatchEvent(new MouseEvent(canvas, MouseEvent.MOUSE_CLICKED, time + 2,
 						0, x, y, 1, false, MouseEvent.BUTTON1));

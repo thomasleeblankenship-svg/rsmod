@@ -217,38 +217,49 @@ public class MobileMicrobotPluginTest
 	}
 
 	@Test
-	public void nativeInputInvalidatesQueuedStart()
+	public void nativeInputDoesNotCancelQueuedStart()
 	{
 		MobileScriptBridge.start("DIAGNOSTICS");
 		JavaBridge.onMove(0, 0);
 		drain();
 		plugin.onGameTick(new GameTick());
-		assertFalse(config.run);
-		assertFalse(plugin.inputActive());
+		assertTrue(config.run);
+		assertTrue(plugin.inputActive());
 	}
 
 	@Test
-	public void nativeInputBeforeFirstTickDoesNotMintNewPermission()
+	public void nativeInputBeforeFirstTickKeepsTheStart()
 	{
 		MobileScriptBridge.start("DIAGNOSTICS");
 		drain();
 		JavaBridge.onMove(0, 0);
 		plugin.onGameTick(new GameTick());
-		assertFalse(config.run);
-		assertFalse(plugin.inputActive());
+		assertTrue(config.run);
+		assertTrue(plugin.inputActive());
 	}
 
 	@Test
-	public void nativeTakeoverNeedsExplicitRestart()
+	public void nativeTakeoverDoesNotStopTheScript()
 	{
 		start("DIAGNOSTICS");
 		JavaBridge.onMove(0, 0);
+		assertTrue("a manual tap must not end the run", plugin.inputActive());
+		plugin.onGameTick(new GameTick());
+		assertTrue(config.run);
+		assertTrue(MobileScriptBridge.statusJson().contains("\"running\":true"));
+	}
+
+	@Test
+	public void backgroundingStillStopsAndResumeNeedsExplicitStart()
+	{
+		start("DIAGNOSTICS");
+		JavaBridge.setScriptInputSuspended(true);
+		JavaBridge.setScriptInputSuspended(false);
 		assertFalse(plugin.inputActive());
-		assertTrue(MobileScriptBridge.statusJson().contains("\"running\":false"));
 		plugin.onGameTick(new GameTick());
 		assertFalse(config.run);
 		plugin.onGameTick(new GameTick());
-		assertFalse(config.run);
+		assertFalse("no silent auto-resume after returning to the foreground", config.run);
 		start("DIAGNOSTICS");
 		assertTrue(plugin.inputActive());
 	}
