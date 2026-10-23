@@ -37,4 +37,24 @@ public final class Rs2Combat
 				&& (player.getAnimation() != -1 || player.isInteracting());
 		}, false);
 	}
+
+	// ---- Actions (Claude 1) ----
+
+	/** As upstream: true once auto retaliate matches {@code enable}; opens the combat tab to reach the button. */
+	public static boolean setAutoRetaliate(boolean enable)
+	{
+		int expected = enable ? 0 : 1;
+		if (Microbot.getVarbitPlayerValue(net.runelite.api.gameval.VarPlayerID.OPTION_NODEF) == expected) { return true; }
+		return net.runelite.client.plugins.microbot.util.tabs.Rs2Tab.switchTo(net.runelite.client.plugins.microbot.globval.enums.InterfaceTab.COMBAT)
+			&& net.runelite.client.plugins.microbot.util.Global.sleepUntil(() ->
+				MobileActions.widget(net.runelite.api.gameval.InterfaceID.CombatInterface.RETALIATE, -1, ""), 2_000)
+			&& net.runelite.client.plugins.microbot.util.Global.sleepUntil(() ->
+				Microbot.getVarbitPlayerValue(net.runelite.api.gameval.VarPlayerID.OPTION_NODEF) == expected, 2_000);
+	}
+
+	/** Upstream spelling. */
+	public static boolean enableAutoRetialiate()
+	{
+		return setAutoRetaliate(true);
+	}
 }
