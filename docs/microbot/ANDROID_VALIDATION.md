@@ -1,13 +1,21 @@
 # Android validation
 
-Fresh release-variant APK built from `131c23215ebe4f1bcec214d315f2c1e3ed599cae`.
-Microbot runtime lifecycle, read services, the upstream state-machine example
-and manual-input cancellation are included. No device tests ran.
+Latest mobile woodcutting APK built from `ce1baea802a7c0adc29f47f51d2d39ab54ba19cc`.
+Auto-hop is disabled and bank selection is automatic, including Lumbridge
+stairs and the Draynor/Falador/Varrock bank catalogue. Full loading instructions,
+ported workflows and limitations: [WOODCUTTING_MOBILE.md](WOODCUTTING_MOBILE.md).
 
-Latest validation: 147 focused client tests passed with no failures or skips;
-APK v2 signature and ZIP alignment passed; 68 packaged Microbot/input classes
-match the compiled client. Download artifact:
-`/workspace/artifacts/runemobile-131c232-arm64.apk`.
+Latest checks passed: 211 focused client tests (zero failures/errors/skips),
+Checkstyle, PMD and bridge/auth contract preflight; fresh Android release assembly,
+APK v2 signature and ZIP alignment. All 131 selected Microbot/mobile/input classes
+(including the actual JavaBridge) match compiled client classes, the collision map
+matches the pinned resource, and the packaged commit is `ce1baea`.
+
+Local artifact: `/workspace/artifacts/runemobile-woodcutting-ce1baea-arm64.apk`.
+The browser download is a separate GitHub build of the same source; its APK hash
+and test signing key can differ from this cloud artifact. No phone/live-game test
+has run. Artifact metadata: [apk-artifact.json](apk-artifact.json).
+
 The original baseline checks below describe earlier validation unless repeated above.
 
 ## Verified
@@ -48,7 +56,7 @@ Use the saved environment install script to provision tools in a fresh machine.
 - Explicit start/stop, script swap, exception cleanup, disable and rapid enable/disable.
 - Logout/reconnect/hop: no unexpected auto-resume or queued script starts.
 - Confirm interactions by game state, not click enqueue return values.
-- Add and verify manual takeover and cancellation of pending generated taps.
+- Verify manual takeover and cancellation of pending generated taps on the phone.
 - Background/foreground, VM/service restart, termination and held-key release.
 - Run an actual upstream script after the runtime/API port, recording unchanged core logic.
 - Measure FPS/CPU/memory/thermals over long sessions; no inferred background support.

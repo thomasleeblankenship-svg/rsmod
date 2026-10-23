@@ -1,0 +1,265 @@
+Picked up JAVA_TOOL_OPTIONS: -Dhttp.proxyHost=proxy -Dhttp.proxyPort=8080 -Dhttps.proxyHost=proxy -Dhttps.proxyPort=8080 -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts
+> Task :runelite-gradle-plugin:pluginDescriptors UP-TO-DATE
+> Task :cache:generateGrammarSource UP-TO-DATE
+> Task :runelite-gradle-plugin:processResources UP-TO-DATE
+> Task :cache:generateEffectiveLombokConfig UP-TO-DATE
+> Task :cache:compileJava UP-TO-DATE
+> Task :cache:processResources UP-TO-DATE
+> Task :cache:classes UP-TO-DATE
+> Task :cache:jar UP-TO-DATE
+> Task :runelite-gradle-plugin:compileJava UP-TO-DATE
+> Task :runelite-gradle-plugin:classes UP-TO-DATE
+> Task :runelite-gradle-plugin:jar UP-TO-DATE
+> Task :jshell:generateEffectiveLombokConfig UP-TO-DATE
+> Task :jshell:compileJava UP-TO-DATE
+> Task :jshell:processResources UP-TO-DATE
+> Task :jshell:classes UP-TO-DATE
+> Task :runelite-api:generateEffectiveLombokConfig UP-TO-DATE
+> Task :jshell:jar UP-TO-DATE
+> Task :client:generateEffectiveLombokConfig UP-TO-DATE
+> Task :runelite-api:compileJava UP-TO-DATE
+> Task :runelite-api:processResources NO-SOURCE
+> Task :runelite-api:classes UP-TO-DATE
+> Task :runelite-api:jar UP-TO-DATE
+> Task :client:compileJava UP-TO-DATE
+
+BUILD SUCCESSFUL in 1s
+18 actionable tasks: 18 up-to-date
+== using cached android/dev-tools/.jre-cache/jre21-android-arm64.tar.xz ==
+   sha256 OK (db7862e4ec68a71a46cf1fec078938443410805cb61e8f99b75f10893c708c9a)
+== extract ==
+== verify bionic aarch64 (not iOS Mach-O, not glibc) ==
+   bin/java: ELF 64-bit LSB shared object, ARM aarch64, version 1 (SYSV), dynamically linked, interpreter /system/bin/linker64, for Android 21, built by NDK r27d (13750724), not stripped
+   ✓ ELF aarch64, bionic interpreter
+   ✓ libjvm NEEDs only bionic sonames
+== stage -> android/app/src/main/assets/jvm/jre (assets only) ==
+   modules: 110789498 bytes; server/libjvm.so present: yes
+== build fake libawt_xawt.so (NDK) ==
+   ✓ libawt_xawt.so installed into jre/lib
+
+== Android JRE staged. Next: stage the jars in the order android/README.md gives (ending with
+   tools/stage-mobile-runtime.sh --no-build --android-only),
+   then build/run: android/gradlew :app:assembleDebug
+Picked up JAVA_TOOL_OPTIONS: -Dhttp.proxyHost=proxy -Dhttp.proxyPort=8080 -Dhttps.proxyHost=proxy -Dhttps.proxyPort=8080 -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts
+> Task :runelite-gradle-plugin:pluginDescriptors UP-TO-DATE
+> Task :runelite-gradle-plugin:processResources UP-TO-DATE
+> Task :cache:generateGrammarSource UP-TO-DATE
+> Task :cache:generateEffectiveLombokConfig UP-TO-DATE
+> Task :cache:compileJava UP-TO-DATE
+> Task :cache:processResources UP-TO-DATE
+> Task :cache:classes UP-TO-DATE
+> Task :cache:jar UP-TO-DATE
+> Task :runelite-gradle-plugin:compileJava UP-TO-DATE
+> Task :runelite-gradle-plugin:classes UP-TO-DATE
+> Task :runelite-gradle-plugin:jar UP-TO-DATE
+> Task :jshell:generateEffectiveLombokConfig UP-TO-DATE
+> Task :runelite-api:generateEffectiveLombokConfig UP-TO-DATE
+> Task :jshell:compileJava UP-TO-DATE
+> Task :jshell:processResources UP-TO-DATE
+> Task :jshell:classes UP-TO-DATE
+> Task :client:generateEffectiveLombokConfig UP-TO-DATE
+> Task :jshell:jar UP-TO-DATE
+> Task :client:assembleRs2asm UP-TO-DATE
+> Task :client:buildRs2asmIndex UP-TO-DATE
+> Task :runelite-api:compileJava UP-TO-DATE
+> Task :runelite-api:processResources NO-SOURCE
+> Task :runelite-api:classes UP-TO-DATE
+> Task :runelite-api:jar UP-TO-DATE
+> Task :client:processResources UP-TO-DATE
+> Task :client:compileJava UP-TO-DATE
+> Task :client:classes UP-TO-DATE
+> Task :client:shadowJar
+> Task :client:shadowJarSign SKIPPED
+
+BUILD SUCCESSFUL in 4s
+22 actionable tasks: 1 executed, 21 up-to-date
+== verify CACIO jar checksums (SUPPLY-1) ==
+== fold in CACIO classes ==
+== compile Phase-1 probes (javac --release 8) ==
+Picked up JAVA_TOOL_OPTIONS: -Dhttp.proxyHost=proxy -Dhttp.proxyPort=8080 -Dhttps.proxyHost=proxy -Dhttps.proxyPort=8080 -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts
+warning: [options] source value 8 is obsolete and will be removed in a future release
+warning: [options] target value 8 is obsolete and will be removed in a future release
+warning: [options] To suppress warnings about obsolete options, use -Xlint:-options.
+3 warnings
+== compile §6.0 activation + §6.1 smoke probes (javac --release 8, cacio on cp) ==
+Picked up JAVA_TOOL_OPTIONS: -Dhttp.proxyHost=proxy -Dhttp.proxyPort=8080 -Dhttps.proxyHost=proxy -Dhttps.proxyPort=8080 -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts
+warning: [options] source value 8 is obsolete and will be removed in a future release
+warning: [options] target value 8 is obsolete and will be removed in a future release
+warning: [options] To suppress warnings about obsolete options, use -Xlint:-options.
+3 warnings
+== compile §6.2 DeviceHeadlessBoot + GateCensus (javac --release 8, prior classes+cacio+shaded on cp) ==
+Picked up JAVA_TOOL_OPTIONS: -Dhttp.proxyHost=proxy -Dhttp.proxyPort=8080 -Dhttps.proxyHost=proxy -Dhttps.proxyPort=8080 -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts
+warning: [options] source value 8 is obsolete and will be removed in a future release
+warning: [options] target value 8 is obsolete and will be removed in a future release
+warning: [options] To suppress warnings about obsolete options, use -Xlint:-options.
+3 warnings
+== pack jvm-resources/probes.jar ==
+Picked up JAVA_TOOL_OPTIONS: -Dhttp.proxyHost=proxy -Dhttp.proxyPort=8080 -Dhttps.proxyHost=proxy -Dhttps.proxyPort=8080 -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts
+== done ==
+-rw------- 1 agent agent 145243 Oct 23 04:49 jvm-resources/probes.jar
+key classes:
+Picked up JAVA_TOOL_OPTIONS: -Dhttp.proxyHost=proxy -Dhttp.proxyPort=8080 -Dhttps.proxyHost=proxy -Dhttps.proxyPort=8080 -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts
+AwtActivation.class
+UnsafePokeActivation.class
+com/github/caciocavallosilano/cacio/ctc/CTCGraphicsEnvironment.class
+com/github/caciocavallosilano/cacio/ctc/CTCToolkit.class
+Picked up JAVA_TOOL_OPTIONS: -Dhttp.proxyHost=proxy -Dhttp.proxyPort=8080 -Dhttps.proxyHost=proxy -Dhttps.proxyPort=8080 -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts
+Picked up JAVA_TOOL_OPTIONS: -Dhttp.proxyHost=proxy -Dhttp.proxyPort=8080 -Dhttps.proxyHost=proxy -Dhttps.proxyPort=8080 -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts
+/workspace/rsmod/runelite-client/src/main/java/net/runelite/client/events/PrivateMessageInput.java:29: warning: Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+@Value
+^
+/workspace/rsmod/runelite-client/src/main/java/net/runelite/client/party/messages/PartyChatMessage.java:29: warning: Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+@Value
+^
+/workspace/rsmod/runelite-client/src/main/java/net/runelite/client/events/ChatboxInput.java:32: warning: Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+@Value
+^
+/workspace/rsmod/runelite-client/src/main/java/net/runelite/client/plugins/devtools/ScriptInspector.java:100: warning: Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+	@Data
+	^
+/workspace/rsmod/runelite-client/src/main/java/net/runelite/client/events/ClientShutdown.java:62: warning: [removal] java.lang.ThreadDeath in java.lang has been deprecated and marked for removal
+			catch (ThreadDeath d)
+			       ^
+/workspace/rsmod/runelite-client/src/main/java/net/runelite/client/callback/ClientThread.java:217: warning: [removal] java.lang.ThreadDeath in java.lang has been deprecated and marked for removal
+			catch (ThreadDeath d)
+			       ^
+/workspace/rsmod/runelite-client/src/main/java/net/runelite/client/plugins/PluginManager.java:169: warning: [removal] java.lang.ThreadDeath in java.lang has been deprecated and marked for removal
+		catch (ThreadDeath e)
+		       ^
+/workspace/rsmod/runelite-client/src/main/java/net/runelite/client/plugins/PluginManager.java:216: warning: [removal] java.lang.ThreadDeath in java.lang has been deprecated and marked for removal
+		catch (ThreadDeath e)
+		       ^
+/workspace/rsmod/runelite-client/src/main/java/net/runelite/client/plugins/PluginManager.java:446: warning: [removal] java.lang.ThreadDeath in java.lang has been deprecated and marked for removal
+		catch (ThreadDeath e)
+		       ^
+/workspace/rsmod/runelite-client/src/main/java/net/runelite/client/plugins/PluginManager.java:595: warning: [removal] java.lang.ThreadDeath in java.lang has been deprecated and marked for removal
+		catch (ThreadDeath e)
+		       ^
+/workspace/rsmod/runelite-client/src/main/java/net/runelite/client/externalplugins/ExternalPluginManager.java:349: warning: [removal] java.lang.ThreadDeath in java.lang has been deprecated and marked for removal
+				catch (ThreadDeath e)
+				       ^
+/workspace/rsmod/runelite-client/src/main/java/net/runelite/client/plugins/agility/Courses.java:88: warning: non-varargs call of varargs method with inexact argument type for last parameter;
+		this(totalXp, -1, null);
+		                  ^
+  cast to net.runelite.api.coords.WorldPoint for a varargs call
+  cast to net.runelite.api.coords.WorldPoint[] for a non-varargs call and to suppress this warning
+Picked up JAVA_TOOL_OPTIONS: -Dhttp.proxyHost=proxy -Dhttp.proxyPort=8080 -Dhttps.proxyHost=proxy -Dhttps.proxyPort=8080 -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts
+Picked up JAVA_TOOL_OPTIONS: -Dhttp.proxyHost=proxy -Dhttp.proxyPort=8080 -Dhttps.proxyHost=proxy -Dhttps.proxyPort=8080 -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts
+facade lwjgl classes : 34
+org/lwjgl survivors  : 34   (must == facade lwjgl classes; all bridge-backed)
+rlawt survivors      : 1   (facade AWTContext only)
+gpu classes          : 30   (recompiled against facade; 21 sources + inner)
+gpu base glsl shaders: 6   (must be >=6: vert/frag/vertui/fragui/hsl_to_rgb/colorblind)
+gpu regions.txt      : 1   (must be 1; RegionManager ctor reads it)
+stale svc providers  : 0   (must be 0)
+staged class md5     : b49ec22e279752fcdf022c0b006572e6
+staged Android gpu jar: /workspace/rsmod/android/app/src/main/assets/jvm/client-1.13.4-SNAPSHOT-gpu.jar
+MEGAVERDICT = ANDROID_GPU_STAGE_GREEN
+Picked up JAVA_TOOL_OPTIONS: -Dhttp.proxyHost=proxy -Dhttp.proxyPort=8080 -Dhttps.proxyHost=proxy -Dhttps.proxyPort=8080 -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts
+java overlay applied  : 5 file(s)
+Picked up JAVA_TOOL_OPTIONS: -Dhttp.proxyHost=proxy -Dhttp.proxyPort=8080 -Dhttps.proxyHost=proxy -Dhttps.proxyPort=8080 -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts
+shader overlay applied : 21 file(s)
+Picked up JAVA_TOOL_OPTIONS: -Dhttp.proxyHost=proxy -Dhttp.proxyPort=8080 -Dhttps.proxyHost=proxy -Dhttps.proxyPort=8080 -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts
+facade lwjgl classes : 34
+rlhd classes         : 304   (facade-backed; must be >=290)
+lwjgl/rlawt leak     : 0   (must be 0; facade ships in the gpu jar)
+glsl shaders         : 47   (must be >=40)
+loader json          : 9   (must be >=6)
+ZoneRenderer.class   : 1   (must be 1)
+OpenCLManager.class  : 1   (must be 1)
+staged class md5     : 477763ba93a2103a163ec5d6b57d4547
+staged Android rlhd jar: /workspace/rsmod/android/app/src/main/assets/jvm/client-1.13.4-SNAPSHOT-rlhd.jar
+MEGAVERDICT = ANDROID_RLHD_STAGE_GREEN
+== stage shared runtime (version 1.13.4-SNAPSHOT) ==
+  staged -> android/app/src/main/assets/jvm (Android)
+  wrote android/app/src/main/assets/jvm/runtime.tag (992dc19d8df6)
+
+# mobile runtime stage manifest — DO NOT COMMIT (generated)
+version       1.13.4-SNAPSHOT
+content-tag   992dc19d8df6
+47a798c5cf39de9ea30e21f9c0af5739a6956cd198f12e50f36a45919ca06d26  client-1.13.4-SNAPSHOT-shaded.jar
+ab2cd08e0b24fda13079242d585386f8ac8e9106660e7e707b15f20be37e972e  probes.jar
+ios-dest      ios/app/jvm-resources
+android-dest  android/app/src/main/assets/jvm
+
+== done (content-tag 992dc19d8df6). Each port's own jar stages are listed in PORTS.md.
+   Android re-unpacks automatically via jvm/runtime.tag; bump BASE in AssetInstaller.kt
+   only when the embedded JRE / native libs change (jars are tracked by the tag).
+Picked up JAVA_TOOL_OPTIONS: -Dhttp.proxyHost=proxy -Dhttp.proxyPort=8080 -Dhttps.proxyHost=proxy -Dhttps.proxyPort=8080 -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:stageJre SKIPPED
+> Task :app:shadowJarClient SKIPPED
+> Task :app:buildProbes SKIPPED
+> Task :app:stageGpuJar SKIPPED
+> Task :app:stageRlhdJar SKIPPED
+> Task :app:stageMobileRuntime SKIPPED
+> Task :app:stageBootAssets UP-TO-DATE
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preReleaseBuild UP-TO-DATE
+> Task :app:generateReleaseBuildConfig UP-TO-DATE
+> Task :app:checkReleaseAarMetadata UP-TO-DATE
+> Task :app:generateReleaseResValues UP-TO-DATE
+> Task :app:mapReleaseSourceSetPaths UP-TO-DATE
+> Task :app:generateReleaseResources UP-TO-DATE
+> Task :app:mergeReleaseResources UP-TO-DATE
+> Task :app:packageReleaseResources UP-TO-DATE
+> Task :app:parseReleaseLocalResources UP-TO-DATE
+> Task :app:createReleaseCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksRelease UP-TO-DATE
+> Task :app:processReleaseMainManifest UP-TO-DATE
+> Task :app:processReleaseManifest UP-TO-DATE
+> Task :app:processReleaseManifestForPackage UP-TO-DATE
+> Task :app:processReleaseResources UP-TO-DATE
+> Task :app:compileReleaseKotlin UP-TO-DATE
+> Task :app:buildKotlinToolingMetadata UP-TO-DATE
+> Task :app:javaPreCompileRelease UP-TO-DATE
+> Task :app:compileReleaseJavaWithJavac UP-TO-DATE
+> Task :app:extractProguardFiles UP-TO-DATE
+> Task :app:generateReleaseLintVitalReportModel
+> Task :app:configureCMakeRelWithDebInfo[arm64-v8a]
+> Task :app:buildCMakeRelWithDebInfo[arm64-v8a]
+> Task :app:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :app:mergeReleaseNativeLibs UP-TO-DATE
+> Task :app:stripReleaseDebugSymbols UP-TO-DATE
+> Task :app:extractReleaseNativeSymbolTables UP-TO-DATE
+> Task :app:mergeReleaseNativeDebugMetadata UP-TO-DATE
+> Task :app:checkReleaseDuplicateClasses UP-TO-DATE
+> Task :app:dexBuilderRelease UP-TO-DATE
+> Task :app:desugarReleaseFileDependencies UP-TO-DATE
+> Task :app:mergeReleaseStartupProfile UP-TO-DATE
+> Task :app:mergeExtDexRelease UP-TO-DATE
+> Task :app:mergeDexRelease UP-TO-DATE
+> Task :app:mergeReleaseArtProfile UP-TO-DATE
+> Task :app:mergeReleaseGlobalSynthetics UP-TO-DATE
+> Task :app:compileReleaseArtProfile UP-TO-DATE
+> Task :app:mergeReleaseShaders UP-TO-DATE
+> Task :app:compileReleaseShaders NO-SOURCE
+> Task :app:generateReleaseAssets UP-TO-DATE
+> Task :app:mergeReleaseAssets
+> Task :app:extractReleaseVersionControlInfo UP-TO-DATE
+> Task :app:verifyNoReleaseSecret
+> Task :app:verifyReleaseBootAssets
+> Task :app:verifyStagedClientJar
+> Task :app:processReleaseJavaRes UP-TO-DATE
+> Task :app:mergeReleaseJavaResource UP-TO-DATE
+> Task :app:optimizeReleaseResources UP-TO-DATE
+> Task :app:collectReleaseDependencies UP-TO-DATE
+> Task :app:sdkReleaseDependencyData UP-TO-DATE
+> Task :app:validateSigningRelease UP-TO-DATE
+> Task :app:writeReleaseAppMetadata UP-TO-DATE
+> Task :app:writeReleaseSigningConfigVersions UP-TO-DATE
+> Task :app:compressReleaseAssets
+
+> Task :app:packageRelease
+PackagingOptions.jniLibs.useLegacyPackaging should be set to true because android:extractNativeLibs is set to "true" in AndroidManifest.xml.
+
+> Task :app:createReleaseApkListingFileRedirect UP-TO-DATE
+> Task :app:lintVitalAnalyzeRelease
+> Task :app:lintVitalReportRelease UP-TO-DATE
+> Task :app:lintVitalRelease
+> Task :app:assembleRelease
+
+BUILD SUCCESSFUL in 10s
+56 actionable tasks: 11 executed, 45 up-to-date
+Android release assembled. Locate APK under android/app/build/outputs/apk/release/.
+Self-built APK is NOT signed by audaro official release key; do not compare its signature to the upstream release.
