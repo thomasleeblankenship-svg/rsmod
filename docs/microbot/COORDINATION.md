@@ -45,6 +45,7 @@ Focused verification command (expect 0 failures and 0 skips):
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
 | *(none)* | | | |
+| Claude 1 | `microbot/util/magic/Rs2Magic.java` (**casting only**, appended after your reads: `cast`, `quickCast`, `castOn`, `alch`, `superHeat`, `oneTimeSpellBookCheck`), `microbot/mobile/MobileActions.java` (spell selection and NPC/player targets) | Magic casting (13 Hub plugins; teleport spells for the webwalker next) | this commit |
 
 ## Requests
 
