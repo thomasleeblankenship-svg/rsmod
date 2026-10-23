@@ -6,13 +6,13 @@ Branch: `claude/laughing-volta-i6l45s`, based on `feat/android-microbot-compat` 
 
 ## Status
 
-**Update after integrating Claude 2 (branch head after `2558ad2`).** `repo.runelite.net` is
+**Update after integrating Claude 2 (through `d6122bd`).** `repo.runelite.net` is
 now reachable, and the real Gradle build ran on the integrated tree:
 
 | Command | Result |
 | --- | --- |
 | `./gradlew --no-daemon --max-workers=2 :client:compileJava` (merged `2558ad2`, before the integration commit) | exit 0 |
-| `./gradlew --no-daemon --max-workers=2 :client:compileJava :client:test --tests 'net.runelite.client.plugins.microbot.*' --tests net.runelite.client.callback.ClientThreadOptionalTest --tests 'net.runelite.client.plugins.mobilemicrobot.*' --tests net.runelite.client.headless.JavaBridgeScriptInputTest` | exit 0. **114 tests, 0 failures/errors/skips** (JUnit XML): ClientThreadOptional 5, GlobalWait 6, MicrobotRuntime 12, MicrobotScriptAdapter 11, ScriptLifecycle 13, StateMachineScript 8, StateMachineExampleIntegration 2, plus Claude 2's NpcQuery 9, SceneQuery 6 and PlayerInventoryRead 11, and Codex's MobileMicrobotPlugin 17 and JavaBridgeScriptInput 14 |
+| `./gradlew --no-daemon --max-workers=2 :client:compileJava :client:test --tests 'net.runelite.client.plugins.microbot.*' --tests net.runelite.client.callback.ClientThreadOptionalTest --tests 'net.runelite.client.plugins.mobilemicrobot.*' --tests net.runelite.client.headless.JavaBridgeScriptInputTest` | exit 0 (rerun with `--rerun` on the tree merged with `d6122bd`). **113 tests, 0 failures/errors/skips** (JUnit XML): ClientThreadOptional 5, GlobalWait 6, MicrobotRuntime 12, MicrobotScriptAdapter 11, ScriptLifecycle 13, StateMachineScript 8, StateMachineExampleIntegration 2, plus Claude 2's NpcQuery 9, SceneQuery 6 and PlayerInventoryRead 10, and Codex's MobileMicrobotPlugin 17 and JavaBridgeScriptInput 14 |
 | Same microbot + ClientThread tests with `--rerun`, 3 more times | exit 0 each time |
 | `:client:checkstyleMain` | **not run**: `com.puppycrawl.tools:checkstyle:8.3` failed to resolve |
 
@@ -114,20 +114,19 @@ plain in-memory map. **No agent server, HTTP endpoint or remote control was port
 
 ## Contract with Claude 2 (implemented)
 
-Claude 2's `MicrobotReadServices` (see `claude2-api-report.md`) is integrated as follows:
+Claude 2's `MicrobotReadServices` (see `claude2-api-report.md`, revised in `d6122bd`) is
+integrated as follows:
 
+- `MicrobotReadServices` implements `MicrobotRuntimeService` itself: it registers and installs
+  on `startUp`, and reverses both on `shutDown`. The plugin passes it straight to
+  `MicrobotRuntime.install(..., List.of(readServices))`.
+- Reads go through this runtime's `ClientThread.runOnClientThreadOptional(Callable, long)`.
+  Claude 2 removed its duplicate `ClientThreadCalls` in `d6122bd`.
 - `Microbot.getRs2NpcCache()`, `getRs2TileObjectCache()` and `getRs2TileItemCache()` delegate
-  to `MicrobotReadServices.require()`, exactly as Claude 2 proposed. No cache instances are
-  created in `Microbot`.
-- `Microbot.isLoggedIn()` keeps the runtime's client-thread snapshot, rather than
-  `MicrobotReadServices.isLoggedIn()`, which reads `Client#getGameState()` from the calling
-  thread.
-- `MicrobotReadServicesLifecycle` (a `MicrobotRuntimeService`) performs Claude 2's documented
-  register/install and uninstall/unregister, so the plugin passes it to
-  `MicrobotRuntime.install` instead of managing two lifecycles.
-- Claude 2's `ClientThreadCalls` duplicates the `ClientThread.runOnClientThreadOptional` added
-  in `3e66a23`. The two were written concurrently. Both are kept for now; consolidating them
-  is a follow-up for Claude 2 or Codex.
+  to `MicrobotReadServices.current()` and return `null` when it is not installed, matching
+  Claude 2's revised proposal and the other getters. No cache instances are created in
+  `Microbot`.
+- `Microbot.isLoggedIn()` is the runtime's client-thread snapshot.
 
 `Rs2Player.isAnimating()/isMoving()` and `Rs2Inventory.count()` must read through
 `Microbot.getClientThread().runOnClientThreadOptional(...)` or a snapshot, never through
@@ -138,7 +137,7 @@ Claude 2's `MicrobotReadServices` (see `claude2-api-report.md`) is integrated as
 1. **Plugin wiring** (`MobileMicrobotPlugin`, `ScriptKind`):
    - Inject `EventBus` and `MicrobotReadServices`. In `startUp()` call
      `MicrobotRuntime.install(client, clientThread, eventBus, configManager,
-     List.of(new MicrobotReadServicesLifecycle(eventBus, readServices)))`. Call
+     List.of(readServices))`. Call
      `MicrobotRuntime.uninstall()` in `shutDown()` *after* `stopActive(...)` has run on the
      client thread.
    - Add a `ScriptKind.STATE_MACHINE_EXAMPLE` entry, plus this factory case:

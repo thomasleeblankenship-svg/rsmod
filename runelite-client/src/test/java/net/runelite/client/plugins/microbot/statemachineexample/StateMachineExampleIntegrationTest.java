@@ -14,16 +14,15 @@ import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.plugins.microbot.Microbot;
-import net.runelite.client.plugins.microbot.MicrobotReadServicesLifecycle;
 import net.runelite.client.plugins.microbot.MicrobotRuntime;
 import net.runelite.client.plugins.microbot.MicrobotScriptAdapter;
-import net.runelite.client.plugins.microbot.api.ClientThreadCalls;
 import net.runelite.client.plugins.microbot.api.MicrobotReadServices;
 import net.runelite.client.plugins.microbot.statemachine.StateSnapshot;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.concurrent.ExecutorService;
@@ -40,6 +39,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 /**
@@ -57,7 +57,7 @@ public class StateMachineExampleIntegrationTest {
     private final ExecutorService gameThread = Executors.newSingleThreadExecutor(r -> new Thread(r, "fake-client-thread"));
     private final AtomicReference<Thread> gameThreadRef = new AtomicReference<>();
     private final Client client = mock(Client.class);
-    private final ClientThread clientThread = mock(ClientThread.class);
+    private ClientThread clientThread;
     private final EventBus eventBus = new EventBus();
     private volatile GameState gameState = GameState.LOGGED_IN;
     private MicrobotScriptAdapter<StateMachineExampleScript> adapter;
@@ -66,6 +66,12 @@ public class StateMachineExampleIntegrationTest {
     public void setUp() throws Exception {
         gameThread.submit(() -> gameThreadRef.set(Thread.currentThread())).get();
         when(client.isClientThread()).thenAnswer(i -> Thread.currentThread() == gameThreadRef.get());
+        // Real ClientThread (so runOnClientThreadOptional is the production code), with its queue
+        // replaced by the dedicated fake client thread.
+        clientThread = spy(new ClientThread());
+        Field field = ClientThread.class.getDeclaredField("client");
+        field.setAccessible(true);
+        field.set(clientThread, client);
         doAnswer(call -> {
             gameThread.execute(call.getArgument(0));
             return null;
@@ -96,9 +102,9 @@ public class StateMachineExampleIntegrationTest {
         when(local.getPoseAnimation()).thenReturn(808);
         when(local.getIdlePoseAnimation()).thenReturn(808);
 
-        MicrobotReadServices readServices = new MicrobotReadServices(client, new ClientThreadCalls(client, clientThread, 2_000));
+        MicrobotReadServices readServices = new MicrobotReadServices(client, clientThread, eventBus, 2_000);
         MicrobotRuntime.install(client, clientThread, eventBus, mock(ConfigManager.class),
-                Collections.singletonList(new MicrobotReadServicesLifecycle(eventBus, readServices)));
+                Collections.singletonList(readServices));
 
         StateMachineExampleConfig config = new StateMachineExampleConfig() {
             @Override

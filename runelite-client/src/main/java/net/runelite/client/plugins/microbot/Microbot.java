@@ -36,7 +36,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *     support.</li>
  *     <li>The NPC, tile-object and tile-item cache getters delegate to the installed
  *     {@link MicrobotReadServices} (read-only API stage) instead of Guice-injected fields, and
- *     throw {@link IllegalStateException} when none is installed rather than returning null.
+ *     return {@code null} when it is not installed, like the other getters here.
  *     Player, player-state and boat caches are not ported.</li>
  * </ul>
  * Everything else upstream exposes here (mouse, hopping, plugin control, popups, loot records,
@@ -81,15 +81,18 @@ public class Microbot {
     }
 
     public static Rs2NpcCache getRs2NpcCache() {
-        return MicrobotReadServices.require().getRs2NpcCache();
+        MicrobotReadServices services = MicrobotReadServices.current();
+        return services == null ? null : services.getRs2NpcCache();
     }
 
     public static Rs2TileObjectCache getRs2TileObjectCache() {
-        return MicrobotReadServices.require().getRs2TileObjectCache();
+        MicrobotReadServices services = MicrobotReadServices.current();
+        return services == null ? null : services.getRs2TileObjectCache();
     }
 
     public static Rs2TileItemCache getRs2TileItemCache() {
-        return MicrobotReadServices.require().getRs2TileItemCache();
+        MicrobotReadServices services = MicrobotReadServices.current();
+        return services == null ? null : services.getRs2TileItemCache();
     }
 
     static void bind(Client client, ClientThread clientThread, EventBus eventBus, ConfigManager configManager,
@@ -115,8 +118,7 @@ public class Microbot {
 
     /**
      * Upstream delegates to {@code LoginManager.isLoggedIn()}, which reads the game state from the
-     * calling thread. Mobile reads the last state the client thread published, rather than
-     * {@link MicrobotReadServices#isLoggedIn()}, which reads {@code Client#getGameState()} directly.
+     * calling thread. Mobile reads the last state the client thread published.
      */
     public static boolean isLoggedIn() {
         return MicrobotRuntime.isLoggedIn();
