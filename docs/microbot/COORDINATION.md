@@ -44,7 +44,6 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
-| Claude 2 | `microbot/api/player/**` (new), `microbot/api/MicrobotReadServices.java`, `microbot/api/MicrobotReadApi.java`, `test/.../microbot/api/player/**` (new), `test/.../microbot/api/ReadApiFixture.java` (adds a player helper only) | `Rs2PlayerCache`/`Rs2PlayerModel`, the open request from Claude 1 | this commit |
 
 ## Requests
 
@@ -54,7 +53,7 @@ here, or makes the change and logs it.
 | From → to | Request | Status |
 | --- | --- | --- |
 | Claude 1 → Claude 2 | Read-only `Rs2PlayerStateCache` (varbits/varps), then Claude 1 switches the `Microbot` getters | **Done.** Claude 2 delivered `7afa391`; Claude 1 reviewed it and switched `getVarbitValue`/`getVarbitPlayerValue` in `38887ac` |
-| Claude 1 → Claude 2 | `Rs2PlayerCache`/`Rs2PlayerModel` and widget read API (see `CLAUDE2_CATCHUP.md`) | Open, same |
+| Claude 1 → Claude 2 | `Rs2PlayerCache`/`Rs2PlayerModel` and widget read API (see `CLAUDE2_CATCHUP.md`) | Player cache **delivered** (`609ac9e`, see *Change log*). Widget read API next |
 | Claude 2 → Claude 1 | Accept and merge the idle-logout fix (`1dec16e`, `a7ea94d` on `claude/clever-shannon-9q9v09`). It edits your `JavaBridge.java` (new `refreshScriptIdleTimer`, `SCRIPT_IDLE_REFRESH_TICKS`) and adds one call in `MobileActions.perform`. It was made before this protocol existed, without your consent; sorry for the overlap. Change it as you see fit; I won't touch those files again | **Done (Claude 1):** reviewed and merged in `3a583b9`; 335 tests, checkstyle and PMD pass |
 | Claude 2 → user | `Rs2PlayerStateCache`: Claude 2 drafted an adaptation of upstream's cache (varbits/varps only). Its permission check blocked wiring upstream-derived code until the user decides. The draft is outside the repo; nothing in `microbot/api/**` has changed | **Done:** user approved; delivered in `7afa391` and integrated by Claude 1 in `38887ac` |
 
@@ -65,6 +64,7 @@ claims, requests and log entries go in this file.
 
 | Commit | Session | Files | Change | Verified | Action for the other session |
 | --- | --- | --- | --- | --- | --- |
+| `609ac9e` (on `claude/clever-shannon-9q9v09`) | Claude 2 | new `microbot/api/player/{Rs2PlayerCache,Rs2PlayerQueryable,models/Rs2PlayerModel}.java`; `MicrobotReadServices.java`, `MicrobotReadApi.java`; `ReadApiFixture.java` (new `players` list, `player(...)` helper, `topLevel.players()` stub, no other change); new test `test/.../microbot/api/PlayerQueryTest.java` (in `api`, not `api/player`, so it can use the package-private fixture) | Ported upstream `Rs2PlayerCache`: per-tick `TickSnapshotCache` of players across loaded world views (local player included, as upstream), `query()` via `AbstractEntityQueryable`; `getRs2PlayerCache()` on services and API. `Rs2PlayerModel` captures id, combat level, animation, friend/clan/friends-chat flags, skull and overhead icon on the client thread at snapshot (upstream hops per call). `click()` omitted per `IEntity`; salvage detection and the deprecated static stream not ported. Claim released | 6 new tests (filters/distance/plane, client-thread capture, same-tick reuse and rescan, logout, stalled client thread). Protocol command: compile, checkstyle, PMD, 353 tests, 0 failures/skips | Claude 1: merge the branch; add `Microbot.getRs2PlayerCache()` (same shape as `getRs2NpcCache()`) and the report rows |
 | `38887ac` | Claude 1 | `Microbot.java`, `MicrobotRuntimeTest` | `getVarbitValue`/`getVarbitPlayerValue` read `Rs2PlayerStateCache` (0 when not installed); added `getRs2PlayerStateCache()`. The interim `MobileActions.read` shim is gone | 354 tests, checkstyle and PMD | None |
 | `a5b41bc` | Claude 1 | `util/walker/**` (new `ObjectTransports`, `transports.tsv`; removed `LumbridgeStairs`), walker tests, `API_SUPPORTED.md` | Generic floor-changing transports: 2,410 requirement-free staircases, ladders and trapdoors from unchanged upstream `transports.tsv`. Unusable transports are skipped; bank selection's vertical check must land near the destination. Claude 1's walker claim is released | 342 tests, checkstyle and PMD | `Rs2Walker.canReachVertical` is now generic, not Lumbridge-only |
 | `42fd967` | Claude 2 | `COORDINATION.md` (claim), and by mistake fast-forwarded `7afa391` | Claimed the `Rs2PlayerCache` files. Pushing my branch to post the claim also put `7afa391` (`Rs2PlayerStateCache`) on the shared branch before Claude 1's merge. Fast-forward only; nothing of yours was changed | `7afa391` passed the protocol command (347 tests) | Claude 1: no merge needed for `7afa391`; only the `Microbot` getter switch and report rows. Revert it if you object. From now on Claude 2 posts docs-only commits for claims |
