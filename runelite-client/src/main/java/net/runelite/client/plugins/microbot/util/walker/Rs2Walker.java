@@ -37,7 +37,10 @@ import net.runelite.client.plugins.microbot.util.dialogues.Rs2Dialogue;
 import net.runelite.client.plugins.microbot.util.equipment.Rs2Equipment;
 import net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory;
 import net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel;
+import net.runelite.client.plugins.microbot.util.magic.Rs2Magic;
+import net.runelite.client.plugins.microbot.util.player.Rs2Player;
 import net.runelite.client.plugins.microbot.util.tabs.Rs2Tab;
+import net.runelite.client.plugins.skillcalculator.skills.MagicAction;
 import net.runelite.client.util.Text;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -270,7 +273,8 @@ public final class Rs2Walker
 				}
 				if (arrived(scene.player, leg.destination, leg.radius) && leg.stairs != null)
 				{
-					if (!(leg.stairs.item ? useTeleportItem(leg.stairs, generation, deadline)
+					if (!(leg.stairs.spell ? useTeleportSpell(leg.stairs, generation, deadline)
+						: leg.stairs.item ? useTeleportItem(leg.stairs, generation, deadline)
 						: leg.stairs.travel ? useTravel(leg.stairs, generation, deadline)
 						: useStairs(leg.stairs, generation, deadline)))
 					{
@@ -494,7 +498,11 @@ public final class Rs2Walker
 
 	/** Transport types the walker can execute; the pathfinder is told to admit only these. */
 	static final Set<TransportType> EXECUTABLE_TRANSPORTS = EnumSet.of(TransportType.TRANSPORT, TransportType.AGILITY_SHORTCUT,
-		TransportType.BOAT, TransportType.SHIP, TransportType.NPC, TransportType.CHARTER_SHIP, TransportType.TELEPORTATION_ITEM);
+		TransportType.BOAT, TransportType.SHIP, TransportType.NPC, TransportType.CHARTER_SHIP, TransportType.TELEPORTATION_ITEM,
+		TransportType.TELEPORTATION_SPELL);
+
+	/** A home teleport channels for about ten seconds before the landing. */
+	private static final long SPELL_TELEPORT_MILLIS = 30_000;
 
 	/** Teleports land in an area rather than on one tile. */
 	private static final int TELEPORT_ARRIVAL_TILES = 8;
@@ -571,10 +579,23 @@ public final class Rs2Walker
 				continue;
 			}
 			if (!EXECUTABLE_TRANSPORTS.contains(transport.getType())
-				|| (transport.getAction() == null && transport.getType() != TransportType.TELEPORTATION_ITEM))
+				|| (transport.getAction() == null && transport.getType() != TransportType.TELEPORTATION_ITEM
+					&& transport.getType() != TransportType.TELEPORTATION_SPELL))
 			{
 				LOG.info("Mobile walk: route needs {} ({}); using the same-plane planner", transport.getType(), transport);
 				return null;
+			}
+			if (transport.getType() == TransportType.TELEPORTATION_SPELL)
+			{
+				if (disableTeleports || transport.getDisplayInfo() == null || transport.getDisplayInfo().isBlank())
+				{
+					LOG.info("Mobile walk: route needs teleport spell {}; using the same-plane planner", transport);
+					return null;
+				}
+				WorldPoint from = tiles.get(i);
+				ObjectTransports.Step step = new ObjectTransports.Step(from, transport.getDestination(), -1, "",
+					transport.getName(), TELEPORT_ARRIVAL_TILES, false, transport.getDisplayInfo().trim(), false, Set.of(), true);
+				return new WalkLeg(from, 1, step, new ArrayList<>(tiles.subList(0, i + 1)), true);
 			}
 			if (transport.getType() == TransportType.TELEPORTATION_ITEM)
 			{
@@ -817,6 +838,59 @@ public final class Rs2Walker
 		lastStatus = !MobileActions.active() || GENERATION.get() != generation
 			? "teleport cancelled" : dispatched ? "teleport landing was not observed" : "teleport was not used";
 		return false;
+	}
+
+	/**
+	 * Casts a teleport spell named by the step (a {@link MagicAction} when one has that name, else
+	 * the spellbook entry by name) and requires an observed landing; recasts once if, 15 seconds
+	 * on, the player is neither there nor animating.
+	 */
+	private static boolean useTeleportSpell(ObjectTransports.Step step, long generation, long walkDeadline) throws InterruptedException
+	{
+		long deadline = Math.min(walkDeadline, System.currentTimeMillis() + SPELL_TELEPORT_MILLIS);
+		long castAt = 0;
+		int casts = 0;
+		lastStatus = "Casting " + step.destinationText;
+		while (System.currentTimeMillis() < deadline && GENERATION.get() == generation
+			&& MobileActions.active() && !Thread.currentThread().isInterrupted())
+		{
+			MobileRoutePlanner.Scene scene = awaitSnapshot(generation, deadline);
+			if (scene == null)
+			{
+				lastStatus = "no collision snapshot, loading timed out or game state changed";
+				return false;
+			}
+			if (casts > 0 && step.observedArrival(scene.player))
+			{
+				return true;
+			}
+			boolean retry = casts == 1 && System.currentTimeMillis() - castAt >= 15_000 && !Rs2Player.isAnimating();
+			if (casts == 0 || retry)
+			{
+				if (!castTeleport(step.destinationText))
+				{
+					if (casts == 0)
+					{
+						lastStatus = "cannot cast " + step.destinationText;
+						return false;
+					}
+				}
+				castAt = System.currentTimeMillis();
+				casts++;
+			}
+			long remaining = deadline - System.currentTimeMillis();
+			if (remaining > 0) { Thread.sleep(Math.min(300, remaining)); }
+		}
+		lastStatus = !MobileActions.active() || GENERATION.get() != generation
+			? "teleport cancelled" : "teleport landing was not observed";
+		return false;
+	}
+
+	private static boolean castTeleport(String spellName)
+	{
+		MagicAction action = Arrays.stream(MagicAction.values())
+			.filter(candidate -> candidate.getName().equalsIgnoreCase(spellName)).findFirst().orElse(null);
+		return action != null ? Rs2Magic.cast(action) : Rs2Magic.quickCast(spellName);
 	}
 
 	/** "Games necklace: Burthorpe" gives "Games necklace". */

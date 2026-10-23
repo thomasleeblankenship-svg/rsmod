@@ -339,6 +339,41 @@ public class Rs2Magic {
         return cast(spell);
     }
 
+    /**
+     * As upstream: casts the spellbook entry with this displayed name (for spells without a
+     * {@link MagicAction}, such as other spellbooks' home teleports). The widget's presence is the
+     * capability check; cooldowns and the spellbook are the caller's (the pathfinder's) business.
+     */
+    public static boolean quickCast(String spellName) {
+        if (spellName == null || spellName.isBlank()
+                || !net.runelite.client.plugins.microbot.util.tabs.Rs2Tab.switchTo(net.runelite.client.plugins.microbot.globval.enums.InterfaceTab.MAGIC)) {
+            return false;
+        }
+        String wanted = spellName.trim();
+        Integer widgetId = net.runelite.client.plugins.microbot.mobile.MobileActions.read(() -> {
+            net.runelite.api.widgets.Widget book = Microbot.getClient().getWidget(SPELLBOOK_GROUP, 0);
+            net.runelite.api.widgets.Widget spell = book == null ? null : findSpell(book, wanted);
+            return spell == null ? null : spell.getId();
+        }, null);
+        return widgetId != null && Global.sleepUntil(() -> net.runelite.client.plugins.microbot.mobile.MobileActions.widget(widgetId, -1, "Cast")
+                || net.runelite.client.plugins.microbot.mobile.MobileActions.widget(widgetId, -1, ""), 2_000);
+    }
+
+    /** The spellbook interface group. */
+    private static final int SPELLBOOK_GROUP = 218;
+
+    static net.runelite.api.widgets.Widget findSpell(net.runelite.api.widgets.Widget widget, String name) {
+        if (widget == null || widget.isHidden()) return null;
+        if (name.equalsIgnoreCase(net.runelite.client.util.Text.removeTags(String.valueOf(widget.getName())).trim())) return widget;
+        net.runelite.api.widgets.Widget[] children = widget.getStaticChildren();
+        if (children == null) return null;
+        for (net.runelite.api.widgets.Widget child : children) {
+            net.runelite.api.widgets.Widget found = findSpell(child, name);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
     /** Mobile: the same as {@link #cast(MagicAction)}; upstream clicks the widget directly. */
     public static boolean quickCast(MagicAction spell) {
         return cast(spell);

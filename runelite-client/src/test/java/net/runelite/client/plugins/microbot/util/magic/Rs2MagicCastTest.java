@@ -118,4 +118,21 @@ public class Rs2MagicCastTest
 			actions.verify(() -> MobileActions.spellOnNpc(anyInt()), never());
 		}
 	}
+
+	private static net.runelite.api.widgets.Widget spellWidget(String name, net.runelite.api.widgets.Widget... children)
+	{
+		net.runelite.api.widgets.Widget widget = mock(net.runelite.api.widgets.Widget.class);
+		when(widget.getName()).thenReturn(name);
+		when(widget.getStaticChildren()).thenReturn(children);
+		return widget;
+	}
+
+	@Test
+	public void aSpellIsFoundByItsDisplayedNameIgnoringColourTags()
+	{
+		net.runelite.api.widgets.Widget home = spellWidget("<col=ff9040>Lunar Home Teleport</col>");
+		net.runelite.api.widgets.Widget book = spellWidget("", spellWidget("<col=ff9040>Bake Pie</col>"), spellWidget("", home));
+		org.junit.Assert.assertSame(home, Rs2Magic.findSpell(book, "Lunar Home Teleport"));
+		org.junit.Assert.assertNull(Rs2Magic.findSpell(book, "Lunar Home"));
+	}
 }

@@ -46,6 +46,8 @@ final class ObjectTransports
 		final boolean item;
 		/** For a teleport item, every id (each charge or variant) that can be used; may be empty. */
 		final Set<Integer> itemIds;
+		/** A teleport spell: {@link #destinationText} is the spell's name. */
+		final boolean spell;
 
 		Step(WorldPoint origin, WorldPoint arrival, int objectId, String action, String target)
 		{
@@ -72,6 +74,13 @@ final class ObjectTransports
 		Step(WorldPoint origin, WorldPoint arrival, int objectId, String action, String target, int arrivalRadius,
 			boolean travel, String destinationText, boolean item, Set<Integer> itemIds)
 		{
+			this(origin, arrival, objectId, action, target, arrivalRadius, travel, destinationText, item, itemIds, false);
+		}
+
+		Step(WorldPoint origin, WorldPoint arrival, int objectId, String action, String target, int arrivalRadius,
+			boolean travel, String destinationText, boolean item, Set<Integer> itemIds, boolean spell)
+		{
+			this.spell = spell;
 			this.item = item;
 			this.itemIds = itemIds == null ? Set.of() : Set.copyOf(itemIds);
 			this.origin = origin;

@@ -170,4 +170,26 @@ public class PathfinderLegTest
 		ObjectTransports.Step byName = new ObjectTransports.Step(A, GOAL, -1, "", "", 8, false, "Games necklace: Burthorpe", true);
 		assertTrue(Rs2Walker.teleportItem(byName, "Games necklace").test(other));
 	}
+
+	@Test
+	public void aTeleportSpellIsCastWhereTheRouteReachesIt()
+	{
+		Rs2Walker.WalkLeg leg = legFor(result(PathResult.Status.FOUND, TILES,
+			Map.of(0, transport(null, GOAL, TransportType.TELEPORTATION_SPELL, null, "Varrock Teleport", -1))));
+		assertNotNull(leg);
+		assertTrue(leg.stairs.spell);
+		assertFalse(leg.stairs.item);
+		assertEquals("Varrock Teleport", leg.stairs.destinationText);
+		assertEquals(A, leg.destination);
+		Rs2Walker.disableTeleports = true;
+		try
+		{
+			assertNull(legFor(result(PathResult.Status.FOUND, TILES,
+				Map.of(0, transport(null, GOAL, TransportType.TELEPORTATION_SPELL, null, "Varrock Teleport", -1)))));
+		}
+		finally
+		{
+			Rs2Walker.disableTeleports = false;
+		}
+	}
 }
