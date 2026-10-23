@@ -10,7 +10,9 @@ import net.runelite.client.plugins.microbot.api.MicrobotReadServices;
 import net.runelite.client.plugins.microbot.api.npc.Rs2NpcCache;
 import net.runelite.client.plugins.microbot.api.tileitem.Rs2TileItemCache;
 import net.runelite.client.plugins.microbot.api.tileobject.Rs2TileObjectCache;
+import net.runelite.client.plugins.microbot.mobile.MobileActions;
 import net.runelite.client.plugins.microbot.util.GameTickBroadcaster;
+import net.runelite.client.plugins.microbot.woodcutting.AutoWoodcuttingPlugin;
 import org.slf4j.event.Level;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -39,6 +41,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *     return {@code null} when it is not installed, like the other getters here.
  *     Player, player-state and boat caches are not ported.</li>
  * </ul>
+ * {@link #getVarbitValue}, {@link #getVarbitPlayerValue}, {@link #isPluginEnabled} and
+ * {@link #showMessage} are mobile adaptations for the woodcutting port; each documents how it
+ * differs from upstream.
+ * <p>
  * Everything else upstream exposes here (mouse, hopping, plugin control, popups, loot records,
  * item containers, world services, overlays) is unsupported on mobile and deliberately absent,
  * so a script that needs it fails to compile instead of silently doing nothing.
@@ -190,18 +196,31 @@ public class Microbot {
         }
         return false;
     }
+
+    /**
+     * Upstream reads the player-state cache. Mobile reads the client on the client thread and
+     * returns 0 when the read services are not installed or the read times out.
+     */
     public static int getVarbitValue(int id) {
-        return net.runelite.client.plugins.microbot.mobile.MobileActions.read(() -> client.getVarbitValue(id), 0);
+        return MobileActions.read(() -> MicrobotReadServices.require().getClient().getVarbitValue(id), 0);
     }
+
+    /** Same contract as {@link #getVarbitValue(int)}, for a varp. */
     public static int getVarbitPlayerValue(int id) {
-        return net.runelite.client.plugins.microbot.mobile.MobileActions.read(() -> client.getVarpValue(id), 0);
+        return MobileActions.read(() -> MicrobotReadServices.require().getClient().getVarpValue(id), 0);
     }
-    public static boolean isPluginEnabled(net.runelite.client.plugins.microbot.woodcutting.AutoWoodcuttingPlugin plugin) {
+
+    /**
+     * Upstream asks the {@code PluginManager}. The mobile woodcutting port is driven by the mobile
+     * adapter rather than registered with the plugin manager, so this asks the plugin itself.
+     */
+    public static boolean isPluginEnabled(AutoWoodcuttingPlugin plugin) {
         return plugin != null && plugin.isActive();
     }
+
+    /** Upstream shows a Swing dialog. Mobile sets {@link #status} and logs instead. */
     public static void showMessage(String message) {
         status = message;
         log.info("[Mobile script] {}", message);
     }
-
 }
