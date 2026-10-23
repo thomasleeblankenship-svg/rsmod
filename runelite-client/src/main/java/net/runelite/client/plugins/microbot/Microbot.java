@@ -8,6 +8,7 @@ import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.plugins.microbot.api.MicrobotReadServices;
 import net.runelite.client.plugins.microbot.api.npc.Rs2NpcCache;
+import net.runelite.client.plugins.microbot.api.player.Rs2PlayerCache;
 import net.runelite.client.plugins.microbot.api.playerstate.Rs2PlayerStateCache;
 import net.runelite.client.plugins.microbot.api.tileitem.Rs2TileItemCache;
 import net.runelite.client.plugins.microbot.api.tileobject.Rs2TileObjectCache;
@@ -39,8 +40,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *     <li>The NPC, tile-object and tile-item cache getters delegate to the installed
  *     {@link MicrobotReadServices} (read-only API stage) instead of Guice-injected fields, and
  *     return {@code null} when it is not installed, like the other getters here.
- *     The player-state cache is exposed through {@link #getRs2PlayerStateCache()}; player and
- *     boat caches are not ported.</li>
+ *     The player and player-state caches are exposed the same way
+ *     ({@link #getRs2PlayerCache()}, {@link #getRs2PlayerStateCache()}); the boat cache is not ported.</li>
  * </ul>
  * {@link #getVarbitValue} and {@link #getVarbitPlayerValue} read the read-API stage's
  * {@code Rs2PlayerStateCache}, as upstream does. {@link #isPluginEnabled} and
@@ -197,6 +198,12 @@ public class Microbot {
             }
         }
         return false;
+    }
+
+    /** Upstream's other-players cache; {@code null} when the read services are not installed. */
+    public static Rs2PlayerCache getRs2PlayerCache() {
+        MicrobotReadServices services = MicrobotReadServices.current();
+        return services == null ? null : services.getRs2PlayerCache();
     }
 
     /** Upstream's player-state cache; {@code null} when the read services are not installed. */

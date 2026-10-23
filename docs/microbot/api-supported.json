@@ -14,7 +14,7 @@
     "checkstyle_main": "passed",
     "pmd_main": "passed",
     "focused_gradle_tests": {
-      "tests": 330,
+      "tests": 360,
       "failures": 0,
       "errors": 0,
       "skipped": 0,
@@ -182,6 +182,41 @@
         }
       ],
       "limits": "read-only per-tick snapshots"
+    },
+    {
+      "module": "player_state_cache",
+      "api": [
+        "Rs2PlayerStateCache"
+      ],
+      "status": "adapted",
+      "tests": [
+        {
+          "class": "Rs2PlayerStateCacheTest",
+          "tests": 12,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      ],
+      "limits": "varbits/varps; no quest states or position cache"
+    },
+    {
+      "module": "player_cache",
+      "api": [
+        "Rs2PlayerCache",
+        "Rs2PlayerModel"
+      ],
+      "status": "adapted",
+      "tests": [
+        {
+          "class": "PlayerQueryTest",
+          "tests": 6,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      ],
+      "limits": "read-only snapshot; no click, salvage detection or static stream"
     },
     {
       "module": "player",

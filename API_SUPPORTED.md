@@ -22,6 +22,8 @@ live-game evidence unless a row says so. Per-method detail is in
 | `ClientThread.runOnClientThreadOptional` | native | Runs inline on the client thread; bounded wait elsewhere; a timed-out task never runs later | `ClientThreadOptionalTest` |
 | Blocking events | partial | Manager and interfaces | No default events registered, since every upstream one performs input |
 | NPC / tile-object / tile-item caches | adapted | `query()`, `within`, `where`, `nearest`, `toList`, names, lootability | `NpcQueryTest`, `SceneQueryTest`. Read-only per-tick snapshots |
+| `Rs2PlayerStateCache` | adapted | `getVarbitValue`, `getVarpValue` (via `Microbot.getVarbitValue`/`getVarbitPlayerValue`), cleared on logout/hop | `Rs2PlayerStateCacheTest`. Quest states and player-position cache not ported |
+| `Rs2PlayerCache` / `Rs2PlayerModel` | adapted | `query()` over players in loaded world views; id, combat level, animation, social flags, skull, overhead icon captured on the client thread | `PlayerQueryTest`. No `click()`, salvage detection or deprecated static stream |
 | `Rs2Player` | partial | `isAnimating`, `isMoving`, `getAnimation`, `getPoseAnimation` | `PlayerInventoryReadTest` |
 | `Rs2Inventory` | partial | `count` (occupied slots), `items`, `contains`, plus the woodcutting port's drop/use actions | `PlayerInventoryReadTest`, `MobileDropWorkflowTest`. **Phone: full-inventory drop works (user report)** |
 | `Rs2Bank` (woodcutting port) | partial | Deposit/withdraw for the port's flows; automatic bank selection | `MobileBankWorkflowTest`. Not phone-tested |

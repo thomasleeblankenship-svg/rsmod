@@ -183,6 +183,7 @@ public class MicrobotRuntimeTest {
     @Test
     public void notInstalledReportsSafeDefaults() {
         assertNull(Microbot.getRs2PlayerStateCache());
+        assertNull(Microbot.getRs2PlayerCache());
         assertEquals(0, Microbot.getVarbitValue(1234));
         assertEquals(0, Microbot.getVarbitPlayerValue(1234));
         assertFalse(MicrobotRuntime.isLoggedIn());
