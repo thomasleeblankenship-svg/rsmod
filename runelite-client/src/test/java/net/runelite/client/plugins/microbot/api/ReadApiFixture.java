@@ -50,6 +50,7 @@ public final class ReadApiFixture implements AutoCloseable
 	final Scene scene = mock(Scene.class);
 	final Tile[][][] tiles = new Tile[4][32][32];
 	final List<NPC> npcs = new ArrayList<>();
+	final List<Player> players = new ArrayList<>();
 	final Player localPlayer = mock(Player.class);
 	final MicrobotReadServices services;
 	volatile GameState gameState = GameState.LOGGED_IN;
@@ -85,6 +86,8 @@ public final class ReadApiFixture implements AutoCloseable
 		when(scene.getTiles()).thenReturn(tiles);
 		IndexedObjectSet<NPC> npcSet = objectSet(npcs);
 		doAnswer(i -> npcSet).when(topLevel).npcs();
+		IndexedObjectSet<Player> playerSet = objectSet(players);
+		doAnswer(i -> playerSet).when(topLevel).players();
 
 		when(localPlayer.getWorldView()).thenReturn(topLevel);
 		placePlayer(new WorldPoint(BASE_X + 5, BASE_Y + 5, 0));
@@ -131,6 +134,19 @@ public final class ReadApiFixture implements AutoCloseable
 		when(npc.getWorldView()).thenReturn(topLevel);
 		npcs.add(npc);
 		return npc;
+	}
+
+	/** Mocked other player (the scene's player set) that asserts every read happens on the client thread. */
+	Player player(int id, String name, WorldPoint location)
+	{
+		Player player = mock(Player.class);
+		when(player.getId()).thenAnswer(i -> onClientThread(id));
+		when(player.getName()).thenAnswer(i -> onClientThread(name));
+		when(player.getWorldLocation()).thenAnswer(i -> onClientThread(location));
+		when(player.getWorldView()).thenReturn(topLevel);
+		when(player.getSkullIcon()).thenAnswer(i -> onClientThread(-1));
+		players.add(player);
+		return player;
 	}
 
 	<T> T onClientThread(T value)

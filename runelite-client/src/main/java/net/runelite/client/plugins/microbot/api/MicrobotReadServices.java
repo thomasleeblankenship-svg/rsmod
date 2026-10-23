@@ -29,6 +29,7 @@ import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.microbot.MicrobotRuntime;
 import net.runelite.client.plugins.microbot.MicrobotRuntimeService;
 import net.runelite.client.plugins.microbot.api.npc.Rs2NpcCache;
+import net.runelite.client.plugins.microbot.api.player.Rs2PlayerCache;
 import net.runelite.client.plugins.microbot.api.playerstate.Rs2PlayerStateCache;
 import net.runelite.client.plugins.microbot.api.tileitem.Rs2TileItemCache;
 import net.runelite.client.plugins.microbot.api.tileobject.Rs2TileObjectCache;
@@ -36,8 +37,8 @@ import net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory;
 import net.runelite.client.plugins.microbot.util.player.Rs2Player;
 
 /**
- * Singleton implementation of {@link MicrobotReadApi}: owns the NPC, tile-object,
- * tile-item and player-state (varbit/varp) caches and routes the client events that keep the static
+ * Singleton implementation of {@link MicrobotReadApi}: owns the NPC, player,
+ * tile-object, tile-item and player-state (varbit/varp) caches and routes the client events that keep the static
  * {@link Rs2Inventory} and {@link Rs2Player} read state current.
  * <p>
  * Lifecycle: pass this service to {@link MicrobotRuntime#install}. Its
@@ -68,6 +69,7 @@ public final class MicrobotReadServices implements MicrobotReadApi, MicrobotRunt
 	private final Rs2TileObjectCache tileObjectCache;
 	private final Rs2TileItemCache tileItemCache;
 	private final Rs2PlayerStateCache playerStateCache;
+	private final Rs2PlayerCache playerCache;
 
 	@Inject
 	public MicrobotReadServices(Client client, ClientThread clientThread, EventBus eventBus)
@@ -89,6 +91,7 @@ public final class MicrobotReadServices implements MicrobotReadApi, MicrobotRunt
 		this.tileObjectCache = new Rs2TileObjectCache(this);
 		this.tileItemCache = new Rs2TileItemCache(this);
 		this.playerStateCache = new Rs2PlayerStateCache(this);
+		this.playerCache = new Rs2PlayerCache(this);
 	}
 
 	/** The installed provider, or {@code null} while the runtime is not installed. */
@@ -179,6 +182,12 @@ public final class MicrobotReadServices implements MicrobotReadApi, MicrobotRunt
 	public Rs2PlayerStateCache getRs2PlayerStateCache()
 	{
 		return playerStateCache;
+	}
+
+	@Override
+	public Rs2PlayerCache getRs2PlayerCache()
+	{
+		return playerCache;
 	}
 
 	/** Snapshot invalidation counter; increases on every game-state or world-view change. */

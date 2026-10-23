@@ -3,6 +3,7 @@ package net.runelite.client.plugins.microbot.api;
 import net.runelite.api.Client;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.plugins.microbot.api.npc.Rs2NpcCache;
+import net.runelite.client.plugins.microbot.api.player.Rs2PlayerCache;
 import net.runelite.client.plugins.microbot.api.playerstate.Rs2PlayerStateCache;
 import net.runelite.client.plugins.microbot.api.tileitem.Rs2TileItemCache;
 import net.runelite.client.plugins.microbot.api.tileobject.Rs2TileObjectCache;
@@ -33,4 +34,6 @@ public interface MicrobotReadApi
 	Rs2TileItemCache getRs2TileItemCache();
 
 	Rs2PlayerStateCache getRs2PlayerStateCache();
+
+	Rs2PlayerCache getRs2PlayerCache();
 }
