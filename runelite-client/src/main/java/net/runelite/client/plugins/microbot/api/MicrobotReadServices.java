@@ -20,6 +20,7 @@ import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.AnimationChanged;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.ItemContainerChanged;
+import net.runelite.api.events.VarbitChanged;
 import net.runelite.api.events.WorldViewLoaded;
 import net.runelite.api.events.WorldViewUnloaded;
 import net.runelite.client.callback.ClientThread;
@@ -28,14 +29,15 @@ import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.microbot.MicrobotRuntime;
 import net.runelite.client.plugins.microbot.MicrobotRuntimeService;
 import net.runelite.client.plugins.microbot.api.npc.Rs2NpcCache;
+import net.runelite.client.plugins.microbot.api.playerstate.Rs2PlayerStateCache;
 import net.runelite.client.plugins.microbot.api.tileitem.Rs2TileItemCache;
 import net.runelite.client.plugins.microbot.api.tileobject.Rs2TileObjectCache;
 import net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory;
 import net.runelite.client.plugins.microbot.util.player.Rs2Player;
 
 /**
- * Singleton implementation of {@link MicrobotReadApi}: owns the NPC, tile-object
- * and tile-item caches and routes the client events that keep the static
+ * Singleton implementation of {@link MicrobotReadApi}: owns the NPC, tile-object,
+ * tile-item and player-state (varbit/varp) caches and routes the client events that keep the static
  * {@link Rs2Inventory} and {@link Rs2Player} read state current.
  * <p>
  * Lifecycle: pass this service to {@link MicrobotRuntime#install}. Its
@@ -65,6 +67,7 @@ public final class MicrobotReadServices implements MicrobotReadApi, MicrobotRunt
 	private final Rs2NpcCache npcCache;
 	private final Rs2TileObjectCache tileObjectCache;
 	private final Rs2TileItemCache tileItemCache;
+	private final Rs2PlayerStateCache playerStateCache;
 
 	@Inject
 	public MicrobotReadServices(Client client, ClientThread clientThread, EventBus eventBus)
@@ -85,6 +88,7 @@ public final class MicrobotReadServices implements MicrobotReadApi, MicrobotRunt
 		this.npcCache = new Rs2NpcCache(this);
 		this.tileObjectCache = new Rs2TileObjectCache(this);
 		this.tileItemCache = new Rs2TileItemCache(this);
+		this.playerStateCache = new Rs2PlayerStateCache(this);
 	}
 
 	/** The installed provider, or {@code null} while the runtime is not installed. */
@@ -126,6 +130,7 @@ public final class MicrobotReadServices implements MicrobotReadApi, MicrobotRunt
 		worldViewIds.clear();
 		generation.incrementAndGet();
 		snapshots.forEach(TickSnapshotCache::clear);
+		playerStateCache.clear();
 		Rs2Inventory.clear();
 		Rs2Player.clear();
 	}
@@ -168,6 +173,12 @@ public final class MicrobotReadServices implements MicrobotReadApi, MicrobotRunt
 	public Rs2TileItemCache getRs2TileItemCache()
 	{
 		return tileItemCache;
+	}
+
+	@Override
+	public Rs2PlayerStateCache getRs2PlayerStateCache()
+	{
+		return playerStateCache;
 	}
 
 	/** Snapshot invalidation counter; increases on every game-state or world-view change. */
@@ -226,6 +237,7 @@ public final class MicrobotReadServices implements MicrobotReadApi, MicrobotRunt
 	public void onGameStateChanged(GameStateChanged event)
 	{
 		generation.incrementAndGet();
+		playerStateCache.onGameStateChanged(event);
 		GameState state = event.getGameState();
 		// LOADING is a region load while still logged in: snapshots are invalidated
 		// above, but inventory, animation history and loaded sub-world-views remain.
@@ -255,6 +267,12 @@ public final class MicrobotReadServices implements MicrobotReadApi, MicrobotRunt
 	public void onItemContainerChanged(ItemContainerChanged event)
 	{
 		Rs2Inventory.storeInventoryItemsInMemory(event);
+	}
+
+	@Subscribe
+	public void onVarbitChanged(VarbitChanged event)
+	{
+		playerStateCache.onVarbitChanged(event);
 	}
 
 	@Subscribe
