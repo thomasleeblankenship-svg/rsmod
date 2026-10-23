@@ -141,7 +141,7 @@ public class Global {
         if (cannotWait()) return null;
         boolean done;
         T methodResponse;
-        final long endTime = System.currentTimeMillis()+timeoutMillis;
+        final long endTime = System.currentTimeMillis() + timeoutMillis;
         do {
             if (Thread.currentThread().isInterrupted() || humanOwnsInput()) {
                 return null;

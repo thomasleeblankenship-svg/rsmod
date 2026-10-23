@@ -58,11 +58,17 @@ public final class TickSnapshotCache<T>
 			.stream();
 	}
 
+	/** Drop retained entities when the owning runtime is uninstalled. */
+	public void clear()
+	{
+		snapshot = null;
+	}
+
 	private List<T> currentOnClientThread()
 	{
 		Client client = services.getClient();
 		int generation = services.getGeneration();
-		if (client.getGameState() != GameState.LOGGED_IN)
+		if (MicrobotReadServices.current() != services || client.getGameState() != GameState.LOGGED_IN)
 		{
 			snapshot = null;
 			return Collections.emptyList();

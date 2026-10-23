@@ -3,6 +3,14 @@ from pathlib import Path
 import sys
 out=Path(sys.argv[1]);out.mkdir(parents=True, exist_ok=True)
 f={
+# Runtime integration is deliberately outside the portable Phase 2 runner.
+# Real runtime/API/example verification uses the actual Gradle project.
+'net/runelite/client/eventbus/EventBus.java':'package net.runelite.client.eventbus; public class EventBus {}',
+'net/runelite/client/plugins/microbot/MicrobotRuntime.java':'package net.runelite.client.plugins.microbot; import java.util.List;import net.runelite.api.Client;import net.runelite.client.callback.ClientThread;import net.runelite.client.eventbus.EventBus;import net.runelite.client.config.ConfigManager; public class MicrobotRuntime {public static void install(Client c,ClientThread t,EventBus b,ConfigManager m,List<?> services){}public static void uninstall(){}public static void noteHumanInput(){}}',
+'net/runelite/client/plugins/microbot/api/MicrobotReadServices.java':'package net.runelite.client.plugins.microbot.api; public class MicrobotReadServices {}',
+'net/runelite/client/plugins/microbot/api/MicrobotReadRuntimeService.java':'package net.runelite.client.plugins.microbot.api; import net.runelite.client.eventbus.EventBus;public class MicrobotReadRuntimeService {public MicrobotReadRuntimeService(MicrobotReadServices s,EventBus b){}}',
+'net/runelite/client/plugins/microbot/MicrobotScriptAdapter.java':'package net.runelite.client.plugins.microbot;import java.util.function.*;import net.runelite.client.plugins.mobilemicrobot.*;public class MicrobotScriptAdapter<T> implements MobileScript {public MicrobotScriptAdapter(String n,Supplier<T> f,Predicate<T> l){}public void onStart(MobileScriptContext c){throw new UnsupportedOperationException("Use real Gradle integration tests for the upstream runtime");}public void onGameTick(MobileScriptContext c){throw new UnsupportedOperationException();}}',
+'net/runelite/client/plugins/microbot/statemachineexample/StateMachineExampleScript.java':'package net.runelite.client.plugins.microbot.statemachineexample;public class StateMachineExampleScript {public boolean run(StateMachineExampleConfig c){throw new UnsupportedOperationException();}}',
 'javax/inject/Inject.java':'package javax.inject; public @interface Inject {}',
 'com/google/inject/Provides.java':'package com.google.inject; public @interface Provides {}',
 'net/runelite/api/GameState.java':'package net.runelite.api; public enum GameState { LOGGED_IN,LOGIN_SCREEN,CONNECTION_LOST,LOGIN_SCREEN_AUTHENTICATOR,LOADING,HOPPING,LOGGING_IN }',

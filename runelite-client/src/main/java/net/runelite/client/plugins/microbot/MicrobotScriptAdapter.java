@@ -69,6 +69,9 @@ public final class MicrobotScriptAdapter<T extends Script> implements MobileScri
             throw new IllegalStateException(name + " cannot start: Microbot runtime is not installed");
         }
         T created = Objects.requireNonNull(factory.get(), "script factory returned null");
+        if (context != null) {
+            created.setMobilePermission(context::inputActive);
+        }
         boolean started;
         try {
             started = launcher.start(created);

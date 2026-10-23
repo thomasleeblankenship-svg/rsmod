@@ -78,6 +78,11 @@ public final class MicrobotReadServices implements MicrobotReadApi
 		if (installed == services)
 		{
 			installed = null;
+			services.worldViewIds.clear();
+			services.generation.incrementAndGet();
+			services.npcCache.clear();
+			services.tileObjectCache.clear();
+			services.tileItemCache.clear();
 			Rs2Inventory.clear();
 			Rs2Player.clear();
 		}
@@ -115,7 +120,7 @@ public final class MicrobotReadServices implements MicrobotReadApi
 	@Override
 	public boolean isLoggedIn()
 	{
-		return client.getGameState() == GameState.LOGGED_IN;
+		return clientThreadCalls.call(() -> client.getGameState() == GameState.LOGGED_IN).orElse(false);
 	}
 
 	@Override
@@ -165,7 +170,7 @@ public final class MicrobotReadServices implements MicrobotReadApi
 	{
 		generation.incrementAndGet();
 		GameState state = event.getGameState();
-		if (state == GameState.LOGIN_SCREEN || state == GameState.HOPPING || state == GameState.CONNECTION_LOST)
+		if (state != GameState.LOGGED_IN)
 		{
 			worldViewIds.clear();
 			Rs2Inventory.clear();

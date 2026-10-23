@@ -107,6 +107,8 @@ public final class PortableChecks
         field(plugin,"clientThread",thread);
         field(plugin,"configManager",manager);
         field(plugin,"config",config);
+        field(plugin,"eventBus",new net.runelite.client.eventbus.EventBus());
+        field(plugin,"readServices",new net.runelite.client.plugins.microbot.api.MicrobotReadServices());
         plugin.startUp();
         check(!config.run && MobileScriptBridge.statusJson().contains("ready"),"startup does not auto-run");
         MobileScriptBridge.start("DIAGNOSTICS");

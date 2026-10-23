@@ -189,13 +189,13 @@ public class BlockingEventManager
             }
             finally
             {
-                if (executedSuccess){
-                    log.debug("BlockingEvent {} executed successfully", event.getName());                    
+                if (executedSuccess) {
+                    log.debug("BlockingEvent {} executed successfully", event.getName());
                     pendingEvents.remove(event);
-                }else{
+                } else {
                     //queue it back if execution failed
                     log.debug("BlockingEvent {} execution failed, re-queuing", event.getName());
-                    if (!eventQueue.offer(event)){
+                    if (!eventQueue.offer(event)) {
                         log.debug("BlockingEvent queue is full, dropping event: {}", event.getName());
                         pendingEvents.remove(event);
                     }

@@ -46,6 +46,11 @@ public final class Rs2TileItemCache
 		return snapshot.getStream();
 	}
 
+	public void clear()
+	{
+		snapshot.clear();
+	}
+
 	private List<Rs2TileItemModel> capture()
 	{
 		Client client = services.getClient();

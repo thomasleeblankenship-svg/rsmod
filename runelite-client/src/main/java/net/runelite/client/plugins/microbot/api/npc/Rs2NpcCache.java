@@ -42,6 +42,11 @@ public final class Rs2NpcCache
 		return snapshot.getStream();
 	}
 
+	public void clear()
+	{
+		snapshot.clear();
+	}
+
 	private List<Rs2NpcModel> capture()
 	{
 		Client client = services.getClient();

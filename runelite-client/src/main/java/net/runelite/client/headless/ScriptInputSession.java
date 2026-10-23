@@ -2,6 +2,7 @@ package net.runelite.client.headless;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import net.runelite.client.plugins.microbot.MicrobotRuntime;
 
 /**
  * Permission for one explicitly started script to submit input. Cancellation
@@ -54,6 +55,7 @@ public final class ScriptInputSession implements AutoCloseable
 	static void manualInput()
 	{
 		MANUAL_GENERATION.incrementAndGet();
+		MicrobotRuntime.noteHumanInput();
 	}
 
 	static void setSuspended(boolean suspended)

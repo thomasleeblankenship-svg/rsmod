@@ -24,7 +24,7 @@
  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 -->
 <!DOCTYPE suppressions PUBLIC
-	"-//Checkstyle//DTD SuppressionFilter Configuration 1.1//EN"
+	"-//Puppy Crawl//DTD Suppressions 1.1//EN"
 	"https://checkstyle.org/dtds/suppressions_1_1.dtd">
 <suppressions>
 	<suppress files="RuntimeTypeAdapterFactory\.java" checks=".*"/>
@@ -34,4 +34,8 @@
 	<!-- Mobile JNI bridge: only the deliberate compact-brace / tab-indent formatting is exempt; every other
 	     Checkstyle rule still applies to these classes. (Their PMD carve-out is in runelite-client/build.gradle.kts.) -->
 	<suppress files="net[/\\]runelite[/\\]client[/\\]headless[/\\]" checks="LeftCurly|RightCurly|RegexpSinglelineJava"/>
+	<!-- Preserve the original formatting of copied Microbot sources; correctness checks remain enabled. -->
+	<suppress files="net[/\\]runelite[/\\]client[/\\]plugins[/\\]microbot[/\\]" checks="LeftCurly|RightCurly|RegexpSinglelineJava"/>
+	<!-- Preserve this byte-identical upstream empty constructor. -->
+	<suppress files="microbot[/\\]agentserver[/\\]handler[/\\]ScriptHeartbeatRegistry\.java" checks="WhitespaceAround" lines="11"/>
 </suppressions>

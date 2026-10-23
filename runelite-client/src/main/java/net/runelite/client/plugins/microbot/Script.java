@@ -14,6 +14,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
 
 /**
  * Base class for Microbot automation scripts.
@@ -41,6 +42,12 @@ public abstract class Script extends Global implements IScript {
     static final long IDLE_THREAD_KEEP_ALIVE_SECONDS = 10;
 
     private final AtomicBoolean startAnnounced = new AtomicBoolean();
+    private volatile BooleanSupplier mobilePermission = () -> true;
+
+    /** Mobile host cancellation; installed before the script schedules its first loop. */
+    void setMobilePermission(BooleanSupplier permission) {
+        mobilePermission = java.util.Objects.requireNonNull(permission);
+    }
 
     private void announceStart() {
         if (Microbot.getEventBus() != null && startAnnounced.compareAndSet(false, true)) {
@@ -116,7 +123,12 @@ public abstract class Script extends Global implements IScript {
      * Returns {@code false} to pause a loop when a blocking event is executing, scripts are paused,
      * the human owns input, or the current thread is interrupted.
      */
+    @Override
     public boolean run() {
+        if (!mobilePermission.getAsBoolean()) {
+            shutdown();
+            return false;
+        }
         ScriptHeartbeatRegistry.recordHeartbeat(this.getClass().getName());
 
         // Mobile: no client services to act on; never continue against a torn-down runtime.

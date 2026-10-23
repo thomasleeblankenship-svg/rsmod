@@ -12,6 +12,11 @@ import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.headless.JavaBridge;
+import net.runelite.client.eventbus.EventBus;
+import net.runelite.client.plugins.microbot.MicrobotRuntime;
+import net.runelite.client.plugins.microbot.Microbot;
+import net.runelite.client.plugins.microbot.api.MicrobotReadServices;
+import net.runelite.client.plugins.microbot.statemachineexample.StateMachineExampleConfig;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -48,6 +53,7 @@ public class MobileMicrobotPluginTest
 			.when(thread).invokeLater(any(Runnable.class));
 		config = new Settings();
 		ConfigManager manager = mock(ConfigManager.class);
+		when(manager.getConfig(StateMachineExampleConfig.class)).thenReturn(new StateMachineExampleConfig() {});
 		doAnswer(call ->
 		{
 			String key = call.getArgument(1);
@@ -64,7 +70,10 @@ public class MobileMicrobotPluginTest
 		inject("clientThread", thread);
 		inject("configManager", manager);
 		inject("config", config);
+        inject("eventBus", new EventBus());
+        inject("readServices", new MicrobotReadServices(client, thread));
 		plugin.startUp();
+        drain();
 	}
 
 	private void inject(String name, Object value) throws Exception
@@ -293,5 +302,20 @@ public class MobileMicrobotPluginTest
 		assertFalse(plugin.inputActive());
 		drain();
 		assertFalse(config.run);
+	}
+
+	@Test
+	public void upstreamExampleIsRegisteredWithRuntimeAndReadSingletons()
+	{
+		when(client.isClientThread()).thenReturn(true);
+		assertTrue(MicrobotRuntime.isInstalled());
+		assertSame(MicrobotReadServices.current().getRs2NpcCache(), Microbot.getRs2NpcCache());
+		start("STATE_MACHINE_EXAMPLE");
+		assertTrue(config.run);
+		assertTrue(MobileScriptBridge.statusJson().contains("STATE_MACHINE_EXAMPLE"));
+		plugin.shutDown();
+		drain();
+		assertFalse(MicrobotRuntime.isInstalled());
+		assertNull(MicrobotReadServices.current());
 	}
 }
