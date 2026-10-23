@@ -1,0 +1,57 @@
+{
+  "runemobile_sha": "a8c4f22f8ac170b654793df2fd85372f31b18c64",
+  "microbot_reference_sha": "e01e0d77d79b354472a5737b3aaab2449eb034fc",
+  "scope": "mobilemicrobot package only; no desktop ABI",
+  "evidence": {
+    "full_client_compile": "passed",
+    "focused_client_tests": {
+      "passed": 9,
+      "failed": 0,
+      "skipped": 0,
+      "uses_service_mocks": true
+    },
+    "portable_standin_tests": {
+      "passed": 25,
+      "failed": 0
+    },
+    "game_device_tests": "unrun"
+  },
+  "modules": [
+    {
+      "module": "inventory",
+      "status": "partial"
+    },
+    {
+      "module": "player",
+      "status": "adapted"
+    },
+    {
+      "module": "objects",
+      "status": "partial"
+    },
+    {
+      "module": "walker",
+      "status": "partial"
+    },
+    {
+      "module": "script_lifecycle",
+      "status": "partial"
+    },
+    {
+      "module": "input",
+      "status": "adapted"
+    },
+    {
+      "module": "desktop_runtime",
+      "status": "unsupported"
+    },
+    {
+      "module": "npc_widget_bank_equipment_caches",
+      "status": "unsupported"
+    },
+    {
+      "module": "native_android_controls",
+      "status": "unsupported"
+    }
+  ]
+}

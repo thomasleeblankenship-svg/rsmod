@@ -1,0 +1,46 @@
+name: CI
+
+# Upstream RuneLite's full build/test (JDK 11), run as the open pull-request check — the same trigger RuneLite
+# itself uses. Every PR (including from forks) and every push to this repo gets a public green/red build.
+on: [ push, pull_request ]
+
+jobs:
+  build:
+    # Runs on all pull requests, and on pushes only for the canonical repo (id 1296635776) — so a fork's own
+    # push history doesn't spend this repo's hosted minutes; a fork PR still gets the full check.
+    if: github.event_name == 'pull_request' || github.repository_id == '1296635776'
+    runs-on: ubuntu-24.04
+
+    permissions:
+      contents: read
+
+    env:
+      GRADLE_OPTS: "-Dfile:encoding=UTF-8"
+
+    steps:
+      # Actions pinned to full commit SHAs (not mutable tags) so a retagged action can't run new code here.
+      - name: Cache glslang
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: |
+            ~/.cache/runelite
+          key: ${{ runner.os }}-cache-${{ hashFiles('ci/build.sh') }}
+          restore-keys: |
+            ${{ runner.os }}-cache-
+
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up JDK 11
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        with:
+          distribution: temurin
+          java-version: 11
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@48b5f213c81028ace310571dc5ec0fbbca0b2947 # v4
+        with:
+          gradle-version: wrapper
+
+      - name: Build and Test
+        run: ./ci/build.sh

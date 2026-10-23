@@ -1,52 +1,38 @@
-import java.nio.file.Files
-import java.nio.file.Path
+/*
+ * Copyright (c) 2024, LlemonDuck <napkinorton@gmail.com>
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice, this
+ *    list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ *    this list of conditions and the following disclaimer in the documentation
+ *    and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 
-rootProject.name = "rsmod"
+rootProject.name = "runelite"
 
-enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
+// these two have artifact ids that don't match their project directory names
+// and so they are done without includeBuild so that intellij can resolve them properly
+include("jshell")
+project(":jshell").projectDir = file("./runelite-jshell")
+include("client")
+project(":client").projectDir = file("./runelite-client")
+apply(from = "./common.settings.gradle.kts")
 
-plugins {
-    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
-}
-
-@Suppress("UnstableApiUsage")
-dependencyResolutionManagement {
-    includeBuild("build-logic")
-    repositories {
-        gradlePluginPortal()
-        mavenCentral()
-        maven("https://repo.openrs2.org/repository/openrs2-snapshots")
-    }
-}
-
-include(
-    "api",
-    "content",
-    "engine",
-    "server"
-)
-
-includeProjects(project(":api"))
-includeProjects(project(":content"))
-includeProjects(project(":engine"))
-includeProjects(project(":server"))
-
-fun includeProjects(pluginProject: ProjectDescriptor) {
-    val projectPath = pluginProject.projectDir.toPath()
-    Files.walk(projectPath).forEach {
-        if (!Files.isDirectory(it)) {
-            return@forEach
-        }
-        searchProject(pluginProject.name, projectPath, it)
-    }
-}
-
-fun searchProject(parentName: String, root: Path, currentPath: Path) {
-    val hasBuildFile = Files.exists(currentPath.resolve("build.gradle.kts"))
-    if (!hasBuildFile) {
-        return
-    }
-    val relativePath = root.relativize(currentPath)
-    val projectName = relativePath.toString().replace(File.separator, ":")
-    include("$parentName:$projectName")
-}
+includeBuild("cache")
+includeBuild("runelite-api")
+includeBuild("runelite-gradle-plugin")

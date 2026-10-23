@@ -1,0 +1,84 @@
+# harness MCP server
+
+A small stdio [MCP](https://modelcontextprotocol.io) server that exposes the
+project's dev-tools harnesses as callable tools, so the desktop render / QA loop
+can be driven directly instead of by hand. Zero third-party dependencies — pure
+Python stdlib for the protocol, plus PIL + numpy (only for `image_diff`).
+
+## Why `/usr/bin/python3`
+
+The server is pinned to the macOS system Python because that is the interpreter
+that ships PIL (11.x) + numpy on this machine — Homebrew's `python3` does not have
+them. `image_diff` needs both; everything else is stdlib. If you move machines,
+point `.mcp.json` at whatever `python3` has `PIL` + `numpy`
+(`python3 -c "import PIL, numpy"` must succeed) and fix the absolute script path.
+
+## Registration
+
+Register it for the project by creating `.mcp.json` at the repo root (gitignored — it holds a
+machine-specific absolute path, so each clone writes its own):
+
+```json
+{
+  "mcpServers": {
+    "harness": {
+      "command": "/usr/bin/python3",
+      "args": ["/path/to/repo/tools/mcp/harness_server.py"]
+    }
+  }
+}
+```
+
+The MCP client prompts once to trust a project-scoped server. It is picked up at
+session start, so after first adding it, start a fresh session (or re-trust) for
+the tools to appear.
+
+## Tools
+
+| tool | needs a device? | what it does |
+|------|-----------------|--------------|
+| `headless_render` | no (desktop JVM) | run the headless capture (`run-headless*.sh`); returns PNG paths in draw order + markers read from the JVM log (`nullGraphics`, `gameState`, `gameStateProgression`, `exceptionLines`, `errorLines`, `framesByState`). `lastFrame` is the newest `LOGGED_IN` frame when the run got in-game. Files an early-exiting script left from an older run are ignored. `mode=in_game` needs `tokens.json`. Slow (~1-3 min). |
+| `image_diff` | no | per-channel PNG diff: `maxChannelDelta`, `meanChannelDelta`, RMSE, `pctPixelsDiffering`, + an inlined red heatmap. The previously-unimplemented T12.1 golden compare. |
+| `jvm_bench` | no | compile (`--release 8`) + run `jvmbench/Bench.java` on OpenJDK 21; parsed ops/s per run (`floatbits.A`, `raster.B`, ...). The default JDK must match the major version of the staged port JREs or the tool refuses; pass `jdk=` for a deliberate cross-version run (flagged `runtimeMatch: false`). |
+| `glsl_es_validate` | no (needs `glslangValidator`) | run `glsl_es_repro.py`; per-mode GLES 3.00 PASS/FAIL with each mode's glslang errors. `extra_casts` passes `--extra-cast from==to`. |
+| `list_evidence` | no | index `evidence/` + headless `out*/` PNG catalogs into JSON, newest-first. |
+| `android_screenshot` | yes | `adb exec-out screencap` → PNG. |
+| `android_set_hd_config` | yes | live 117HD preset flip (`SET_HD_CONFIG` broadcast) — the FIX-13 A/B knob. |
+| `android_fps` | yes | run `fps-measure.sh` for N seconds; LOGGED_IN fps, frame-time, capture pacing percentiles and jitter (`pacingMs`, from `[framebins]`), GC, present cadence, the `session` line (since the first frame), cold start (`coldstartMs`), GPU-time stats, per-second thermal (`thermal_every`), and `abClean: false` when ThermalGovernor moved the 117HD scale mid-capture. |
+| `run_verdict` | no | run any in-repo `*-verdict.sh` against a log; returns GREEN/RED/INCONCLUSIVE/NO_VERDICT/LOG_MISSING/UNKNOWN from the script's final `VERDICT:` line, cross-checked against its exit code (`consistent`). `log2` is the second launch for `mobileui-verdict.sh`. |
+| `ios_pull_logs` | yes (iPhone, unlocked) | `devicectl` copy of `Documents/jvm-stdio.log` (Debug) and/or `Documents/perf-probe.log` (Release with the `perfprobe` marker) into `ios/app/evidence/device-pull/<stamp>/` (gitignored), each with `fps-measure.sh`'s summary under `perf` (pacing, GC, present cadence, memwatch `mem`, `coldstartMs`); `client_log=true` adds RuneLite's `client.log`, which can name the account. |
+
+### Typical loops
+
+- **Desktop-vs-port render A/B** — `headless_render` (ground truth) → `image_diff`
+  against a device/emulator screenshot (crop to a common region if dims differ).
+- **117HD perf A/B** (FIX-13) — `android_fps` baseline → `android_set_hd_config`
+  (e.g. scale 85, aniso 8) → `android_fps` again → compare.
+- **Render-regression gate** — keep a golden PNG, `image_diff` new captures against
+  it with a `threshold`, fail on `maxChannelDelta` over budget.
+
+## Smoke test
+
+```bash
+printf '%s\n' \
+  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{}}}' \
+  '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
+  | /usr/bin/python3 tools/mcp/harness_server.py
+```
+
+Adding a tool is a single entry in the `TOOLS` registry (description, JSON Schema,
+handler) at the bottom of `harness_server.py`.
+
+## Parser tests
+
+The log parsers are pure `parse_*` functions. Their tests feed them the line shapes the
+real scripts print:
+
+```bash
+/usr/bin/python3 -m unittest discover -s tools/mcp -p 'test_*.py'
+```
+
+A changed log format should break a test here before it turns into a silently empty field.
+`testdata/framestats.log` is real `headless.FrameStats` output over a synthetic frame sequence. The pacing test
+checks that `fps-measure.sh` decodes its `[framebins]` buckets to the same percentiles as the Java `[framehist]`
+line, so the bucket formula can't drift between the two.

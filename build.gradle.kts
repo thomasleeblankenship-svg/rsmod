@@ -1,118 +1,60 @@
-plugins {
-    alias(libs.plugins.manes.versions)
-    alias(libs.plugins.gradle.download)
-    id("kotlin-conventions")
+/*
+ * Copyright (c) 2024, LlemonDuck <napkinorton@gmail.com>
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice, this
+ *    list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ *    this list of conditions and the following disclaimer in the documentation
+ *    and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+tasks.register("cleanAll") {
+    gradle.includedBuilds.forEach { build -> this@register.dependsOn(build.task(":clean")) }
+    subprojects.forEach { proj -> this@register.dependsOn(proj.tasks["clean"]) }
 }
 
-allprojects {
-    group = "org.rsmod"
-    version = "0.0.1"
+tasks.register("buildAll") {
+    gradle.includedBuilds.forEach { build -> this@register.dependsOn(build.task(":build")) }
+    subprojects.forEach { proj -> this@register.dependsOn(proj.tasks["build"]) }
 }
 
-dependencies {
-    implementation(projects.server.install)
+tasks.register("assembleAll") {
+    gradle.includedBuilds.forEach { build -> this@register.dependsOn(build.task(":assemble")) }
+    subprojects.forEach { proj -> this@register.dependsOn(proj.tasks["assemble"]) }
 }
 
-tasks.register("run") {
-    group = "application"
-    description = "Runs the RS Mod game server"
-
-    dependsOn(":server:app:run")
+tasks.register("testAll") {
+    gradle.includedBuilds.forEach { build -> this@register.dependsOn(build.task(":test")) }
+    subprojects.forEach { proj -> this@register.dependsOn(proj.tasks["test"]) }
 }
 
-tasks.register<JavaExec>("install") {
-    group = "installation"
-    description = "Runs the complete RS Mod server installation task."
+tasks.register("publishAll") {
+    this@register.dependsOn(project(":client").tasks["publish"])
+    this@register.dependsOn(project(":jshell").tasks["publish"])
 
-    mainClass.set("org.rsmod.server.install.GameServerInstallKt")
-    classpath = sourceSets["main"].runtimeClasspath
-
-    doLast { logger.lifecycle("Installation process completed.") }
+    this@register.dependsOn(gradle.includedBuild("cache").task(":publish"))
+    this@register.dependsOn(gradle.includedBuild("runelite-api").task(":publish"))
 }
 
-tasks.register<JavaExec>("cleanInstall") {
-    group = "installation"
-    description = "Cleans up any partial or corrupted artifacts from previous RS Mod installations."
+tasks.register("publishAllToMavenLocal") {
+    this@register.dependsOn(project(":client").tasks["publishToMavenLocal"])
+    this@register.dependsOn(project(":jshell").tasks["publishToMavenLocal"])
 
-    args = getArgsFromProperty("rsmodInstallClean")
-    mainClass.set("org.rsmod.server.install.GameServerCleanInstallKt")
-    classpath = sourceSets["main"].runtimeClasspath
-
-    doFirst { logger.lifecycle("Starting clean up of any previous installation attempts...") }
-    doLast { logger.lifecycle("Clean-up process completed. You can now run the `install` task.") }
-}
-
-tasks.register<JavaExec>("downloadCache") {
-    group = "cache"
-    description = "Runs the cache download & extract task."
-
-    args = getArgsFromProperty("cacheDownload")
-    mainClass.set("org.rsmod.server.install.GameServerCacheDownloaderKt")
-    classpath = sourceSets["main"].runtimeClasspath
-
-    doFirst { logger.lifecycle("Starting the cache download process...") }
-    doLast { logger.lifecycle("Cache download completed.") }
-}
-
-tasks.register<JavaExec>("packCache") {
-    group = "cache"
-    description = "Runs the cache packer task."
-
-    args = getArgsFromProperty("cachePack")
-    mainClass.set("org.rsmod.server.install.GameServerCachePackerKt")
-    classpath = sourceSets["main"].runtimeClasspath
-
-    doFirst { logger.lifecycle("Starting the cache-packing process...") }
-    doLast { logger.lifecycle("Cache-packing process completed.") }
-}
-
-tasks.register<JavaExec>("exportSkillData") {
-    group = "cache"
-    description =
-        "Scans the full decoded cache for npc/loc ops and tool-named objs relevant to skill " +
-            "training, and writes skill_data.json to speed up building new skills."
-
-    mainClass.set("org.rsmod.server.install.SkillDataExporterKt")
-    classpath = sourceSets["main"].runtimeClasspath
-
-    doFirst { logger.lifecycle("Scanning cache for skill-relevant data...") }
-    doLast { logger.lifecycle("skill_data.json written to project root.") }
-}
-
-tasks.register<JavaExec>("generateRsa") {
-    group = "security"
-    description = "Runs the rsa-key generation task."
-
-    args = getArgsFromProperty("rsa")
-    mainClass.set("org.rsmod.server.install.GameNetworkRsaGeneratorKt")
-    classpath = sourceSets["main"].runtimeClasspath
-
-    doFirst { logger.lifecycle("Starting the rsa-key generation process...") }
-    doLast { logger.lifecycle("RSA generation process completed.") }
-}
-
-tasks.register<JavaExec>("setupLogbackNovice") {
-    description = "Copies the novice logback configuration."
-
-    mainClass.set("org.rsmod.server.install.GameServerLogbackCopyKt")
-    classpath = sourceSets["main"].runtimeClasspath
-
-    doFirst { logger.lifecycle("Starting logback copy for novice configuration...") }
-    doLast { logger.lifecycle("Logback novice configuration copied successfully.") }
-}
-
-tasks.register<JavaExec>("setupLogbackAdvanced") {
-    description = "Copies the novice logback configuration."
-
-    mainClass.set("org.rsmod.server.install.GameServerLogbackCopyKt")
-    classpath = sourceSets["main"].runtimeClasspath
-    args = listOf("--advanced-logback")
-
-    doFirst { logger.lifecycle("Starting logback copy for advanced configuration...") }
-    doLast { logger.lifecycle("Logback advanced configuration copied successfully.") }
-}
-
-fun getArgsFromProperty(propertyName: String): List<String> {
-    val argsProp = project.findProperty(propertyName)
-    return argsProp?.toString()?.split(" ") ?: emptyList()
+    this@register.dependsOn(gradle.includedBuild("cache").task(":publishToMavenLocal"))
+    this@register.dependsOn(gradle.includedBuild("runelite-api").task(":publishToMavenLocal"))
 }
