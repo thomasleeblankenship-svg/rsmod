@@ -62,4 +62,22 @@ public enum JewelleryBoxType {
         return null;
     }
 
+    /** As upstream: the house jewellery box in the scene, or {@code null}. */
+    public static GameObject getObject() {
+        return net.runelite.client.plugins.microbot.util.gameobject.Rs2GameObject.getGameObject(getJewelleryBoxIds());
+    }
+
+    /** As upstream: the type of the jewellery box in the scene, or {@code NONE}. */
+    public static JewelleryBoxType getCurrentJewelleryBoxType() {
+        GameObject go = getObject();
+        if (go == null) {
+            return NONE;
+        }
+        for (JewelleryBoxType boxType : values()) {
+            if (boxType.objectId == go.getId()) {
+                return boxType;
+            }
+        }
+        return NONE;
+    }
 }

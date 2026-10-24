@@ -145,4 +145,42 @@ public final class PohTeleports
 		}
 		return null;
 	}
+
+    // ---- Read batch 16k (upstream 2.6.38) ----
+
+    /** Upstream's spirit-ring ids count as both a fairy ring and a spirit tree. */
+    private static final java.util.List<Integer> POH_SPIRIT_RING_IDS = Rs2GameObject.getObjectIdsByName("poh_spirit_ring");
+    private static final java.util.Set<Integer> FAIRY_RING_IDS = idsWith("poh_fairy_ring");
+    private static final java.util.Set<Integer> SPIRIT_TREE_IDS = idsWith("poh_spirit_tree");
+
+    private static java.util.Set<Integer> idsWith(String name) {
+        java.util.Set<Integer> ids = new java.util.LinkedHashSet<>(POH_SPIRIT_RING_IDS);
+        ids.addAll(Rs2GameObject.getObjectIdsByName(name));
+        return ids;
+    }
+
+    /** As upstream: the player owns a house (a house location is set). */
+    public static boolean hasHouse() {
+        return net.runelite.client.plugins.microbot.util.poh.data.HouseLocation.getHouseLocation() != null;
+    }
+
+    /** As upstream: the house fairy ring (or spirit ring) in the scene, or {@code null}. */
+    public static net.runelite.api.GameObject getFairyRings() {
+        return Rs2GameObject.getGameObject(PohTeleports::isFairyRing);
+    }
+
+    /** As upstream: the house spirit tree (or spirit ring) in the scene, or {@code null}. */
+    public static net.runelite.api.GameObject getSpiritTree() {
+        return Rs2GameObject.getGameObject(PohTeleports::isSpiritTree);
+    }
+
+    /** As upstream: {@code tileObject} is a house fairy ring or spirit ring. */
+    public static boolean isFairyRing(TileObject tileObject) {
+        return FAIRY_RING_IDS.contains(tileObject.getId());
+    }
+
+    /** As upstream: {@code tileObject} is a house spirit tree or spirit ring. */
+    public static boolean isSpiritTree(TileObject tileObject) {
+        return SPIRIT_TREE_IDS.contains(tileObject.getId());
+    }
 }
