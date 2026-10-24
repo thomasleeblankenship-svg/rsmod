@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | `util/magic/Rs2Magic.java` (actions: `npcContact`, `repairPouchesWithLunar`), `util/grounditem/Rs2GroundItem.java` (`lootItemsBasedOnLocation`, `lootAllItemBasedOnValue`, `interact(RS2Item[, action])`), `util/walker/Rs2Walker.java` (`config`), `util/player/Rs2Player.java` (actions: `eatAt(int, boolean)`, `useFastFood`), `util/inventory/Rs2Inventory.java` (`getInventoryFastFood`), new `HubActionBatchG2Test` | **Task: util-gap action batch G2** | this commit |
 
 ## Requests
 
