@@ -161,8 +161,8 @@ Known differences from desktop:
 - **Inventory setups** match by item totals, not slot order; the rune pouch is checked, not filled.
 - **Anti-ban settings** are inert. **Walking** (with the pathfinder setting on) executes stairs,
   doors, shortcuts, boats, ships, travel NPCs, charter ships, teleport items, teleport spells,
-  fairy rings, spirit trees, levers, portals, fixed-destination minecarts, magic carpets and gnome
-  gliders; not yet quetzals, balloons, mushtrees, the Lovakengj minecarts, canoes or POH. It never
+  fairy rings, spirit trees, levers, portals, fixed-destination minecarts, magic carpets, gnome
+  gliders and hot air balloons; not yet quetzals, mushtrees, the Lovakengj minecarts, canoes or POH. It never
   takes a transport into the Wilderness unless the goal is there. None of the transports has been
   tried on a phone.
 

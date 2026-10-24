@@ -493,7 +493,7 @@ public final class Rs2Walker
 	/** Rides on an NPC or vehicle: interact, answer the destination dialogue, wait for the landing. */
 	static final Set<TransportType> TRAVEL_TRANSPORTS = EnumSet.of(TransportType.BOAT, TransportType.SHIP, TransportType.NPC,
 		TransportType.CHARTER_SHIP, TransportType.SPIRIT_TREE, TransportType.MINECART, TransportType.MAGIC_CARPET,
-		TransportType.GNOME_GLIDER);
+		TransportType.GNOME_GLIDER, TransportType.HOT_AIR_BALLOON);
 
 	/** One object click that teleports: arrival is anywhere near the catalogued landing. */
 	static final Set<TransportType> TELEPORT_OBJECTS = EnumSet.of(TransportType.TELEPORTATION_LEVER,
@@ -509,6 +509,20 @@ public final class Rs2Walker
 		"lemantolly undri", InterfaceID.Glidermap.OGREAREA_BUTTON,
 		"ookookolly undri", InterfaceID.Glidermap.APEATOLL_BUTTON);
 
+	/** Each hot air balloon destination's button on the balloon map, as upstream's {@code Rs2HotAirBalloon}. */
+	static final java.util.Map<String, Integer> BALLOON_BUTTONS = java.util.Map.of(
+		"castle wars", InterfaceID.ZepBalloonMap.BTN_CAST,
+		"grand tree", InterfaceID.ZepBalloonMap.BTN_GNO,
+		"crafting guild", InterfaceID.ZepBalloonMap.BTN_CRAFT,
+		"entrana", InterfaceID.ZepBalloonMap.BTN_ENT,
+		"taverley", InterfaceID.ZepBalloonMap.BTN_TAV,
+		"varrock", InterfaceID.ZepBalloonMap.BTN_VARR);
+
+	/** Destination maps answered with one button per destination, by the map's root widget. */
+	private static final java.util.Map<Integer, java.util.Map<String, Integer>> DESTINATION_MAPS = java.util.Map.of(
+		InterfaceID.Glidermap.UNIVERSE, GLIDER_BUTTONS,
+		InterfaceID.ZepBalloonMap.ROOT_RECT0, BALLOON_BUTTONS);
+
 	/** The charter-ship destination map (upstream: widget 885, child 4). */
 	private static final int CHARTER_GROUP = 885;
 	private static final int CHARTER_CHILD = 4;
@@ -518,7 +532,7 @@ public final class Rs2Walker
 		TransportType.BOAT, TransportType.SHIP, TransportType.NPC, TransportType.CHARTER_SHIP, TransportType.TELEPORTATION_ITEM,
 		TransportType.TELEPORTATION_SPELL, TransportType.SPIRIT_TREE, TransportType.FAIRY_RING, TransportType.MINECART,
 		TransportType.MAGIC_CARPET, TransportType.TELEPORTATION_LEVER, TransportType.TELEPORTATION_PORTAL,
-		TransportType.GNOME_GLIDER);
+		TransportType.GNOME_GLIDER, TransportType.HOT_AIR_BALLOON);
 
 	/** The spirit tree destination menu (upstream {@code ADVENTURE_LOG_CONTAINER}, 187) and its option list (187:3). */
 	private static final int DESTINATION_MENU_GROUP = 187;
@@ -803,12 +817,13 @@ public final class Rs2Walker
 			{
 				return true;
 			}
-			if (gliderMapVisible())
+			java.util.Map<String, Integer> buttons = visibleDestinationMap();
+			if (buttons != null)
 			{
-				Integer button = gliderButton(step.destinationText);
+				Integer button = destinationButton(buttons, step.destinationText);
 				if (button == null || !Global.sleepUntil(() -> MobileActions.widget(button, -1, ""), 2_000))
 				{
-					lastStatus = "glider map does not offer " + step.destinationText;
+					lastStatus = "destination map does not offer " + step.destinationText;
 					return false;
 				}
 				Thread.sleep(600);
@@ -1289,19 +1304,28 @@ public final class Rs2Walker
 			? Character.toLowerCase(text.charAt(0)) : 0;
 	}
 
-	/** The glider map's button for a destination name (case-insensitive), or null. */
-	static Integer gliderButton(String destination)
+	/** A destination map's button for a destination name (case-insensitive), or null. */
+	static Integer destinationButton(java.util.Map<String, Integer> buttons, String destination)
 	{
-		return destination == null ? null : GLIDER_BUTTONS.get(destination.trim().toLowerCase(java.util.Locale.ROOT));
+		return destination == null ? null : buttons.get(destination.trim().toLowerCase(java.util.Locale.ROOT));
 	}
 
-	private static boolean gliderMapVisible()
+	/** The buttons of whichever destination map (glider or balloon) is showing, or null when none is. */
+	private static java.util.Map<String, Integer> visibleDestinationMap()
 	{
-		return MobileActions.read(() ->
+		Integer root = MobileActions.read(() ->
 		{
-			net.runelite.api.widgets.Widget map = Microbot.getClient().getWidget(InterfaceID.Glidermap.UNIVERSE);
-			return map != null && !map.isHidden();
-		}, false);
+			for (Integer candidate : DESTINATION_MAPS.keySet())
+			{
+				net.runelite.api.widgets.Widget map = Microbot.getClient().getWidget(candidate);
+				if (map != null && !map.isHidden())
+				{
+					return candidate;
+				}
+			}
+			return null;
+		}, null);
+		return root == null ? null : DESTINATION_MAPS.get(root);
 	}
 
 	private static boolean charterMapVisible()

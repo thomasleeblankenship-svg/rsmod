@@ -317,10 +317,25 @@ public class PathfinderLegTest
 		assertTrue(leg.stairs.travel);
 		assertEquals(List.of("Glider", "Travel"), Rs2Walker.npcOptions(leg.stairs));
 		assertEquals(Integer.valueOf(net.runelite.api.gameval.InterfaceID.Glidermap.ALKHARID_BUTTON),
-			Rs2Walker.gliderButton(leg.stairs.destinationText));
+			Rs2Walker.destinationButton(Rs2Walker.GLIDER_BUTTONS, leg.stairs.destinationText));
 		assertEquals(Integer.valueOf(net.runelite.api.gameval.InterfaceID.Glidermap.GRANDTREE_BUTTON),
-			Rs2Walker.gliderButton(" Ta Quir Priw "));
-		assertNull(Rs2Walker.gliderButton("Lumbridge"));
+			Rs2Walker.destinationButton(Rs2Walker.GLIDER_BUTTONS, " Ta Quir Priw "));
+		assertNull(Rs2Walker.destinationButton(Rs2Walker.GLIDER_BUTTONS, "Lumbridge"));
 		assertEquals("one button per catalogued glider destination", 7, Rs2Walker.GLIDER_BUTTONS.size());
+	}
+
+	@Test
+	public void aHotAirBalloonIsATravelStepThatPressesItsDestinationButton()
+	{
+		Rs2Walker.WalkLeg leg = legFor(result(PathResult.Status.FOUND, TILES,
+			Map.of(1, transport(B, GOAL, TransportType.HOT_AIR_BALLOON, "Use", "Taverley", 19128))));
+		assertNotNull(leg);
+		assertTrue(leg.stairs.travel);
+		assertEquals("Use", leg.stairs.action);
+		assertEquals(Integer.valueOf(net.runelite.api.gameval.InterfaceID.ZepBalloonMap.BTN_TAV),
+			Rs2Walker.destinationButton(Rs2Walker.BALLOON_BUTTONS, leg.stairs.destinationText));
+		assertEquals(Integer.valueOf(net.runelite.api.gameval.InterfaceID.ZepBalloonMap.BTN_CRAFT),
+			Rs2Walker.destinationButton(Rs2Walker.BALLOON_BUTTONS, "Crafting Guild"));
+		assertEquals("one button per catalogued balloon destination", 6, Rs2Walker.BALLOON_BUTTONS.size());
 	}
 }
