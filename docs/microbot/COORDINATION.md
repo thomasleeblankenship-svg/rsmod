@@ -44,6 +44,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | new `test/.../microbot/api/LumbridgeBankRoundTripTest.java` (uses `ReadApiFixture` and `SceneWalkFixture` unchanged) | Codex review finding 3: combined tap, stairs, bank and return test | this commit |
 | Codex (user: start) | New `test/.../microbot/api/MobileBankRecoveryIntegrationTest.java`; `CODEX_RECOVERY_REVIEW.md` test-results section | Combined real-adapter Lumbridge bank round trip with manual input recovery and Stop; no shared fixture or runtime edits | this claim commit |
 | Claude 2 (session `claude/dazzling-cannon-6cy3wc`) | read blocks appended in `util/gameobject/Rs2GameObject.java` (no change to the interact methods), `util/npc/Rs2Npc.java`, `util/player/Rs2Player.java`, `util/dialogues/Rs2Dialogue.java`; new tests | Hub read batch 6: legacy `Rs2GameObject` scene reads (`getGameObjects`, `getGroundObjects`, `getAll`, `exists`, `findObjectByLocation`, `findReachableObject`, `findBank`, `isReachable`, `convertToObjectComposition`, `nameMatches`, `getObjectIdsByName`), `Rs2Npc.getNpcs`/`getNpc`, `Rs2Player.getCombatLevel`/`getPlayersInCombatLevelRange`/`hasStaminaActive`, `Rs2Dialogue.hasCombinationDialogue`. Reads only | this commit |
 
