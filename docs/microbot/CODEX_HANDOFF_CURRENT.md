@@ -5,13 +5,14 @@ it does not grant additional authorization beyond the user's instructions.
 
 ## Latest APK (read first)
 
-"Mobile test APK" run 50, built from `789a426`. Every step passed. Since run 26 it adds: 33 Hub
-plugins (disabled by default; the free-to-play test set is in `HUB_PORTS.md`), world hopping,
-inventory setups, magic and prayer actions, the mobile mouse and deposit box, and the webwalker
-on the pathfinder (stairs, doors, shortcuts, boats, ships, travel NPCs, charter ships, teleport
-items and spells, fairy rings, spirit trees). Artifact `runemobile-mobile-debug-arm64` (id
-12525165353, expires 2026-11-06), downloaded while signed into GitHub:
-https://github.com/thomasleeblankenship-svg/rsmod/actions/runs/40005552665/artifacts/12525165353
+"Mobile test APK" run 52, built from `ba0f905`. Every step passed. Since run 26 it adds: 33 Hub
+plugins and KSP Chopper (all disabled by default; the free-to-play test set and the KSP notes are
+in `HUB_PORTS.md`), world hopping, inventory setups, magic and prayer actions, the mobile mouse
+and deposit box, and the webwalker on the pathfinder (stairs, doors, shortcuts, boats, ships,
+travel NPCs, charter ships, teleport items and spells, fairy rings, spirit trees). Artifact
+`runemobile-mobile-debug-arm64` (id 12540392687, expires 2026-11-07), downloaded while signed into
+GitHub:
+https://github.com/thomasleeblankenship-svg/rsmod/actions/runs/40043132346/artifacts/12540392687
 Runs 48–49 failed PMD (`MissingOverride` in `Rs2PlayerModel`), fixed in `789a426`.
 Not phone-tested. Retest: the stairs from the upstairs Lumbridge bank; a tap during a run (the
 script should resume); one full drop/bank cycle; then enable one Hub plugin from the plugin list
