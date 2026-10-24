@@ -194,4 +194,9 @@ public enum PohPortal implements PohTeleport {
         }
         return portals;
     }
+
+    /** As upstream: this portal's object in the house scene, or {@code null}. */
+    public GameObject getPortal() {
+        return Rs2GameObject.getGameObject(objectIds);
+    }
 }

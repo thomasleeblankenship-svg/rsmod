@@ -48,4 +48,8 @@ public enum MountedXerics implements PohTeleport {
         return getClass().getSimpleName() + " -> " + destinationName;
     }
 
+    /** As upstream: the mounted item in the house scene, or {@code null}. */
+    public static DecorativeObject getObject() {
+        return net.runelite.client.plugins.microbot.util.gameobject.Rs2GameObject.getDecorativeObject(IDS);
+    }
 }

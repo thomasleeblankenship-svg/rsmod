@@ -615,4 +615,33 @@ public class LegacySceneReadTest
 		assertTrue(model.isMoving());
 		assertNull(model.getHeadIcon());
 	}
+
+	@Test
+	public void batchSixteenKHouseObjectReads()
+	{
+		int fairyRing = Rs2GameObject.getObjectIdsByName("poh_fairy_ring").get(0);
+		int spiritTree = Rs2GameObject.getObjectIdsByName("poh_spirit_tree").get(0);
+		int spiritRing = Rs2GameObject.getObjectIdsByName("poh_spirit_ring").get(0);
+		GameObject ring = gameObject(fairyRing, 7, 7);
+		GameObject box = gameObject(net.runelite.api.gameval.ObjectID.POH_JEWELLERY_BOX_2, 8, 8);
+		net.runelite.api.DecorativeObject glory = placed(net.runelite.api.DecorativeObject.class,
+			net.runelite.api.gameval.ObjectID.POH_TROPHY_AMULETOFGLORY_4, 6, 6);
+		when(tile(6, 6).getDecorativeObject()).thenReturn(glory);
+
+		assertSame(ring, net.runelite.client.plugins.microbot.util.poh.PohTeleports.getFairyRings());
+		assertNull("no spirit tree", net.runelite.client.plugins.microbot.util.poh.PohTeleports.getSpiritTree());
+		assertTrue(net.runelite.client.plugins.microbot.util.poh.PohTeleports.isSpiritTree(gameObject(spiritTree, 9, 9)));
+		GameObject both = gameObject(spiritRing, 10, 10);
+		assertTrue("a spirit ring is both", net.runelite.client.plugins.microbot.util.poh.PohTeleports.isFairyRing(both)
+			&& net.runelite.client.plugins.microbot.util.poh.PohTeleports.isSpiritTree(both));
+		assertSame(box, net.runelite.client.plugins.microbot.util.poh.data.JewelleryBoxType.getObject());
+		assertEquals(net.runelite.client.plugins.microbot.util.poh.data.JewelleryBoxType.FANCY,
+			net.runelite.client.plugins.microbot.util.poh.data.JewelleryBoxType.getCurrentJewelleryBoxType());
+		assertSame(glory, net.runelite.client.plugins.microbot.util.poh.data.MountedGlory.getObject());
+		assertNull(net.runelite.client.plugins.microbot.util.poh.data.MountedXerics.getObject());
+		assertNull(net.runelite.client.plugins.microbot.util.poh.data.PohPortal.values()[0].getPortal());
+
+		when(f.client.getVarbitValue(net.runelite.api.gameval.VarbitID.POH_HOUSE_LOCATION)).thenReturn(2);
+		assertTrue("Taverley house", net.runelite.client.plugins.microbot.util.poh.PohTeleports.hasHouse());
+	}
 }

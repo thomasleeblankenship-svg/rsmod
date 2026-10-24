@@ -47,4 +47,9 @@ public enum MountedGlory implements PohTeleport {
     public String displayInfo() {
         return "MountedGlory -> " + destinationName;
     }
+
+    /** As upstream: the mounted item in the house scene, or {@code null}. */
+    public static DecorativeObject getObject() {
+        return net.runelite.client.plugins.microbot.util.gameobject.Rs2GameObject.getDecorativeObject(ObjectID.POH_TROPHY_AMULETOFGLORY_4);
+    }
 }
