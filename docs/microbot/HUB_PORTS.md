@@ -159,6 +159,9 @@ Known differences from desktop:
 - **Prayer helpers** (jad, zulrah, colosseumprayer, autogauntletprayer, delveprayerhelper,
   HueycoatlPrayer, zeroprayer): each toggle opens the prayer tab first, which can cost an extra
   game tick; tight switches may land late. Needs a phone test before relying on it.
+- **Script-built menu entries** (`Microbot.doInvoke`, 24 Hub calls in 13 plugins) are sent exactly as built, one
+  per game tick. The rectangle is ignored (there is no cursor), a WALK entry taps the canvas point it
+  carries, and nothing is sent while the Wilderness warning is open. `Microbot.drag` is not ported.
 - **Overlay-heavy plugins** (theatre, zulrah, parts of others) draw desktop overlays, which may not
   suit the phone screen.
 - **Inventory setups** match by item totals, not slot order; the rune pouch is checked, not filled.

@@ -144,6 +144,35 @@ public class Microbot {
         return MOUSE;
     }
 
+    /**
+     * As upstream: invokes a script-built menu entry. Mobile has no cursor to move into
+     * {@code rectangle}, so the entry is sent exactly through {@link MobileActions#menu}, as one
+     * script action (a WALK entry taps the canvas point it carries). No random pause follows; the
+     * caller observes the result, as with every mobile action.
+     */
+    public static void doInvoke(net.runelite.client.plugins.microbot.util.menu.NewMenuEntry entry,
+            java.awt.Rectangle rectangle) {
+        invoke(entry);
+    }
+
+    /** As upstream: {@link #doInvoke} without the post-click pause (mobile has none either way). */
+    public static void doInvokeQuick(net.runelite.client.plugins.microbot.util.menu.NewMenuEntry entry,
+            java.awt.Rectangle rectangle) {
+        invoke(entry);
+    }
+
+    /** As upstream: clicks {@code rectangle} with this menu entry; on mobile, as {@link #doInvoke}. */
+    public static void click(java.awt.Rectangle rectangle,
+            net.runelite.client.plugins.microbot.util.menu.NewMenuEntry entry) {
+        invoke(entry);
+    }
+
+    private static void invoke(net.runelite.client.plugins.microbot.util.menu.NewMenuEntry entry) {
+        if (entry != null && !MobileActions.menu(entry)) {
+            log.debug("Menu entry not dispatched: {} {}", entry.getOption(), entry.getTarget());
+        }
+    }
+
     private static volatile net.runelite.client.game.ItemManager itemManager;
 
     /** As upstream: RuneLite's item manager (prices, item compositions); bound by the mobile plugin. */

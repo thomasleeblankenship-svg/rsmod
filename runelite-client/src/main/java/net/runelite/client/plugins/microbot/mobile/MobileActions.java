@@ -441,6 +441,40 @@ public final class MobileActions
 		});
 	}
 
+	/** The Wilderness warning interface (upstream {@code Rs2Widget.isWildernessInterfaceOpen}: 475:11). */
+	private static final int WILDERNESS_WARNING_GROUP = 475;
+	private static final int WILDERNESS_WARNING_CHILD = 11;
+
+	/**
+	 * Sends a script-built menu entry (upstream {@code Microbot.doInvoke}) exactly as given: its option,
+	 * target, identifier, type, item id and params, as one script action. A {@link MenuAction#WALK} entry
+	 * carries the canvas point upstream clicks, so it is a tap there. Refused while the Wilderness warning
+	 * is showing, so no entry can confirm it.
+	 */
+	public static boolean menu(net.runelite.client.plugins.microbot.util.menu.NewMenuEntry entry)
+	{
+		if (entry == null || entry.getType() == null)
+		{
+			return false;
+		}
+		if (entry.getType() == MenuAction.WALK)
+		{
+			return tap(entry.getParam0(), entry.getParam1());
+		}
+		return perform(() ->
+		{
+			Widget warning = client().getWidget(WILDERNESS_WARNING_GROUP, WILDERNESS_WARNING_CHILD);
+			if (warning != null && !warning.isHidden())
+			{
+				return false;
+			}
+			client().menuAction(entry.getParam0(), entry.getParam1(), entry.getType(), entry.getIdentifier(),
+				entry.getItemId(), entry.getOption() == null ? "" : entry.getOption(),
+				entry.getTarget() == null ? "" : entry.getTarget());
+			return true;
+		});
+	}
+
 	/** One script tap at a canvas point (upstream mouse clicks); one script action. */
 	public static boolean tap(int x, int y)
 	{
