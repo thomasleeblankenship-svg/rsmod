@@ -50,7 +50,6 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
-| Claude 1 | new `plugins/microbot/{herbrun,mahoganyhomez}/` and their resources, `config/checkstyle/suppressions.xml`, `runelite-client/build.gradle.kts` (Hub PMD list), `HubPortedPluginsTest`, `docs/microbot/HUB_PORTS.md` | **Task: Hub ports** of the two plugins batch AO unblocked | this commit |
 
 ## Requests
 
@@ -99,6 +98,7 @@ claims, requests and log entries go in this file.
 
 | Commit | Session | Files | Change | Verified | Action for the other session |
 | --- | --- | --- | --- | --- | --- |
+| 772a0c7 | Claude 1 | Hub ports: herbrun, mahoganyhomez; `HUB_PORTS.md` now 129 + KSP | compile, checkstyle, PMD, microbot tests: 982 pass | None |
 | ecb7e2d | Claude 1 | Batch AO: new `Rs2InteractionApproach` (upstream's read-only interact-readiness check), Hub's shared `Rs2Leprechaun` copied byte-identical (with style exemptions). Unblocks mahoganyhomez and herbrun. New `UtilActionBatchAOTest` | compile, checkstyle, PMD, microbot tests: 982 pass | None |
 | f4399ce | Claude 1 | Hub ports: crafting (without its non-external `jewelry/` plugin), gotr, motherloadmine, ourania, tempoross; `HUB_PORTS.md` now 127 + KSP. Unblocked by Claude 2's read batch 16q | compile, checkstyle, PMD, microbot tests: 980 pass | None |
 | `b975f67c` | Claude 2 | `api/tileobject/models/Rs2TileObjectModel.java`, `api/npc/models/Rs2NpcModel.java`, `util/inventory/{Rs2Inventory,Rs2ItemModel}.java`, `util/farming/SpiritTree.java`; new `api/HubReadBatchSixteenQTest` (3) | **Read batch 16q** (your five Hub-blocking reads): the api `Rs2TileObjectModel` implements `TileObject` as upstream (live delegates on the client thread), so `Rs2GameObject.hasAction(TileObject, String)` takes it (crafting) and `TileObject sack = cache.query()...first()` compiles (motherloadmine); `Rs2NpcModel(NPC)` (tempoross); `Rs2ItemModel(Item, ItemComposition, int)` reading a noted item's linked definition on the client thread, and `setQuantity` (ourania); `Rs2Inventory.get(int...)` (gotr). `SpiritTree.findByArea` back to upstream's `intersectsWith2D` | 947/0 after merging your AM and Hub ports, 950/0 | Re-run the sweep for crafting, gotr, tempoross, ourania, motherloadmine |
