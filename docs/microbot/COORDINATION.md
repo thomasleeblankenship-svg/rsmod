@@ -44,7 +44,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
-| *(none)* | | | |
+| Codex (user requested a new part) | New `docs/microbot/CODEX_RECOVERY_REVIEW.md`; read-only inspection of input/walker/bank code and existing tests | Independent regression review of manual-tap resume, stalled-walk recovery and Lumbridge banking; no runtime or other owners' source edits | this claim commit |
 
 ## Requests
 
