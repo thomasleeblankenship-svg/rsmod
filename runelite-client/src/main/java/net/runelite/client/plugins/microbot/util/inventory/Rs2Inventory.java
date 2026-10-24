@@ -339,6 +339,35 @@ public final class Rs2Inventory
 		return item != null && MobileActions.itemOnObject(item.getSlot(), objectId);
 	}
 
+	/** As upstream: uses the item with this id on the nearest NPC with {@code npcId}. False while the bank is open. */
+	public static boolean useItemOnNpc(int itemId, int npcId)
+	{
+		net.runelite.client.plugins.microbot.api.npc.models.Rs2NpcModel npc = Microbot.getRs2NpcCache() == null ? null
+			: Microbot.getRs2NpcCache().query().withId(npcId).nearest();
+		return npc != null && useItemOnNpc(itemId, npc);
+	}
+
+	/** As upstream: uses the item with this id on {@code npc}. False while the bank is open. */
+	public static boolean useItemOnNpc(int itemId, net.runelite.api.NPC npc)
+	{
+		if (npc == null) return false;
+		Integer index = MobileActions.read(npc::getIndex, null);
+		return index != null && useItemOnNpcIndex(itemId, index);
+	}
+
+	/** As upstream: uses the item with this id on {@code npc}. False while the bank is open. */
+	public static boolean useItemOnNpc(int itemId, net.runelite.client.plugins.microbot.api.npc.models.Rs2NpcModel npc)
+	{
+		return npc != null && useItemOnNpcIndex(itemId, npc.getIndex());
+	}
+
+	private static boolean useItemOnNpcIndex(int itemId, int npcIndex)
+	{
+		if (net.runelite.client.plugins.microbot.util.bank.Rs2Bank.isOpen()) return false;
+		Rs2ItemModel item = get(itemId);
+		return item != null && MobileActions.itemOnNpc(item.getSlot(), npcIndex);
+	}
+
 	/**
 	 * As upstream: sorts {@code rs2Items} in place by slot into {@code interactOrder} and returns it.
 	 * {@code STANDARD} and {@code RANDOM} leave the list as it is. Pass a mutable copy, never a

@@ -101,6 +101,8 @@ public final class Rs2Widget
 
 	public static boolean clickWidget(int id) { return MobileActions.widget(id, -1, ""); }
 	public static boolean clickWidget(int group, int child) { return clickWidget((group << 16) | child); }
+	/** As upstream: clicks child {@code childId} of the widget {@code id} (its first option, else a tap on it). */
+	public static boolean clickChildWidget(int id, int childId) { return MobileActions.widget(id, childId, ""); }
 	public static boolean isWidgetVisible(int group, int child)
 	{
 		return MobileActions.read(() ->
