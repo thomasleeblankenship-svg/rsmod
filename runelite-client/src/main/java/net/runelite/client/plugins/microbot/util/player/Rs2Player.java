@@ -335,6 +335,69 @@ public final class Rs2Player
 		return drinkPotion(net.runelite.client.plugins.microbot.util.misc.Rs2Potion.getAntiPoisonVariants().toArray(new String[0]));
 	}
 
+	/** As upstream: {@link #drinkCombatPotionAt(net.runelite.api.Skill, boolean)} preferring super combat potions. */
+	public static boolean drinkCombatPotionAt(net.runelite.api.Skill skill)
+	{
+		return drinkCombatPotionAt(skill, true);
+	}
+
+	/**
+	 * As upstream: drinks a potion for {@code skill} unless it is already boosted by more than 20% of
+	 * the maximum boost (real level * 0.15 + 5). For Attack, Strength or Defence with
+	 * {@code superCombat}, a super combat (or, except for Defence, combat) potion first; then the
+	 * skill's own potions. False when nothing was drunk.
+	 */
+	public static boolean drinkCombatPotionAt(net.runelite.api.Skill skill, boolean superCombat)
+	{
+		if (skill == null)
+		{
+			return false;
+		}
+		int real = getRealSkillLevel(skill);
+		int boosted = getBoostedSkillLevel(skill);
+		double threshold = (real * 0.15 + 5) * 0.20;
+		if (boosted - real > threshold)
+		{
+			return false;
+		}
+		boolean melee = skill == net.runelite.api.Skill.ATTACK || skill == net.runelite.api.Skill.STRENGTH
+			|| skill == net.runelite.api.Skill.DEFENCE;
+		if (superCombat && melee)
+		{
+			java.util.List<String> combat = new java.util.ArrayList<>(net.runelite.client.plugins.microbot.util.misc.Rs2Potion.getCombatPotionsVariants());
+			if (skill == net.runelite.api.Skill.DEFENCE)
+			{
+				combat.remove("combat potion");
+			}
+			if (drinkPotion(combat.toArray(new String[0])))
+			{
+				return true;
+			}
+		}
+		java.util.List<String> own;
+		switch (skill)
+		{
+			case ATTACK:
+				own = net.runelite.client.plugins.microbot.util.misc.Rs2Potion.getAttackPotionsVariants();
+				break;
+			case STRENGTH:
+				own = net.runelite.client.plugins.microbot.util.misc.Rs2Potion.getStrengthPotionsVariants();
+				break;
+			case DEFENCE:
+				own = net.runelite.client.plugins.microbot.util.misc.Rs2Potion.getDefencePotionsVariants();
+				break;
+			case RANGED:
+				own = net.runelite.client.plugins.microbot.util.misc.Rs2Potion.getRangePotionsVariants();
+				break;
+			case MAGIC:
+				own = net.runelite.client.plugins.microbot.util.misc.Rs2Potion.getMagicPotionsVariants();
+				break;
+			default:
+				return false;
+		}
+		return drinkPotion(own.toArray(new String[0]));
+	}
+
 	/** The first unnoted potion whose name, without its dose suffix, is one of {@code names} (case-insensitive). */
 	private static net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel potion(String... names)
 	{
