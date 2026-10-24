@@ -565,4 +565,54 @@ public class LegacySceneReadTest
 		tile(6, 6);
 		assertTrue(Rs2GameObject.getTiles().size() >= 3);
 	}
+
+	@Test
+	public void batchSixteenNpcReads()
+	{
+		NPC goblin = f.npc(3029, "Goblin", world(6, 5));
+		NPC guard = f.npc(3010, "Guard", world(9, 5));
+		when(goblin.getLocalLocation()).thenAnswer(i -> f.onClientThread(local(6, 5)));
+		when(guard.getLocalLocation()).thenAnswer(i -> f.onClientThread(local(9, 5)));
+		when(goblin.getCombatLevel()).thenReturn(2);
+		when(guard.getCombatLevel()).thenReturn(21);
+		when(guard.getInteracting()).thenAnswer(i -> f.onClientThread(mock(net.runelite.api.Player.class)));
+		when(goblin.getInteracting()).thenAnswer(i -> f.onClientThread(f.localPlayer));
+		when(guard.isInteracting()).thenReturn(true);
+		when(goblin.isInteracting()).thenReturn(true);
+		when(goblin.getHealthRatio()).thenReturn(10);
+		when(goblin.getHealthScale()).thenReturn(40);
+		when(goblin.getPoseAnimation()).thenReturn(819);
+		when(goblin.getIdlePoseAnimation()).thenReturn(808);
+		net.runelite.api.NPCComposition goblinDefinition = mock(net.runelite.api.NPCComposition.class);
+		when(goblinDefinition.getActions()).thenReturn(new String[]{null, "Attack", null, null, null});
+		when(goblin.getComposition()).thenAnswer(i -> f.onClientThread(goblinDefinition));
+		when(f.client.getNpcDefinition(3029)).thenReturn(goblinDefinition);
+
+		assertEquals("both are busy outside multi-combat", 0, Rs2Npc.getAttackableNpcs().count());
+		assertEquals("the goblin is fighting the player", List.of("Goblin"),
+			Rs2Npc.getAttackableNpcs(false).map(n -> n.getName()).collect(Collectors.toList()));
+		assertEquals(0, Rs2Npc.getAttackableNpcs("gob").count());
+		assertEquals(List.of("Goblin"), Rs2Npc.getNpcsForPlayer("goblin").stream().map(n -> n.getName()).collect(Collectors.toList()));
+		assertEquals(1, Rs2Npc.getNpcsAttackingPlayer(f.localPlayer).size());
+		assertEquals("Attack", Rs2Npc.getAvailableAction(Rs2Npc.getNpc("Goblin"), List.of("Pickpocket", "attack")));
+		assertEquals("Goblin", Rs2Npc.getNpcWithAction("Attack").getName());
+		assertNull(Rs2Npc.getNpcWithAction("Trade"));
+		assertEquals(25.0, Rs2Npc.getHealth(Rs2Npc.getNpc("Goblin")), 0.001);
+		assertTrue(Rs2Npc.isMoving(goblin));
+		assertEquals("melee reach is one tile", true, Rs2Npc.isInAttackRange(Rs2Npc.getNpc("Goblin")));
+		assertFalse(Rs2Npc.isInAttackRange(Rs2Npc.getNpc("Guard")));
+		tile(5, 5);
+		tile(6, 5);
+		assertTrue(Rs2Npc.hasLineOfSight(Rs2Npc.getNpc("Goblin")));
+		assertEquals("Goblin", Rs2Npc.getNpcInLineOfSight("gob").getName());
+
+		net.runelite.client.plugins.microbot.util.npc.Rs2NpcModel model = Rs2Npc.getNpc("Goblin");
+		assertEquals(128, model.getDistanceFromPlayer());
+		assertTrue(model.isWithinDistanceFromPlayer(128));
+		assertTrue(model.isWithinDistance(world(5, 5), 1));
+		assertEquals(25.0, model.getHealthPercentage(), 0.001);
+		assertTrue(model.isInteractingWithPlayer());
+		assertTrue(model.isMoving());
+		assertNull(model.getHeadIcon());
+	}
 }
