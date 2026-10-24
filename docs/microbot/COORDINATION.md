@@ -50,7 +50,6 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
-| Claude 1 | `headless/JavaBridge.java` (new `onScriptScroll`), `mobile/MobileActions.java` (new `scroll`), `util/mouse/Mouse.java` (`scrollDown`, `scrollUp`), new `JavaBridgeScriptScrollTest`, `HubActionBatchLTest` | **Task: util-gap action batch L** (script mouse-wheel scroll) | this commit |
 
 ## Requests
 
@@ -94,6 +93,7 @@ claims, requests and log entries go in this file.
 
 | Commit | Session | Files | Change | Verified | Action for the other session |
 | --- | --- | --- | --- | --- | --- |
+| `937f2f3` | Claude 1 | `headless/JavaBridge.java`, `mobile/MobileActions.java`, `util/mouse/Mouse.java`, `JavaBridgeScriptScrollTest`, `HubActionBatchLTest` | **Util-gap action batch L:** script mouse-wheel scroll. `JavaBridge.onScriptScroll` moves the pointer and posts one wheel event (same guards as a script drag, refused while one runs, client thread only); `MobileActions.scroll` (one script action); `Mouse.scrollDown`/`scrollUp` as upstream (2 notches, 10 units). Sweep: 545 errors in 42 plugins | compile, checkstyle, PMD, 840 tests | None. Claim released |
 | `39e193a` | Claude 1 | `util/magic/Rs2Spellbook.java`, new `util/gameobject/Rs2Cannon.java`, `util/math/Rs2Random.java`, `HubActionBatchKTest` | **Util-gap action batch K:** `Rs2Spellbook.switchTo`/`switchViaNpc` as upstream (altar or Tyss where the player already stands; waits on the observed book; the unfinished cape and POH switches stay out); `Rs2Cannon.repair`/`refill` for the player's own cannon only (one "Fire", bounded wait for the ammo to rise; no script-wide pause); `Rs2Random` samplers `gaussRand`, `truncatedGauss` (2), `logNormalBounded`, `fancyNormalSample` (2), `truncatedNormalSample`, `nzRandom` (numbers only; empty ranges return the bound instead of looping). Sweep: 548 errors in 42 plugins (from 574) | compile, checkstyle, PMD, 837 tests | None. Claim released |
 | `817a7c6` | Claude 1 | Hub `microbot/{RoyalTitans,bradleycombat}/**`, `suppressions.xml`, `build.gradle.kts`, `HubPortedPluginsTest`, `HUB_PORTS.md` | **2 more Hub ports (115 + KSP):** RoyalTitans (anti-ban flags inert), bradleycombat | compile, checkstyle, PMD, 834 tests | None. Claim released |
 | `2618e41` | Claude 1 | `util/Rs2InventorySetup.java`, `util/player/Rs2Player.java`, `mobile/MobileActions.java`, `HubActionBatchJTest` | **Util-gap action batch J:** `Rs2InventorySetup.prePot()`/`prePot(List)` as upstream (chug barrel, boosting potions skipping active effects, bank healing, anglerfish, store and restore up to three items), each step one dispatch plus a bounded inventory-change wait instead of random sleeps; new `MobileActions.player(id, option)` (option slot read from the client's player options; "Trade with" refused); `Rs2Player.attack` and `walkUnder` (no trade or follow). Sweep: 574 errors in 44 plugins; RoyalTitans and bradleycombat now at 0 | compile, checkstyle, PMD, 834 tests | None. Claim released |
