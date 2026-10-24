@@ -55,6 +55,51 @@ public final class Rs2DepositBox
 		return depositAll(item -> wanted.contains(item.getId()));
 	}
 
+	/** As upstream: "Deposit" on the nearest deposit box, then waits (up to 2.5 s) for it to open. */
+	public static boolean openDepositBox()
+	{
+		Microbot.status = "Opening deposit box";
+		if (isOpen())
+		{
+			return true;
+		}
+		if (Microbot.getRs2TileObjectCache() == null)
+		{
+			return false;
+		}
+		net.runelite.client.plugins.microbot.api.tileobject.models.Rs2TileObjectModel box = Microbot.getRs2TileObjectCache().query()
+			.where(o -> o.getName() != null && o.getName().toLowerCase(java.util.Locale.ROOT).contains("deposit box")).nearest();
+		if (box == null || !Global.sleepUntil(() -> MobileActions.objectAt(box.getId(), box.getWorldLocation(), "Deposit"), 2_000))
+		{
+			return false;
+		}
+		return Global.sleepUntil(Rs2DepositBox::isOpen, 2_500);
+	}
+
+	/** As upstream: deposits every stack whose name is not one of {@code names} (ignoring case). */
+	public static boolean depositAllExcept(String... names)
+	{
+		return depositAllExcept(Arrays.asList(names), true);
+	}
+
+	/** As upstream: {@link #depositAllExcept(List, boolean)} by containment. */
+	public static boolean depositAllExcept(List<String> names)
+	{
+		return depositAllExcept(names, false);
+	}
+
+	/** As upstream: deposits every stack not named in {@code names}, exactly or by containment (ignoring case). */
+	public static boolean depositAllExcept(List<String> names, boolean exact)
+	{
+		if (names == null)
+		{
+			return false;
+		}
+		return depositAll(item -> item.getName() == null || names.stream().filter(java.util.Objects::nonNull).noneMatch(name -> exact
+			? item.getName().equalsIgnoreCase(name)
+			: item.getName().toLowerCase(java.util.Locale.ROOT).contains(name.toLowerCase(java.util.Locale.ROOT))));
+	}
+
 	/** As upstream: deposits every stack whose name contains one of {@code names} (ignoring case). */
 	public static boolean depositAll(List<String> names)
 	{

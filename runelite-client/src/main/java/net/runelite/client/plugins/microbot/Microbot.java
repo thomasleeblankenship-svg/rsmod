@@ -220,6 +220,29 @@ public class Microbot {
     /** As upstream: the run energy (0-10000) scripts compare against before toggling run or drinking stamina. */
     public static int runEnergyThreshold = 1000;
 
+    /** As upstream: scripts that drink stamina potions read this before doing so; default on. */
+    public static boolean useStaminaPotsIfNeeded = true;
+
+    /**
+     * As upstream: the active plugins in a {@code microbot} package, except the helpers upstream
+     * leaves out (QuestHelperPlugin, MInventorySetupsPlugin, MicrobotPlugin, ShortestPathPlugin,
+     * AntibanPlugin). Empty before the runtime is installed.
+     */
+    public static java.util.List<Plugin> getActiveMicrobotPlugins() {
+        PluginManager manager = pluginManager;
+        if (manager == null) {
+            return new java.util.ArrayList<>();
+        }
+        java.util.Set<String> left = java.util.Set.of("questhelperplugin", "minventorysetupsplugin", "microbotplugin",
+                "shortestpathplugin", "antibanplugin");
+        return manager.getPlugins().stream()
+                .filter(manager::isPluginActive)
+                .filter(p -> p.getClass().getPackage() != null
+                        && p.getClass().getPackage().getName().toLowerCase(java.util.Locale.ROOT).contains("microbot"))
+                .filter(p -> !left.contains(p.getClass().getSimpleName().toLowerCase(java.util.Locale.ROOT)))
+                .collect(java.util.stream.Collectors.toList());
+    }
+
     private static volatile net.runelite.client.Notifier notifier;
 
     /**

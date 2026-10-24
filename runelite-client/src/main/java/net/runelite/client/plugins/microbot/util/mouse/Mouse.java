@@ -53,6 +53,18 @@ public final class Mouse
 		return rectangle == null ? this : click((int) rectangle.getCenterX(), (int) rectangle.getCenterY());
 	}
 
+	/** As upstream: one script drag between two canvas points (see {@code Microbot.drag}). */
+	public Mouse drag(Point startPoint, Point endPoint)
+	{
+		if (startPoint != null && endPoint != null)
+		{
+			net.runelite.client.plugins.microbot.Microbot.drag(new Rectangle(startPoint.getX(), startPoint.getY(), 1, 1),
+				new Rectangle(endPoint.getX(), endPoint.getY(), 1, 1));
+			position = endPoint;
+		}
+		return this;
+	}
+
 	/** At the last position given to {@code move} or {@code click}. */
 	public Mouse click()
 	{

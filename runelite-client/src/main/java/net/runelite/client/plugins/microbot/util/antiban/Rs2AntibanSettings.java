@@ -39,4 +39,9 @@ public final class Rs2AntibanSettings
 	public static volatile boolean dynamicIntensity;
 	public static volatile int cooldownMeanMillis = 400;
 	public static volatile int cooldownDeviationMillis = 200;
+
+	/** As upstream, but inert: anti-ban settings are not loaded from a profile (they have no effect here). */
+	public static void loadFromProfile()
+	{
+	}
 }

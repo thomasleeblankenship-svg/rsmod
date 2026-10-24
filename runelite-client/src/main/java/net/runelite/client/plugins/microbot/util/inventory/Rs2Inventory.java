@@ -692,6 +692,29 @@ public final class Rs2Inventory
 		return false;
 	}
 
+	/** As upstream: drops the first inventory item matching {@code predicate}. */
+	public static boolean drop(Predicate<Rs2ItemModel> predicate)
+	{
+		Rs2ItemModel item = predicate == null ? null : get(predicate);
+		return item != null && dropSlot(item);
+	}
+
+	/** As upstream: clears a selected item by using it again; false when nothing is selected. */
+	public static boolean deselect()
+	{
+		return isItemSelected() && use(getSelectedItemId());
+	}
+
+	/** As upstream: "Clean" on every grimy herb, in {@code interactOrder}. */
+	public static void cleanHerbs(InteractOrder interactOrder)
+	{
+		for (Rs2ItemModel item : calculateInteractOrder(items(i -> i.getName() != null
+			&& i.getName().toLowerCase(Locale.ROOT).contains("grimy")).collect(Collectors.toList()), interactOrder))
+		{
+			interact(item, "Clean");
+		}
+	}
+
 	/** As upstream: drops the first inventory item with this ID; {@code true} means dispatched. */
 	public static boolean drop(int id)
 	{

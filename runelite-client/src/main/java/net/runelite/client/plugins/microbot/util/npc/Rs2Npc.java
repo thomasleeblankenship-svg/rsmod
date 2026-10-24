@@ -249,6 +249,12 @@ public final class Rs2Npc
 			|| net.runelite.client.plugins.microbot.util.Global.sleepUntil(() -> MobileActions.npcAt(id, index, action), 1_200);
 	}
 
+	/** As upstream: {@code action} on the nearest NPC with this name. */
+	public static boolean interact(String npcName, String action)
+	{
+		return npcName != null && interact(getNpc(npcName), action);
+	}
+
 	/** As upstream: {@code action} on the nearest NPC with this id. */
 	public static boolean interact(int npcId, String action)
 	{

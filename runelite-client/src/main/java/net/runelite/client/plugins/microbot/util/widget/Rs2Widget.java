@@ -512,4 +512,75 @@ public final class Rs2Widget
 	{
 		return Global.sleepUntil(() -> hasVisibleWidgetText(text), timeout);
 	}
+
+	// ---- Actions (Claude 1): util-gap batch E ----
+
+	/** As upstream: {@code identifier}'s option on the widget with this packed id. */
+	public static void clickWidgetFast(int packetId, int identifier)
+	{
+		clickWidgetFast(getWidget(packetId), -1, identifier);
+	}
+
+	/**
+	 * As upstream: a {@code CC_OP} menu entry for {@code widget} (option {@code identifier}, child
+	 * {@code param0}, else the widget's type) sent through {@code Microbot.doInvoke}.
+	 */
+	public static void clickWidgetFast(Widget widget, int param0, int identifier)
+	{
+		if (widget == null)
+		{
+			return;
+		}
+		int[] read = MobileActions.read(() -> new int[]{widget.getId(), widget.getType(), widget.getItemId()}, null);
+		if (read == null)
+		{
+			return;
+		}
+		Microbot.doInvoke(new net.runelite.client.plugins.microbot.util.menu.NewMenuEntry()
+			.param0(param0 != -1 ? param0 : read[1])
+			.param1(read[0])
+			.opcode(net.runelite.api.MenuAction.CC_OP.getId())
+			.identifier(identifier)
+			.itemId(read[2])
+			.target(""), null);
+	}
+
+	/** As upstream: option 1 on {@code widget}'s child {@code param0}. */
+	public static void clickWidgetFast(Widget widget, int param0)
+	{
+		clickWidgetFast(widget, param0, 1);
+	}
+
+	/** As upstream: option 1 on {@code widget}. */
+	public static void clickWidgetFast(Widget widget)
+	{
+		clickWidgetFast(widget, -1, 1);
+	}
+
+	/**
+	 * As upstream: the widget with this text (exact or containing it) anywhere, or under
+	 * {@code widgetId}:{@code childId} when given; one script action.
+	 */
+	public static boolean clickWidget(String text, java.util.Optional<Integer> widgetId, int childId, boolean exact)
+	{
+		if (text == null || widgetId == null)
+		{
+			return false;
+		}
+		int[] target = MobileActions.read(() ->
+		{
+			Widget widget;
+			if (widgetId.isPresent())
+			{
+				Widget root = Microbot.getClient().getWidget(widgetId.get(), childId);
+				widget = root == null ? null : findOnClientThread(text, List.of(root), exact);
+			}
+			else
+			{
+				widget = findOnClientThread(text, null, exact);
+			}
+			return widget == null ? null : new int[]{widget.getId(), widget.getIndex()};
+		}, null);
+		return target != null && MobileActions.widget(target[0], target[1], "");
+	}
 }
