@@ -27,7 +27,8 @@ import net.runelite.client.plugins.microbot.api.MicrobotReadServices;
  * name follows upstream (impostor-resolved composition name with colour tags
  * stripped) but is resolved lazily on first use, on the client thread, and then
  * kept for the life of this snapshot. Adaptation: the model does not implement
- * {@link TileObject}; interaction and canvas helpers are not ported.
+ * {@link TileObject}; of the canvas helpers only the clickbox, tile outline and
+ * minimap point are provided.
  */
 public class Rs2TileObjectModel implements IEntity
 {
@@ -42,6 +43,7 @@ public class Rs2TileObjectModel implements IEntity
 	private final WorldPoint worldLocation;
 	private final LocalPoint localLocation;
 	private final WorldView worldView;
+	private final long hash;
 	private volatile boolean nameResolved;
 	private volatile String name;
 
@@ -57,6 +59,16 @@ public class Rs2TileObjectModel implements IEntity
 		this.worldView = tileObject.getWorldView();
 		this.worldLocation = worldLocationOf(tileObject, worldView);
 		this.localLocation = tileObject.getLocalLocation();
+		this.hash = tileObject.getHash();
+	}
+
+	/**
+	 * As upstream: a model of {@code gameObject}, for example from a {@code GameObjectSpawned}
+	 * event, with the installed read services; must be called on the client thread.
+	 */
+	public Rs2TileObjectModel(GameObject gameObject)
+	{
+		this(MicrobotReadServices.require(), gameObject);
 	}
 
 	static TileObjectType typeOf(TileObject tileObject)
@@ -206,5 +218,29 @@ public class Rs2TileObjectModel implements IEntity
 	public java.awt.Shape getClickbox()
 	{
 		return services.read(tileObject::getClickbox).orElse(null);
+	}
+
+	/** As upstream: the object's scene hash, captured with the snapshot. */
+	public long getHash()
+	{
+		return hash;
+	}
+
+	/**
+	 * As upstream: the object's point on the minimap, read now on the client thread; {@code null}
+	 * when it is off the minimap or the client thread cannot be reached.
+	 */
+	public Point getMinimapLocation()
+	{
+		return services.read(tileObject::getMinimapLocation).orElse(null);
+	}
+
+	/**
+	 * As upstream: the outline of the object's tile on the canvas, read now on the client thread;
+	 * {@code null} when it is off screen or the client thread cannot be reached.
+	 */
+	public java.awt.Polygon getCanvasTilePoly()
+	{
+		return services.read(tileObject::getCanvasTilePoly).orElse(null);
 	}
 }
