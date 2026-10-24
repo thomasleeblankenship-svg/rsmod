@@ -47,6 +47,11 @@ public final class Rs2Player
 	public static volatile int divineMagicTime = -1;
 	public static volatile int goadingTime = -1;
 	public static volatile int moonlightTime = -1;
+	/** Upstream's poison-varp readings: the varp when it is at or above the venom cutoff, else 0 / -1. */
+	public static volatile int antiVenomTime = -1;
+	public static volatile int antiPoisonTime = -1;
+	/** As upstream: poison-varp values below this mean venom immunity (anti-venom). */
+	static final int VENOM_VALUE_CUTOFF = -38;
 
 	private static final long COMBAT_TIMEOUT_MS = 10000;
 	private static volatile long lastCombatTime = 0;
@@ -96,6 +101,8 @@ public final class Rs2Player
 		divineMagicTime = -1;
 		goadingTime = -1;
 		moonlightTime = -1;
+		antiVenomTime = -1;
+		antiPoisonTime = -1;
 		lastCombatTime = 0;
 		playerDetectionTimes.clear();
 	}
@@ -449,8 +456,8 @@ public final class Rs2Player
 
 	/**
 	 * Event hook (client thread); routed by {@code MicrobotReadServices}. As upstream for the
-	 * varbit-backed potion timers; adaptation: the poison-varp (anti-poison/anti-venom) timers are
-	 * not tracked.
+	 * potion timers, including the poison varp behind {@link #hasAntiPoisonActive()} and
+	 * {@link #hasAntiVenomActive()}.
 	 */
 	public static void handlePotionTimers(net.runelite.api.events.VarbitChanged event)
 	{
@@ -492,6 +499,37 @@ public final class Rs2Player
 		{
 			divineMagicTime = value;
 		}
+		if (event.getVarpId() == net.runelite.api.VarPlayer.POISON)
+		{
+			antiVenomTime = value >= VENOM_VALUE_CUTOFF ? 0 : value;
+			antiPoisonTime = value == 0 ? -1 : value;
+		}
+	}
+
+	/**
+	 * As upstream: {@code antiPoisonTime > 0}. Note that a positive poison varp means the player is
+	 * <em>poisoned</em> (immunity is negative), so upstream's name reads inverted; kept as upstream.
+	 */
+	public static boolean hasAntiPoisonActive()
+	{
+		return antiPoisonTime > 0;
+	}
+
+	/** As upstream: wearing a serpentine helm, or the poison varp below the venom cutoff. */
+	public static boolean hasAntiVenomActive()
+	{
+		if (net.runelite.client.plugins.microbot.util.equipment.Rs2Equipment.isWearing("serpentine helm"))
+		{
+			return true;
+		}
+		return antiVenomTime < VENOM_VALUE_CUTOFF;
+	}
+
+	/** As upstream: the prayer regeneration potion timer varbit is running. */
+	public static boolean hasPrayerRegenerationActive()
+	{
+		return net.runelite.client.plugins.microbot.Microbot.getVarbitValue(
+			net.runelite.api.gameval.VarbitID.PRAYER_REGENERATION_POTION_TIMER) > 0;
 	}
 
 	public static boolean hasAntiFireActive()

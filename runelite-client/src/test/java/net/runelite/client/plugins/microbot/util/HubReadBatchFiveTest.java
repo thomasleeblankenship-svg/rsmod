@@ -154,6 +154,39 @@ public class HubReadBatchFiveTest
 		assertFalse(Rs2Player.hasMoonlightActive());
 	}
 
+	private void poisonVarp(int value)
+	{
+		VarbitChanged event = new VarbitChanged();
+		event.setVarpId(net.runelite.api.VarPlayer.POISON);
+		event.setValue(value);
+		onClientThread.set(true);
+		try { events.post(event); }
+		finally { onClientThread.set(false); }
+	}
+
+	@Test
+	public void poisonVarpDrivesUpstreamsAntiPoisonAndAntiVenomReads()
+	{
+		assertFalse(Rs2Player.hasAntiPoisonActive());
+		assertFalse(Rs2Player.hasAntiVenomActive());
+		poisonVarp(5);
+		assertTrue("upstream: a positive varp (poisoned) reads as active", Rs2Player.hasAntiPoisonActive());
+		assertFalse(Rs2Player.hasAntiVenomActive());
+		poisonVarp(-40);
+		assertTrue("below the venom cutoff", Rs2Player.hasAntiVenomActive());
+		assertFalse(Rs2Player.hasAntiPoisonActive());
+		poisonVarp(-38);
+		assertFalse("at the cutoff", Rs2Player.hasAntiVenomActive());
+		poisonVarp(0);
+		assertFalse(Rs2Player.hasAntiPoisonActive());
+		poisonVarp(-60);
+		Rs2Player.clear();
+		assertFalse(Rs2Player.hasAntiVenomActive());
+
+		when(client.getVarbitValue(net.runelite.api.gameval.VarbitID.PRAYER_REGENERATION_POTION_TIMER)).thenReturn(12);
+		assertTrue(Rs2Player.hasPrayerRegenerationActive());
+	}
+
 	@Test
 	public void boostChecksCompareAgainstTheRealLevelPlusThreshold()
 	{
