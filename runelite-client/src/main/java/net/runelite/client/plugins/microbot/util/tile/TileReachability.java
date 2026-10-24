@@ -1,6 +1,9 @@
 package net.runelite.client.plugins.microbot.util.tile;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import net.runelite.api.CollisionDataFlag;
 
 /**
@@ -196,5 +199,187 @@ final class TileReachability
 			}
 		}
 		return false;
+	}
+
+	// ---- Util action batch AF (Claude 1): upstream's scene path search ----
+
+	/** Upstream's route-finder masks: the flags on the entered tile that block a step in each direction. */
+	private static final int BLOCK_WEST = 19136776;
+	private static final int BLOCK_EAST = 19136896;
+	private static final int BLOCK_SOUTH = 19136770;
+	private static final int BLOCK_NORTH = 19136800;
+	private static final int BLOCK_SOUTH_WEST = 19136782;
+	private static final int BLOCK_NORTH_WEST = 19136824;
+	private static final int BLOCK_SOUTH_EAST = 19136899;
+	private static final int BLOCK_NORTH_EAST = 19136992;
+
+	/** Search window (tiles) centred on the start, as upstream. */
+	private static final int WINDOW = 128;
+	private static final int HALF_WINDOW = 64;
+
+	/**
+	 * Upstream {@code Rs2Tile.fullPathTo}'s search over scene collision flags: every scene tile from
+	 * the start to the target, both included, in walking order. When the target cannot be reached, the
+	 * path ends at the reachable tile nearest it within 10 tiles (upstream's fallback). Null when
+	 * neither exists. Each element is {@code {sceneX, sceneY}}.
+	 */
+	static List<int[]> scenePath(int[][] flags, int startX, int startY, int targetX, int targetY)
+	{
+		if (flags == null || !isWithinBounds(startX, startY))
+		{
+			return null;
+		}
+		int[][] directions = new int[WINDOW][WINDOW];
+		int[][] distances = new int[WINDOW][WINDOW];
+		for (int[] row : distances)
+		{
+			java.util.Arrays.fill(row, Integer.MAX_VALUE);
+		}
+		ArrayDeque<Integer> queue = new ArrayDeque<>();
+		directions[HALF_WINDOW][HALF_WINDOW] = 99;
+		distances[HALF_WINDOW][HALF_WINDOW] = 0;
+		queue.add((startX << 16) | startY);
+		int currentX = startX;
+		int currentY = startY;
+		boolean reached = false;
+		while (!queue.isEmpty())
+		{
+			int point = queue.poll();
+			currentX = point >> 16;
+			currentY = point & 0xFFFF;
+			if (currentX == targetX && currentY == targetY)
+			{
+				reached = true;
+				break;
+			}
+			int mapX = currentX - startX + HALF_WINDOW;
+			int mapY = currentY - startY + HALF_WINDOW;
+			int next = distances[mapX][mapY] + 1;
+			step(queue, flags, directions, distances, currentX, currentY, mapX, mapY, -1, 0, 2, next, BLOCK_WEST);
+			step(queue, flags, directions, distances, currentX, currentY, mapX, mapY, 1, 0, 8, next, BLOCK_EAST);
+			step(queue, flags, directions, distances, currentX, currentY, mapX, mapY, 0, -1, 1, next, BLOCK_SOUTH);
+			step(queue, flags, directions, distances, currentX, currentY, mapX, mapY, 0, 1, 4, next, BLOCK_NORTH);
+			diagonal(queue, flags, directions, distances, currentX, currentY, mapX, mapY, -1, -1, 3, next, BLOCK_SOUTH_WEST, BLOCK_WEST, BLOCK_SOUTH);
+			diagonal(queue, flags, directions, distances, currentX, currentY, mapX, mapY, -1, 1, 6, next, BLOCK_NORTH_WEST, BLOCK_WEST, BLOCK_NORTH);
+			diagonal(queue, flags, directions, distances, currentX, currentY, mapX, mapY, 1, -1, 9, next, BLOCK_SOUTH_EAST, BLOCK_EAST, BLOCK_SOUTH);
+			diagonal(queue, flags, directions, distances, currentX, currentY, mapX, mapY, 1, 1, 12, next, BLOCK_NORTH_EAST, BLOCK_EAST, BLOCK_NORTH);
+		}
+		if (!reached)
+		{
+			int[] nearest = nearestReached(distances, startX, startY, targetX, targetY);
+			if (nearest == null)
+			{
+				return null;
+			}
+			currentX = nearest[0];
+			currentY = nearest[1];
+		}
+		List<int[]> path = new ArrayList<>();
+		path.add(new int[]{currentX, currentY});
+		while (currentX != startX || currentY != startY)
+		{
+			int direction = directions[currentX - startX + HALF_WINDOW][currentY - startY + HALF_WINDOW];
+			if ((direction & 2) != 0)
+			{
+				++currentX;
+			}
+			else if ((direction & 8) != 0)
+			{
+				--currentX;
+			}
+			if ((direction & 1) != 0)
+			{
+				++currentY;
+			}
+			else if ((direction & 4) != 0)
+			{
+				--currentY;
+			}
+			path.add(new int[]{currentX, currentY});
+		}
+		Collections.reverse(path);
+		return path;
+	}
+
+	/**
+	 * Upstream {@code Rs2Tile.pathTo}'s checkpoints for a {@link #scenePath} result: the tiles where
+	 * the path turns, then its last tile, without the start, at most the first 25.
+	 */
+	static List<int[]> checkpoints(List<int[]> path)
+	{
+		if (path == null)
+		{
+			return null;
+		}
+		List<int[]> corners = new ArrayList<>();
+		int last = path.size() - 1;
+		for (int i = 1; i < last; i++)
+		{
+			int[] before = path.get(i - 1);
+			int[] here = path.get(i);
+			int[] after = path.get(i + 1);
+			if (here[0] - before[0] != after[0] - here[0] || here[1] - before[1] != after[1] - here[1])
+			{
+				corners.add(here);
+			}
+		}
+		corners.add(path.get(last));
+		return corners.size() > 25 ? new ArrayList<>(corners.subList(0, 25)) : corners;
+	}
+
+	private static void step(ArrayDeque<Integer> queue, int[][] flags, int[][] directions, int[][] distances,
+		int x, int y, int mapX, int mapY, int dx, int dy, int direction, int distance, int block)
+	{
+		int nx = x + dx;
+		int ny = y + dy;
+		int nmx = mapX + dx;
+		int nmy = mapY + dy;
+		if (nmx >= 0 && nmy >= 0 && nmx < WINDOW && nmy < WINDOW && isWithinBounds(nx, ny)
+			&& directions[nmx][nmy] == 0 && (flags[nx][ny] & block) == 0)
+		{
+			queue.add((nx << 16) | ny);
+			directions[nmx][nmy] = direction;
+			distances[nmx][nmy] = distance;
+		}
+	}
+
+	/** A diagonal step also needs both cardinal tiles it cuts past open (upstream's rule). */
+	private static void diagonal(ArrayDeque<Integer> queue, int[][] flags, int[][] directions, int[][] distances,
+		int x, int y, int mapX, int mapY, int dx, int dy, int direction, int distance, int block, int horizontalBlock, int verticalBlock)
+	{
+		int nx = x + dx;
+		int ny = y + dy;
+		if (isWithinBounds(nx, ny) && (flags[nx][y] & horizontalBlock) == 0 && (flags[x][ny] & verticalBlock) == 0)
+		{
+			step(queue, flags, directions, distances, x, y, mapX, mapY, dx, dy, direction, distance, block);
+		}
+	}
+
+	/** The searched tile within 10 of the target nearest it (then shortest path), as upstream; null when none. */
+	private static int[] nearestReached(int[][] distances, int startX, int startY, int targetX, int targetY)
+	{
+		int best = Integer.MAX_VALUE;
+		int bestLength = Integer.MAX_VALUE;
+		int[] nearest = null;
+		for (int x = targetX - 10; x <= targetX + 10; x++)
+		{
+			for (int y = targetY - 10; y <= targetY + 10; y++)
+			{
+				int mapX = x - startX + HALF_WINDOW;
+				int mapY = y - startY + HALF_WINDOW;
+				if (mapX < 0 || mapY < 0 || mapX >= WINDOW || mapY >= WINDOW || distances[mapX][mapY] >= 100)
+				{
+					continue;
+				}
+				int squared = (x - targetX) * (x - targetX) + (y - targetY) * (y - targetY);
+				if (squared < best || (squared == best && distances[mapX][mapY] < bestLength))
+				{
+					best = squared;
+					bestLength = distances[mapX][mapY];
+					nearest = new int[]{x, y};
+				}
+			}
+		}
+		return nearest;
 	}
 }
