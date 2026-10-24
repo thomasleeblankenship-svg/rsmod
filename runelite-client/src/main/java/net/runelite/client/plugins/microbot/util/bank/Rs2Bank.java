@@ -197,6 +197,83 @@ public final class Rs2Bank
 		return Rs2Inventory.emptySlotCount() > emptySlotCount && after != null && initialRs2PlayerLocation.distanceTo(after) <= within;
 	}
 
+	/**
+	 * As upstream (deprecated there): at the Grand Exchange, opens the bank, deposits everything and,
+	 * noted, withdraws all of each tradeable item {@code npcName}'s loot records hold, except food
+	 * (an "Eat" option) and {@code itemsToNotSell}; then closes the bank. True when anything was
+	 * withdrawn. The records come from {@link Microbot#getAggregateLootRecords()}, which is always
+	 * empty as upstream, so today this deposits and withdraws nothing.
+	 */
+	@Deprecated
+	public static boolean withdrawLootItems(String npcName, List<String> itemsToNotSell)
+	{
+		if (net.runelite.client.plugins.microbot.util.grandexchange.Rs2GrandExchange.walkToGrandExchange() && !openBank())
+		{
+			return false;
+		}
+		depositAll();
+		if (!setWithdrawAsNote())
+		{
+			return false;
+		}
+		boolean itemFound = false;
+		for (net.runelite.client.plugins.loottracker.LootTrackerRecord lootRecord : Microbot.getAggregateLootRecords())
+		{
+			if (lootRecord == null || !lootRecord.getTitle().equalsIgnoreCase(npcName) || lootRecord.getItems() == null)
+			{
+				continue;
+			}
+			for (net.runelite.client.plugins.loottracker.LootTrackerItem item : lootRecord.getItems())
+			{
+				if (itemsToNotSell != null && itemsToNotSell.stream().anyMatch(x -> x != null && x.trim().equalsIgnoreCase(item.getName())))
+				{
+					continue;
+				}
+				ItemComposition composition = definition(item.getId());
+				if (composition == null)
+				{
+					return false;
+				}
+				String[] actions = composition.getInventoryActions();
+				if (actions != null && Arrays.stream(actions).anyMatch(x -> x != null && x.equalsIgnoreCase("eat")))
+				{
+					continue;
+				}
+				int itemId = item.getId();
+				boolean isNoted = composition.getNote() == 799;
+				if (!composition.isTradeable() && !isNoted)
+				{
+					continue;
+				}
+				if (isNoted)
+				{
+					int unnoted = item.getId() - 1; // as upstream: the unnoted id
+					ItemComposition unnotedComposition = definition(unnoted);
+					if (unnotedComposition == null)
+					{
+						return false;
+					}
+					if (!unnotedComposition.isTradeable())
+					{
+						continue;
+					}
+					itemId = unnoted;
+				}
+				if (withdrawAll(itemId))
+				{
+					itemFound = true;
+				}
+			}
+		}
+		closeBank();
+		return itemFound;
+	}
+
+	private static ItemComposition definition(int id)
+	{
+		return MobileActions.read(() -> Microbot.getClient().getItemDefinition(id), null);
+	}
+
 	private static WorldPoint location()
 	{
 		return MobileActions.read(() -> Microbot.getClient().getLocalPlayer() == null ? null

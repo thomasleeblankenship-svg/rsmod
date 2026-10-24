@@ -173,6 +173,27 @@ public class Microbot {
         }
     }
 
+    /**
+     * As upstream, where it is deprecated in favour of {@code LootTrackerPlugin.getAggregateLootRecords()}
+     * and always empty: no aggregate loot records are kept here either.
+     */
+    @Deprecated
+    public static java.util.List<net.runelite.client.plugins.loottracker.LootTrackerRecord> getAggregateLootRecords() {
+        return new java.util.ArrayList<>();
+    }
+
+    /** As upstream (deprecated, always null): see {@link #getAggregateLootRecords()}. */
+    @Deprecated
+    public static net.runelite.client.plugins.loottracker.LootTrackerRecord getAggregateLootRecords(String npcName) {
+        return null;
+    }
+
+    /** As upstream (deprecated, always 0): see {@link #getAggregateLootRecords()}. */
+    @Deprecated
+    public static long getAggregateLootRecordsTotalGevalue(String npcName) {
+        return 0;
+    }
+
     private static volatile net.runelite.client.game.ItemManager itemManager;
 
     /** As upstream: RuneLite's item manager (prices, item compositions); bound by the mobile plugin. */
