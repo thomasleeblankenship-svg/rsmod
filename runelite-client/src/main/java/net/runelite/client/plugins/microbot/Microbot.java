@@ -263,6 +263,45 @@ public class Microbot {
                 .collect(java.util.stream.Collectors.toList());
     }
 
+    private static volatile net.runelite.client.ui.overlay.infobox.InfoBoxManager infoBoxManager;
+
+    /** As upstream: RuneLite's info box manager. Bound by the mobile plugin; null until then. */
+    public static net.runelite.client.ui.overlay.infobox.InfoBoxManager getInfoBoxManager() {
+        return infoBoxManager;
+    }
+
+    /** Binds the info box manager; called by the mobile plugin on install, cleared on uninstall. */
+    public static void bindInfoBoxManager(net.runelite.client.ui.overlay.infobox.InfoBoxManager value) {
+        infoBoxManager = value;
+    }
+
+    /** As upstream: the cache enum with this id, read on the client thread (null when it cannot be read). */
+    public static net.runelite.api.EnumComposition getEnum(int id) {
+        return MobileActions.read(() -> getClient().getEnum(id), null);
+    }
+
+    /** As upstream: the cache struct with this id, read on the client thread (null when it cannot be read). */
+    public static net.runelite.api.StructComposition getStructComposition(int structId) {
+        return MobileActions.read(() -> getClient().getStructComposition(structId), null);
+    }
+
+    /**
+     * As upstream: the standard "Ran out of supplies: item" message, with common prefixes and
+     * suffixes ("out of", "not found in bank", ...) stripped from the given supply text.
+     */
+    public static String supplyMessage(String supplies) {
+        String item = supplies == null ? "required supplies" : supplies.trim();
+        item = item.replaceFirst("(?i)^ran out of supplies:\\s*", "")
+                .replaceFirst("(?i)^(?:out of|missing|no|not enough|insufficient)\\s+", "")
+                .replaceFirst("(?i)\\s+(?:not found|found|missing)(?: (?:in|from) (?:the )?bank)?[.!]?$", "")
+                .replaceFirst("(?i)\\s+(?:remaining|in bank)[.!]?$", "")
+                .replaceFirst("[.!]+$", "");
+        if (item.isEmpty()) {
+            item = "required supplies";
+        }
+        return "Ran out of supplies: " + item;
+    }
+
     private static volatile net.runelite.client.input.MouseManager mouseManager;
 
     /** As upstream: RuneLite's mouse manager (overlay buttons register on it). Bound by the mobile plugin. */
@@ -482,6 +521,7 @@ public class Microbot {
         itemManager = null;
         notifier = null;
         mouseManager = null;
+        infoBoxManager = null;
         pauseAllScripts.set(false);
         status = "IDLE";
         isGainingExp = false;

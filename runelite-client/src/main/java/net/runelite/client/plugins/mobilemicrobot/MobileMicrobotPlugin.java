@@ -51,6 +51,7 @@ public class MobileMicrobotPlugin extends Plugin
 	@Inject private net.runelite.client.plugins.PluginManager pluginManager;
 	@Inject private net.runelite.client.Notifier notifier;
 	@Inject private net.runelite.client.input.MouseManager mouseManager;
+	@Inject private net.runelite.client.ui.overlay.infobox.InfoBoxManager infoBoxManager;
 	@Inject private net.runelite.client.game.WorldService worldService;
 	@Inject private net.runelite.client.game.ItemManager itemManager;
 
@@ -93,6 +94,7 @@ public class MobileMicrobotPlugin extends Plugin
 				runtimeInstalled = true;
 				net.runelite.client.plugins.microbot.Microbot.bindNotifier(notifier);
 				net.runelite.client.plugins.microbot.Microbot.bindMouseManager(mouseManager);
+				net.runelite.client.plugins.microbot.Microbot.bindInfoBoxManager(infoBoxManager);
 				net.runelite.client.plugins.microbot.util.walker.Rs2Walker.setUsePathfinder(config.usePathfinder());
 				setRun(false);
 				enabled = true;

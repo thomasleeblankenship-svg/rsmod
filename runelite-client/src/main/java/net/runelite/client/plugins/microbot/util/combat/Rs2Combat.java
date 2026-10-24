@@ -4,11 +4,23 @@ import net.runelite.api.VarPlayer;
 import net.runelite.client.plugins.microbot.Microbot;
 import net.runelite.client.plugins.microbot.mobile.MobileActions;
 import net.runelite.client.plugins.microbot.util.player.Rs2Player;
+import net.runelite.client.plugins.microbot.util.widget.Rs2Widget;
 
 /** Special-attack toggle with energy guard and state confirmation. */
 public final class Rs2Combat
 {
 	private Rs2Combat() { }
+	/**
+	 * As upstream: clicks the combat-tab attack style button {@code style} (for example
+	 * {@code WidgetInfo.COMBAT_STYLE_ONE}). False when the button is not loaded or the click
+	 * was not dispatched.
+	 */
+	@SuppressWarnings("deprecation")
+	public static boolean setAttackStyle(net.runelite.api.widgets.WidgetInfo style)
+	{
+		return style != null && Rs2Widget.getWidget(style.getId()) != null && Rs2Widget.clickWidget(style.getId());
+	}
+
 	public static boolean getSpecState()
 	{
 		return MobileActions.read(() -> Microbot.getClient().getVarpValue(VarPlayer.SPECIAL_ATTACK_ENABLED) == 1, false);
@@ -134,13 +146,13 @@ public final class Rs2Combat
 		if (!net.runelite.client.plugins.microbot.util.tabs.Rs2Tab.switchTo(net.runelite.client.plugins.microbot.globval.enums.InterfaceTab.COMBAT)
 			|| !net.runelite.client.plugins.microbot.util.Global.sleepUntil(() -> MobileActions.widget(box, -1, ""), 2_000)
 			|| !net.runelite.client.plugins.microbot.util.Global.sleepUntil(() ->
-				net.runelite.client.plugins.microbot.util.widget.Rs2Widget.isWidgetVisible(AUTOCAST_GROUP, AUTOCAST_CHILD), 3_000))
+				Rs2Widget.isWidgetVisible(AUTOCAST_GROUP, AUTOCAST_CHILD), 3_000))
 		{
 			return false;
 		}
-		net.runelite.api.widgets.Widget options = net.runelite.client.plugins.microbot.util.widget.Rs2Widget.getWidget(AUTOCAST_GROUP, AUTOCAST_CHILD);
+		net.runelite.api.widgets.Widget options = Rs2Widget.getWidget(AUTOCAST_GROUP, AUTOCAST_CHILD);
 		net.runelite.api.widgets.Widget spell = options == null ? null
-			: net.runelite.client.plugins.microbot.util.widget.Rs2Widget.findWidget(combatSpell.getMagicAction().getSprite(), java.util.List.of(options));
+			: Rs2Widget.findWidget(combatSpell.getMagicAction().getSprite(), java.util.List.of(options));
 		if (spell == null)
 		{
 			return false;

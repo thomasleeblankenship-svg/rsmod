@@ -24,6 +24,7 @@ import net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory;
 import net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel;
 import net.runelite.client.plugins.microbot.util.inventory.Rs2LogBasket;
 import net.runelite.client.plugins.microbot.util.walker.Rs2Walker;
+import net.runelite.client.plugins.microbot.util.widget.Rs2Widget;
 
 /**
  * Mobile bank workflow: live reads, bounded navigation, and observed item transfers. No cached-bank guesses.
@@ -156,6 +157,51 @@ public final class Rs2Bank
 		Rs2ItemModel sack = Rs2Inventory.items(i -> i.getId() == net.runelite.api.gameval.ItemID.SLAYER_HERB_SACK
 			|| i.getId() == net.runelite.api.gameval.ItemID.SLAYER_HERB_SACK_OPEN).findFirst().orElse(null);
 		return sack != null && Rs2Inventory.interact(sack, "Empty");
+	}
+
+	/** As upstream: "Empty" on a carried seed box (open or closed) into the bank. */
+	public static boolean emptySeedBox()
+	{
+		Rs2ItemModel box = Rs2Inventory.items(i -> i.getId() == net.runelite.api.gameval.ItemID.SEED_BOX
+			|| i.getId() == net.runelite.api.gameval.ItemID.SEED_BOX_OPEN).findFirst().orElse(null);
+		return box != null && Rs2Inventory.interact(box, "Empty");
+	}
+
+	/** The bank's looting bag view (15:6 "Deposit loot", 15:8 close, 15:11 the bag's items). */
+	private static final int LOOTING_BAG_DEPOSIT = 983046;
+	private static final int LOOTING_BAG_CLOSE = 983048;
+	private static final int LOOTING_BAG_ITEMS = 983051;
+
+	/**
+	 * As upstream: with the bank open and an open looting bag carried, "View" the bag, press
+	 * "Deposit loot", wait for the view to empty, then close it. Each step is one dispatch, and
+	 * every wait is bounded.
+	 */
+	public static boolean depositLootingBag()
+	{
+		if (!Rs2Inventory.contains(net.runelite.api.gameval.ItemID.LOOTING_BAG_OPEN) || !isOpen())
+		{
+			return false;
+		}
+		if (!Rs2Inventory.interact(net.runelite.api.gameval.ItemID.LOOTING_BAG_OPEN, "View")
+			|| !Rs2Inventory.waitFor(() -> Rs2Widget.getWidget(LOOTING_BAG_DEPOSIT) != null, 3_000)
+			|| !Rs2Widget.clickWidget(LOOTING_BAG_DEPOSIT))
+		{
+			return false;
+		}
+		Rs2Inventory.waitFor(Rs2Bank::isLootingBagViewEmpty, 1_000);
+		return Rs2Widget.clickWidget(LOOTING_BAG_CLOSE);
+	}
+
+	/** True when the looting bag view shows no items (or is not open). */
+	static boolean isLootingBagViewEmpty()
+	{
+		return MobileActions.read(() ->
+		{
+			Widget items = Microbot.getClient().getWidget(LOOTING_BAG_ITEMS);
+			Widget[] children = items == null ? null : items.getChildren();
+			return children == null || children.length == 0 || children[0] == null;
+		}, true);
 	}
 
 	/** The bank side inventory (15:3), whose slots carry "Lock-slot" / "Unlock-slot" when locking is on. */
@@ -1149,7 +1195,7 @@ public final class Rs2Bank
 	/** As upstream: the bank PIN keypad is showing. */
 	public static boolean isBankPinWidgetVisible()
 	{
-		return net.runelite.client.plugins.microbot.util.widget.Rs2Widget.isWidgetVisible(net.runelite.api.widgets.ComponentID.BANK_PIN_CONTAINER);
+		return Rs2Widget.isWidgetVisible(net.runelite.api.widgets.ComponentID.BANK_PIN_CONTAINER);
 	}
 
 	/** As upstream: the remembered bank holds a rune pouch of any type. */
