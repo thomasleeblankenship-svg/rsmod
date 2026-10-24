@@ -7,7 +7,15 @@ import com.google.gson.JsonObject;
 public final class MobileScriptBridge
 {
 	private static volatile MobileMicrobotPlugin plugin;
-	private static volatile String status = "Not initialized";
+	/** Shown while the Microbot Mobile plugin is off; the Microbot screen's Start turns it on. */
+	static final String OFF_STATUS = "Microbot Mobile is off - Start turns it on";
+
+	private static volatile String status = OFF_STATUS;
+	// A Start requested while the plugin was off; run once the plugin attaches (see startPending), but only
+	// within PENDING_START_MILLIS so a later manual enable never starts a script by itself.
+	static final long PENDING_START_MILLIS = 15_000;
+	private static volatile String pendingStart;
+	private static volatile long pendingStartAt;
 	private static volatile String selected = "";
 	private static volatile boolean running;
 
@@ -25,7 +33,8 @@ public final class MobileScriptBridge
 		if (plugin == value)
 		{
 			plugin = null;
-			update("Disabled", "", false);
+			pendingStart = null;
+			update(OFF_STATUS, "", false);
 		}
 	}
 
@@ -76,10 +85,40 @@ public final class MobileScriptBridge
 		return array.toString();
 	}
 
-	public static void start(String kind)
+	/**
+	 * Starts script {@code kind}. While the plugin is off the request is kept and run by
+	 * {@link #startPending()} once the plugin has started.
+	 *
+	 * @return false when the plugin is off, so the caller should turn it on
+	 */
+	public static boolean start(String kind)
 	{
 		MobileMicrobotPlugin current = plugin;
 		if (current != null)
+		{
+			current.requestStart(kind);
+			return true;
+		}
+		pendingStartAt = System.currentTimeMillis();
+		pendingStart = kind;
+		update("Turning on Microbot Mobile...", "", false);
+		return false;
+	}
+
+	/** Test hook: ages a queued Start by {@code millis}. */
+	static void agePendingStartForTest(long millis)
+	{
+		pendingStartAt -= millis;
+	}
+
+	/** Runs a Start that arrived while the plugin was off; called by the plugin once its runtime is installed. */
+	static void startPending()
+	{
+		MobileMicrobotPlugin current = plugin;
+		String kind = pendingStart;
+		pendingStart = null;
+		boolean fresh = System.currentTimeMillis() - pendingStartAt <= PENDING_START_MILLIS;
+		if (current != null && kind != null && fresh)
 		{
 			current.requestStart(kind);
 		}
@@ -87,6 +126,7 @@ public final class MobileScriptBridge
 
 	public static void stop()
 	{
+		pendingStart = null;
 		MobileMicrobotPlugin current = plugin;
 		if (current != null)
 		{

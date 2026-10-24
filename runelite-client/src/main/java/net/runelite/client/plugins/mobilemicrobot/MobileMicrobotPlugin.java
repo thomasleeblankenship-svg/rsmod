@@ -113,6 +113,8 @@ public class MobileMicrobotPlugin extends Plugin
 				}
 				MobileScriptBridge.attach(this);
 				MobileScriptBridge.update("Choose a script and enable Run script", "", false);
+				// The Microbot screen's Start turns this plugin on when it is off; run that start now.
+				MobileScriptBridge.startPending();
 			}
 			catch (RuntimeException exception)
 			{
