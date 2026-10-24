@@ -263,6 +263,18 @@ public class Microbot {
                 .collect(java.util.stream.Collectors.toList());
     }
 
+    private static volatile net.runelite.client.input.MouseManager mouseManager;
+
+    /** As upstream: RuneLite's mouse manager (overlay buttons register on it). Bound by the mobile plugin. */
+    public static net.runelite.client.input.MouseManager getMouseManager() {
+        return mouseManager;
+    }
+
+    /** Binds the mouse manager; called by the mobile plugin on install, cleared on uninstall. */
+    public static void bindMouseManager(net.runelite.client.input.MouseManager value) {
+        mouseManager = value;
+    }
+
     private static volatile net.runelite.client.Notifier notifier;
 
     /**
@@ -469,6 +481,7 @@ public class Microbot {
         worldService = null;
         itemManager = null;
         notifier = null;
+        mouseManager = null;
         pauseAllScripts.set(false);
         status = "IDLE";
         isGainingExp = false;

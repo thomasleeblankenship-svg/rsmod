@@ -1,8 +1,8 @@
 /*
  * Copied from chsami/Microbot a2114401bbbc35e9762db9e8aa666d70ffcd24d8,
  * runelite-client/src/main/java/net/runelite/client/plugins/microbot/util/magic/thralls/Rs2Thrall.java.
- * BSD 2-Clause License; see LICENSE. Mobile adaptation: cast(Rs2Thrall) is not included; it belongs
- * with the actions.
+ * BSD 2-Clause License; see LICENSE. Mobile adaptation: cast(Rs2Thrall) dispatches through
+ * Rs2Magic.cast, one action per tick.
  */
 package net.runelite.client.plugins.microbot.util.magic.thralls;
 
@@ -109,6 +109,12 @@ public enum Rs2Thrall implements Spell
 	public boolean hasRequirements()
 	{
 		return (Rs2Inventory.hasItem(ItemID.BOOK_OF_THE_DEAD) || Rs2Equipment.isWearing(ItemID.BOOK_OF_THE_DEAD)) && Spell.super.hasRequirements();
+	}
+
+	/** As upstream: casts this thrall when it can be cast now (spellbook, level, runes, cooldown). */
+	public static boolean cast(Rs2Thrall rs2Thrall)
+	{
+		return canCast(rs2Thrall) && Rs2Magic.cast(rs2Thrall);
 	}
 
 	/**

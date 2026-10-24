@@ -141,8 +141,9 @@ public class AgilityPlugin extends Plugin
 	@Getter
 	private int agilityLevel;
 
-	@Getter(AccessLevel.PACKAGE)
-	private Tile stickTile;
+	// As upstream Microbot: static with a public getter, so Hub agility scripts can read it.
+	@Getter
+	private static Tile stickTile;
 
 	@Provides
 	AgilityConfig getConfig(ConfigManager configManager)
