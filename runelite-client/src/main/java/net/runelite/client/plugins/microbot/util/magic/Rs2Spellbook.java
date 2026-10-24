@@ -1,14 +1,19 @@
 /*
  * Copied from chsami/Microbot a2114401bbbc35e9762db9e8aa666d70ffcd24d8,
  * runelite-client/src/main/java/net/runelite/client/plugins/microbot/util/magic/Rs2Spellbook.java.
- * BSD 2-Clause License; see LICENSE. Mobile adaptation: switching (switchTo, switchViaNpc, altar/Tyss and POH lookups)
- * is not included; it belongs with the actions.
+ * BSD 2-Clause License; see LICENSE. Mobile adaptation: switchTo and switchViaNpc wait
+ * on the observed spellbook; the unfinished magic-cape and POH switches are not included.
  */
 package net.runelite.client.plugins.microbot.util.magic;
 
 
 
 import lombok.Getter;
+import net.runelite.api.GameObject;
+import net.runelite.client.plugins.microbot.util.Global;
+import net.runelite.client.plugins.microbot.util.dialogues.Rs2Dialogue;
+import net.runelite.client.plugins.microbot.util.gameobject.Rs2GameObject;
+import net.runelite.client.plugins.microbot.util.npc.Rs2Npc;
 import net.runelite.api.Quest;
 import net.runelite.api.QuestState;
 import net.runelite.api.coords.WorldPoint;
@@ -171,5 +176,99 @@ public enum Rs2Spellbook {
             default:
                 return false;
         }
+    }
+
+    // ---- switching (actions) ----
+
+    /** As upstream: altars are searched for within this many tiles of the player. */
+    private static final int ALTAR_SEARCH_RADIUS = 10;
+
+    /**
+     * As upstream: switches to this spellbook where the player already stands (it does not walk):
+     * Ancient and Lunar by praying at their altar, Arceuus by talking to Tyss, and Modern through
+     * the altar of the current book (Tyss when leaving Arceuus). True when already on it or when
+     * the switch is observed.
+     */
+    public boolean switchTo() {
+        if (!isUnlocked()) {
+            Microbot.log("Cannot switch to " + this.name() + " spellbook - not unlocked");
+            return false;
+        }
+        Rs2Spellbook current = getCurrentSpellbook();
+        if (current == this) {
+            return true;
+        }
+        switch (this) {
+            case MODERN:
+                return current == ARCEUUS ? switchViaNpc() : switchViaAltar();
+            case ANCIENT:
+            case LUNAR:
+                return switchLocation != null && switchViaAltar();
+            case ARCEUUS:
+                return switchLocation != null && switchViaNpc();
+            default:
+                return false;
+        }
+    }
+
+    /** As upstream: prays at the matching altar within reach, then waits for the book to change. */
+    private boolean switchViaAltar() {
+        WorldPoint playerLocation = Rs2Player.getWorldLocation();
+        Rs2Spellbook altarBook = this;
+        if (this == MODERN) {
+            Rs2Spellbook current = getCurrentSpellbook();
+            if (current == ANCIENT || current == LUNAR) {
+                altarBook = current;
+            } else if (current == ARCEUUS) {
+                if (!Rs2GameObject.getGameObjects(o -> java.util.Objects.equals(ANCIENT.getGameID(), o.getId()), ALTAR_SEARCH_RADIUS).isEmpty()) {
+                    altarBook = ANCIENT;
+                } else if (!Rs2GameObject.getGameObjects(o -> java.util.Objects.equals(LUNAR.getGameID(), o.getId()), ALTAR_SEARCH_RADIUS).isEmpty()) {
+                    altarBook = LUNAR;
+                } else {
+                    Microbot.log("No suitable altar found to switch from Arceuus to Modern spellbook");
+                    return false;
+                }
+            } else {
+                return true;
+            }
+        }
+        Integer altarId = altarBook.getGameID();
+        if (altarId == null || altarId == -1 || altarBook.getSwitchLocation() == null || playerLocation == null
+            || playerLocation.distanceTo(altarBook.getSwitchLocation()) >= ALTAR_SEARCH_RADIUS) {
+            Microbot.log("Not at the " + altarBook.name() + " spellbook altar");
+            return false;
+        }
+        GameObject altar = Rs2GameObject.getGameObjects(o -> altarId.equals(o.getId()), ALTAR_SEARCH_RADIUS).stream()
+            .findFirst().orElse(null);
+        if (altar == null || !Rs2GameObject.interact(altar, "Pray")) {
+            return false;
+        }
+        Rs2Player.waitForAnimation();
+        return Global.sleepUntil(() -> getCurrentSpellbook() == this, 5000);
+    }
+
+    /**
+     * As upstream: talks to Tyss to switch between Arceuus and Modern ("Spellbook", continue, then
+     * the option for the other book). Only from Arceuus or Modern.
+     */
+    public static boolean switchViaNpc() {
+        String option;
+        switch (getCurrentSpellbook()) {
+            case ARCEUUS:
+                option = "I'd like to stop using your spellbook now.";
+                break;
+            case MODERN:
+                option = "Can I try the magicks myself?";
+                break;
+            default:
+                Microbot.log("Tyss NPC switching not supported for current spellbook: " + getCurrentSpellbook());
+                return false;
+        }
+        return Rs2Npc.interact("Tyss", "Spellbook")
+            && Rs2Dialogue.sleepUntilHasContinue()
+            && Rs2Dialogue.clickContinue()
+            && Rs2Dialogue.sleepUntilSelectAnOption()
+            && Rs2Dialogue.clickOption(option)
+            && Rs2Dialogue.sleepUntilHasContinue();
     }
 }

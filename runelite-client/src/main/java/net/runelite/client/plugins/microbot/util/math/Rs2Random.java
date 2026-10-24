@@ -10,10 +10,13 @@ import net.runelite.client.plugins.microbot.util.Global;
  * detection-avoidance guarantee.
  * <p>
  * The samplers ({@code between}, {@code betweenInclusive}, {@code randomGaussian},
- * {@code nextInt}, {@code dice*}) follow chsami/Microbot {@code util/math/Rs2Random.java} at
- * {@code a2114401bbbc35e9762db9e8aa666d70ffcd24d8} (BSD 2-Clause). Waits are mobile: bounded,
- * cancellable, never on the client thread. Not ported: the skewed {@code EWaitDir} waits,
- * mouse-point randomisation and the other anti-ban distributions.
+ * {@code nextInt}, {@code dice*}, {@code gaussRand}, {@code truncatedGauss},
+ * {@code logNormalBounded}, {@code fancyNormalSample}, {@code truncatedNormalSample}) follow
+ * chsami/Microbot {@code util/math/Rs2Random.java} at
+ * {@code a2114401bbbc35e9762db9e8aa666d70ffcd24d8} (BSD 2-Clause); they only return numbers
+ * (scripts use them for thresholds and wait lengths) and move no input. Waits are mobile: bounded,
+ * cancellable, never on the client thread. Not ported: the skewed {@code EWaitDir} waits and
+ * mouse-point randomisation.
  */
 public final class Rs2Random
 {
@@ -73,6 +76,113 @@ public final class Rs2Random
 			raw = Math.pow(raw, skewFactor);
 		}
 		return (int) Math.round(min + raw * (max - min));
+	}
+
+	/** Upstream's default cutoff (in standard deviations) for {@link #truncatedGauss}. */
+	private static final double GAUSS_CUTOFF = 4;
+
+	/** As upstream: a uniform double in {@code (0, 1)}, never exactly zero. */
+	public static double nzRandom()
+	{
+		return Math.max(ThreadLocalRandom.current().nextDouble(), 1.0e-320);
+	}
+
+	/** As upstream: a normal sample with this mean and standard deviation (Box-Muller). */
+	public static double gaussRand(double mean, double dev)
+	{
+		double len = dev * Math.sqrt(-2 * Math.log(nzRandom()));
+		return mean + len * Math.cos(2 * Math.PI * ThreadLocalRandom.current().nextDouble());
+	}
+
+	/**
+	 * As upstream: a half-normal sample scaled into {@code [left, right)}, its tail cut at
+	 * {@code cutoff} deviations (4 when {@code cutoff <= 0}), so values cluster near {@code left}.
+	 */
+	public static double truncatedGauss(double left, double right, double cutoff)
+	{
+		double limit = cutoff <= 0 ? GAUSS_CUTOFF : cutoff;
+		double result;
+		do
+		{
+			result = Math.abs(Math.sqrt(-2 * Math.log(nzRandom())) * Math.cos(2 * Math.PI * ThreadLocalRandom.current().nextDouble()));
+		}
+		while (result >= limit);
+		return result / limit * (right - left) + left;
+	}
+
+	/** As upstream: {@link #truncatedGauss(double, double, double)} rounded. */
+	public static long truncatedGauss(long left, long right, double cutoff)
+	{
+		return Math.round(truncatedGauss((double) left, (double) right, cutoff));
+	}
+
+	/**
+	 * As upstream: a right-skewed log-normal sample in {@code [min, max]}, its median the geometric
+	 * mean of the bounds and about 95% of samples inside before the tails are clamped.
+	 */
+	public static int logNormalBounded(int min, int max)
+	{
+		if (max <= min)
+		{
+			return Math.max(min, max);
+		}
+		int low = Math.max(1, min);
+		double logMin = Math.log(low);
+		double logMax = Math.log(max);
+		double mu = (logMin + logMax) / 2.0;
+		double sigma = (logMax - logMin) / 3.92;
+		double sample = Math.exp(mu + sigma * ThreadLocalRandom.current().nextGaussian());
+		if (sample < low)
+		{
+			return low;
+		}
+		return sample > max ? max : (int) sample;
+	}
+
+	/**
+	 * As upstream: a truncated normal sample in the range around one of two means (at 33% and 66%
+	 * of it), the lower picked with probability 0.8.
+	 */
+	public static double fancyNormalSample(double lowerBound, double upperBound)
+	{
+		double mean = ThreadLocalRandom.current().nextDouble() < 0.8
+			? lowerBound + (upperBound - lowerBound) * 0.33
+			: lowerBound + (upperBound - lowerBound) * 0.66;
+		return truncatedNormalSample(lowerBound, upperBound, mean, null);
+	}
+
+	/** As upstream: {@link #fancyNormalSample(double, double)} rounded and kept inside the bounds. */
+	public static int fancyNormalSample(int lowerBound, int upperBound)
+	{
+		double value = fancyNormalSample((double) lowerBound, (double) upperBound);
+		return (int) Math.max(lowerBound, Math.min(upperBound, Math.round(value)));
+	}
+
+	/**
+	 * As upstream: a normal sample (mean the midpoint and deviation a ninth of the range when null)
+	 * redrawn until it falls inside {@code [lowerBound, upperBound]}. An empty or reversed range
+	 * returns {@code lowerBound}.
+	 */
+	public static double truncatedNormalSample(double lowerBound, double upperBound, Double mean, Double std)
+	{
+		if (!(upperBound > lowerBound))
+		{
+			return lowerBound;
+		}
+		double centre = mean == null ? (lowerBound + upperBound) / 2 : mean;
+		double deviation = std == null ? (upperBound - lowerBound) / 9 : std;
+		if (!(deviation > 0))
+		{
+			return Math.max(lowerBound, Math.min(upperBound, centre));
+		}
+		while (true)
+		{
+			double sample = centre + deviation * ThreadLocalRandom.current().nextGaussian();
+			if (sample >= lowerBound && sample <= upperBound)
+			{
+				return sample;
+			}
+		}
 	}
 
 	public static boolean diceFractional(double fractionalChance)
