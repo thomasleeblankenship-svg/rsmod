@@ -26,7 +26,8 @@ public enum ScriptKind
 	F2P_GE_FIREMAKER("F2P: GE Firemaker", hub("gefiremaker.GEFiremakerPlugin", "GEFiremaker")),
 	F2P_MUSEUM_CLEANER("F2P: Varrock Museum Cleaner", hub("varrockcleaner.VarrockCleanerPlugin", "varrockmuseum")),
 	F2P_FISHING("F2P: Auto Fishing", hub("autofishing.AutoFishingPlugin", "AutoFishing")),
-	F2P_BANK_SELLER("F2P: Bank Seller (GE)", hub("bankseller.BankSellerPlugin", "bankseller"));
+	F2P_BANK_SELLER("F2P: Bank Seller (GE)", hub("bankseller.BankSellerPlugin", "bankseller")),
+	TUTORIAL_ISLAND("Tutorial Island", hub("tutorialisland.TutorialIslandPlugin", "MicroTutIsland"));
 
 	private static final String HUB_PACKAGE = "net.runelite.client.plugins.microbot.";
 

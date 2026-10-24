@@ -147,7 +147,8 @@ public class HubPortedPluginsTest
 		"net.runelite.client.plugins.microbot.ourania.OuraniaPlugin",
 		"net.runelite.client.plugins.microbot.tempoross.TemporossPlugin",
 		"net.runelite.client.plugins.microbot.herbrun.HerbrunPlugin",
-		"net.runelite.client.plugins.microbot.mahoganyhomez.MahoganyHomesPlugin");
+		"net.runelite.client.plugins.microbot.mahoganyhomez.MahoganyHomesPlugin",
+		"net.runelite.client.plugins.microbot.tutorialisland.TutorialIslandPlugin");
 
 	private static Plugin instance(String name) throws Exception
 	{
