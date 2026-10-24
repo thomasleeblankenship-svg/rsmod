@@ -91,7 +91,7 @@ public final class Rs2Shop
 		{
 			return true;
 		}
-		Rs2NpcModel npc = getNearestShopNpc(npcName, exact);
+		Rs2NpcModel npc = nearestShopNpc(npcName, exact);
 		return npc != null && Global.sleepUntil(() -> MobileActions.npcAt(npc.getId(), npc.getIndex(), "Trade"), 2_000)
 			&& Global.sleepUntil(Rs2Shop::isOpen, 5_000);
 	}
@@ -101,8 +101,17 @@ public final class Rs2Shop
 		return openShop(npcName, false);
 	}
 
-	/** As upstream: the nearest NPC with this name (exact, or containing it, ignoring case) offering "Trade". */
-	public static Rs2NpcModel getNearestShopNpc(String npcName, boolean exact)
+	/**
+	 * As upstream: the nearest NPC with this name (exact, or containing it, ignoring case) offering
+	 * "Trade", as upstream's legacy {@code util/npc/Rs2NpcModel}.
+	 */
+	public static net.runelite.client.plugins.microbot.util.npc.Rs2NpcModel getNearestShopNpc(String npcName, boolean exact)
+	{
+		Rs2NpcModel npc = nearestShopNpc(npcName, exact);
+		return npc == null || npc.getNpc() == null ? null : new net.runelite.client.plugins.microbot.util.npc.Rs2NpcModel(npc.getNpc());
+	}
+
+	private static Rs2NpcModel nearestShopNpc(String npcName, boolean exact)
 	{
 		if (npcName == null || Microbot.getRs2NpcCache() == null)
 		{
@@ -130,7 +139,7 @@ public final class Rs2Shop
 			.orElse(null);
 	}
 
-	public static Rs2NpcModel getNearestShopNpc(String npcName)
+	public static net.runelite.client.plugins.microbot.util.npc.Rs2NpcModel getNearestShopNpc(String npcName)
 	{
 		return getNearestShopNpc(npcName, false);
 	}

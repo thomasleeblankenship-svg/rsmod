@@ -199,4 +199,30 @@ public final class Rs2Npc
 		return composition != null && composition.getActions() != null
 			&& java.util.Arrays.asList(composition.getActions()).contains("Bank");
 	}
+
+	// ---- Actions (Claude 1). Claude 2's reads above are unchanged. ----
+
+	/**
+	 * As upstream: {@code action} on this NPC (its exact menu option, matched case-insensitively),
+	 * as one script action on the NPC's index; tried for at most 1.2 s while another action holds
+	 * the tick. Mobile: no "can't reach" recovery here; walks that need doors go through the walker.
+	 */
+	public static boolean interact(Rs2NpcModel npc, String action)
+	{
+		if (npc == null || action == null || action.isBlank())
+		{
+			return false;
+		}
+		Microbot.status = action + " " + npc.getName();
+		int id = npc.getId();
+		int index = npc.getIndex();
+		return MobileActions.npcAt(id, index, action)
+			|| net.runelite.client.plugins.microbot.util.Global.sleepUntil(() -> MobileActions.npcAt(id, index, action), 1_200);
+	}
+
+	/** As upstream (deprecated there): {@link #interact(Rs2NpcModel, String)} on a raw NPC. */
+	public static boolean interact(NPC npc, String action)
+	{
+		return npc != null && interact(new Rs2NpcModel(npc), action);
+	}
 }

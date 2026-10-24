@@ -45,6 +45,24 @@ public final class Rs2DepositBox
 		return depositAll(item -> wanted.contains(item.getId()));
 	}
 
+	/** As upstream: deposits every stack whose name contains one of {@code names} (ignoring case). */
+	public static boolean depositAll(List<String> names)
+	{
+		return depositAll(names, false);
+	}
+
+	/** As upstream: deposits every stack named in {@code names}, exactly or by containment (ignoring case). */
+	public static boolean depositAll(List<String> names, boolean exact)
+	{
+		if (names == null || names.isEmpty())
+		{
+			return false;
+		}
+		return depositAll(item -> item.getName() != null && names.stream().filter(java.util.Objects::nonNull).anyMatch(name -> exact
+			? item.getName().equalsIgnoreCase(name)
+			: item.getName().toLowerCase(java.util.Locale.ROOT).contains(name.toLowerCase(java.util.Locale.ROOT))));
+	}
+
 	/** As upstream: deposits every stack matching {@code predicate}; true when at least one was deposited. */
 	public static boolean depositAll(Predicate<Rs2ItemModel> predicate)
 	{
