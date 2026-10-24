@@ -35,6 +35,18 @@ public final class Rs2Tab
 	}
 
 	/** As upstream: true once {@code tab} is open (waits up to 2 seconds). */
+	/** As upstream (deprecated there): {@code switchTo(InterfaceTab.EMOTES)}. */
+	public static boolean switchToEmotesTab()
+	{
+		return switchTo(InterfaceTab.EMOTES);
+	}
+
+	/** As upstream (deprecated there): {@code switchTo(InterfaceTab.MUSIC)}. */
+	public static boolean switchToMusicTab()
+	{
+		return switchTo(InterfaceTab.MUSIC);
+	}
+
 	public static boolean switchTo(InterfaceTab tab)
 	{
 		if (tab == null) { return false; }

@@ -337,6 +337,38 @@ public final class Rs2Dialogue
 
 	// ---- Actions (Claude 1): util-gap batch C ----
 
+	/**
+	 * As upstream: picks the option Quest Helper marks (its text starts with "[") by pressing that
+	 * option's number. False when no option is marked or the press was not sent.
+	 */
+	public static boolean handleQuestOptionDialogueSelection()
+	{
+		if (!hasSelectAnOption())
+		{
+			return false;
+		}
+		int marked = MobileActions.read(() ->
+		{
+			net.runelite.api.widgets.Widget menu = Microbot.getClient().getWidget(net.runelite.api.widgets.ComponentID.DIALOG_OPTION_OPTIONS);
+			net.runelite.api.widgets.Widget[] rows = menu == null || menu.isHidden() ? null : menu.getDynamicChildren();
+			int number = 0;
+			for (int i = 1; rows != null && i < rows.length; i++)
+			{
+				if (rows[i] == null || rows[i].isHidden() || rows[i].getText() == null || rows[i].getText().isBlank())
+				{
+					continue;
+				}
+				number++;
+				if (rows[i].getText().startsWith("["))
+				{
+					return number;
+				}
+			}
+			return 0;
+		}, 0);
+		return marked > 0 && keyPressForDialogueOption(marked);
+	}
+
 	/** As upstream: presses the number key of the shown option at {@code index} (from 1). */
 	public static boolean keyPressForDialogueOption(int index)
 	{

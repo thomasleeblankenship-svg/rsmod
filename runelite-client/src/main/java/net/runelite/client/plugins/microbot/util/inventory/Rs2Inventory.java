@@ -837,13 +837,37 @@ public final class Rs2Inventory
 
 	public static int dropAmount(String name, int amount, InteractOrder order)
 	{
+		return dropAmount(name, amount, order, false);
+	}
+
+	/** As upstream: drops up to {@code amount} items named {@code name} (exactly, or containing it), in {@code order}; the count dropped. */
+	public static int dropAmount(String name, int amount, InteractOrder order, boolean exact)
+	{
+		return dropUpTo(i -> !isProtectedAxe(i.getId(), i.getName()) && matches(i.getName(), name, exact), amount, order);
+	}
+
+	/** As upstream: drops up to {@code amount} items with this ID, in {@code order}; the count dropped. */
+	public static int dropAmount(int itemId, int amount, InteractOrder order)
+	{
+		return dropUpTo(i -> i.getId() == itemId && !isProtectedAxe(i.getId(), i.getName()), amount, order);
+	}
+
+	private static int dropUpTo(Predicate<Rs2ItemModel> filter, int amount, InteractOrder order)
+	{
 		int dropped = 0;
-		for (Rs2ItemModel item : ordered(getList(i -> !isProtectedAxe(i.getId(), i.getName()) && matches(i.getName(), name, false)), order))
+		for (Rs2ItemModel item : ordered(getList(filter), order))
 		{
 			if (dropped >= Math.max(0, amount) || !dropSlot(item)) break;
 			dropped++;
 		}
 		return dropped;
+	}
+
+	/** As upstream: drops the first item named {@code name}, exactly or containing it. */
+	public static boolean drop(String name, boolean exact)
+	{
+		Rs2ItemModel item = items(i -> matches(i.getName(), name, exact)).findFirst().orElse(null);
+		return item != null && dropSlot(item);
 	}
 
 	private static boolean dropSlot(Rs2ItemModel item)

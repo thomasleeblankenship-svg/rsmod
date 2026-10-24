@@ -41,14 +41,33 @@ public final class Rs2Keyboard
 	/** As upstream: holds {@code key} down until {@link #keyRelease(int)} (camera arrows, Space). */
 	public static void keyHold(int key)
 	{
-		Global.sleepUntil(() -> MobileActions.keyHold(key), KEY_TIMEOUT_MILLIS);
+		if (Global.sleepUntil(() -> MobileActions.keyHold(key), KEY_TIMEOUT_MILLIS))
+		{
+			HELD_KEYS.add(key);
+		}
 	}
 
 	/** As upstream: releases a key this script holds; nothing when it holds none. */
 	public static void keyRelease(int key)
 	{
+		HELD_KEYS.remove(key);
 		MobileActions.keyRelease(key);
 	}
+
+	/** As upstream: releases every key held through {@link #keyHold(int)}. Safe to call repeatedly. */
+	public static void releaseHeldKeys()
+	{
+		for (Integer key : new java.util.ArrayList<>(HELD_KEYS))
+		{
+			if (HELD_KEYS.remove(key))
+			{
+				MobileActions.keyRelease(key);
+			}
+		}
+	}
+
+	/** Keys this script holds through {@link #keyHold(int)} (the bridge also releases them when the script stops). */
+	private static final java.util.Set<Integer> HELD_KEYS = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
 	public static boolean enter()
 	{

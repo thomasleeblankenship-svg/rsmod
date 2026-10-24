@@ -647,6 +647,10 @@ public final class Rs2Bank
 	public static boolean withdrawOne(int id) { return withdrawStack(findBankStack(id), "Withdraw-1"); }
 	/** As upstream: withdraws all but one of the stack with this id ("Withdraw-All-but-1"). */
 	public static boolean withdrawAllButOne(int id) { return withdrawStack(findBankStack(id), "Withdraw-All-but-1"); }
+	/** As upstream: all but one of the item whose name contains {@code name}. */
+	public static boolean withdrawAllButOne(String name) { return withdrawAllButOne(name, false); }
+	/** As upstream: all but one of the item named {@code name}, exactly or containing it. */
+	public static boolean withdrawAllButOne(String name, boolean exact) { return withdrawStack(findBankStack(name, exact), "Withdraw-All-but-1"); }
 	public static boolean withdrawOne(String name) { return withdrawOne(name, false); }
 	public static boolean withdrawOne(String name, boolean exact) { return withdrawStack(findBankStack(name, exact), "Withdraw-1"); }
 	public static boolean withdrawItem(String name) { return withdrawOne(name); }

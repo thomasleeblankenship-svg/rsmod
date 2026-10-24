@@ -236,6 +236,18 @@ public final class Rs2Npc
 	 * as one script action on the NPC's index; tried for at most 1.2 s while another action holds
 	 * the tick. Mobile: no "can't reach" recovery here; walks that need doors go through the walker.
 	 */
+	/** As upstream: the NPC's default (first) option. */
+	public static boolean interact(Rs2NpcModel npc)
+	{
+		return interact(npc, "");
+	}
+
+	/** As upstream (deprecated there): the default option on a raw NPC. */
+	public static boolean interact(NPC npc)
+	{
+		return npc != null && interact(new Rs2NpcModel(npc), "");
+	}
+
 	public static boolean interact(Rs2NpcModel npc, String action)
 	{
 		if (npc == null || action == null || action.isBlank())

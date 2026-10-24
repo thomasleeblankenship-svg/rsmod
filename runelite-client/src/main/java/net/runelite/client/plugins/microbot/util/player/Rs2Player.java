@@ -579,6 +579,12 @@ public final class Rs2Player
 		net.runelite.client.plugins.microbot.util.Global.sleepUntil(() -> !Rs2Player.isMoving(), time);
 	}
 
+	/** As upstream: {@link #logoutIfPlayerDetected(int, int)} with no wait. */
+	public static boolean logoutIfPlayerDetected(int amountOfPlayers)
+	{
+		return logoutIfPlayerDetected(amountOfPlayers, 0);
+	}
+
 	public static boolean logoutIfPlayerDetected(int amountOfPlayers, int time)
 	{
 		return logoutIfPlayerDetected(amountOfPlayers, time, 0);

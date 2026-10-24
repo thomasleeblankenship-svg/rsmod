@@ -226,6 +226,18 @@ public final class Rs2GroundItem
 		}
 		return false;
 	}
+	/** As upstream: picks up the item with this ID within 50 tiles. */
+	public static boolean loot(int itemId)
+	{
+		return loot(itemId, 50);
+	}
+
+	/** As upstream: "Take" on the item with this ID within {@code range} tiles (see {@link #interact(int, String, int)}). */
+	public static boolean loot(int itemId, int range)
+	{
+		return interact(itemId, "Take", range);
+	}
+
 	/** As upstream: picks up the first stack named {@code lootItem} (ignoring case) within {@code range} tiles. */
 	public static boolean loot(String lootItem, int range)
 	{

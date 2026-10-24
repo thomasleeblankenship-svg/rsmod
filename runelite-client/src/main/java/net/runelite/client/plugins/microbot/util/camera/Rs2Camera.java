@@ -365,4 +365,60 @@ public final class Rs2Camera
 			return Perspective.localToCanvas(client, localPoint, client.getPlane()) != null;
 		}, false);
 	}
+
+	// ---- NPC tracking (actions) ----
+
+	/** Upstream's tracker period. */
+	private static final long TRACK_PERIOD_MILLIS = 200;
+	private static volatile java.util.concurrent.ScheduledExecutorService trackScheduler;
+	private static volatile java.util.concurrent.ScheduledFuture<?> trackingTask;
+
+	/**
+	 * As upstream: keeps the camera turned towards the nearest NPC with this ID, every 200 ms
+	 * while logged in, until {@link #stopTrackingNpc()}. Nothing when already tracking one.
+	 */
+	public static synchronized void trackNpc(int npcId)
+	{
+		if (trackingTask != null)
+		{
+			return;
+		}
+		if (trackScheduler == null)
+		{
+			trackScheduler = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r ->
+			{
+				Thread thread = new Thread(r, "rs2camera-track");
+				thread.setDaemon(true);
+				return thread;
+			});
+		}
+		trackingTask = trackScheduler.scheduleAtFixedRate(() ->
+		{
+			if (!Microbot.isLoggedIn())
+			{
+				return;
+			}
+			Actor npc = net.runelite.client.plugins.microbot.util.npc.Rs2Npc.getNpc(npcId);
+			if (npc != null)
+			{
+				turnTo(npc, 0);
+			}
+		}, 0, TRACK_PERIOD_MILLIS, java.util.concurrent.TimeUnit.MILLISECONDS);
+	}
+
+	/** As upstream: stops {@link #trackNpc(int)}. */
+	public static synchronized void stopTrackingNpc()
+	{
+		if (trackingTask != null)
+		{
+			trackingTask.cancel(false);
+			trackingTask = null;
+		}
+	}
+
+	/** As upstream: whether an NPC is being tracked. */
+	public static boolean isTrackingNpc()
+	{
+		return trackingTask != null;
+	}
 }
