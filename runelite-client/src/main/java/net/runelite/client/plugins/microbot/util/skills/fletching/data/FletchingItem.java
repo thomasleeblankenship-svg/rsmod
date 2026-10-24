@@ -21,4 +21,23 @@ public enum FletchingItem
 
 	@Override
 	public String toString() { return name; }
+
+	/** As upstream: the make-menu key for this item from {@code material} in {@code fletchingMode}. */
+	public char getOption(FletchingMaterial material, FletchingMode fletchingMode)
+	{
+		if (fletchingMode == FletchingMode.STRUNG || fletchingMode == FletchingMode.PROGRESSIVE_STRUNG)
+		{
+			return '1';
+		}
+		if (material == FletchingMaterial.LOG && option == '2')
+		{
+			return '3';
+		}
+		if (material == FletchingMaterial.LOG && option == '3')
+		{
+			return '4';
+		}
+		// redwood is an exception
+		return material == FletchingMaterial.REDWOOD ? '2' : option;
+	}
 }
