@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | `Microbot.java` (`getActiveMicrobotPlugins`, `useStaminaPotsIfNeeded`), `util/mouse/Mouse.java` (`drag`), `util/npc/Rs2Npc.java` (actions: `interact(String, String)`), `util/widget/Rs2Widget.java` (actions: `clickWidgetFast` ×4, `clickWidget(String, Optional, int, boolean)`), `util/depositbox/Rs2DepositBox.java` (`openDepositBox`, `depositAllExcept`), `util/antiban/Rs2AntibanSettings.java` (`loadFromProfile`, inert), `util/inventory/Rs2Inventory.java` (actions: `drop(Predicate)`, `deselect`, `cleanHerbs`), new `HubActionBatchETest` | **Task: util-gap action batch E** | this commit |
 
 ## Requests
 
