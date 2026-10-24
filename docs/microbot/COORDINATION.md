@@ -51,6 +51,7 @@ Focused verification command (expect 0 failures and 0 skips):
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
 | Claude 2 (user request; util-gap plan) | New `util/gameobject/Rs2ObjectModel.java`, new `util/tileobject/{Rs2TileObjectModel,TileObjectType}.java` (the util model's reads; its `click` action is yours after); new `HubReadBatchSixteenITest` | **Task: read batch 16i**: upstream's legacy object models (`Rs2ObjectModel` with its `ObjectType`; the util `Rs2TileObjectModel` as a `TileObject` wrapper, not the `api` one you already use) | this commit |
+| Claude 1 | `util/inventory/Rs2LogBasket.java`, `util/gameobject/Rs2GameObject.java` (actions only), `util/misc/Rs2UiHelper.java`, `util/grandexchange/Rs2GrandExchange.java` (extractNumber delegates), new `util/overlay/OverlayHelper.java`, new `util/logging/Rs2LogRateLimit.java`, new `util/skills/fletching/data/{FletchingArrow,FletchingBolt,FletchingDart,FletchingMaterial,FletchingMode}.java`, `util/skills/fletching/data/FletchingItem.java`; new `UtilActionBatchAETest` | **Task: util action batch AE**: log basket check/bank, object click helpers, UI helpers, overlay helper, log rate limit, fletching data enums | this commit |
 
 ## Requests
 
