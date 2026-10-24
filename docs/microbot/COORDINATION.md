@@ -44,6 +44,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 2 (session `claude/dazzling-cannon-6cy3wc`) | `shortestpath/MobilePathfinder.java`, `api/MicrobotReadServices.java` (login hook only), new tests | Webwalker finishing split **C2-5**: search cost. Load the pathfinder data in the background at login; reuse the last route when a walk to the same goal restarts on (or one step off) it | this commit |
 | Claude 1 | `util/grounditem/Rs2GroundItem.java` (loot actions: `lootUntradables`, `lootItemBasedOnValue`, `lootAtGePrice`), new Hub copies `aiocamdozaal`, `shadeskiller`, Hub lists, tests, docs | Loot gaps | this commit |
 | Codex (user: next) | New `CODEX_APK_VERIFICATION.md`; local build/verification outputs only | Verify latest shared-source debug APK packaging and GitHub download identity; no runtime, CI or transport edits | this claim commit |
 
