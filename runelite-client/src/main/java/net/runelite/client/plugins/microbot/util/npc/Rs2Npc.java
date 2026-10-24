@@ -88,4 +88,92 @@ public final class Rs2Npc
 	{
 		return npc == null || validateInteractable(new Rs2NpcModel(npc)) == null ? null : npc;
 	}
+
+	// ---- Hub read APIs (upstream 2.6.38) ----
+
+	/**
+	 * As upstream: top-level NPCs with a name and location that match {@code predicate}, nearest to
+	 * the player first, as live legacy models. Adaptation: the predicate runs on the client thread,
+	 * inside the one read that builds the list, so it must not block.
+	 */
+	public static java.util.stream.Stream<Rs2NpcModel> getNpcs(java.util.function.Predicate<Rs2NpcModel> predicate)
+	{
+		java.util.function.Predicate<Rs2NpcModel> filter = predicate == null ? npc -> true : predicate;
+		java.util.List<Rs2NpcModel> npcs = MobileActions.read(() ->
+		{
+			net.runelite.api.Client client = Microbot.getClient();
+			net.runelite.api.WorldView view = client.getTopLevelWorldView();
+			net.runelite.api.Player player = client.getLocalPlayer();
+			net.runelite.api.coords.LocalPoint from = player == null ? null : player.getLocalLocation();
+			if (view == null || view.npcs() == null || from == null)
+			{
+				return java.util.Collections.<Rs2NpcModel>emptyList();
+			}
+			java.util.List<Rs2NpcModel> matches = new java.util.ArrayList<>();
+			for (NPC npc : view.npcs())
+			{
+				Rs2NpcModel model = npc == null ? null : new Rs2NpcModel(npc);
+				if (model != null && model.getName() != null && model.getLocalLocation() != null && filter.test(model))
+				{
+					matches.add(model);
+				}
+			}
+			matches.sort(java.util.Comparator.comparingInt(npc -> npc.getLocalLocation().distanceTo(from)));
+			return matches;
+		}, java.util.Collections.emptyList());
+		return npcs.stream();
+	}
+
+	public static java.util.stream.Stream<Rs2NpcModel> getNpcs()
+	{
+		return getNpcs(npc -> true);
+	}
+
+	/** As upstream: names equal to ({@code exact}) or containing {@code name}, ignoring case. */
+	public static java.util.stream.Stream<Rs2NpcModel> getNpcs(String name, boolean exact)
+	{
+		if (name == null || name.isEmpty())
+		{
+			return java.util.stream.Stream.empty();
+		}
+		String lower = name.toLowerCase();
+		return getNpcs(npc ->
+		{
+			String npcName = npc.getName();
+			return npcName != null && !npcName.isEmpty()
+				&& (exact ? npcName.equalsIgnoreCase(name) : npcName.toLowerCase().contains(lower));
+		});
+	}
+
+	public static java.util.stream.Stream<Rs2NpcModel> getNpcs(String name)
+	{
+		return getNpcs(name, false);
+	}
+
+	public static java.util.stream.Stream<Rs2NpcModel> getNpcs(int id)
+	{
+		return getNpcs(npc -> npc.getId() == id);
+	}
+
+	/** As upstream: the nearest NPC whose name contains {@code name}, or {@code null}. */
+	public static Rs2NpcModel getNpc(String name)
+	{
+		return getNpc(name, false);
+	}
+
+	public static Rs2NpcModel getNpc(String name, boolean exact)
+	{
+		return getNpcs(name, exact).findFirst().orElse(null);
+	}
+
+	public static Rs2NpcModel getNpc(int id)
+	{
+		return getNpcs(id).findFirst().orElse(null);
+	}
+
+	/** As upstream: the nearest NPC with {@code id} whose index is not in {@code excludedIndexes}. */
+	public static java.util.Optional<Rs2NpcModel> getNpc(int id, java.util.List<Integer> excludedIndexes)
+	{
+		return getNpcs(npc -> npc.getId() == id && !excludedIndexes.contains(npc.getIndex())).findFirst();
+	}
 }

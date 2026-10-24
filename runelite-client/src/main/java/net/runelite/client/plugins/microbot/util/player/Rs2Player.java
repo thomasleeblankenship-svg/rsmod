@@ -819,4 +819,48 @@ public final class Rs2Player
 	{
 		return hasSpotAnimation(245);
 	}
+
+	/** As upstream: the local player's combat level, or 0 without one. */
+	public static int getCombatLevel()
+	{
+		return net.runelite.client.plugins.microbot.mobile.MobileActions.read(() ->
+		{
+			Player local = net.runelite.client.plugins.microbot.Microbot.getClient().getLocalPlayer();
+			return local == null ? 0 : local.getCombatLevel();
+		}, 0);
+	}
+
+	/** As upstream: whether the stamina effect (slowed run-energy drain) varbit is set. */
+	public static boolean hasStaminaActive()
+	{
+		return net.runelite.client.plugins.microbot.Microbot.getVarbitValue(net.runelite.api.Varbits.RUN_SLOWED_DEPLETION_ACTIVE) != 0;
+	}
+
+	/**
+	 * As upstream: other players who could attack the local player and be attacked back, both
+	 * standing in the wilderness, given each side's wilderness level; empty outside the wilderness.
+	 */
+	public static java.util.List<Rs2PlayerModel> getPlayersInCombatLevelRange()
+	{
+		int localCombatLevel = getCombatLevel();
+		int localWildernessLevel = Rs2Pvp.getWildernessLevelFrom(getWorldLocation());
+		if (localWildernessLevel == 0)
+		{
+			return java.util.Collections.emptyList();
+		}
+		int localMin = Math.max(3, localCombatLevel - localWildernessLevel);
+		int localMax = Math.min(126, localCombatLevel + localWildernessLevel);
+		return getPlayers(player ->
+		{
+			int combatLevel = player.getCombatLevel();
+			int wildernessLevel = Rs2Pvp.getWildernessLevelFrom(player.getWorldLocation());
+			if (wildernessLevel == 0)
+			{
+				return false;
+			}
+			int min = Math.max(3, combatLevel - wildernessLevel);
+			int max = Math.min(126, combatLevel + wildernessLevel);
+			return combatLevel >= localMin && combatLevel <= localMax && localCombatLevel >= min && localCombatLevel <= max;
+		}).collect(java.util.stream.Collectors.toList());
+	}
 }

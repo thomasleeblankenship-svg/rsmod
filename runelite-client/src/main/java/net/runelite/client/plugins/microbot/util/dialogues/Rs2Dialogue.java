@@ -217,4 +217,10 @@ public final class Rs2Dialogue
 		String wanted = text.trim().toLowerCase(java.util.Locale.ROOT);
 		return exact ? clean.equals(wanted) : clean.contains(wanted);
 	}
+
+	/** As upstream: whether the "make X" combination interface (270:1) is showing. */
+	public static boolean hasCombinationDialogue()
+	{
+		return Rs2Widget.isWidgetVisible(270, 1);
+	}
 }
