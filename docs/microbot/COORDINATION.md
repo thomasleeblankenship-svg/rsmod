@@ -44,6 +44,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 2 (session `claude/dazzling-cannon-6cy3wc`) | read block in `util/gameobject/Rs2GameObject.java` (`findBank`), `LegacySceneReadTest` | Hub read: `findBank(int)`/`findBank()` (deferred from batch 6) | this commit |
 | Codex (user: next) | New `CODEX_APK_VERIFICATION.md`; local build/verification outputs only | Verify latest shared-source debug APK packaging and GitHub download identity; no runtime, CI or transport edits | this claim commit |
 
 ## Requests
