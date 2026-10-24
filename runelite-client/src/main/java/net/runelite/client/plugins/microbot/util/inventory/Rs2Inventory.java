@@ -359,6 +359,21 @@ public final class Rs2Inventory
 	}
 
 	public static boolean use(int id) { return interact(id, "Use"); }
+
+	/** As upstream: "Use" on the first unnoted item whose name contains {@code name}. */
+	public static boolean useUnNoted(String name)
+	{
+		if (name == null) return false;
+		String wanted = name.toLowerCase(Locale.ROOT);
+		return interact(items(i -> i.getName() != null && !i.isNoted() && i.getName().toLowerCase(Locale.ROOT).contains(wanted))
+			.findFirst().orElse(null), "Use");
+	}
+
+	/** As upstream: drops every empty vial. */
+	public static boolean dropEmptyVials()
+	{
+		return dropAll("empty vial");
+	}
 	/** As upstream: "Use" on this item, selecting it for use on something else. */
 	public static boolean use(Rs2ItemModel item) { return item != null && interact(item, "Use"); }
 

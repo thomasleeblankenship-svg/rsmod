@@ -405,6 +405,39 @@ public final class Rs2Player
 		return !hasGoadingActive() && drinkPotion(net.runelite.client.plugins.microbot.util.misc.Rs2Potion.getGoadingPotion());
 	}
 
+	/** As upstream: "Follow" on this player (one script action). */
+	public static boolean follow(net.runelite.client.plugins.microbot.api.player.models.Rs2PlayerModel rs2Player)
+	{
+		return rs2Player != null && net.runelite.client.plugins.microbot.mobile.MobileActions.player(rs2Player.getId(), "Follow");
+	}
+
+	/** As upstream: "Challenge" on this player (Soul Wars, duels; one script action). */
+	public static boolean challenge(net.runelite.client.plugins.microbot.api.player.models.Rs2PlayerModel rs2Player)
+	{
+		return rs2Player != null && net.runelite.client.plugins.microbot.mobile.MobileActions.player(rs2Player.getId(), "Challenge");
+	}
+
+	/** As upstream: casts the selected spell on this player (select it first with {@code Rs2Magic}). */
+	public static boolean cast(net.runelite.client.plugins.microbot.api.player.models.Rs2PlayerModel rs2Player)
+	{
+		return rs2Player != null && net.runelite.client.plugins.microbot.mobile.MobileActions.spellOnPlayer(rs2Player.getId());
+	}
+
+	/** As upstream: uses the selected inventory item on this player (select it first with {@code Rs2Inventory.use}). */
+	public static boolean use(net.runelite.client.plugins.microbot.api.player.models.Rs2PlayerModel rs2Player)
+	{
+		return rs2Player != null && net.runelite.client.plugins.microbot.mobile.MobileActions.spellOnPlayer(rs2Player.getId());
+	}
+
+	/**
+	 * Upstream records the teleblock time from this event. Mobile reads the teleblock varbit live
+	 * ({@link #isTeleBlocked()}), so there is nothing to record; kept so plugins can forward the event.
+	 */
+	public static void handleTeleblockTimer(net.runelite.api.events.VarbitChanged event)
+	{
+		// The varbit is read when asked; see isTeleBlocked().
+	}
+
 	/**
 	 * As upstream: picks "Attack" on this player (one script action). The option's slot comes from
 	 * the client's current player options instead of upstream's fixed second option.
