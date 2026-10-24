@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import net.runelite.api.Client;
@@ -31,7 +32,9 @@ import net.runelite.client.plugins.microbot.mobile.MobileActions;
 import net.runelite.client.plugins.microbot.shortestpath.MobilePathfinder;
 import net.runelite.client.plugins.microbot.shortestpath.MobileTransportPolicy;
 import net.runelite.client.plugins.microbot.shortestpath.PathResult;
+import net.runelite.client.plugins.microbot.shortestpath.Transport;
 import net.runelite.client.plugins.microbot.shortestpath.TransportType;
+import net.runelite.client.plugins.microbot.shortestpath.WalkerPathReads;
 import net.runelite.client.plugins.microbot.shortestpath.pathfinder.PathfinderConfig;
 import net.runelite.client.plugins.microbot.util.Global;
 import net.runelite.client.plugins.microbot.util.dialogues.Rs2Dialogue;
@@ -599,6 +602,73 @@ public final class Rs2Walker
 		return target;
 	}
 
+	/** As upstream: the pathfinder's tiles from {@code start} to {@code target}; see {@link WalkerPathReads}. */
+	public static List<WorldPoint> getWalkPath(WorldPoint start, WorldPoint target)
+	{
+		return WalkerPathReads.getWalkPath(start, target);
+	}
+
+	/** As upstream: the pathfinder's tiles from the player to {@code target}. */
+	public static List<WorldPoint> getWalkPath(WorldPoint target)
+	{
+		return WalkerPathReads.getWalkPath(target);
+	}
+
+	/** As upstream: the route length in tiles from {@code start} to {@code destination}. */
+	public static int getTotalTiles(WorldPoint start, WorldPoint destination)
+	{
+		return WalkerPathReads.getTotalTiles(start, destination);
+	}
+
+	/** As upstream: the route length in tiles from the player to {@code destination}. */
+	public static int getTotalTiles(WorldPoint destination)
+	{
+		return WalkerPathReads.getTotalTiles(destination);
+	}
+
+	/** As upstream: the length of {@code path} in tiles up to {@code destination}. */
+	public static int getTotalTilesFromPath(List<WorldPoint> path, WorldPoint destination)
+	{
+		return WalkerPathReads.getTotalTilesFromPath(path, destination);
+	}
+
+	/** As upstream: the index of the tile in {@code path} closest to the player. */
+	public static int getClosestTileIndex(List<WorldPoint> path)
+	{
+		return WalkerPathReads.getClosestTileIndex(path);
+	}
+
+	/** As upstream: whether the collision map lets the player stand on {@code tile}. */
+	public static boolean isWalkableInCollisionMap(WorldPoint tile)
+	{
+		return WalkerPathReads.isWalkableInCollisionMap(tile);
+	}
+
+	/** As upstream: the loaded scene tile at {@code point}, or null when it is not loaded. */
+	public static Tile getTile(WorldPoint point)
+	{
+		return WalkerPathReads.getTile(point);
+	}
+
+	/** As upstream: the transports a route to {@code destination} uses that bank planning withdraws for. */
+	public static List<Transport> getTransportsForDestination(WorldPoint destination, boolean useBankItems)
+	{
+		return WalkerPathReads.getTransportsForDestination(destination, useBankItems);
+	}
+
+	/** As upstream, with a preferred transport type. */
+	public static List<Transport> getTransportsForDestination(WorldPoint destination, boolean useBankItems,
+		TransportType prefTransportType)
+	{
+		return WalkerPathReads.getTransportsForDestination(destination, useBankItems, prefTransportType);
+	}
+
+	/** As upstream: item id to quantity to withdraw for {@code transports}. */
+	public static Map<Integer, Integer> getMissingTransportItemIdsWithQuantities(List<Transport> transports)
+	{
+		return WalkerPathReads.getMissingTransportItemIdsWithQuantities(transports);
+	}
+
 	/** Reachability query only; no movement or door clicks. */
 	public static boolean canReach(WorldPoint destination)
 	{
@@ -664,7 +734,7 @@ public final class Rs2Walker
 		TransportType.TELEPORTATION_PORTAL);
 
 	/** Each gnome glider destination's button on the glider map (interface 138), as upstream's {@code handleGlider}. */
-	static final java.util.Map<String, Integer> GLIDER_BUTTONS = java.util.Map.of(
+	static final Map<String, Integer> GLIDER_BUTTONS = Map.of(
 		"ta quir priw", InterfaceID.Glidermap.GRANDTREE_BUTTON,
 		"sindarpos", InterfaceID.Glidermap.WHITEWOLFMOUNTAIN_BUTTON,
 		"lemanto andra", InterfaceID.Glidermap.VARROCK_BUTTON,
@@ -674,7 +744,7 @@ public final class Rs2Walker
 		"ookookolly undri", InterfaceID.Glidermap.APEATOLL_BUTTON);
 
 	/** Each hot air balloon destination's button on the balloon map, as upstream's {@code Rs2HotAirBalloon}. */
-	static final java.util.Map<String, Integer> BALLOON_BUTTONS = java.util.Map.of(
+	static final Map<String, Integer> BALLOON_BUTTONS = Map.of(
 		"castle wars", InterfaceID.ZepBalloonMap.BTN_CAST,
 		"grand tree", InterfaceID.ZepBalloonMap.BTN_GNO,
 		"crafting guild", InterfaceID.ZepBalloonMap.BTN_CRAFT,
@@ -683,7 +753,7 @@ public final class Rs2Walker
 		"varrock", InterfaceID.ZepBalloonMap.BTN_VARR);
 
 	/** Destination maps answered with one button per destination, by the map's root widget. */
-	private static final java.util.Map<Integer, java.util.Map<String, Integer>> DESTINATION_MAPS = java.util.Map.of(
+	private static final Map<Integer, Map<String, Integer>> DESTINATION_MAPS = Map.of(
 		InterfaceID.Glidermap.UNIVERSE, GLIDER_BUTTONS,
 		InterfaceID.ZepBalloonMap.ROOT_RECT0, BALLOON_BUTTONS);
 
@@ -1015,7 +1085,7 @@ public final class Rs2Walker
 			{
 				return true;
 			}
-			java.util.Map<String, Integer> buttons = visibleDestinationMap();
+			Map<String, Integer> buttons = visibleDestinationMap();
 			if (buttons != null)
 			{
 				Integer button = destinationButton(buttons, step.destinationText);
@@ -1853,13 +1923,13 @@ public final class Rs2Walker
 	}
 
 	/** A destination map's button for a destination name (case-insensitive), or null. */
-	static Integer destinationButton(java.util.Map<String, Integer> buttons, String destination)
+	static Integer destinationButton(Map<String, Integer> buttons, String destination)
 	{
 		return destination == null ? null : buttons.get(destination.trim().toLowerCase(java.util.Locale.ROOT));
 	}
 
 	/** The buttons of whichever destination map (glider or balloon) is showing, or null when none is. */
-	private static java.util.Map<String, Integer> visibleDestinationMap()
+	private static Map<String, Integer> visibleDestinationMap()
 	{
 		Integer root = MobileActions.read(() ->
 		{
