@@ -46,6 +46,7 @@ Focused verification command (expect 0 failures and 0 skips):
 | --- | --- | --- | --- |
 | Codex (user requested a new part) | New `docs/microbot/CODEX_RECOVERY_REVIEW.md`; read-only inspection of input/walker/bank code and existing tests | Independent regression review of manual-tap resume, stalled-walk recovery and Lumbridge banking; no runtime or other owners' source edits | this claim commit |
 | Claude 1 | `util/walker/Rs2Walker.java`, `PathfinderLegTest`, `WEBWALKER_PLAN.md`, `HUB_PORTS.md` | Webwalker step 8: gnome gliders | this commit |
+| Claude 2 (session `claude/dazzling-cannon-6cy3wc`) | read blocks appended in `util/gameobject/Rs2GameObject.java` (no change to the interact methods), `util/npc/Rs2Npc.java`, `util/player/Rs2Player.java`, `util/dialogues/Rs2Dialogue.java`; new tests | Hub read batch 6: legacy `Rs2GameObject` scene reads (`getGameObjects`, `getGroundObjects`, `getAll`, `exists`, `findObjectByLocation`, `findReachableObject`, `findBank`, `isReachable`, `convertToObjectComposition`, `nameMatches`, `getObjectIdsByName`), `Rs2Npc.getNpcs`/`getNpc`, `Rs2Player.getCombatLevel`/`getPlayersInCombatLevelRange`/`hasStaminaActive`, `Rs2Dialogue.hasCombinationDialogue`. Reads only | this commit |
 
 ## Requests
 
