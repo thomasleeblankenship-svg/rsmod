@@ -287,6 +287,84 @@ public final class Rs2GameObject
 		}).findFirst().orElse(null);
 	}
 
+	/** As upstream: the nearest wall, decorative or ground object with {@code id}. */
+	public static TileObject getTileObject(int id)
+	{
+		return getTileObject(o -> o.getId() == id);
+	}
+
+	public static TileObject getTileObject(int id, int distance)
+	{
+		return getTileObject(o -> o.getId() == id, distance);
+	}
+
+	public static TileObject getTileObject(int id, WorldPoint anchor)
+	{
+		return getTileObject(o -> o.getId() == id, anchor);
+	}
+
+	public static TileObject getTileObject(int id, WorldPoint anchor, int distance)
+	{
+		return getTileObject(o -> o.getId() == id, anchor, distance);
+	}
+
+	/** As upstream: the nearest wall, decorative or ground object whose name contains {@code objectName}. */
+	public static TileObject getTileObject(String objectName)
+	{
+		return getTileObject(objectName, false);
+	}
+
+	public static TileObject getTileObject(String objectName, boolean exact)
+	{
+		return getTileObject(nameMatches(objectName, exact));
+	}
+
+	public static TileObject getTileObject(String objectName, int distance)
+	{
+		return getTileObject(nameMatches(objectName, false), distance);
+	}
+
+	public static TileObject getTileObject(String objectName, boolean exact, int distance)
+	{
+		return getTileObject(nameMatches(objectName, exact), distance);
+	}
+
+	public static TileObject getTileObject(String objectName, WorldPoint anchor)
+	{
+		return getTileObject(nameMatches(objectName, false), anchor);
+	}
+
+	public static TileObject getTileObject(String objectName, WorldPoint anchor, int distance)
+	{
+		return getTileObject(objectName, false, anchor, distance);
+	}
+
+	public static TileObject getTileObject(String objectName, boolean exact, WorldPoint anchor, int distance)
+	{
+		return getTileObject(nameMatches(objectName, exact), anchor, distance);
+	}
+
+	public static TileObject getTileObject(java.util.function.Predicate<TileObject> predicate)
+	{
+		return getTileObject(predicate, playerLocation());
+	}
+
+	public static TileObject getTileObject(java.util.function.Predicate<TileObject> predicate, int distance)
+	{
+		return getTileObject(predicate, playerLocation(), distance);
+	}
+
+	public static TileObject getTileObject(java.util.function.Predicate<TileObject> predicate, WorldPoint anchor)
+	{
+		return getTileObject(predicate, anchor, Constants.SCENE_SIZE / 2);
+	}
+
+	/** As upstream: the nearest wall, decorative or ground object within {@code distance} of {@code anchor}. */
+	public static TileObject getTileObject(java.util.function.Predicate<TileObject> predicate, WorldPoint anchor, int distance)
+	{
+		return sceneObjects(TILEOBJECT_EXTRACTOR, predicate, anchor, distance).stream().findFirst().orElse(null);
+	}
+
 	public static List<TileObject> getAll()
 	{
 		return getAll(o -> true);

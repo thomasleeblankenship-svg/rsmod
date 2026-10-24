@@ -58,6 +58,101 @@ public final class Rs2RunePouch
 		}, 0);
 	}
 
+	/** As upstream: the pouch holds at least one {@code itemId} rune. */
+	public static boolean contains(int itemId)
+	{
+		return contains(itemId, 1);
+	}
+
+	public static boolean contains(int itemId, boolean allowCombinationRunes)
+	{
+		return contains(itemId, 1, allowCombinationRunes);
+	}
+
+	public static boolean contains(int itemId, int amt)
+	{
+		return contains(itemId, amt, false);
+	}
+
+	public static boolean contains(int itemId, int amt, boolean allowCombinationRunes)
+	{
+		return contains(net.runelite.client.plugins.microbot.util.magic.Runes.byItemId(itemId), amt, allowCombinationRunes);
+	}
+
+	/** As upstream: the pouch holds at least one {@code rune}. */
+	public static boolean contains(net.runelite.client.plugins.microbot.util.magic.Runes rune)
+	{
+		return contains(rune, 1);
+	}
+
+	public static boolean contains(net.runelite.client.plugins.microbot.util.magic.Runes rune, boolean allowCombinationRunes)
+	{
+		return contains(rune, 1, allowCombinationRunes);
+	}
+
+	public static boolean contains(net.runelite.client.plugins.microbot.util.magic.Runes rune, int amt)
+	{
+		return contains(rune, amt, false);
+	}
+
+	public static boolean contains(net.runelite.client.plugins.microbot.util.magic.Runes rune, int amt, boolean allowCombinationRunes)
+	{
+		return rune != null && contains(java.util.Map.of(rune, amt), allowCombinationRunes);
+	}
+
+	public static boolean contains(java.util.Map<net.runelite.client.plugins.microbot.util.magic.Runes, Integer> requiredRunes)
+	{
+		return contains(requiredRunes, false);
+	}
+
+	/**
+	 * As upstream: the pouch holds every required rune and amount. With {@code allowCombinationRunes}
+	 * a combination rune (dust, mist, ...) may stand in for a base rune. Adaptation: in that mode the
+	 * exact rune counts first; upstream's combination check only ever counts combination runes.
+	 */
+	public static boolean contains(java.util.Map<net.runelite.client.plugins.microbot.util.magic.Runes, Integer> requiredRunes, boolean allowCombinationRunes)
+	{
+		if (requiredRunes == null)
+		{
+			return false;
+		}
+		java.util.Map<net.runelite.client.plugins.microbot.util.magic.Runes, Integer> available = new java.util.HashMap<>(getRunes());
+		for (java.util.Map.Entry<net.runelite.client.plugins.microbot.util.magic.Runes, Integer> required : requiredRunes.entrySet())
+		{
+			for (int remaining = required.getValue(); remaining > 0; remaining--)
+			{
+				if (!take(available, required.getKey(), allowCombinationRunes))
+				{
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
+	private static boolean take(java.util.Map<net.runelite.client.plugins.microbot.util.magic.Runes, Integer> available,
+		net.runelite.client.plugins.microbot.util.magic.Runes required, boolean allowCombinationRunes)
+	{
+		if (available.getOrDefault(required, 0) > 0)
+		{
+			available.merge(required, -1, Integer::sum);
+			return true;
+		}
+		if (!allowCombinationRunes)
+		{
+			return false;
+		}
+		for (java.util.Map.Entry<net.runelite.client.plugins.microbot.util.magic.Runes, Integer> entry : available.entrySet())
+		{
+			if (entry.getValue() > 0 && entry.getKey() != required && entry.getKey().providesRune(required))
+			{
+				entry.setValue(entry.getValue() - 1);
+				return true;
+			}
+		}
+		return false;
+	}
+
 	/**
 	 * Runes held in the carried rune pouch, keyed by {@link net.runelite.client.plugins.microbot.util.magic.Runes}
 	 * (empty without a pouch). Same pouch detection and slot varbits as {@link #getQuantity(int)}.

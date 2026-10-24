@@ -184,6 +184,12 @@ public final class Rs2Player
 	}
 
 	/** Mobile additions: live engine reads are confined to the client thread. */
+	/** As upstream: the player's world location as an {@code Rs2WorldPoint} (its point may be {@code null}). */
+	public static net.runelite.client.plugins.microbot.util.coords.Rs2WorldPoint getRs2WorldPoint()
+	{
+		return new net.runelite.client.plugins.microbot.util.coords.Rs2WorldPoint(getWorldLocation());
+	}
+
 	public static net.runelite.api.coords.WorldPoint getWorldLocation()
 	{
 		return net.runelite.client.plugins.microbot.mobile.MobileActions.read(() ->

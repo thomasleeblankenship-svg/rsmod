@@ -64,6 +64,190 @@ public final class Rs2Tile
 		}, null);
 	}
 
+	/**
+	 * As upstream: the first walkable neighbour (north, south, east, west order of
+	 * {@link net.runelite.api.coords.Direction}) of {@code source} that is not the player's tile.
+	 */
+	public static WorldPoint getNearestWalkableTile(WorldPoint source)
+	{
+		if (source == null)
+		{
+			return null;
+		}
+		WorldPoint player = net.runelite.client.plugins.microbot.util.player.Rs2Player.getWorldLocation();
+		for (net.runelite.api.coords.Direction direction : net.runelite.api.coords.Direction.values())
+		{
+			WorldPoint neighbour = neighbour(direction, source);
+			if (!neighbour.equals(player) && isWalkable(neighbour))
+			{
+				return neighbour;
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * As upstream: the walkable tile next to {@code gameObject} from which it can be interacted with
+	 * (melee-adjacent, else wall-free), nearest to the player; {@code null} on another floor.
+	 */
+	public static net.runelite.client.plugins.microbot.util.coords.Rs2WorldPoint getNearestWalkableTile(net.runelite.api.GameObject gameObject)
+	{
+		WorldPoint player = net.runelite.client.plugins.microbot.util.player.Rs2Player.getWorldLocation();
+		net.runelite.api.coords.WorldArea area = gameObject == null ? null
+			: net.runelite.client.plugins.microbot.util.gameobject.Rs2GameObject.getWorldArea(gameObject);
+		if (player == null || area == null || player.getPlane() != area.getPlane())
+		{
+			return null;
+		}
+		WorldPoint nearest = MobileActions.read(() ->
+		{
+			WorldView view = Microbot.getClient().getTopLevelWorldView();
+			List<WorldPoint> points = interactablePoints(new net.runelite.client.plugins.microbot.util.coords.Rs2WorldArea(area), view);
+			return points.stream().filter(Rs2Tile::isWalkable)
+				.min(java.util.Comparator.comparingInt(p -> net.runelite.client.plugins.microbot.util.coords.Rs2WorldPoint.quickDistance(player, p)))
+				.orElse(null);
+		}, null);
+		return nearest == null ? null : new net.runelite.client.plugins.microbot.util.coords.Rs2WorldPoint(nearest);
+	}
+
+	private static List<WorldPoint> interactablePoints(net.runelite.client.plugins.microbot.util.coords.Rs2WorldArea area, WorldView view)
+	{
+		List<WorldPoint> points = new java.util.ArrayList<>(area.getInteractable());
+		if (points.isEmpty())
+		{
+			points = area.offset(1).toWorldPointList();
+			points.removeIf(area::contains);
+			points.removeIf(p -> !area.canMelee(view, new net.runelite.client.plugins.microbot.util.coords.Rs2WorldArea(p.toWorldArea())));
+			return points;
+		}
+		List<WorldPoint> melee = new java.util.ArrayList<>();
+		for (WorldPoint p : points)
+		{
+			if (area.canMelee(view, new net.runelite.client.plugins.microbot.util.coords.Rs2WorldArea(p.toWorldArea())))
+			{
+				melee.add(p);
+			}
+		}
+		if (!melee.isEmpty())
+		{
+			return melee;
+		}
+		points.removeIf(p ->
+		{
+			Tile tile = getTile(p.getX(), p.getY());
+			return tile != null && tile.getWallObject() != null;
+		});
+		return points;
+	}
+
+	private static WorldPoint neighbour(net.runelite.api.coords.Direction direction, WorldPoint source)
+	{
+		switch (direction)
+		{
+			case NORTH:
+				return source.dy(1);
+			case SOUTH:
+				return source.dy(-1);
+			case WEST:
+				return source.dx(-1);
+			default:
+				return source.dx(1);
+		}
+	}
+
+	/** As upstream: tiles reachable from {@code tile} with their step distance (no distance limit). */
+	public static java.util.HashMap<WorldPoint, Integer> getReachableTilesFromTile(WorldPoint tile)
+	{
+		return getReachableTilesFromTile(tile, Integer.MAX_VALUE, false);
+	}
+
+	/** As upstream: tiles reachable from {@code tile} within {@code distance} steps, respecting collision. */
+	public static java.util.HashMap<WorldPoint, Integer> getReachableTilesFromTile(WorldPoint tile, int distance)
+	{
+		return getReachableTilesFromTile(tile, distance, false);
+	}
+
+	/**
+	 * As upstream: a breadth-first walk over the collision map from {@code tile} (8 directions,
+	 * diagonals only when both sides are open), giving each reachable tile its step distance; with
+	 * {@code ignoreCollision} every tile in range counts. One client-thread read.
+	 */
+	public static java.util.HashMap<WorldPoint, Integer> getReachableTilesFromTile(WorldPoint tile, int distance, boolean ignoreCollision)
+	{
+		return MobileActions.read(() -> reachable(tile, distance, ignoreCollision), new java.util.HashMap<>());
+	}
+
+	private static java.util.HashMap<WorldPoint, Integer> reachable(WorldPoint tile, int distance, boolean ignoreCollision)
+	{
+		java.util.HashMap<WorldPoint, Integer> distances = new java.util.HashMap<>();
+		WorldView view = tile == null ? null : Microbot.getClient().getTopLevelWorldView();
+		int[][] flags = view == null ? null : flags(view, view.getPlane());
+		if (flags == null)
+		{
+			return distances;
+		}
+		boolean instance = view.getScene() != null && view.getScene().isInstance();
+		java.util.ArrayDeque<WorldPoint> queue = new java.util.ArrayDeque<>();
+		distances.put(tile, 0);
+		queue.add(tile);
+		while (!queue.isEmpty())
+		{
+			WorldPoint point = queue.poll();
+			int dist = distances.get(point);
+			WorldPoint scenePoint = instance ? WorldPoint.toLocalInstance(view, point).stream().findFirst().orElse(null) : point;
+			LocalPoint local = scenePoint == null ? null : LocalPoint.fromWorld(view, scenePoint);
+			if (local == null || !inBounds(flags, local.getSceneX(), local.getSceneY()))
+			{
+				continue;
+			}
+			int sx = local.getSceneX();
+			int sy = local.getSceneY();
+			int data = flags[sx][sy];
+			if (!ignoreCollision && !tile.equals(point) && (data & CollisionDataFlag.BLOCK_MOVEMENT_FULL) != 0)
+			{
+				distances.remove(point);
+				continue;
+			}
+			if (dist >= distance)
+			{
+				continue;
+			}
+			boolean east = ignoreCollision || (data & CollisionDataFlag.BLOCK_MOVEMENT_EAST) == 0;
+			boolean west = ignoreCollision || (data & CollisionDataFlag.BLOCK_MOVEMENT_WEST) == 0;
+			boolean north = ignoreCollision || (data & CollisionDataFlag.BLOCK_MOVEMENT_NORTH) == 0;
+			boolean south = ignoreCollision || (data & CollisionDataFlag.BLOCK_MOVEMENT_SOUTH) == 0;
+			visit(distances, queue, east, point.dx(1), dist);
+			visit(distances, queue, west, point.dx(-1), dist);
+			visit(distances, queue, north, point.dy(1), dist);
+			visit(distances, queue, south, point.dy(-1), dist);
+			visit(distances, queue, north && east && diagonalOpen(flags, sx, sy, 1, 1, CollisionDataFlag.BLOCK_MOVEMENT_NORTH, CollisionDataFlag.BLOCK_MOVEMENT_EAST, ignoreCollision), point.dx(1).dy(1), dist);
+			visit(distances, queue, north && west && diagonalOpen(flags, sx, sy, -1, 1, CollisionDataFlag.BLOCK_MOVEMENT_NORTH, CollisionDataFlag.BLOCK_MOVEMENT_WEST, ignoreCollision), point.dx(-1).dy(1), dist);
+			visit(distances, queue, south && east && diagonalOpen(flags, sx, sy, 1, -1, CollisionDataFlag.BLOCK_MOVEMENT_SOUTH, CollisionDataFlag.BLOCK_MOVEMENT_EAST, ignoreCollision), point.dx(1).dy(-1), dist);
+			visit(distances, queue, south && west && diagonalOpen(flags, sx, sy, -1, -1, CollisionDataFlag.BLOCK_MOVEMENT_SOUTH, CollisionDataFlag.BLOCK_MOVEMENT_WEST, ignoreCollision), point.dx(-1).dy(-1), dist);
+		}
+		return distances;
+	}
+
+	private static void visit(java.util.Map<WorldPoint, Integer> distances, java.util.ArrayDeque<WorldPoint> queue, boolean open, WorldPoint next, int dist)
+	{
+		if (open && distances.putIfAbsent(next, dist + 1) == null)
+		{
+			queue.add(next);
+		}
+	}
+
+	/** Upstream's diagonal rule: the horizontal and vertical neighbours and the corner are all passable. */
+	private static boolean diagonalOpen(int[][] flags, int sx, int sy, int dx, int dy, int verticalBlock, int horizontalBlock, boolean ignoreCollision)
+	{
+		if (!inBounds(flags, sx + dx, sy) || !inBounds(flags, sx, sy + dy) || !inBounds(flags, sx + dx, sy + dy))
+		{
+			return false;
+		}
+		return ignoreCollision || ((flags[sx + dx][sy] & (CollisionDataFlag.BLOCK_MOVEMENT_FULL | verticalBlock)) == 0
+			&& (flags[sx][sy + dy] & (CollisionDataFlag.BLOCK_MOVEMENT_FULL | horizontalBlock)) == 0
+			&& (flags[sx + dx][sy + dy] & CollisionDataFlag.BLOCK_MOVEMENT_FULL) == 0);
+	}
+
 	/** Whether nothing fills {@code worldPoint} in the loaded scene. */
 	public static boolean isWalkable(WorldPoint worldPoint)
 	{

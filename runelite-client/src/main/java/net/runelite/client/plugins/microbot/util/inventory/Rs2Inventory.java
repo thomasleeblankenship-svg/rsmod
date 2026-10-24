@@ -185,6 +185,8 @@ public final class Rs2Inventory
 	public static Rs2ItemModel getRandom(int... ids) { return getRandom(item -> Arrays.stream(ids).anyMatch(id -> id == item.getId())); }
 	public static Rs2ItemModel getRandom(String... names) { return getRandom(item -> Arrays.stream(names).anyMatch(name -> item.getName().equalsIgnoreCase(name))); }
 	public static List<Rs2ItemModel> getList(Predicate<Rs2ItemModel> predicate) { return items(predicate).collect(Collectors.toList()); }
+	/** As upstream: every item matching {@code filter}. */
+	public static List<Rs2ItemModel> all(Predicate<Rs2ItemModel> filter) { return items(filter).collect(Collectors.toList()); }
 	public static Rs2ItemModel get(int id) { return items(i -> i.getId() == id).findFirst().orElse(null); }
 	public static Rs2ItemModel get(String name) { return items(i -> matches(i.getName(), name, false)).findFirst().orElse(null); }
 	/** As upstream: the first item whose name contains any of {@code names}, ignoring case. */
