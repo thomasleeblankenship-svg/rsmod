@@ -511,4 +511,58 @@ public class LegacySceneReadTest
 		assertEquals("stacks on one tile add up", 3, item.getQuantity());
 		assertEquals(world(6, 6), item.getLocation());
 	}
+
+	private <T extends TileObject> T placed(Class<T> type, int id, int x, int y)
+	{
+		T object = mock(type);
+		when(object.getId()).thenReturn(id);
+		when(object.getLocalLocation()).thenAnswer(i -> f.onClientThread(local(x, y)));
+		when(object.getWorldLocation()).thenAnswer(i -> f.onClientThread(world(x, y)));
+		return object;
+	}
+
+	@Test
+	public void batchSixteenWallDecorativeAndGroundFamilies()
+	{
+		net.runelite.api.WallObject door = placed(net.runelite.api.WallObject.class, 1530, 7, 5);
+		when(tile(7, 5).getWallObject()).thenReturn(door);
+		net.runelite.api.DecorativeObject banner = placed(net.runelite.api.DecorativeObject.class, 2000, 6, 6);
+		when(tile(6, 6).getDecorativeObject()).thenReturn(banner);
+		net.runelite.api.GroundObject rug = placed(net.runelite.api.GroundObject.class, 3000, 9, 5);
+		when(tile(9, 5).getGroundObject()).thenReturn(rug);
+		definition(1530, "Door", "Open");
+		definition(2000, "Qwyxian standard");
+		definition(3000, "Rug");
+
+		assertSame(door, Rs2GameObject.getWallObject(1530));
+		assertSame(door, Rs2GameObject.getWallObject("door"));
+		assertNull(Rs2GameObject.getWallObject(1530, world(20, 20), 2));
+		assertSame(banner, Rs2GameObject.getDecorativeObject("Qwyxian standard", true));
+		assertEquals(List.of(banner), Rs2GameObject.getDecorativeObjects());
+		assertSame(rug, Rs2GameObject.getGroundObject(new Integer[]{1, 3000}));
+		assertSame("local-point anchor", rug, Rs2GameObject.getGroundObject(local(9, 5), 128));
+		assertSame(rug, Rs2GameObject.findGroundObjectByLocation(world(9, 5)));
+		assertEquals(List.of(banner, door, rug), Rs2GameObject.getTileObjects());
+		assertEquals("WallObject", Rs2GameObject.getObjectType(door));
+		assertEquals("GroundObject", Rs2GameObject.getObjectType(rug));
+		assertEquals("DecorativeObject", Rs2GameObject.getObjectType(banner));
+	}
+
+	@Test
+	public void batchSixteenGameObjectFindsAndTiles()
+	{
+		gameObject(10355, 7, 5);
+		gameObject(10355, 9, 5);
+		definition(10355, "Qwyxian coffer", "Deposit");
+		assertEquals(world(7, 5), onClientThread(() -> Rs2GameObject.findObject(10355, world(7, 5)).getWorldLocation()));
+		assertEquals(world(9, 5), onClientThread(() -> Rs2GameObject.findObjectById(10355, world(9, 5).getX()).getWorldLocation()));
+		assertEquals(world(7, 5), onClientThread(() -> Rs2GameObject.findObject(new Integer[]{10355}).getWorldLocation()));
+		assertEquals(world(7, 5), onClientThread(() -> Rs2GameObject.get("qwyxian coffer").getWorldLocation()));
+		assertNotNull(Rs2GameObject.findObjectByIdAndDistance(10355, 3));
+		assertNull(Rs2GameObject.findObjectByIdAndDistance(10355, 0));
+		assertEquals("GameObject", Rs2GameObject.getObjectType(Rs2GameObject.get("qwyxian coffer")));
+		assertTrue(Rs2GameObject.canWalkTo(Rs2GameObject.get("qwyxian coffer"), 5));
+		tile(6, 6);
+		assertTrue(Rs2GameObject.getTiles().size() >= 3);
+	}
 }

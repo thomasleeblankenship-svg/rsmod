@@ -226,6 +226,12 @@ public final class Rs2GameObject
 		tile -> Collections.singletonList(tile.getGroundObject());
 	private static final Function<Tile, Collection<? extends TileObject>> TILEOBJECT_EXTRACTOR =
 		tile -> Arrays.asList(tile.getDecorativeObject(), tile.getGroundObject(), tile.getWallObject());
+	private static final Function<Tile, Collection<? extends net.runelite.api.WallObject>> WALLOBJECT_EXTRACTOR =
+		tile -> Collections.singletonList(tile.getWallObject());
+	private static final Function<Tile, Collection<? extends net.runelite.api.DecorativeObject>> DECORATIVEOBJECT_EXTRACTOR =
+		tile -> Collections.singletonList(tile.getDecorativeObject());
+	/** Upstream's Grand Exchange booth wall object ids. */
+	private static final Set<Integer> GRAND_EXCHANGE_BOOTH_IDS = new HashSet<>(Arrays.asList(10060, 30389));
 	private static final Map<String, List<Integer>> NAME_TO_IDS_CACHE = new ConcurrentHashMap<>();
 
 	public static boolean exists(int id)
@@ -285,12 +291,6 @@ public final class Rs2GameObject
 			return actions != null && Arrays.stream(actions).anyMatch(a -> a != null
 				&& (exact ? a.equalsIgnoreCase(optionName) : a.toLowerCase().contains(lower)));
 		}).findFirst().orElse(null);
-	}
-
-	/** As upstream: every wall object in the scene, nearest first. */
-	public static List<net.runelite.api.WallObject> getWallObjects()
-	{
-		return sceneObjects(tile -> Collections.singletonList(tile.getWallObject()), o -> true, playerLocation(), Constants.SCENE_SIZE);
 	}
 
 	/** As upstream: the object's definition, resolved to its current impostor. */
@@ -944,5 +944,961 @@ public final class Rs2GameObject
 	public static boolean hoverOverObject(TileObject object)
 	{
 		return false;
+	}
+
+	// ---- Read batch 16a (Claude 2): upstream 2.6.38 scene object overload families ----
+
+	public static List<net.runelite.api.WallObject> getWallObjects()
+	{
+		return getWallObjects(o -> true);
+	}
+
+	public static List<net.runelite.api.WallObject> getWallObjects(int distance)
+	{
+		return getWallObjects(o -> true, distance);
+	}
+
+	public static List<net.runelite.api.WallObject> getWallObjects(java.util.function.Predicate<net.runelite.api.WallObject> predicate, int distance)
+	{
+		return getWallObjects(predicate, playerLocation(), distance);
+	}
+
+	public static List<net.runelite.api.WallObject> getWallObjects(WorldPoint anchor)
+	{
+		return getWallObjects(o -> true, anchor);
+	}
+
+	public static List<net.runelite.api.WallObject> getWallObjects(LocalPoint anchorLocal)
+	{
+		return getWallObjects(o -> true, anchorLocal);
+	}
+
+	public static List<net.runelite.api.WallObject> getWallObjects(java.util.function.Predicate<net.runelite.api.WallObject> predicate)
+	{
+		return getWallObjects(predicate, playerLocation());
+	}
+
+	public static List<net.runelite.api.WallObject> getWallObjects(java.util.function.Predicate<net.runelite.api.WallObject> predicate, WorldPoint anchor)
+	{
+		return getWallObjects(predicate, anchor, Constants.SCENE_SIZE / 2);
+	}
+
+	public static List<net.runelite.api.WallObject> getWallObjects(java.util.function.Predicate<net.runelite.api.WallObject> predicate, LocalPoint anchorLocal)
+	{
+		return getWallObjects(predicate, anchorLocal, (Constants.SCENE_SIZE / 2) * Perspective.LOCAL_TILE_SIZE);
+	}
+
+	/** As upstream: WallObjects matching {@code predicate} within {@code distance} tiles of {@code anchor}, nearest first. */
+	public static List<net.runelite.api.WallObject> getWallObjects(java.util.function.Predicate<net.runelite.api.WallObject> predicate, WorldPoint anchor, int distance)
+	{
+		return sceneObjects(WALLOBJECT_EXTRACTOR, predicate, anchor, distance);
+	}
+
+	/** As upstream: WallObjects matching {@code predicate} within {@code distance} local units of {@code anchorLocal}, nearest first. */
+	public static List<net.runelite.api.WallObject> getWallObjects(java.util.function.Predicate<net.runelite.api.WallObject> predicate, LocalPoint anchorLocal, int distance)
+	{
+		return sceneObjects(WALLOBJECT_EXTRACTOR, predicate, toWorld(anchorLocal), distance / Perspective.LOCAL_TILE_SIZE);
+	}
+
+	public static net.runelite.api.WallObject getWallObject(int id)
+	{
+		return getWallObject(o -> o.getId() == id);
+	}
+
+	public static net.runelite.api.WallObject getWallObject(int id, int distance)
+	{
+		return getWallObject(o -> o.getId() == id, distance);
+	}
+
+	public static net.runelite.api.WallObject getWallObject(int id, WorldPoint anchor)
+	{
+		return getWallObject(o -> o.getId() == id, anchor);
+	}
+
+	public static net.runelite.api.WallObject getWallObject(int id, WorldPoint anchor, int distance)
+	{
+		return getWallObject(o -> o.getId() == id, anchor, distance);
+	}
+
+	public static net.runelite.api.WallObject getWallObject(Integer[] ids)
+	{
+		Set<Integer> idSet = new HashSet<>(Arrays.asList(ids));
+		return getWallObject(o -> idSet.contains(o.getId()));
+	}
+
+	public static net.runelite.api.WallObject getWallObject(Integer[] ids, int distance)
+	{
+		Set<Integer> idSet = new HashSet<>(Arrays.asList(ids));
+		return getWallObject(o -> idSet.contains(o.getId()), distance);
+	}
+
+	public static net.runelite.api.WallObject getWallObject(String objectName, boolean exact)
+	{
+		return getWallObject(nameMatches(objectName, exact));
+	}
+
+	public static net.runelite.api.WallObject getWallObject(String objectName, boolean exact, int distance)
+	{
+		return getWallObject(nameMatches(objectName, exact), distance);
+	}
+
+	public static net.runelite.api.WallObject getWallObject(String objectName, boolean exact, WorldPoint anchor)
+	{
+		return getWallObject(nameMatches(objectName, exact), anchor);
+	}
+
+	public static net.runelite.api.WallObject getWallObject(String objectName, boolean exact, LocalPoint anchorLocal)
+	{
+		return getWallObject(nameMatches(objectName, exact), anchorLocal);
+	}
+
+	public static net.runelite.api.WallObject getWallObject(String objectName, boolean exact, WorldPoint anchor, int distance)
+	{
+		return getWallObject(nameMatches(objectName, exact), anchor, distance);
+	}
+
+	public static net.runelite.api.WallObject getWallObject(String objectName, boolean exact, LocalPoint anchorLocal, int distance)
+	{
+		return getWallObject(nameMatches(objectName, exact), anchorLocal, distance);
+	}
+
+	public static net.runelite.api.WallObject getWallObject(String objectName)
+	{
+		return getWallObject(nameMatches(objectName, false));
+	}
+
+	public static net.runelite.api.WallObject getWallObject(String objectName, int distance)
+	{
+		return getWallObject(nameMatches(objectName, false), distance);
+	}
+
+	public static net.runelite.api.WallObject getWallObject(String objectName, WorldPoint anchor)
+	{
+		return getWallObject(nameMatches(objectName, false), anchor);
+	}
+
+	public static net.runelite.api.WallObject getWallObject(String objectName, LocalPoint anchorLocal)
+	{
+		return getWallObject(nameMatches(objectName, false), anchorLocal);
+	}
+
+	public static net.runelite.api.WallObject getWallObject(String objectName, WorldPoint anchor, int distance)
+	{
+		return getWallObject(nameMatches(objectName, false), anchor, distance);
+	}
+
+	public static net.runelite.api.WallObject getWallObject(String objectName, LocalPoint anchorLocal, int distance)
+	{
+		return getWallObject(nameMatches(objectName, false), anchorLocal, distance);
+	}
+
+	public static net.runelite.api.WallObject getWallObject(java.util.function.Predicate<net.runelite.api.WallObject> predicate)
+	{
+		return getWallObjects(predicate).stream().findFirst().orElse(null);
+	}
+
+	public static net.runelite.api.WallObject getWallObject(WorldPoint anchor)
+	{
+		return getWallObject(o -> true, anchor);
+	}
+
+	public static net.runelite.api.WallObject getWallObject(LocalPoint anchorLocal)
+	{
+		return getWallObject(o -> true, anchorLocal);
+	}
+
+	public static net.runelite.api.WallObject getWallObject(WorldPoint anchor, int distance)
+	{
+		return getWallObject(o -> true, anchor, distance);
+	}
+
+	public static net.runelite.api.WallObject getWallObject(LocalPoint anchorLocal, int distance)
+	{
+		return getWallObject(o -> true, anchorLocal, distance);
+	}
+
+	public static net.runelite.api.WallObject getWallObject(java.util.function.Predicate<net.runelite.api.WallObject> predicate, int distance)
+	{
+		return getWallObjects(predicate, distance).stream().findFirst().orElse(null);
+	}
+
+	public static net.runelite.api.WallObject getWallObject(java.util.function.Predicate<net.runelite.api.WallObject> predicate, WorldPoint anchor)
+	{
+		return getWallObjects(predicate, anchor).stream().findFirst().orElse(null);
+	}
+
+	public static net.runelite.api.WallObject getWallObject(java.util.function.Predicate<net.runelite.api.WallObject> predicate, LocalPoint anchorLocal)
+	{
+		return getWallObjects(predicate, anchorLocal).stream().findFirst().orElse(null);
+	}
+
+	/** As upstream: the nearest WallObject matching {@code predicate} within {@code distance} tiles of {@code anchor}. */
+	public static net.runelite.api.WallObject getWallObject(java.util.function.Predicate<net.runelite.api.WallObject> predicate, WorldPoint anchor, int distance)
+	{
+		return getWallObjects(predicate, anchor, distance).stream().findFirst().orElse(null);
+	}
+
+	/** As upstream: the nearest WallObject matching {@code predicate} within {@code distance} local units of {@code anchorLocal}. */
+	public static net.runelite.api.WallObject getWallObject(java.util.function.Predicate<net.runelite.api.WallObject> predicate, LocalPoint anchorLocal, int distance)
+	{
+		return getWallObjects(predicate, anchorLocal, distance).stream().findFirst().orElse(null);
+	}
+
+	public static List<net.runelite.api.DecorativeObject> getDecorativeObjects()
+	{
+		return getDecorativeObjects(o -> true);
+	}
+
+	public static List<net.runelite.api.DecorativeObject> getDecorativeObjects(int distance)
+	{
+		return getDecorativeObjects(o -> true, distance);
+	}
+
+	public static List<net.runelite.api.DecorativeObject> getDecorativeObjects(java.util.function.Predicate<net.runelite.api.DecorativeObject> predicate, int distance)
+	{
+		return getDecorativeObjects(predicate, playerLocation(), distance);
+	}
+
+	public static List<net.runelite.api.DecorativeObject> getDecorativeObjects(WorldPoint anchor)
+	{
+		return getDecorativeObjects(o -> true, anchor);
+	}
+
+	public static List<net.runelite.api.DecorativeObject> getDecorativeObjects(LocalPoint anchorLocal)
+	{
+		return getDecorativeObjects(o -> true, anchorLocal);
+	}
+
+	public static List<net.runelite.api.DecorativeObject> getDecorativeObjects(java.util.function.Predicate<net.runelite.api.DecorativeObject> predicate)
+	{
+		return getDecorativeObjects(predicate, playerLocation());
+	}
+
+	public static List<net.runelite.api.DecorativeObject> getDecorativeObjects(java.util.function.Predicate<net.runelite.api.DecorativeObject> predicate, WorldPoint anchor)
+	{
+		return getDecorativeObjects(predicate, anchor, Constants.SCENE_SIZE / 2);
+	}
+
+	public static List<net.runelite.api.DecorativeObject> getDecorativeObjects(java.util.function.Predicate<net.runelite.api.DecorativeObject> predicate, LocalPoint anchorLocal)
+	{
+		return getDecorativeObjects(predicate, anchorLocal, (Constants.SCENE_SIZE / 2) * Perspective.LOCAL_TILE_SIZE);
+	}
+
+	/** As upstream: DecorativeObjects matching {@code predicate} within {@code distance} tiles of {@code anchor}, nearest first. */
+	public static List<net.runelite.api.DecorativeObject> getDecorativeObjects(java.util.function.Predicate<net.runelite.api.DecorativeObject> predicate, WorldPoint anchor, int distance)
+	{
+		return sceneObjects(DECORATIVEOBJECT_EXTRACTOR, predicate, anchor, distance);
+	}
+
+	/** As upstream: DecorativeObjects matching {@code predicate} within {@code distance} local units of {@code anchorLocal}, nearest first. */
+	public static List<net.runelite.api.DecorativeObject> getDecorativeObjects(java.util.function.Predicate<net.runelite.api.DecorativeObject> predicate, LocalPoint anchorLocal, int distance)
+	{
+		return sceneObjects(DECORATIVEOBJECT_EXTRACTOR, predicate, toWorld(anchorLocal), distance / Perspective.LOCAL_TILE_SIZE);
+	}
+
+	public static net.runelite.api.DecorativeObject getDecorativeObject(int id)
+	{
+		return getDecorativeObject(o -> o.getId() == id);
+	}
+
+	public static net.runelite.api.DecorativeObject getDecorativeObject(int id, int distance)
+	{
+		return getDecorativeObject(o -> o.getId() == id, distance);
+	}
+
+	public static net.runelite.api.DecorativeObject getDecorativeObject(int id, WorldPoint anchor)
+	{
+		return getDecorativeObject(o -> o.getId() == id, anchor);
+	}
+
+	public static net.runelite.api.DecorativeObject getDecorativeObject(int id, WorldPoint anchor, int distance)
+	{
+		return getDecorativeObject(o -> o.getId() == id, anchor, distance);
+	}
+
+	public static net.runelite.api.DecorativeObject getDecorativeObject(Integer[] ids)
+	{
+		Set<Integer> idSet = new HashSet<>(Arrays.asList(ids));
+		return getDecorativeObject(o -> idSet.contains(o.getId()));
+	}
+
+	public static net.runelite.api.DecorativeObject getDecorativeObject(Integer[] ids, int distance)
+	{
+		Set<Integer> idSet = new HashSet<>(Arrays.asList(ids));
+		return getDecorativeObject(o -> idSet.contains(o.getId()), distance);
+	}
+
+	public static net.runelite.api.DecorativeObject getDecorativeObject(String objectName, boolean exact)
+	{
+		return getDecorativeObject(nameMatches(objectName, exact));
+	}
+
+	public static net.runelite.api.DecorativeObject getDecorativeObject(String objectName, boolean exact, int distance)
+	{
+		return getDecorativeObject(nameMatches(objectName, exact), distance);
+	}
+
+	public static net.runelite.api.DecorativeObject getDecorativeObject(String objectName, boolean exact, WorldPoint anchor)
+	{
+		return getDecorativeObject(nameMatches(objectName, exact), anchor);
+	}
+
+	public static net.runelite.api.DecorativeObject getDecorativeObject(String objectName, boolean exact, LocalPoint anchorLocal)
+	{
+		return getDecorativeObject(nameMatches(objectName, exact), anchorLocal);
+	}
+
+	public static net.runelite.api.DecorativeObject getDecorativeObject(String objectName, boolean exact, WorldPoint anchor, int distance)
+	{
+		return getDecorativeObject(nameMatches(objectName, exact), anchor, distance);
+	}
+
+	public static net.runelite.api.DecorativeObject getDecorativeObject(String objectName, boolean exact, LocalPoint anchorLocal, int distance)
+	{
+		return getDecorativeObject(nameMatches(objectName, exact), anchorLocal, distance);
+	}
+
+	public static net.runelite.api.DecorativeObject getDecorativeObject(String objectName)
+	{
+		return getDecorativeObject(nameMatches(objectName, false));
+	}
+
+	public static net.runelite.api.DecorativeObject getDecorativeObject(String objectName, int distance)
+	{
+		return getDecorativeObject(nameMatches(objectName, false), distance);
+	}
+
+	public static net.runelite.api.DecorativeObject getDecorativeObject(String objectName, WorldPoint anchor)
+	{
+		return getDecorativeObject(nameMatches(objectName, false), anchor);
+	}
+
+	public static net.runelite.api.DecorativeObject getDecorativeObject(String objectName, LocalPoint anchorLocal)
+	{
+		return getDecorativeObject(nameMatches(objectName, false), anchorLocal);
+	}
+
+	public static net.runelite.api.DecorativeObject getDecorativeObject(String objectName, WorldPoint anchor, int distance)
+	{
+		return getDecorativeObject(nameMatches(objectName, false), anchor, distance);
+	}
+
+	public static net.runelite.api.DecorativeObject getDecorativeObject(String objectName, LocalPoint anchorLocal, int distance)
+	{
+		return getDecorativeObject(nameMatches(objectName, false), anchorLocal, distance);
+	}
+
+	public static net.runelite.api.DecorativeObject getDecorativeObject(java.util.function.Predicate<net.runelite.api.DecorativeObject> predicate)
+	{
+		return getDecorativeObjects(predicate).stream().findFirst().orElse(null);
+	}
+
+	public static net.runelite.api.DecorativeObject getDecorativeObject(WorldPoint anchor)
+	{
+		return getDecorativeObject(o -> true, anchor);
+	}
+
+	public static net.runelite.api.DecorativeObject getDecorativeObject(LocalPoint anchorLocal)
+	{
+		return getDecorativeObject(o -> true, anchorLocal);
+	}
+
+	public static net.runelite.api.DecorativeObject getDecorativeObject(WorldPoint anchor, int distance)
+	{
+		return getDecorativeObject(o -> true, anchor, distance);
+	}
+
+	public static net.runelite.api.DecorativeObject getDecorativeObject(LocalPoint anchorLocal, int distance)
+	{
+		return getDecorativeObject(o -> true, anchorLocal, distance);
+	}
+
+	public static net.runelite.api.DecorativeObject getDecorativeObject(java.util.function.Predicate<net.runelite.api.DecorativeObject> predicate, int distance)
+	{
+		return getDecorativeObjects(predicate, distance).stream().findFirst().orElse(null);
+	}
+
+	public static net.runelite.api.DecorativeObject getDecorativeObject(java.util.function.Predicate<net.runelite.api.DecorativeObject> predicate, WorldPoint anchor)
+	{
+		return getDecorativeObjects(predicate, anchor).stream().findFirst().orElse(null);
+	}
+
+	public static net.runelite.api.DecorativeObject getDecorativeObject(java.util.function.Predicate<net.runelite.api.DecorativeObject> predicate, LocalPoint anchorLocal)
+	{
+		return getDecorativeObjects(predicate, anchorLocal).stream().findFirst().orElse(null);
+	}
+
+	/** As upstream: the nearest DecorativeObject matching {@code predicate} within {@code distance} tiles of {@code anchor}. */
+	public static net.runelite.api.DecorativeObject getDecorativeObject(java.util.function.Predicate<net.runelite.api.DecorativeObject> predicate, WorldPoint anchor, int distance)
+	{
+		return getDecorativeObjects(predicate, anchor, distance).stream().findFirst().orElse(null);
+	}
+
+	/** As upstream: the nearest DecorativeObject matching {@code predicate} within {@code distance} local units of {@code anchorLocal}. */
+	public static net.runelite.api.DecorativeObject getDecorativeObject(java.util.function.Predicate<net.runelite.api.DecorativeObject> predicate, LocalPoint anchorLocal, int distance)
+	{
+		return getDecorativeObjects(predicate, anchorLocal, distance).stream().findFirst().orElse(null);
+	}
+
+	public static List<GroundObject> getGroundObjects(LocalPoint anchorLocal)
+	{
+		return getGroundObjects(o -> true, anchorLocal);
+	}
+
+	public static List<GroundObject> getGroundObjects(java.util.function.Predicate<GroundObject> predicate, LocalPoint anchorLocal)
+	{
+		return getGroundObjects(predicate, anchorLocal, (Constants.SCENE_SIZE / 2) * Perspective.LOCAL_TILE_SIZE);
+	}
+
+	/** As upstream: GroundObjects matching {@code predicate} within {@code distance} local units of {@code anchorLocal}, nearest first. */
+	public static List<GroundObject> getGroundObjects(java.util.function.Predicate<GroundObject> predicate, LocalPoint anchorLocal, int distance)
+	{
+		return sceneObjects(GROUNDOBJECT_EXTRACTOR, predicate, toWorld(anchorLocal), distance / Perspective.LOCAL_TILE_SIZE);
+	}
+
+	public static GroundObject getGroundObject(int id)
+	{
+		return getGroundObject(o -> o.getId() == id);
+	}
+
+	public static GroundObject getGroundObject(int id, int distance)
+	{
+		return getGroundObject(o -> o.getId() == id, distance);
+	}
+
+	public static GroundObject getGroundObject(int id, WorldPoint anchor)
+	{
+		return getGroundObject(o -> o.getId() == id, anchor);
+	}
+
+	public static GroundObject getGroundObject(int id, WorldPoint anchor, int distance)
+	{
+		return getGroundObject(o -> o.getId() == id, anchor, distance);
+	}
+
+	public static GroundObject getGroundObject(Integer[] ids)
+	{
+		Set<Integer> idSet = new HashSet<>(Arrays.asList(ids));
+		return getGroundObject(o -> idSet.contains(o.getId()));
+	}
+
+	public static GroundObject getGroundObject(Integer[] ids, int distance)
+	{
+		Set<Integer> idSet = new HashSet<>(Arrays.asList(ids));
+		return getGroundObject(o -> idSet.contains(o.getId()), distance);
+	}
+
+	public static GroundObject getGroundObject(String objectName, boolean exact)
+	{
+		return getGroundObject(nameMatches(objectName, exact));
+	}
+
+	public static GroundObject getGroundObject(String objectName, boolean exact, int distance)
+	{
+		return getGroundObject(nameMatches(objectName, exact), distance);
+	}
+
+	public static GroundObject getGroundObject(String objectName, boolean exact, WorldPoint anchor)
+	{
+		return getGroundObject(nameMatches(objectName, exact), anchor);
+	}
+
+	public static GroundObject getGroundObject(String objectName, boolean exact, LocalPoint anchorLocal)
+	{
+		return getGroundObject(nameMatches(objectName, exact), anchorLocal);
+	}
+
+	public static GroundObject getGroundObject(String objectName, boolean exact, WorldPoint anchor, int distance)
+	{
+		return getGroundObject(nameMatches(objectName, exact), anchor, distance);
+	}
+
+	public static GroundObject getGroundObject(String objectName, boolean exact, LocalPoint anchorLocal, int distance)
+	{
+		return getGroundObject(nameMatches(objectName, exact), anchorLocal, distance);
+	}
+
+	public static GroundObject getGroundObject(String objectName)
+	{
+		return getGroundObject(nameMatches(objectName, false));
+	}
+
+	public static GroundObject getGroundObject(String objectName, int distance)
+	{
+		return getGroundObject(nameMatches(objectName, false), distance);
+	}
+
+	public static GroundObject getGroundObject(String objectName, WorldPoint anchor)
+	{
+		return getGroundObject(nameMatches(objectName, false), anchor);
+	}
+
+	public static GroundObject getGroundObject(String objectName, LocalPoint anchorLocal)
+	{
+		return getGroundObject(nameMatches(objectName, false), anchorLocal);
+	}
+
+	public static GroundObject getGroundObject(String objectName, WorldPoint anchor, int distance)
+	{
+		return getGroundObject(nameMatches(objectName, false), anchor, distance);
+	}
+
+	public static GroundObject getGroundObject(String objectName, LocalPoint anchorLocal, int distance)
+	{
+		return getGroundObject(nameMatches(objectName, false), anchorLocal, distance);
+	}
+
+	public static GroundObject getGroundObject(java.util.function.Predicate<GroundObject> predicate)
+	{
+		return getGroundObjects(predicate).stream().findFirst().orElse(null);
+	}
+
+	public static GroundObject getGroundObject(WorldPoint anchor)
+	{
+		return getGroundObject(o -> true, anchor);
+	}
+
+	public static GroundObject getGroundObject(LocalPoint anchorLocal)
+	{
+		return getGroundObject(o -> true, anchorLocal);
+	}
+
+	public static GroundObject getGroundObject(WorldPoint anchor, int distance)
+	{
+		return getGroundObject(o -> true, anchor, distance);
+	}
+
+	public static GroundObject getGroundObject(LocalPoint anchorLocal, int distance)
+	{
+		return getGroundObject(o -> true, anchorLocal, distance);
+	}
+
+	public static GroundObject getGroundObject(java.util.function.Predicate<GroundObject> predicate, int distance)
+	{
+		return getGroundObjects(predicate, distance).stream().findFirst().orElse(null);
+	}
+
+	public static GroundObject getGroundObject(java.util.function.Predicate<GroundObject> predicate, WorldPoint anchor)
+	{
+		return getGroundObjects(predicate, anchor).stream().findFirst().orElse(null);
+	}
+
+	public static GroundObject getGroundObject(java.util.function.Predicate<GroundObject> predicate, LocalPoint anchorLocal)
+	{
+		return getGroundObjects(predicate, anchorLocal).stream().findFirst().orElse(null);
+	}
+
+	/** As upstream: the nearest GroundObject matching {@code predicate} within {@code distance} tiles of {@code anchor}. */
+	public static GroundObject getGroundObject(java.util.function.Predicate<GroundObject> predicate, WorldPoint anchor, int distance)
+	{
+		return getGroundObjects(predicate, anchor, distance).stream().findFirst().orElse(null);
+	}
+
+	/** As upstream: the nearest GroundObject matching {@code predicate} within {@code distance} local units of {@code anchorLocal}. */
+	public static GroundObject getGroundObject(java.util.function.Predicate<GroundObject> predicate, LocalPoint anchorLocal, int distance)
+	{
+		return getGroundObjects(predicate, anchorLocal, distance).stream().findFirst().orElse(null);
+	}
+
+	public static List<TileObject> getTileObjects()
+	{
+		return getTileObjects(o -> true);
+	}
+
+	public static List<TileObject> getTileObjects(int distance)
+	{
+		return getTileObjects(o -> true, distance);
+	}
+
+	public static List<TileObject> getTileObjects(java.util.function.Predicate<TileObject> predicate, int distance)
+	{
+		return getTileObjects(predicate, playerLocation(), distance);
+	}
+
+	public static List<TileObject> getTileObjects(WorldPoint anchor)
+	{
+		return getTileObjects(o -> true, anchor);
+	}
+
+	public static List<TileObject> getTileObjects(LocalPoint anchorLocal)
+	{
+		return getTileObjects(o -> true, anchorLocal);
+	}
+
+	public static List<TileObject> getTileObjects(java.util.function.Predicate<TileObject> predicate)
+	{
+		return getTileObjects(predicate, playerLocation());
+	}
+
+	public static List<TileObject> getTileObjects(java.util.function.Predicate<TileObject> predicate, WorldPoint anchor)
+	{
+		return getTileObjects(predicate, anchor, Constants.SCENE_SIZE / 2);
+	}
+
+	public static List<TileObject> getTileObjects(java.util.function.Predicate<TileObject> predicate, LocalPoint anchorLocal)
+	{
+		return getTileObjects(predicate, anchorLocal, (Constants.SCENE_SIZE / 2) * Perspective.LOCAL_TILE_SIZE);
+	}
+
+	/** As upstream: TileObjects matching {@code predicate} within {@code distance} tiles of {@code anchor}, nearest first. */
+	public static List<TileObject> getTileObjects(java.util.function.Predicate<TileObject> predicate, WorldPoint anchor, int distance)
+	{
+		return sceneObjects(TILEOBJECT_EXTRACTOR, predicate, anchor, distance);
+	}
+
+	/** As upstream: TileObjects matching {@code predicate} within {@code distance} local units of {@code anchorLocal}, nearest first. */
+	public static List<TileObject> getTileObjects(java.util.function.Predicate<TileObject> predicate, LocalPoint anchorLocal, int distance)
+	{
+		return sceneObjects(TILEOBJECT_EXTRACTOR, predicate, toWorld(anchorLocal), distance / Perspective.LOCAL_TILE_SIZE);
+	}
+
+	public static TileObject getTileObject(Integer[] ids)
+	{
+		Set<Integer> idSet = new HashSet<>(Arrays.asList(ids));
+		return getTileObject(o -> idSet.contains(o.getId()));
+	}
+
+	public static TileObject getTileObject(Integer[] ids, int distance)
+	{
+		Set<Integer> idSet = new HashSet<>(Arrays.asList(ids));
+		return getTileObject(o -> idSet.contains(o.getId()), distance);
+	}
+
+	public static TileObject getTileObject(String objectName, boolean exact, WorldPoint anchor)
+	{
+		return getTileObject(nameMatches(objectName, exact), anchor);
+	}
+
+	public static TileObject getTileObject(String objectName, boolean exact, LocalPoint anchorLocal)
+	{
+		return getTileObject(nameMatches(objectName, exact), anchorLocal);
+	}
+
+	public static TileObject getTileObject(String objectName, boolean exact, LocalPoint anchorLocal, int distance)
+	{
+		return getTileObject(nameMatches(objectName, exact), anchorLocal, distance);
+	}
+
+	public static TileObject getTileObject(String objectName, LocalPoint anchorLocal)
+	{
+		return getTileObject(nameMatches(objectName, false), anchorLocal);
+	}
+
+	public static TileObject getTileObject(String objectName, LocalPoint anchorLocal, int distance)
+	{
+		return getTileObject(nameMatches(objectName, false), anchorLocal, distance);
+	}
+
+	public static TileObject getTileObject(WorldPoint anchor)
+	{
+		return getTileObject(o -> true, anchor);
+	}
+
+	public static TileObject getTileObject(LocalPoint anchorLocal)
+	{
+		return getTileObject(o -> true, anchorLocal);
+	}
+
+	public static TileObject getTileObject(WorldPoint anchor, int distance)
+	{
+		return getTileObject(o -> true, anchor, distance);
+	}
+
+	public static TileObject getTileObject(LocalPoint anchorLocal, int distance)
+	{
+		return getTileObject(o -> true, anchorLocal, distance);
+	}
+
+	public static TileObject getTileObject(java.util.function.Predicate<TileObject> predicate, LocalPoint anchorLocal)
+	{
+		return getTileObjects(predicate, anchorLocal).stream().findFirst().orElse(null);
+	}
+
+	/** As upstream: the nearest TileObject matching {@code predicate} within {@code distance} local units of {@code anchorLocal}. */
+	public static TileObject getTileObject(java.util.function.Predicate<TileObject> predicate, LocalPoint anchorLocal, int distance)
+	{
+		return getTileObjects(predicate, anchorLocal, distance).stream().findFirst().orElse(null);
+	}
+
+	public static List<net.runelite.api.GameObject> getGameObjects(LocalPoint anchorLocal)
+	{
+		return getGameObjects(o -> true, anchorLocal);
+	}
+
+	public static List<net.runelite.api.GameObject> getGameObjects(java.util.function.Predicate<net.runelite.api.GameObject> predicate, LocalPoint anchorLocal)
+	{
+		return getGameObjects(predicate, anchorLocal, (Constants.SCENE_SIZE / 2) * Perspective.LOCAL_TILE_SIZE);
+	}
+
+	/** As upstream: GameObjects matching {@code predicate} within {@code distance} local units of {@code anchorLocal}, nearest first. */
+	public static List<net.runelite.api.GameObject> getGameObjects(java.util.function.Predicate<net.runelite.api.GameObject> predicate, LocalPoint anchorLocal, int distance)
+	{
+		return sceneObjects(GAMEOBJECT_EXTRACTOR, predicate, toWorld(anchorLocal), distance / Perspective.LOCAL_TILE_SIZE);
+	}
+
+	public static net.runelite.api.GameObject getGameObject(Integer[] ids)
+	{
+		Set<Integer> idSet = new HashSet<>(Arrays.asList(ids));
+		return getGameObject(o -> idSet.contains(o.getId()));
+	}
+
+	public static net.runelite.api.GameObject getGameObject(Integer[] ids, int distance)
+	{
+		Set<Integer> idSet = new HashSet<>(Arrays.asList(ids));
+		return getGameObject(o -> idSet.contains(o.getId()), distance);
+	}
+
+	public static net.runelite.api.GameObject getGameObject(String objectName, boolean exact, WorldPoint anchor)
+	{
+		return getGameObject(nameMatches(objectName, exact), anchor);
+	}
+
+	public static net.runelite.api.GameObject getGameObject(String objectName, boolean exact, LocalPoint anchorLocal)
+	{
+		return getGameObject(nameMatches(objectName, exact), anchorLocal);
+	}
+
+	public static net.runelite.api.GameObject getGameObject(String objectName, boolean exact, LocalPoint anchorLocal, int distance)
+	{
+		return getGameObject(nameMatches(objectName, exact), anchorLocal, distance);
+	}
+
+	public static net.runelite.api.GameObject getGameObject(String objectName, LocalPoint anchorLocal)
+	{
+		return getGameObject(nameMatches(objectName, false), anchorLocal);
+	}
+
+	public static net.runelite.api.GameObject getGameObject(String objectName, LocalPoint anchorLocal, int distance)
+	{
+		return getGameObject(nameMatches(objectName, false), anchorLocal, distance);
+	}
+
+	public static net.runelite.api.GameObject getGameObject(WorldPoint anchor)
+	{
+		return getGameObject(o -> true, anchor);
+	}
+
+	public static net.runelite.api.GameObject getGameObject(LocalPoint anchorLocal)
+	{
+		return getGameObject(o -> true, anchorLocal);
+	}
+
+	public static net.runelite.api.GameObject getGameObject(WorldPoint anchor, int distance)
+	{
+		return getGameObject(o -> true, anchor, distance);
+	}
+
+	public static net.runelite.api.GameObject getGameObject(LocalPoint anchorLocal, int distance)
+	{
+		return getGameObject(o -> true, anchorLocal, distance);
+	}
+
+	public static net.runelite.api.GameObject getGameObject(java.util.function.Predicate<net.runelite.api.GameObject> predicate, int distance)
+	{
+		return getGameObjects(predicate, distance).stream().findFirst().orElse(null);
+	}
+
+	public static net.runelite.api.GameObject getGameObject(java.util.function.Predicate<net.runelite.api.GameObject> predicate, LocalPoint anchorLocal)
+	{
+		return getGameObjects(predicate, anchorLocal).stream().findFirst().orElse(null);
+	}
+
+	/** As upstream: the nearest GameObject matching {@code predicate} within {@code distance} local units of {@code anchorLocal}. */
+	public static net.runelite.api.GameObject getGameObject(java.util.function.Predicate<net.runelite.api.GameObject> predicate, LocalPoint anchorLocal, int distance)
+	{
+		return getGameObjects(predicate, anchorLocal, distance).stream().findFirst().orElse(null);
+	}
+
+	/** The world tile of {@code anchorLocal} on the top-level view (client thread), or the player's tile. */
+	private static WorldPoint toWorld(LocalPoint anchorLocal)
+	{
+		if (anchorLocal == null)
+		{
+			return null;
+		}
+		WorldPoint point = MobileActions.read(() -> WorldPoint.fromLocal(net.runelite.client.plugins.microbot.Microbot.getClient(), anchorLocal), null);
+		return point == null ? playerLocation() : point;
+	}
+
+	/** As upstream: "WallObject", "DecorativeObject", "GameObject", "GroundObject" or "TileObject". */
+	public static String getObjectType(TileObject object)
+	{
+		if (object instanceof net.runelite.api.WallObject)
+		{
+			return "WallObject";
+		}
+		if (object instanceof net.runelite.api.DecorativeObject)
+		{
+			return "DecorativeObject";
+		}
+		if (object instanceof net.runelite.api.GameObject)
+		{
+			return "GameObject";
+		}
+		return object instanceof GroundObject ? "GroundObject" : "TileObject";
+	}
+
+	/** As upstream: the ground object at {@code worldPoint}. */
+	public static TileObject findGroundObjectByLocation(WorldPoint worldPoint)
+	{
+		return getGroundObject(o -> o.getWorldLocation().equals(worldPoint));
+	}
+
+	/** As upstream: the nearest game object with one of {@code ids}. */
+	public static net.runelite.api.GameObject findObject(Integer[] ids)
+	{
+		Set<Integer> idSet = new HashSet<>(Arrays.asList(ids));
+		return getGameObject(o -> idSet.contains(o.getId()));
+	}
+
+	/** As upstream: the game object with {@code id} at {@code worldPoint}. */
+	public static net.runelite.api.GameObject findObject(int id, WorldPoint worldPoint)
+	{
+		return getGameObject(o -> o.getId() == id && o.getWorldLocation().equals(worldPoint));
+	}
+
+	/** As upstream: the nearest game object named {@code objectName} near {@code anchorPoint}, optionally in line of sight. */
+	public static net.runelite.api.GameObject findObject(String objectName, boolean exact, int distance, boolean checkLineOfSight, WorldPoint anchorPoint)
+	{
+		return getGameObjects(nameMatches(objectName, exact), anchorPoint, distance).stream()
+			.filter(o -> !checkLineOfSight || hasLineOfSight(o)).findFirst().orElse(null);
+	}
+
+	/** As upstream: the game object with {@code id} whose world x is {@code x}. */
+	public static net.runelite.api.GameObject findObjectById(int id, int x)
+	{
+		return getGameObject(o -> o.getId() == id && o.getWorldLocation().getX() == x);
+	}
+
+	/** As upstream: the nearest object of any kind with {@code id} within {@code distance} tiles of the player. */
+	public static TileObject findObjectByIdAndDistance(int id, int distance)
+	{
+		return getAll(o -> o.getId() == id, distance).stream().findFirst().orElse(null);
+	}
+
+	/** As upstream: the nearest game object whose name contains {@code name}. */
+	public static net.runelite.api.GameObject get(String name)
+	{
+		return get(name, false);
+	}
+
+	public static net.runelite.api.GameObject get(String name, boolean exact)
+	{
+		return getGameObject(name, exact);
+	}
+
+	/** As upstream: the nearest bank-id game object offering "Deposit" within 20 tiles. */
+	public static net.runelite.api.GameObject findDepositBox()
+	{
+		return findDepositBox(20);
+	}
+
+	/** As upstream: the nearest bank-id game object offering "Deposit" within {@code maxSearchRadius} tiles. */
+	public static net.runelite.api.GameObject findDepositBox(int maxSearchRadius)
+	{
+		return getGameObjects(o -> Rs2BankID.BANK_ID_SET.contains(o.getId()), maxSearchRadius).stream()
+			.filter(o -> hasAction(convertToObjectComposition(o), "Deposit", false)).findFirst().orElse(null);
+	}
+
+	/** As upstream: the nearest reachable Grand Exchange booth within 20 tiles. */
+	public static net.runelite.api.WallObject findGrandExchangeBooth()
+	{
+		return findGrandExchangeBooth(20);
+	}
+
+	public static net.runelite.api.WallObject findGrandExchangeBooth(int maxSearchRadius)
+	{
+		return getWallObjects(o -> GRAND_EXCHANGE_BOOTH_IDS.contains(o.getId()), maxSearchRadius).stream()
+			.filter(o -> net.runelite.client.plugins.microbot.util.tile.Rs2Tile.isTileReachable(MobileActions.read(o::getWorldLocation, null)))
+			.findFirst().orElse(null);
+	}
+
+	/** As upstream: the loaded tiles on the player's floor within 2400 local units (about 19 tiles). */
+	public static List<Tile> getTiles()
+	{
+		return getTiles(2400);
+	}
+
+	/** As upstream: the loaded tiles on the player's floor within {@code max(2400, maxTileDistance * 128)} local units. */
+	public static List<Tile> getTiles(int maxTileDistance)
+	{
+		int maxDistance = Math.max(2400, maxTileDistance * 128);
+		return MobileActions.read(() ->
+		{
+			Client client = net.runelite.client.plugins.microbot.Microbot.getClient();
+			Player player = client.getLocalPlayer();
+			net.runelite.api.WorldView view = client.getTopLevelWorldView();
+			Tile[][][] tiles = view == null || view.getScene() == null ? null : view.getScene().getTiles();
+			if (player == null || player.getLocalLocation() == null || tiles == null)
+			{
+				return Collections.<Tile>emptyList();
+			}
+			List<Tile> result = new ArrayList<>();
+			for (Tile[] column : tiles[view.getPlane()])
+			{
+				for (Tile tile : column)
+				{
+					if (tile != null && player.getLocalLocation().distanceTo(tile.getLocalLocation()) <= maxDistance)
+					{
+						result.add(tile);
+					}
+				}
+			}
+			return result;
+		}, Collections.emptyList());
+	}
+
+	/** As upstream: line of sight from the player to {@code tileObject}. */
+	public static boolean hasLineOfSight(TileObject tileObject)
+	{
+		return hasLineOfSight(net.runelite.client.plugins.microbot.util.player.Rs2Player.getWorldLocation(), tileObject);
+	}
+
+	/** As upstream: line of sight from {@code point} to {@code tileObject}'s area (2x2 for non-game objects). */
+	public static boolean hasLineOfSight(WorldPoint point, TileObject tileObject)
+	{
+		if (point == null || tileObject == null)
+		{
+			return false;
+		}
+		return MobileActions.read(() ->
+		{
+			net.runelite.api.WorldView view = net.runelite.client.plugins.microbot.Microbot.getClient().getTopLevelWorldView();
+			if (tileObject instanceof net.runelite.api.GameObject)
+			{
+				net.runelite.api.GameObject object = (net.runelite.api.GameObject) tileObject;
+				WorldPoint corner = WorldPoint.fromScene(view, object.getSceneMinLocation().getX(), object.getSceneMinLocation().getY(), object.getPlane());
+				return new WorldArea(corner, object.sizeX(), object.sizeY()).hasLineOfSightTo(view, point.toWorldArea());
+			}
+			return new WorldArea(tileObject.getWorldLocation(), 2, 2)
+				.hasLineOfSightTo(view, new WorldArea(point.getX(), point.getY(), 2, 2, point.getPlane()));
+		}, false);
+	}
+
+	/** As upstream: some tile within {@code distance} steps of the player is next to {@code tileObject}'s area. */
+	public static boolean canWalkTo(TileObject tileObject, int distance)
+	{
+		if (tileObject == null)
+		{
+			return false;
+		}
+		WorldArea area = MobileActions.read(() ->
+		{
+			if (tileObject instanceof net.runelite.api.GameObject)
+			{
+				net.runelite.api.GameObject object = (net.runelite.api.GameObject) tileObject;
+				net.runelite.api.WorldView view = net.runelite.client.plugins.microbot.Microbot.getClient().getTopLevelWorldView();
+				WorldPoint corner = WorldPoint.fromScene(view, object.getSceneMinLocation().getX(), object.getSceneMinLocation().getY(), object.getPlane());
+				return new WorldArea(corner, object.sizeX(), object.sizeY());
+			}
+			return new WorldArea(tileObject.getWorldLocation(), 2, 2);
+		}, null);
+		if (area == null)
+		{
+			return false;
+		}
+		return net.runelite.client.plugins.microbot.util.tile.Rs2Tile.getReachableTilesFromTile(
+			net.runelite.client.plugins.microbot.util.player.Rs2Player.getWorldLocation(), distance).keySet().stream()
+			.anyMatch(tile -> tile.distanceTo(area) < 2);
 	}
 }
