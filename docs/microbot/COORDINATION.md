@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | `util/depositbox/Rs2DepositBox.java` (actions: `depositAll()`, `depositAll(String...)`, `depositOne` ×4, `depositX` ×4, `depositEquipment`, `walkToDepositBox` ×2, `walkToAndUseDepositBox` ×2, `bankItemsAndWalkBackToOriginalPosition` ×4, and `getNearestDepositBox` ×2 for them, never a Wilderness box), new `util/depositbox/DepositBoxLocation.java` (upstream data and requirements), new `UtilActionBatchRTest` | **Task: util action batch R** (deposit box) | this commit |
 | Claude 2 (user: "do a lot more of it"; util-gap plan allows non-Hub methods on user request) | Read blocks in `util/gameobject/Rs2GameObject.java`; new `Rs2GameObjectReadFamiliesTest` | **Task: read batch 16a, the rest of `Rs2GameObject`'s upstream reads**: the wall, decorative and ground object families (`getWallObject(s)`, `getDecorativeObject(s)`, `getGroundObject`), `LocalPoint`-anchored overloads, `getTileObjects`, `getTiles`, `findObject`/`findObjectById(id, x)`/`findObjectByIdAndDistance`/`findGroundObjectByLocation`, `findDepositBox`, `findGrandExchangeBooth`, `get(name)`, `getObjectType`, `hasLineOfSight`, `canWalkTo`. Reads only. Next (one claim each): 16b `Rs2Npc`/`Rs2NpcModel`, 16c inventory/item/equipment, 16d player/prayer/spellbook, 16e tile/dialogue/UI/death/deposit box/bank reads. Walker, natural mouse, login and leagues classes are not touched | this commit |
 
 ## Requests
