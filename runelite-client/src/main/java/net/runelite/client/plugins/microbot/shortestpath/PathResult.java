@@ -53,9 +53,11 @@ public final class PathResult
 		private final boolean intoHouse;
 		private final PohDevice pohDevice;
 		private final String pohOption;
+		private final Transport source;
 
 		TransportStep(Transport transport)
 		{
+			this.source = transport;
 			this.type = transport.getType();
 			this.origin = transport.getOrigin();
 			this.destination = transport.getDestination();
@@ -81,6 +83,12 @@ public final class PathResult
 			this.intoHouse = house != null && house.isIntoHouse();
 			this.pohDevice = house == null ? null : house.getPohDevice();
 			this.pohOption = house == null ? null : house.getPohOption();
+		}
+
+		/** The catalogue transport this step was copied from, for the planner's own reads. */
+		Transport source()
+		{
+			return source;
 		}
 
 		/**

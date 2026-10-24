@@ -53,6 +53,16 @@ public final class MobilePathfinder
 	 */
 	public static PathResult find(WorldPoint start, WorldPoint goal)
 	{
+		return find(start, goal, false);
+	}
+
+	/**
+	 * {@link #find(WorldPoint, WorldPoint)}, optionally planning as if the remembered bank's items
+	 * were carried (upstream's {@code withBankItems}), for the banking reads. Bank routes are
+	 * never reused.
+	 */
+	public static PathResult find(WorldPoint start, WorldPoint goal, boolean useBankItems)
+	{
 		Objects.requireNonNull(start, "start");
 		Objects.requireNonNull(goal, "goal");
 		Client client = Microbot.getClient();
@@ -61,12 +71,28 @@ public final class MobilePathfinder
 			throw new IllegalStateException("MobilePathfinder.find must not run on the client thread");
 		}
 		PathfinderConfig shared = client == null ? null : sharedConfig(client);
-		PathResult reused = shared == null ? null
+		PathResult reused = shared == null || useBankItems ? null
 			: reuse(lastRoute, start, goal, shared.getMap(), policy, System.currentTimeMillis());
 		if (reused != null)
 		{
 			log.debug("Pathfinder route reused for {} -> {}", start, goal);
 			return reused;
+		}
+		if (shared != null && useBankItems)
+		{
+			synchronized (LOCK)
+			{
+				shared.setUseBankItems(true);
+				try
+				{
+					PathfinderConfig config = refreshedConfig(start, goal);
+					return config == null ? PathResult.failed(start, goal) : search(config, start, goal);
+				}
+				finally
+				{
+					shared.setUseBankItems(false);
+				}
+			}
 		}
 		PathfinderConfig config = refreshedConfig(start, goal);
 		if (config == null)

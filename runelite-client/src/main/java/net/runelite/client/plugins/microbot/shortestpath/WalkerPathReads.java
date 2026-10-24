@@ -19,7 +19,8 @@ import net.runelite.client.plugins.microbot.util.player.Rs2Player;
 /**
  * Path reads behind upstream's {@code Rs2Walker} API (Microbot 2.6.38), for the walker's one-line
  * statics: {@link #getWalkPath}, {@link #getTotalTiles}, {@link #getTotalTilesFromPath},
- * {@link #getClosestTileIndex}, {@link #isWalkableInCollisionMap} and {@link #getTile}.
+ * {@link #getClosestTileIndex}, {@link #isWalkableInCollisionMap}, {@link #getTile}, and the banking
+ * reads {@link #getTransportsForDestination} and {@link #getMissingTransportItemIdsWithQuantities}.
  * <p>
  * Adaptations: routes come from {@link MobilePathfinder} (upstream: {@code Rs2PathApi}), so they
  * use mobile's transport policy and never bank items; the closest-index search measures steps on
@@ -172,6 +173,204 @@ public final class WalkerPathReads
 			}
 		}
 		return steps;
+	}
+
+	/** Transport types upstream's bank planning prepares items or fares for. */
+	private static final java.util.Set<TransportType> BANK_PLANNED = java.util.EnumSet.of(TransportType.TELEPORTATION_ITEM,
+		TransportType.FAIRY_RING, TransportType.TELEPORTATION_SPELL, TransportType.CANOE, TransportType.BOAT,
+		TransportType.CHARTER_SHIP, TransportType.SHIP, TransportType.MINECART, TransportType.MAGIC_CARPET,
+		TransportType.SPIRIT_TREE);
+	/** Types whose catalogue fare is paid in a currency item. */
+	private static final java.util.Set<TransportType> CURRENCY_BASED = java.util.EnumSet.of(TransportType.BOAT,
+		TransportType.CHARTER_SHIP, TransportType.SHIP, TransportType.MINECART, TransportType.MAGIC_CARPET,
+		TransportType.TRANSPORT);
+
+	public static List<Transport> getTransportsForDestination(WorldPoint destination, boolean useBankItems)
+	{
+		return getTransportsForDestination(destination, useBankItems, TransportType.TELEPORTATION_ITEM);
+	}
+
+	/**
+	 * As upstream: plans from the player to {@code destination} (with the remembered bank's items
+	 * when {@code useBankItems}) and returns, in route order, the transports on it that bank
+	 * preparation covers: teleport items and spells, fairy rings, spirit trees, canoes, ships,
+	 * boats, minecarts, magic carpets, and plain transports that cost a fare or need an item.
+	 * Adaptation: the route holds one transport per step, so {@code prefTransportType} (upstream's
+	 * tie-break between transports joining the same two tiles) has nothing to choose between.
+	 */
+	public static List<Transport> getTransportsForDestination(WorldPoint destination, boolean useBankItems,
+		TransportType prefTransportType)
+	{
+		WorldPoint start = Rs2Player.getWorldLocation();
+		if (destination == null || start == null)
+		{
+			return new java.util.ArrayList<>();
+		}
+		return bankPlanned(MobilePathfinder.find(start, destination, useBankItems));
+	}
+
+	static List<Transport> bankPlanned(PathResult route)
+	{
+		List<Transport> transports = new java.util.ArrayList<>();
+		for (PathResult.TransportStep step : route.getTransports().values())
+		{
+			Transport transport = step.source();
+			if (BANK_PLANNED.contains(transport.getType()) || plainTransportNeedsItems(transport))
+			{
+				transports.add(transport);
+			}
+		}
+		return transports;
+	}
+
+	/** As upstream: a plain transport takes part in bank planning when it costs a fare or needs an item. */
+	private static boolean plainTransportNeedsItems(Transport transport)
+	{
+		return transport.getType() == TransportType.TRANSPORT && (transport.getCurrencyAmount() > 0
+			|| (transport.getItemIdRequirements() != null && !transport.getItemIdRequirements().isEmpty()));
+	}
+
+	/**
+	 * As upstream: item id to quantity to withdraw for {@code transports}, from the remembered bank:
+	 * a teleport spell's runes; a fare's coins or ecto-tokens; and, for each item requirement the
+	 * player does not already carry, the alternative the bank holds enough of (else the most banked
+	 * one), or the coins to buy it at the transport when none is banked but it is sold there. A
+	 * fairy ring needs a Dramen or Lunar staff until the Lumbridge elite diary is done.
+	 */
+	public static Map<Integer, Integer> getMissingTransportItemIdsWithQuantities(List<Transport> transports)
+	{
+		return getMissingTransportItemIdsWithQuantities(transports,
+			net.runelite.client.plugins.microbot.util.bank.Rs2Bank::count, WalkerPathReads::carriedItemQuantity,
+			() -> Microbot.getVarbitValue(
+				net.runelite.api.gameval.VarbitID.LUMBRIDGE_DIARY_ELITE_COMPLETE) == 1);
+	}
+
+	static Map<Integer, Integer> getMissingTransportItemIdsWithQuantities(List<Transport> transports,
+		java.util.function.IntUnaryOperator banked, java.util.function.IntUnaryOperator carried,
+		java.util.function.BooleanSupplier lumbridgeEliteDone)
+	{
+		Map<Integer, Integer> withdrawals = new HashMap<>();
+		if (transports == null)
+		{
+			return withdrawals;
+		}
+		for (Transport transport : transports)
+		{
+			if (transport.getType() == TransportType.TELEPORTATION_SPELL)
+			{
+				spellRunes(transport).forEach((rune, quantity) -> withdrawals.merge(rune, quantity, Integer::sum));
+				continue;
+			}
+			if (CURRENCY_BASED.contains(transport.getType()) && transport.getCurrencyAmount() > 0
+				&& (transport.getItemIdRequirements() == null || transport.getItemIdRequirements().isEmpty()))
+			{
+				int currency = currencyItemId(transport.getCurrencyName());
+				if (currency > 0)
+				{
+					withdrawals.merge(currency, transport.getCurrencyAmount(), Integer::sum);
+				}
+				continue;
+			}
+			for (TransportItemRequirement requirement : requirements(transport, lumbridgeEliteDone))
+			{
+				if (requirement.isSatisfiedBy(carried))
+				{
+					continue;
+				}
+				Integer preferred = null;
+				int preferredBanked = 0;
+				for (int itemId : requirement.getItemIds())
+				{
+					int required = requirement.getRequiredQuantity(itemId);
+					if (required == 0)
+					{
+						continue;
+					}
+					int bank = Math.max(0, banked.applyAsInt(itemId));
+					boolean satisfies = bank >= required;
+					boolean preferredSatisfies = preferred != null && preferredBanked >= requirement.getRequiredQuantity(preferred);
+					if (preferred == null || (satisfies && !preferredSatisfies)
+						|| (satisfies == preferredSatisfies && bank > preferredBanked))
+					{
+						preferred = itemId;
+						preferredBanked = bank;
+					}
+				}
+				if (preferred != null && preferredBanked == 0)
+				{
+					PurchasableItemCatalog.PurchasableItem purchasable = requirement.getItemIds().stream()
+						.map(PurchasableItemCatalog::byItemId).filter(java.util.Objects::nonNull).findFirst().orElse(null);
+					int currency = purchasable == null ? -1 : currencyItemId(purchasable.costCurrencyName);
+					if (currency > 0)
+					{
+						int needed = CURRENCY_BASED.contains(transport.getType()) ? 1 : requirement.getRequiredQuantity(purchasable.itemId);
+						withdrawals.merge(currency, purchasable.costAmount * needed, Integer::sum);
+						continue;
+					}
+				}
+				if (preferred != null)
+				{
+					withdrawals.merge(preferred, requirement.getRequiredQuantity(preferred), Integer::sum);
+				}
+			}
+		}
+		return withdrawals;
+	}
+
+	/** The catalogue's item requirements; a fairy ring without any needs a staff until the elite diary. */
+	private static List<TransportItemRequirement> requirements(Transport transport, java.util.function.BooleanSupplier lumbridgeEliteDone)
+	{
+		List<TransportItemRequirement> listed = transport.getItemRequirements() == null
+			? Collections.emptyList() : transport.getItemRequirements();
+		if (transport.getType() == TransportType.FAIRY_RING && listed.isEmpty() && !lumbridgeEliteDone.getAsBoolean())
+		{
+			return List.of(TransportItemRequirement.legacyAlternatives(java.util.Set.of(
+				net.runelite.api.gameval.ItemID.DRAMEN_STAFF, net.runelite.api.gameval.ItemID.LUNAR_MOONCLAN_LIMINAL_STAFF)));
+		}
+		return listed;
+	}
+
+	/** As upstream: the runes one cast of the spell named in {@code displayInfo} still needs. */
+	private static Map<Integer, Integer> spellRunes(Transport transport)
+	{
+		Map<Integer, Integer> runes = new HashMap<>();
+		if (transport.getDisplayInfo() == null)
+		{
+			return runes;
+		}
+		String name = transport.getDisplayInfo().contains(":")
+			? transport.getDisplayInfo().split(":")[0].trim().toLowerCase() : transport.getDisplayInfo();
+		net.runelite.client.plugins.microbot.util.magic.Rs2Spells spell =
+			net.runelite.client.plugins.microbot.util.magic.Rs2Magic.getRs2Spell(name);
+		if (spell != null)
+		{
+			net.runelite.client.plugins.microbot.util.magic.Rs2Magic.getRequiredRunes(spell, 1, true)
+				.forEach((rune, quantity) -> runes.put(rune.getItemId(), quantity));
+		}
+		return runes;
+	}
+
+	private static int currencyItemId(String currencyName)
+	{
+		String currency = currencyName == null ? "" : currencyName.trim().toLowerCase();
+		switch (currency)
+		{
+			case "coins":
+				return net.runelite.api.gameval.ItemID.COINS;
+			case "ecto-token":
+				return net.runelite.api.gameval.ItemID.ECTOTOKEN;
+			default:
+				return -1;
+		}
+	}
+
+	/** As upstream: carried quantity, counting an equipped item as at least one. */
+	private static int carriedItemQuantity(int itemId)
+	{
+		int quantity = net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory.itemQuantity(itemId);
+		net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel equipped =
+			net.runelite.client.plugins.microbot.util.equipment.Rs2Equipment.get(itemId);
+		return equipped == null ? quantity : quantity + Math.max(1, equipped.getQuantity());
 	}
 
 	/**
