@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 2 (**user request**, 2026-10-24: "the script never starts, the stop just triggers a few seconds later") | `mobilemicrobot/MobileMicrobotPlugin.java` (`onGameTick`, `stopActive`), tests | **Fix:** with a Hub script running, `runScript` is off, so `onGameTick` calls `stopActive("Stopped")` every tick, which writes `running=false` to `MobileScriptBridge` and overwrites the status. The Microbot screen flips back to Stopped and hides failure reasons | this commit |
 | Claude 1 (**user request**: woodcutter picks the lone Lumbridge oak; cut the two next to each other) | `woodcutting/enums/WoodcuttingTreeLocations.java` (Lumbridge oak point), new `WoodcuttingLumbridgeOakTest` | **Fix: Lumbridge Oak Trees** start point moves to the oak pair north of the castle | this commit |
 
 ## Requests
