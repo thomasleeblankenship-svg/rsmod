@@ -1,5 +1,6 @@
 package net.runelite.client.plugins.microbot.util.antiban;
 
+import net.runelite.api.AnimationID;
 import net.runelite.client.plugins.microbot.util.antiban.enums.Activity;
 import net.runelite.client.plugins.microbot.util.antiban.enums.ActivityIntensity;
 import net.runelite.client.plugins.microbot.util.antiban.enums.Category;
@@ -22,6 +23,80 @@ public final class Rs2Antiban
 	private static volatile Category category;
 	private static volatile PlayStyle playStyle;
 	private Rs2Antiban() { }
+
+	// ---- Util action batch AM (Claude 1): activity state ----
+	// Upstream's AntibanPlugin counts idle ticks only while anti-ban is on; mobile never turns it on,
+	// so this tracker runs on its own (fed by MobileMicrobotPlugin). It reads game state only.
+
+	/** Upstream's limits: idle after more than 1 tick without animation; cooking and mining linger 3 s. */
+	private static final int IDLE_TIMEOUT_TICKS = 1;
+	private static final long ACTIVITY_LINGER_MILLIS = 3_000;
+	private static volatile int idleTicks;
+	private static volatile long lastCookingMillis = Long.MIN_VALUE / 2;
+	private static volatile long lastMiningMillis = Long.MIN_VALUE / 2;
+
+	private static final String[] COOKING_PREFIXES = {"You successfully cook", "You successfully bake", "You successfully fry",
+		"You manage to cook", "You roast a", "You spit-roast", "You cook", "Eventually the Jubbly", "You half-cook",
+		"The undead meat is now cooked", "The undead chicken is now cooked", "You successfully scramble", "You dry a piece of meat",
+		"You accidentally burn", "Unfortunately the Jubbly", "You accidentally spoil"};
+
+	/** As upstream: more than one game tick has passed without an animation. */
+	public static boolean isIdle()
+	{
+		return idleTicks > IDLE_TIMEOUT_TICKS;
+	}
+
+	/** As upstream: a cooking chat message (spam channel). */
+	public static boolean checkForCookingEvent(net.runelite.api.events.ChatMessage event)
+	{
+		if (event == null || event.getType() != net.runelite.api.ChatMessageType.SPAM || event.getMessage() == null)
+		{
+			return false;
+		}
+		String message = event.getMessage();
+		return java.util.Arrays.stream(COOKING_PREFIXES).anyMatch(message::startsWith)
+			|| "You burn the mushroom in the fire.".equals(message);
+	}
+
+	/** Upstream AntibanPlugin's cooking check: a cooking animation, or a cooking message within 3 s. */
+	static boolean isCookingActivity()
+	{
+		int animation = net.runelite.client.plugins.microbot.util.player.Rs2Player.getAnimation();
+		return animation == AnimationID.COOKING_FIRE || animation == AnimationID.COOKING_RANGE || animation == AnimationID.COOKING_WINE
+			|| System.currentTimeMillis() - lastCookingMillis < ACTIVITY_LINGER_MILLIS;
+	}
+
+	/** Upstream AntibanPlugin's mining check: a mining animation now or within 3 s. */
+	static boolean isMiningActivity()
+	{
+		return isMining() || System.currentTimeMillis() - lastMiningMillis < ACTIVITY_LINGER_MILLIS;
+	}
+
+	/** Called every game tick (by MobileMicrobotPlugin): counts idle ticks and notes mining. */
+	public static void onGameTick()
+	{
+		if (net.runelite.client.plugins.microbot.util.player.Rs2Player.isAnimating())
+		{
+			idleTicks = 0;
+		}
+		else
+		{
+			idleTicks++;
+		}
+		if (isMining())
+		{
+			lastMiningMillis = System.currentTimeMillis();
+		}
+	}
+
+	/** Called for every chat message (by MobileMicrobotPlugin): notes cooking. */
+	public static void onChatMessage(net.runelite.api.events.ChatMessage event)
+	{
+		if (checkForCookingEvent(event))
+		{
+			lastCookingMillis = System.currentTimeMillis();
+		}
+	}
 
 	// Upstream anti-ban entry points, accepted and inert on mobile (see Rs2AntibanSettings).
 
@@ -95,46 +170,46 @@ public final class Rs2Antiban
 
 	/** As upstream: every pickaxe mining animation (normal, Motherlode and crashed-star variants). */
 	public static final com.google.common.collect.ImmutableSet<Integer> MINING_ANIMATION_IDS = com.google.common.collect.ImmutableSet.of(
-		net.runelite.api.AnimationID.MINING_BRONZE_PICKAXE, net.runelite.api.AnimationID.MINING_MOTHERLODE_BRONZE,
-		net.runelite.api.AnimationID.MINING_CRASHEDSTAR_BRONZE, net.runelite.api.AnimationID.MINING_IRON_PICKAXE,
-		net.runelite.api.AnimationID.MINING_MOTHERLODE_IRON, net.runelite.api.AnimationID.MINING_CRASHEDSTAR_IRON,
-		net.runelite.api.AnimationID.MINING_STEEL_PICKAXE, net.runelite.api.AnimationID.MINING_MOTHERLODE_STEEL,
-		net.runelite.api.AnimationID.MINING_CRASHEDSTAR_STEEL, net.runelite.api.AnimationID.MINING_BLACK_PICKAXE,
-		net.runelite.api.AnimationID.MINING_MOTHERLODE_BLACK, net.runelite.api.AnimationID.MINING_CRASHEDSTAR_BLACK,
-		net.runelite.api.AnimationID.MINING_MITHRIL_PICKAXE, net.runelite.api.AnimationID.MINING_MOTHERLODE_MITHRIL,
-		net.runelite.api.AnimationID.MINING_CRASHEDSTAR_MITHRIL, net.runelite.api.AnimationID.MINING_ADAMANT_PICKAXE,
-		net.runelite.api.AnimationID.MINING_MOTHERLODE_ADAMANT, net.runelite.api.AnimationID.MINING_CRASHEDSTAR_ADAMANT,
-		net.runelite.api.AnimationID.MINING_RUNE_PICKAXE, net.runelite.api.AnimationID.MINING_MOTHERLODE_RUNE,
-		net.runelite.api.AnimationID.MINING_CRASHEDSTAR_RUNE, net.runelite.api.AnimationID.MINING_GILDED_PICKAXE,
-		net.runelite.api.AnimationID.MINING_MOTHERLODE_GILDED, net.runelite.api.AnimationID.MINING_CRASHEDSTAR_GILDED,
-		net.runelite.api.AnimationID.MINING_DRAGON_PICKAXE, net.runelite.api.AnimationID.MINING_MOTHERLODE_DRAGON,
-		net.runelite.api.AnimationID.MINING_CRASHEDSTAR_DRAGON, net.runelite.api.AnimationID.MINING_DRAGON_PICKAXE_OR,
-		net.runelite.api.AnimationID.MINING_MOTHERLODE_DRAGON_OR, net.runelite.api.AnimationID.MINING_CRASHEDSTAR_DRAGON_OR,
-		net.runelite.api.AnimationID.MINING_DRAGON_PICKAXE_OR_TRAILBLAZER, net.runelite.api.AnimationID.MINING_MOTHERLODE_DRAGON_OR_TRAILBLAZER,
-		net.runelite.api.AnimationID.MINING_CRASHEDSTAR_DRAGON_OR_TRAILBLAZER, net.runelite.api.AnimationID.MINING_DRAGON_PICKAXE_UPGRADED,
-		net.runelite.api.AnimationID.MINING_MOTHERLODE_DRAGON_UPGRADED, net.runelite.api.AnimationID.MINING_CRASHEDSTAR_DRAGON_UPGRADED,
-		net.runelite.api.AnimationID.MINING_INFERNAL_PICKAXE, net.runelite.api.AnimationID.MINING_MOTHERLODE_INFERNAL,
-		net.runelite.api.AnimationID.MINING_CRASHEDSTAR_INFERNAL, net.runelite.api.AnimationID.MINING_3A_PICKAXE,
-		net.runelite.api.AnimationID.MINING_MOTHERLODE_3A, net.runelite.api.AnimationID.MINING_CRASHEDSTAR_3A,
-		net.runelite.api.AnimationID.MINING_CRYSTAL_PICKAXE, net.runelite.api.AnimationID.MINING_MOTHERLODE_CRYSTAL,
-		net.runelite.api.AnimationID.MINING_CRASHEDSTAR_CRYSTAL, net.runelite.api.AnimationID.MINING_TRAILBLAZER_PICKAXE,
-		net.runelite.api.AnimationID.MINING_TRAILBLAZER_PICKAXE_2, net.runelite.api.AnimationID.MINING_TRAILBLAZER_PICKAXE_3,
-		net.runelite.api.AnimationID.MINING_MOTHERLODE_TRAILBLAZER
+		AnimationID.MINING_BRONZE_PICKAXE, AnimationID.MINING_MOTHERLODE_BRONZE,
+		AnimationID.MINING_CRASHEDSTAR_BRONZE, AnimationID.MINING_IRON_PICKAXE,
+		AnimationID.MINING_MOTHERLODE_IRON, AnimationID.MINING_CRASHEDSTAR_IRON,
+		AnimationID.MINING_STEEL_PICKAXE, AnimationID.MINING_MOTHERLODE_STEEL,
+		AnimationID.MINING_CRASHEDSTAR_STEEL, AnimationID.MINING_BLACK_PICKAXE,
+		AnimationID.MINING_MOTHERLODE_BLACK, AnimationID.MINING_CRASHEDSTAR_BLACK,
+		AnimationID.MINING_MITHRIL_PICKAXE, AnimationID.MINING_MOTHERLODE_MITHRIL,
+		AnimationID.MINING_CRASHEDSTAR_MITHRIL, AnimationID.MINING_ADAMANT_PICKAXE,
+		AnimationID.MINING_MOTHERLODE_ADAMANT, AnimationID.MINING_CRASHEDSTAR_ADAMANT,
+		AnimationID.MINING_RUNE_PICKAXE, AnimationID.MINING_MOTHERLODE_RUNE,
+		AnimationID.MINING_CRASHEDSTAR_RUNE, AnimationID.MINING_GILDED_PICKAXE,
+		AnimationID.MINING_MOTHERLODE_GILDED, AnimationID.MINING_CRASHEDSTAR_GILDED,
+		AnimationID.MINING_DRAGON_PICKAXE, AnimationID.MINING_MOTHERLODE_DRAGON,
+		AnimationID.MINING_CRASHEDSTAR_DRAGON, AnimationID.MINING_DRAGON_PICKAXE_OR,
+		AnimationID.MINING_MOTHERLODE_DRAGON_OR, AnimationID.MINING_CRASHEDSTAR_DRAGON_OR,
+		AnimationID.MINING_DRAGON_PICKAXE_OR_TRAILBLAZER, AnimationID.MINING_MOTHERLODE_DRAGON_OR_TRAILBLAZER,
+		AnimationID.MINING_CRASHEDSTAR_DRAGON_OR_TRAILBLAZER, AnimationID.MINING_DRAGON_PICKAXE_UPGRADED,
+		AnimationID.MINING_MOTHERLODE_DRAGON_UPGRADED, AnimationID.MINING_CRASHEDSTAR_DRAGON_UPGRADED,
+		AnimationID.MINING_INFERNAL_PICKAXE, AnimationID.MINING_MOTHERLODE_INFERNAL,
+		AnimationID.MINING_CRASHEDSTAR_INFERNAL, AnimationID.MINING_3A_PICKAXE,
+		AnimationID.MINING_MOTHERLODE_3A, AnimationID.MINING_CRASHEDSTAR_3A,
+		AnimationID.MINING_CRYSTAL_PICKAXE, AnimationID.MINING_MOTHERLODE_CRYSTAL,
+		AnimationID.MINING_CRASHEDSTAR_CRYSTAL, AnimationID.MINING_TRAILBLAZER_PICKAXE,
+		AnimationID.MINING_TRAILBLAZER_PICKAXE_2, AnimationID.MINING_TRAILBLAZER_PICKAXE_3,
+		AnimationID.MINING_MOTHERLODE_TRAILBLAZER
 	);
 
 	/** As upstream: every one- and two-handed axe woodcutting animation. */
 	private static final java.util.Set<Integer> WOODCUTTING_ANIMS = com.google.common.collect.ImmutableSet.of(
-		net.runelite.api.AnimationID.WOODCUTTING_BRONZE, net.runelite.api.AnimationID.WOODCUTTING_IRON, net.runelite.api.AnimationID.WOODCUTTING_STEEL,
-		net.runelite.api.AnimationID.WOODCUTTING_BLACK, net.runelite.api.AnimationID.WOODCUTTING_MITHRIL, net.runelite.api.AnimationID.WOODCUTTING_ADAMANT,
-		net.runelite.api.AnimationID.WOODCUTTING_RUNE, net.runelite.api.AnimationID.WOODCUTTING_GILDED, net.runelite.api.AnimationID.WOODCUTTING_DRAGON,
-		net.runelite.api.AnimationID.WOODCUTTING_DRAGON_OR, net.runelite.api.AnimationID.WOODCUTTING_INFERNAL,
-		net.runelite.api.AnimationID.WOODCUTTING_3A_AXE, net.runelite.api.AnimationID.WOODCUTTING_CRYSTAL,
-		net.runelite.api.AnimationID.WOODCUTTING_TRAILBLAZER, net.runelite.api.AnimationID.WOODCUTTING_2H_BRONZE,
-		net.runelite.api.AnimationID.WOODCUTTING_2H_IRON, net.runelite.api.AnimationID.WOODCUTTING_2H_STEEL,
-		net.runelite.api.AnimationID.WOODCUTTING_2H_BLACK, net.runelite.api.AnimationID.WOODCUTTING_2H_MITHRIL,
-		net.runelite.api.AnimationID.WOODCUTTING_2H_ADAMANT, net.runelite.api.AnimationID.WOODCUTTING_2H_RUNE,
-		net.runelite.api.AnimationID.WOODCUTTING_2H_DRAGON, net.runelite.api.AnimationID.WOODCUTTING_2H_CRYSTAL,
-		net.runelite.api.AnimationID.WOODCUTTING_2H_CRYSTAL_INACTIVE, net.runelite.api.AnimationID.WOODCUTTING_2H_3A
+		AnimationID.WOODCUTTING_BRONZE, AnimationID.WOODCUTTING_IRON, AnimationID.WOODCUTTING_STEEL,
+		AnimationID.WOODCUTTING_BLACK, AnimationID.WOODCUTTING_MITHRIL, AnimationID.WOODCUTTING_ADAMANT,
+		AnimationID.WOODCUTTING_RUNE, AnimationID.WOODCUTTING_GILDED, AnimationID.WOODCUTTING_DRAGON,
+		AnimationID.WOODCUTTING_DRAGON_OR, AnimationID.WOODCUTTING_INFERNAL,
+		AnimationID.WOODCUTTING_3A_AXE, AnimationID.WOODCUTTING_CRYSTAL,
+		AnimationID.WOODCUTTING_TRAILBLAZER, AnimationID.WOODCUTTING_2H_BRONZE,
+		AnimationID.WOODCUTTING_2H_IRON, AnimationID.WOODCUTTING_2H_STEEL,
+		AnimationID.WOODCUTTING_2H_BLACK, AnimationID.WOODCUTTING_2H_MITHRIL,
+		AnimationID.WOODCUTTING_2H_ADAMANT, AnimationID.WOODCUTTING_2H_RUNE,
+		AnimationID.WOODCUTTING_2H_DRAGON, AnimationID.WOODCUTTING_2H_CRYSTAL,
+		AnimationID.WOODCUTTING_2H_CRYSTAL_INACTIVE, AnimationID.WOODCUTTING_2H_3A
 	);
 
 	/** As upstream: the local player is playing a woodcutting animation. */

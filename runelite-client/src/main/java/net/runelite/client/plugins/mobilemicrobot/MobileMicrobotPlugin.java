@@ -269,6 +269,16 @@ public class MobileMicrobotPlugin extends Plugin
 		net.runelite.client.plugins.microbot.Microbot.setIsGainingExp(true);
 	}
 
+	/** Feeds upstream's cooking-activity read ({@code AntibanPlugin.isCooking}). */
+	@Subscribe
+	public void onChatMessage(net.runelite.api.events.ChatMessage event)
+	{
+		if (enabled)
+		{
+			net.runelite.client.plugins.microbot.util.antiban.Rs2Antiban.onChatMessage(event);
+		}
+	}
+
 	@Subscribe
 	public void onGameTick(GameTick event)
 	{
@@ -276,6 +286,8 @@ public class MobileMicrobotPlugin extends Plugin
 		{
 			return;
 		}
+		// Upstream's idle-tick and mining tracking ({@code Category.isBusy}, {@code AntibanPlugin.isMining}).
+		net.runelite.client.plugins.microbot.util.antiban.Rs2Antiban.onGameTick();
 		if (hub.checkSession())
 		{
 			MobileScriptBridge.update("Hub plugin stopped: input session cancelled (app backgrounded or input fault)", "", false);

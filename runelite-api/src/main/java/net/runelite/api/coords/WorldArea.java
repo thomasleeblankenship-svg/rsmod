@@ -211,6 +211,19 @@ public class WorldArea
 	 * @param other the other area
 	 * @return true if the areas intersect, false otherwise
 	 */
+	/**
+	 * Checks whether this area overlaps another on the x and y axes, ignoring the plane (as
+	 * RuneLite's newer API).
+	 *
+	 * @param other the other area
+	 * @return true if the two areas overlap in two dimensions, false otherwise
+	 */
+	public boolean intersectsWith2D(WorldArea other)
+	{
+		Point distances = getAxisDistances(other);
+		return distances.getX() + distances.getY() == 0;
+	}
+
 	public boolean intersectsWith(WorldArea other)
 	{
 		if (this.getPlane() != other.getPlane())
