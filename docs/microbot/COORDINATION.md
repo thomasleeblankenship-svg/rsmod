@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | New Hub ports `microbot/{actionreplay,aerialfishing,arceuuslibrary,construction,cooking,fletching,glassmake,grapefarmer,looter,natepieshells,sandminer,scurrius,valetotems,virewatch}/**` with resources, `suppressions.xml`, `build.gradle.kts`, `HubPortedPluginsTest`, `HUB_PORTS.md` (mmcaves recorded as not ported) | **Task: port 14 Hub plugins that now compile unchanged** | this commit |
 
 ## Requests
 
