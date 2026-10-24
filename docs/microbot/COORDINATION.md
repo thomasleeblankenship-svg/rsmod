@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | `util/magic/Rs2Spellbook.java` (actions: `switchTo`, `switchViaNpc`), new `util/gameobject/Rs2Cannon.java` (upstream `repair`, `refill`), `util/math/Rs2Random.java` (samplers: `gaussRand`, `truncatedGauss`, `logNormalBounded`, `fancyNormalSample`, `truncatedNormalSample`, `nzRandom`; numbers only, no input), new `HubActionBatchKTest` | **Task: util-gap action batch K** (spellbook switching, cannon, random samplers) | this commit |
 
 ## Requests
 
