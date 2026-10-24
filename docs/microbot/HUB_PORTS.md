@@ -162,6 +162,9 @@ Known differences from desktop:
 - **Script-built menu entries** (`Microbot.doInvoke`, 24 Hub calls in 13 plugins) are sent exactly as built, one
   per game tick. The rectangle is ignored (there is no cursor), a WALK entry taps the canvas point it
   carries, and nothing is sent while the Wilderness warning is open. `Microbot.drag` is not ported.
+- **Dangerous tiles** (`Rs2Tile.addDangerous*`, used by boss helpers): when a script marks the player's own
+  tile, the walker makes one scene walk to the nearest safe tile, as upstream does. It only does this while a
+  script session is active, at most one dodge at a time, and never on the client thread.
 - **Overlay-heavy plugins** (theatre, zulrah, parts of others) draw desktop overlays, which may not
   suit the phone screen.
 - **Inventory setups** match by item totals, not slot order; the rune pouch is checked, not filled.

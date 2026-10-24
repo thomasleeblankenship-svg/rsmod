@@ -152,6 +152,8 @@ public final class MicrobotRuntime {
                 throw new IllegalStateException("Microbot runtime service failed to start", e);
             }
             next.blockingEventManager.start();
+            // As upstream, a script standing on a tile it marked dangerous steps to a safe one.
+            net.runelite.client.plugins.microbot.util.walker.Rs2Walker.registerDangerDodge();
 
             if (client.isClientThread()) {
                 next.seedLoggedIn();
@@ -200,6 +202,7 @@ public final class MicrobotRuntime {
         current.eventBus.unregister(current.listener);
         current.eventBus.unregister(current.gameTickBroadcaster);
         current.blockingEventManager.shutdown();
+        net.runelite.client.plugins.microbot.util.walker.Rs2Walker.clearDangerDodge();
         Microbot.unbind();
     }
 
