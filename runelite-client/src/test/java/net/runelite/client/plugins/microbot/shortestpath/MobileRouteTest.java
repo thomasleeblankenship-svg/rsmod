@@ -64,6 +64,11 @@ public class MobileRouteTest
 		}
 	}
 
+	static boolean freshFreeToPlayForTest(Transport t)
+	{
+		return freshFreeToPlay(t);
+	}
+
 	private static boolean freshFreeToPlay(Transport t)
 	{
 		return !t.isMembers()
@@ -85,8 +90,15 @@ public class MobileRouteTest
 	 * Offline config admitting the transports {@code policy} admits and {@code usable} accepts, as if
 	 * the player met their requirements; origin-less teleports become usable teleports.
 	 */
-	@SuppressWarnings("unchecked")
 	static PathfinderConfig offlineConfig(MobileTransportPolicy policy, java.util.function.Predicate<Transport> usable)
+	{
+		return offlineConfig(policy, usable, Map.of());
+	}
+
+	/** {@link #offlineConfig(MobileTransportPolicy, java.util.function.Predicate)} plus {@code extra} transports (key {@code null}: teleports). */
+	@SuppressWarnings("unchecked")
+	static PathfinderConfig offlineConfig(MobileTransportPolicy policy, java.util.function.Predicate<Transport> usable,
+		Map<WorldPoint, Set<Transport>> extra)
 	{
 		ensureLoaded();
 		PathfinderConfig config = new PathfinderConfig(
@@ -108,7 +120,10 @@ public class MobileRouteTest
 			teleportsField.setAccessible(true);
 			Set<Transport> teleports = (Set<Transport>) teleportsField.get(config);
 
-			for (Map.Entry<WorldPoint, Set<Transport>> entry : allTransports.entrySet())
+			Map<WorldPoint, Set<Transport>> source = new HashMap<>();
+			allTransports.forEach((key, value) -> source.put(key, new java.util.HashSet<>(value)));
+			extra.forEach((key, value) -> source.computeIfAbsent(key, k -> new java.util.HashSet<>()).addAll(value));
+			for (Map.Entry<WorldPoint, Set<Transport>> entry : source.entrySet())
 			{
 				Set<Transport> admitted = entry.getValue().stream()
 					.filter(policy::isAdmitted)

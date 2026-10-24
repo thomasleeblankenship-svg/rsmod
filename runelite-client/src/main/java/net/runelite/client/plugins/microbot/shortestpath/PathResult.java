@@ -80,7 +80,7 @@ public final class PathResult
 			this.itemIds = Collections.unmodifiableSet(ids);
 			this.skillLevels = transport.getSkillLevels() == null ? new int[0] : transport.getSkillLevels().clone();
 			HouseTransport house = transport instanceof HouseTransport ? (HouseTransport) transport : null;
-			this.intoHouse = house != null && house.isIntoHouse();
+			this.intoHouse = (house != null && house.isIntoHouse()) || PohPanel.HOUSE_TILE.equals(transport.getDestination());
 			this.pohDevice = house == null ? null : house.getPohDevice();
 			this.pohOption = house == null ? null : house.getPohOption();
 		}

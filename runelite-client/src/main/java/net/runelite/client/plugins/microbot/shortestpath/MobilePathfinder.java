@@ -59,16 +59,25 @@ public final class MobilePathfinder
 	/**
 	 * {@link #find(WorldPoint, WorldPoint)}, optionally planning as if the remembered bank's items
 	 * were carried (upstream's {@code withBankItems}), for the banking reads. Bank routes are
-	 * never reused.
+	 * never reused. A start inside the player-owned house is replaced by {@link PohPanel#HOUSE_TILE}
+	 * (after the house is detected), so the result's start and first tile are that tile.
 	 */
-	public static PathResult find(WorldPoint start, WorldPoint goal, boolean useBankItems)
+	public static PathResult find(WorldPoint origin, WorldPoint goal, boolean useBankItems)
 	{
+		WorldPoint start = origin;
 		Objects.requireNonNull(start, "start");
 		Objects.requireNonNull(goal, "goal");
 		Client client = Microbot.getClient();
 		if (client != null && client.isClientThread())
 		{
 			throw new IllegalStateException("MobilePathfinder.find must not run on the client thread");
+		}
+		if (client != null && net.runelite.client.plugins.microbot.util.poh.PohPresence.isInHouse())
+		{
+			// Inside the house the player's tile is an instance template: detect the house now and
+			// plan from its synthetic tile, as the ways out leave from there.
+			net.runelite.client.plugins.microbot.util.poh.PohLayoutStore.refreshIfInHouse();
+			start = PohPanel.HOUSE_TILE;
 		}
 		PathfinderConfig shared = client == null ? null : sharedConfig(client);
 		PathResult reused = shared == null || useBankItems ? null
