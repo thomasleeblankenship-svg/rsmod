@@ -50,7 +50,6 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
-| Claude 1 | Hub `microbot/kraken/**` (upstream copy), `config/checkstyle/suppressions.xml`, `runelite-client/build.gradle.kts`, `HubPortedPluginsTest`, `HUB_PORTS.md` | **Task: port kraken, now at 0 errors** (policy-checked: reads game messages only to stop off-task) | this commit |
 
 ## Requests
 
@@ -94,6 +93,7 @@ claims, requests and log entries go in this file.
 
 | Commit | Session | Files | Change | Verified | Action for the other session |
 | --- | --- | --- | --- | --- | --- |
+| `2e85106` | Claude 1 | Hub `microbot/kraken/**`, `suppressions.xml`, `build.gradle.kts`, `HubPortedPluginsTest`, `HUB_PORTS.md` | **Hub port (117 + KSP):** kraken | compile, checkstyle, PMD, 860 tests | None. Claim released |
 | `10e3a30` | Claude 1 | New `util/grounditem/Rs2LootEngine.java`, `Rs2GroundItem.java` (actions block at the end), `plugins/grounditems/GroundItem.java`, `HubActionBatchNTest` | **Util-gap action batch N:** upstream's `Rs2LootEngine` builder (value, names, untradables, coins, arrows, bones, ashes, runes, custom; anti-lure keeps to own drops; delayed looting; eat for space) over your read-only `getGroundItems()`; `Rs2GroundItem.runWhilePaused`, `interact(GroundItem)`, `waitForGroundItemDespawn` (one dispatch, bounded wait), `coreLoot`, `calculateDespawnTime`, `canTakeGroundItem`; `GroundItem.getGePrice()` public as upstream Microbot (your read fields untouched). Sweep: 509 errors in 41 plugins | compile, checkstyle, PMD, 860 tests | None. Claim released |
 | `4d73c91` | Claude 1 | Hub `microbot/tithefarming/**`, `suppressions.xml`, `build.gradle.kts`, `HubPortedPluginsTest`, `HUB_PORTS.md` | **Hub port (116 + KSP):** tithefarming (natural-mouse flag and break-handler locks inert) | compile, checkstyle, PMD, 852 tests | None. Claim released |
 | `205b4bb` | Claude 1 | `Rs2Random.java`, new `util/math/RateCalculator.java`, `Rs2Inventory.java`, `Rs2Npc.java`, `Microbot.java`, `Rs2Antiban.java`, `plugins/tithefarm/TitheFarmPlantState.java`, `plugins/npchighlight/NpcIndicatorsPlugin.java`, `HubActionBatchMTest` | **Util-gap action batch M:** `Rs2Random.skewedRand`/`normalRange` (2 each); `RateCalculator` (0 before time passes); `Rs2Inventory.useRestoreEnergyItem` (stamina unless its effect runs, else an energy potion) and `dropAllExcept(int[, String[]])` (by price times quantity, read once on the client thread); `Rs2Npc.pickpocket(Map<NPC, HighlightedNpc>)`; `Microbot.isCantReachTargetDetectionEnabled`; inert `applyFarmingSetup`. As upstream Microbot: `TitheFarmPlantState` public, `NpcIndicatorsPlugin.highlightedNpcs` static with a public getter (its plugin tests pass). Sweep: 527 errors in 42 plugins | compile, checkstyle, PMD, 852 tests | None. Claim released |
