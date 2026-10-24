@@ -4,12 +4,21 @@ package net.runelite.client.plugins.microbot.varrockcleaner;
 import net.runelite.api.ObjectID;
 import net.runelite.client.plugins.microbot.Microbot;
 import net.runelite.client.plugins.microbot.Script;
+import net.runelite.client.plugins.microbot.util.dialogues.Rs2Dialogue;
 import net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory;
-import net.runelite.client.plugins.microbot.util.keyboard.Rs2Keyboard;
+import net.runelite.client.plugins.microbot.util.player.Rs2Player;
 
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Varrock Museum find cleaner: takes uncleaned finds from the dig-site rocks, cleans them at the specimen
+ * table, hands the finds in at the storage crate and drops the leftovers. Adapted for Microbot Mobile; see
+ * MOBILE_PORT.md in this package.
+ */
 public class VarrockCleanerScript extends Script {
+
+    /** How long the player may stand idle before a repeating take or clean counts as finished. */
+    private static final int IDLE_MILLIS = 1800;
 
     private enum State {
         TAKE_UNCLEANED,
@@ -44,7 +53,10 @@ public class VarrockCleanerScript extends Script {
                 }
 
             } catch (Exception ex) {
-                Microbot.log(ex.getMessage());
+                // Mobile: stop rather than retry a failing step every 100 ms. Turning the plugin off (not just
+                // this loop) lets the Microbot Mobile screen show it stopped.
+                Microbot.log("Varrock Cleaner stopped after an error: " + ex);
+                Microbot.stopPlugin(VarrockCleanerPlugin.class);
             }
         }, 0, 100, TimeUnit.MILLISECONDS);
 
@@ -57,7 +69,9 @@ public class VarrockCleanerScript extends Script {
             return;
         }
         if (Microbot.getRs2TileObjectCache().query().interact(ObjectID.DIG_SITE_SPECIMEN_ROCKS, "Take")) {
-            sleepUntil(() -> !Rs2Inventory.isFull(), 5000);
+            // Mobile: let the take run instead of clicking the rocks again every loop.
+            sleepUntil(Rs2Player::isAnimating, 5000);
+            sleepUntil(() -> Rs2Inventory.isFull() || !Rs2Player.isAnimating(IDLE_MILLIS), 60000);
         }
         if (Rs2Inventory.isFull()) {
             currentState = State.CLEAN_FIND;
@@ -87,7 +101,11 @@ public class VarrockCleanerScript extends Script {
         };
 
         if (!Rs2Inventory.contains("Uncleaned find") && Microbot.getRs2TileObjectCache().query().interact(ObjectID.STORAGE_CRATE, "Add finds")) {
-            Rs2Keyboard.keyPress('2');
+            // Mobile: answer option 2 (as upstream's key press) only once the menu is showing, retrying until the
+            // key is accepted; with no menu the crate took the finds directly.
+            if (Rs2Dialogue.sleepUntilSelectAnOption()) {
+                sleepUntil(() -> Rs2Dialogue.keyPressForDialogueOption(2), 3000);
+            }
             sleep(1000);
 
             boolean hasRareItems = false;
