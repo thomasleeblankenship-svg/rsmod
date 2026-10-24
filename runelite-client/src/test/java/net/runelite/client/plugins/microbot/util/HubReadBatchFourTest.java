@@ -171,6 +171,7 @@ public class HubReadBatchFourTest
 		inventory(new Item(BONES, 1), new Item(NOTED_BONES, 40), new Item(-1, 0), new Item(KNIFE, 1));
 
 		assertEquals(28, Rs2Inventory.capacity());
+		assertEquals("three of 28 slots hold items", 25, Rs2Inventory.getEmptySlots());
 		assertTrue(Rs2Inventory.contains(item -> item.getName().toLowerCase().contains("knif")));
 		assertFalse(Rs2Inventory.contains(item -> item.getId() == 1));
 		assertTrue(Rs2Inventory.slotContains(3, KNIFE));
