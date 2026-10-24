@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | `docs/microbot/UTIL_GAP.md` (status section) | **Task: record the util-gap status after action batch P** | this commit |
 
 ## Requests
 
