@@ -74,6 +74,24 @@ public final class Rs2Bank
 			&& Rs2Inventory.waitFor(Rs2Bank::isOpen, 6_000);
 	}
 
+	/** As upstream: "Bank" on this banker (see {@code Rs2Npc.getBankerNPC()}), then waits for the bank. */
+	public static boolean openBank(net.runelite.client.plugins.microbot.util.npc.Rs2NpcModel npc)
+	{
+		Microbot.status = "Opening bank";
+		if (isOpen())
+		{
+			return true;
+		}
+		return npc != null && net.runelite.client.plugins.microbot.util.npc.Rs2Npc.interact(npc, "Bank")
+			&& Rs2Inventory.waitFor(Rs2Bank::isOpen, 6_000);
+	}
+
+	/** As upstream: {@link #openBank(net.runelite.client.plugins.microbot.util.npc.Rs2NpcModel)} on a raw NPC. */
+	public static boolean openBank(net.runelite.api.NPC npc)
+	{
+		return npc != null && openBank(new net.runelite.client.plugins.microbot.util.npc.Rs2NpcModel(npc));
+	}
+
 	public static boolean closeBank()
 	{
 		if (!isOpen()) return true;
@@ -105,6 +123,78 @@ public final class Rs2Bank
 		if (bank == null || !bank.hasRequirements()) return false;
 		if (isNearBank(bank, 8)) return openBank();
 		return Rs2Walker.walkTo(bank.getWorldPoint(), 6) && isNearBank(bank, 8) && openBank();
+	}
+
+	/** As upstream: banks at the nearest bank when the inventory is full, else walks back (within 4 tiles). */
+	public static boolean bankItemsAndWalkBackToOriginalPosition(java.util.Collection<String> itemNames, WorldPoint initialRs2PlayerLocation)
+	{
+		return bankItemsAndWalkBackToOriginalPosition(itemNames, false, getNearestBank(), initialRs2PlayerLocation, 0, 4);
+	}
+
+	/** As upstream: as above, banking when no more than {@code emptySlotCount} slots are empty. */
+	public static boolean bankItemsAndWalkBackToOriginalPosition(java.util.Collection<String> itemNames, WorldPoint initialRs2PlayerLocation,
+		int emptySlotCount)
+	{
+		return bankItemsAndWalkBackToOriginalPosition(itemNames, false, getNearestBank(), initialRs2PlayerLocation, emptySlotCount, 4);
+	}
+
+	/** As upstream: as above, walking back to within {@code distance} tiles. */
+	public static boolean bankItemsAndWalkBackToOriginalPosition(java.util.Collection<String> itemNames, WorldPoint initialRs2PlayerLocation,
+		int emptySlotCount, int distance)
+	{
+		return bankItemsAndWalkBackToOriginalPosition(itemNames, false, getNearestBank(), initialRs2PlayerLocation, emptySlotCount, distance);
+	}
+
+	/**
+	 * As upstream: when at most {@code emptySlotCount} inventory slots are empty, walks to
+	 * {@code bankLocation}, opens it and deposits every stack named in {@code itemNames} (an all-digit
+	 * entry is an item id), returning false; otherwise walks back to {@code initialRs2PlayerLocation}
+	 * (within {@code distance}, at most 10) and returns whether the player is there with room. One
+	 * step per call, as upstream, so a script calls it from its loop. {@code exactItemNames} is
+	 * ignored for deposits, as upstream (names match partially).
+	 */
+	public static boolean bankItemsAndWalkBackToOriginalPosition(java.util.Collection<String> itemNames, boolean exactItemNames,
+		BankLocation bankLocation, WorldPoint initialRs2PlayerLocation, int emptySlotCount, int distance)
+	{
+		if (Rs2Inventory.emptySlotCount() <= emptySlotCount)
+		{
+			if (walkToBankAndUseBank(bankLocation) && itemNames != null)
+			{
+				for (String itemName : itemNames)
+				{
+					if (itemName == null)
+					{
+						continue;
+					}
+					if (itemName.matches("\\d+"))
+					{
+						depositAll(Integer.parseInt(itemName));
+					}
+					else
+					{
+						depositAll(itemName, false);
+					}
+				}
+			}
+			return false;
+		}
+		if (initialRs2PlayerLocation == null)
+		{
+			return false;
+		}
+		int within = Math.min(distance, 10);
+		WorldPoint here = location();
+		if (here == null || initialRs2PlayerLocation.distanceTo(here) > within
+			|| !net.runelite.client.plugins.microbot.util.tile.Rs2Tile.isTileReachable(initialRs2PlayerLocation))
+		{
+			Rs2Walker.walkTo(initialRs2PlayerLocation, within);
+		}
+		else
+		{
+			Rs2Walker.walkFastCanvas(initialRs2PlayerLocation);
+		}
+		WorldPoint after = location();
+		return Rs2Inventory.emptySlotCount() > emptySlotCount && after != null && initialRs2PlayerLocation.distanceTo(after) <= within;
 	}
 
 	private static WorldPoint location()
