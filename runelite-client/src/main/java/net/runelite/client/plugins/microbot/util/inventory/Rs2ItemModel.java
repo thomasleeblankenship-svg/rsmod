@@ -21,7 +21,7 @@ import java.util.List;
 public class Rs2ItemModel
 {
 	private final int id;
-	private final int quantity;
+	private int quantity;
 	private final int slot;
 	private final String name;
 	private final String[] inventoryActions;
@@ -34,6 +34,32 @@ public class Rs2ItemModel
 	private final int haPrice;
 	private final int linkedNoteId;
 	private final List<String> equipmentActions;
+
+	/**
+	 * As upstream: a model of {@code item} in {@code slot}; a noted item's linked definition (for
+	 * its tradeability) is read on the client thread.
+	 */
+	public Rs2ItemModel(Item item, ItemComposition itemComposition, int slot)
+	{
+		this(item, itemComposition, linkedDefinition(itemComposition), slot);
+	}
+
+	private static ItemComposition linkedDefinition(ItemComposition composition)
+	{
+		if (composition == null || composition.getNote() != 799 || composition.getLinkedNoteId() == -1)
+		{
+			return null;
+		}
+		int linked = composition.getLinkedNoteId();
+		return net.runelite.client.plugins.microbot.mobile.MobileActions.read(
+			() -> net.runelite.client.plugins.microbot.Microbot.getClient().getItemDefinition(linked), null);
+	}
+
+	/** As upstream: replaces the stack size (for scripts that track a stack themselves). */
+	public void setQuantity(int quantity)
+	{
+		this.quantity = quantity;
+	}
 
 	/**
 	 * @param linkedComposition definition of the linked (unnoted) id, used only

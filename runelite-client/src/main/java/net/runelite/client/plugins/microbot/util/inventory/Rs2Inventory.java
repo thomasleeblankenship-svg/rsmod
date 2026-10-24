@@ -263,6 +263,8 @@ public final class Rs2Inventory
 	/** As upstream: every item matching {@code filter}. */
 	public static List<Rs2ItemModel> all(Predicate<Rs2ItemModel> filter) { return items(filter).collect(Collectors.toList()); }
 	public static Rs2ItemModel get(int id) { return items(i -> i.getId() == id).findFirst().orElse(null); }
+	/** As upstream: the first item with any of {@code ids}, or {@code null}. */
+	public static Rs2ItemModel get(int... ids) { return items(Rs2ItemModel.matches(ids)).findFirst().orElse(null); }
 	public static Rs2ItemModel get(String name) { return items(i -> matches(i.getName(), name, false)).findFirst().orElse(null); }
 	/** As upstream: the first item whose name contains any of {@code names}, ignoring case. */
 	public static Rs2ItemModel get(String... names)

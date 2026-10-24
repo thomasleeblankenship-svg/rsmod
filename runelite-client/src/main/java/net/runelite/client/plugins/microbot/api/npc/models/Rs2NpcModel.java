@@ -31,6 +31,12 @@ public class Rs2NpcModel extends Rs2ActorModel implements IEntity
 	private final boolean interactingWithPlayer;
 
 	/** Captures {@code npc}; must be called on the client thread. */
+	/** As upstream: a model of {@code npc} with the installed read services' client; client thread only. */
+	public Rs2NpcModel(NPC npc)
+	{
+		this(net.runelite.client.plugins.microbot.api.MicrobotReadServices.require().getClient(), npc);
+	}
+
 	public Rs2NpcModel(Client client, NPC npc)
 	{
 		super(client, npc);

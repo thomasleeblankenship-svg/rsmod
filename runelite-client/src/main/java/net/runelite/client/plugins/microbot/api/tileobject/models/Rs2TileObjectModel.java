@@ -30,7 +30,7 @@ import net.runelite.client.plugins.microbot.api.MicrobotReadServices;
  * {@link TileObject}; of the canvas helpers only the clickbox, tile outline and
  * minimap point are provided.
  */
-public class Rs2TileObjectModel implements IEntity
+public class Rs2TileObjectModel implements TileObject, IEntity
 {
 	/** Upstream {@code Rs2TextSanitizer.COLOR_TAG_STRIP}. */
 	private static final Pattern COLOR_TAG_STRIP = Pattern.compile("(?i)</?col(?:=[^>]*?)?>");
@@ -128,6 +128,7 @@ public class Rs2TileObjectModel implements IEntity
 		return id;
 	}
 
+	@Override
 	public int getPlane()
 	{
 		return plane;
@@ -215,12 +216,14 @@ public class Rs2TileObjectModel implements IEntity
 	 * The object's clickable outline on the canvas, read now on the client thread; {@code null}
 	 * when it is off screen or not rendered.
 	 */
+	@Override
 	public java.awt.Shape getClickbox()
 	{
 		return services.read(tileObject::getClickbox).orElse(null);
 	}
 
 	/** As upstream: the object's scene hash, captured with the snapshot. */
+	@Override
 	public long getHash()
 	{
 		return hash;
@@ -230,6 +233,7 @@ public class Rs2TileObjectModel implements IEntity
 	 * As upstream: the object's point on the minimap, read now on the client thread; {@code null}
 	 * when it is off the minimap or the client thread cannot be reached.
 	 */
+	@Override
 	public Point getMinimapLocation()
 	{
 		return services.read(tileObject::getMinimapLocation).orElse(null);
@@ -239,8 +243,65 @@ public class Rs2TileObjectModel implements IEntity
 	 * As upstream: the outline of the object's tile on the canvas, read now on the client thread;
 	 * {@code null} when it is off screen or the client thread cannot be reached.
 	 */
+	@Override
 	public java.awt.Polygon getCanvasTilePoly()
 	{
 		return services.read(tileObject::getCanvasTilePoly).orElse(null);
+	}
+
+	/** As upstream: the live object's local x, read now on the client thread. */
+	@Override
+	public int getX()
+	{
+		return services.read(tileObject::getX).orElse(localLocation == null ? 0 : localLocation.getX());
+	}
+
+	/** As upstream: the live object's local y, read now on the client thread. */
+	@Override
+	public int getY()
+	{
+		return services.read(tileObject::getY).orElse(localLocation == null ? 0 : localLocation.getY());
+	}
+
+	/** As upstream: the live object's height, read now on the client thread. */
+	@Override
+	public int getZ()
+	{
+		return services.read(tileObject::getZ).orElse(0);
+	}
+
+	/** As upstream: the object's canvas point, read now on the client thread; {@code null} off screen. */
+	@Override
+	public Point getCanvasLocation()
+	{
+		return services.read(() -> tileObject.getCanvasLocation()).orElse(null);
+	}
+
+	/** As upstream: the object's canvas point (upstream ignores {@code zOffset}); {@code null} off screen. */
+	@Override
+	public Point getCanvasLocation(int zOffset)
+	{
+		return getCanvasLocation();
+	}
+
+	/** As upstream: where {@code text} would be drawn over the object; {@code null} off screen. */
+	@Override
+	public Point getCanvasTextLocation(java.awt.Graphics2D graphics, String text, int zOffset)
+	{
+		return services.read(() -> tileObject.getCanvasTextLocation(graphics, text, zOffset)).orElse(null);
+	}
+
+	/** As upstream: the scripted override for option {@code index}, or {@code null}. */
+	@Override
+	public String getOpOverride(int index)
+	{
+		return services.read(() -> tileObject.getOpOverride(index)).orElse(null);
+	}
+
+	/** As upstream: option {@code index} is shown in the object's menu. */
+	@Override
+	public boolean isOpShown(int index)
+	{
+		return services.read(() -> tileObject.isOpShown(index)).orElse(false);
 	}
 }

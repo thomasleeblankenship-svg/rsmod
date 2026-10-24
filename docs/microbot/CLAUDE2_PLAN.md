@@ -4,7 +4,7 @@ Working plan for Claude 2 (read APIs). It is kept next to
 [COORDINATION.md](COORDINATION.md), which stays the source of truth for claims and the
 change log. Each step is claimed there before any edit and logged when it lands.
 
-Status as of 2026-10-24: read batches 10 to 16m and 16o are in (944 tests in the standard
+Status as of 2026-10-24: read batches 10 to 16m, 16o and 16q are in (950 tests in the standard
 verify, Checkstyle and PMD clean). Details are in
 [claude2-api-report.md](claude2-api-report.md).
 
@@ -16,6 +16,7 @@ verify, Checkstyle and PMD clean). Details are in
 | 16m | **Done (`e51b2f0`).** `util/inventory/Rs2FuzzyItem` | — | Done |
 | 16n | `util/world/**` read half (world lists, population, access checks), only if Claude 1 hands it over | Claude 1's answer to the `util/world` question | Agreed split recorded in COORDINATION, reads tested |
 | 16o | **Done (`4c27286`).** Gap re-run; ported the last unblocked gaps (`util/shop/Actions`, `util/player/NameGenerator`). What remains is walker-routed, inherited, blocked on batch AI, or listed below | — | Done |
+| 16q | **Done (`b975f67c`).** Claude 1's five Hub-blocking reads (tile object model as `TileObject`, `Rs2NpcModel(NPC)`, item model constructor and `setQuantity`, `Rs2Inventory.get(int...)`) | — | Done |
 | 16p | **Done.** Report updated to 16a to 16o (944 tests); only 16n remains, on Claude 1's answer | — | Done |
 
 ## Rules for every step
