@@ -286,4 +286,22 @@ public final class Rs2Gembag
 		unknown = true;
 		pendingBefore = null;
 	}
+
+	// ---- Actions (Claude 1): util-gap batch F. Claude 2's reads above are unchanged. ----
+
+	/** As upstream: opens a closed gem bag, then "Check" so its contents are read from the chat. */
+	public static void checkGemBag()
+	{
+		if (!hasGemBag())
+		{
+			return;
+		}
+		if (Rs2Inventory.hasItem(ItemID.GEM_BAG))
+		{
+			Rs2Inventory.interact(ItemID.GEM_BAG, "Open");
+			net.runelite.client.plugins.microbot.util.Global.sleepUntil(
+				() -> Rs2Inventory.hasItem(ItemID.GEM_BAG_OPEN), 2_000);
+		}
+		Rs2Inventory.interact(ItemID.GEM_BAG_OPEN, "Check");
+	}
 }

@@ -129,6 +129,27 @@ public final class Rs2Bank
 		return false;
 	}
 
+	/** As upstream: "Empty" on a carried gem bag (open or closed) into the bank. */
+	public static boolean emptyGemBag()
+	{
+		Rs2ItemModel bag = Rs2Inventory.items(i -> i.getId() == net.runelite.api.gameval.ItemID.GEM_BAG
+			|| i.getId() == net.runelite.api.gameval.ItemID.GEM_BAG_OPEN).findFirst().orElse(null);
+		return bag != null && Rs2Inventory.interact(bag, "Empty");
+	}
+
+	/** As upstream: withdraws one rune pouch of any kind the bank holds. */
+	public static boolean withdrawRunePouch()
+	{
+		for (int id : net.runelite.client.plugins.microbot.util.inventory.Rs2RunePouch.POUCH_IDS)
+		{
+			if (hasItem(id))
+			{
+				return withdrawOne(id);
+			}
+		}
+		return false;
+	}
+
 	public static boolean closeBank()
 	{
 		if (!isOpen()) return true;

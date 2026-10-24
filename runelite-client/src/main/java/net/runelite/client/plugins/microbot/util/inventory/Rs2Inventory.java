@@ -692,6 +692,59 @@ public final class Rs2Inventory
 		return false;
 	}
 
+	/** As upstream: fills every essence pouch the Runecrafting level allows, in size order. */
+	public static boolean fillPouches()
+	{
+		for (net.runelite.client.plugins.microbot.pouch.Pouch pouch : net.runelite.client.plugins.microbot.pouch.Pouch.values())
+		{
+			if (pouch.hasRequiredRunecraftingLevel())
+			{
+				pouch.fill();
+			}
+		}
+		return true;
+	}
+
+	/** As upstream: empties every usable essence pouch; false when the inventory is full. */
+	public static boolean emptyPouches()
+	{
+		if (isFull())
+		{
+			return false;
+		}
+		for (net.runelite.client.plugins.microbot.pouch.Pouch pouch : net.runelite.client.plugins.microbot.pouch.Pouch.values())
+		{
+			if (pouch.hasRequiredRunecraftingLevel())
+			{
+				pouch.empty();
+			}
+		}
+		return true;
+	}
+
+	/** As upstream: "Check" on every usable essence pouch; false when the inventory is full. */
+	public static boolean checkPouches()
+	{
+		if (isFull())
+		{
+			return false;
+		}
+		for (net.runelite.client.plugins.microbot.pouch.Pouch pouch : net.runelite.client.plugins.microbot.pouch.Pouch.values())
+		{
+			if (pouch.hasRequiredRunecraftingLevel())
+			{
+				pouch.check();
+			}
+		}
+		return true;
+	}
+
+	/** As upstream: opens the inventory tab. */
+	public static boolean open()
+	{
+		return net.runelite.client.plugins.microbot.util.tabs.Rs2Tab.switchToInventoryTab();
+	}
+
 	/** As upstream: drops the first inventory item matching {@code predicate}. */
 	public static boolean drop(Predicate<Rs2ItemModel> predicate)
 	{

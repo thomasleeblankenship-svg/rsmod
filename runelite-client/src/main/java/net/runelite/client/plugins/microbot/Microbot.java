@@ -220,6 +220,14 @@ public class Microbot {
     /** As upstream: the run energy (0-10000) scripts compare against before toggling run or drinking stamina. */
     public static int runEnergyThreshold = 1000;
 
+    private static final net.runelite.client.plugins.microbot.configs.SpecialAttackConfigs SPECIAL_ATTACK_CONFIGS =
+            new net.runelite.client.plugins.microbot.configs.SpecialAttackConfigs();
+
+    /** As upstream: the shared special-attack settings scripts configure and use. */
+    public static net.runelite.client.plugins.microbot.configs.SpecialAttackConfigs getSpecialAttackConfigs() {
+        return SPECIAL_ATTACK_CONFIGS;
+    }
+
     /** As upstream: scripts that drink stamina potions read this before doing so; default on. */
     public static boolean useStaminaPotsIfNeeded = true;
 
