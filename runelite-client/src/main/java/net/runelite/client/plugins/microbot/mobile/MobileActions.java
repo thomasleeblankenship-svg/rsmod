@@ -487,6 +487,30 @@ public final class MobileActions
 		return perform(() -> JavaBridge.onScriptMinimapWalk(destination, permission));
 	}
 
+	/**
+	 * Uses the selected spell or item on a ground item (for example Telekinetic Grab), as one script
+	 * action: {@code option} is the menu option ("Cast", "Use"). False when nothing is selected or
+	 * the item is not on that tile.
+	 */
+	public static boolean targetGroundItem(int id, WorldPoint position, String option)
+	{
+		return perform(() ->
+		{
+			if (!client().isWidgetSelected()) { return false; }
+			WorldView view = client().getTopLevelWorldView();
+			if (view == null || position == null || position.getPlane() != view.getPlane()) { return false; }
+			int x = position.getX() - view.getBaseX(), y = position.getY() - view.getBaseY();
+			Tile[][] tiles = view.getScene().getTiles()[view.getPlane()];
+			if (x < 0 || x >= tiles.length || y < 0 || y >= tiles[x].length || tiles[x][y] == null) { return false; }
+			List<TileItem> items = tiles[x][y].getGroundItems();
+			if (items == null || items.stream().noneMatch(t -> t.getId() == id)) { return false; }
+			ItemComposition def = client().getItemDefinition(id);
+			client().menuAction(x, y, MenuAction.WIDGET_TARGET_ON_GROUND_ITEM, id, -1, option == null ? "" : option,
+				def == null ? "" : def.getName());
+			return true;
+		});
+	}
+
 	public static boolean groundItem(int id, WorldPoint position, String action)
 	{
 		return perform(() ->

@@ -238,6 +238,47 @@ public final class Rs2Equipment
 		return interact(get(predicate), action);
 	}
 
+	/** As upstream: {@code action} on the worn item whose name contains {@code name} (ignoring case). */
+	public static boolean interact(String name, String action)
+	{
+		return interact(name, action, false);
+	}
+
+	/** As upstream: {@code action} on the worn item named {@code name}, exactly or by containment (ignoring case). */
+	public static boolean interact(String name, String action, boolean exact)
+	{
+		if (name == null)
+		{
+			return false;
+		}
+		String wanted = name.toLowerCase(Locale.ROOT);
+		return interact(item -> item.getName() != null && (exact ? item.getName().equalsIgnoreCase(name)
+			: item.getName().toLowerCase(Locale.ROOT).contains(wanted)), action);
+	}
+
+	/** As upstream: the first of {@code names} worn takes {@code action}. */
+	public static boolean interact(String[] names, String action, boolean exact)
+	{
+		if (names == null)
+		{
+			return false;
+		}
+		for (String name : names)
+		{
+			if (interact(name, action, exact))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** As upstream: {@link #interact(String[], String, boolean)} by containment. */
+	public static boolean interact(String[] names, String action)
+	{
+		return interact(names, action, false);
+	}
+
 	/** As upstream: the item in {@code slot}. */
 	public static boolean interact(EquipmentInventorySlot slot, String action)
 	{

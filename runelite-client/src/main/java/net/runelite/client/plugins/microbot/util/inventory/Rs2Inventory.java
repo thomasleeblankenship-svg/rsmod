@@ -214,6 +214,10 @@ public final class Rs2Inventory
 	}
 
 	public static boolean interact(Rs2ItemModel item) { return interact(item, ""); }
+	/** As upstream: the first inventory action of the item in {@code slot}. */
+	public static boolean slotInteract(int slot) { return slotInteract(slot, ""); }
+	/** As upstream: {@code action} (or, blank, the first action) on the item in {@code slot}. */
+	public static boolean slotInteract(int slot, String action) { return interact(getItemInSlot(slot), action); }
 	public static boolean interact(int id) { return interact(id, ""); }
 	public static boolean interact(int id, String action) { return interact(get(id), action); }
 	public static boolean interact(String name) { return interact(name, "", false); }

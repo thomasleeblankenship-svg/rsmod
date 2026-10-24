@@ -24,6 +24,7 @@ import static org.junit.Assert.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /** Untradeable and value-based looting over the real tile-item cache; pickups confirmed by the inventory. */
@@ -143,6 +144,44 @@ public class GroundItemLootTest
 			List<Integer> taken = pickups(actions);
 			assertFalse(Rs2GroundItem.lootItemBasedOnValue(1, 14));
 			assertTrue(taken.isEmpty());
+		}
+	}
+
+	@Test
+	public void lootByNameTakesTheNamedStackOnly()
+	{
+		ground(6, 5, BONES, "Bones", 1, true);
+		ground(7, 5, PAGE, "Ancient page", 1, false);
+		try (MockedStatic<MobileActions> actions = mockStatic(MobileActions.class, CALLS_REAL_METHODS))
+		{
+			List<Integer> taken = pickups(actions);
+			assertTrue(Rs2GroundItem.loot("ancient page", 10));
+			assertEquals(List.of(PAGE), taken);
+			assertFalse("nothing by that name", Rs2GroundItem.take("Rune scimitar", 10));
+		}
+	}
+
+	@Test
+	public void aSelectedSpellIsCastOnTheGroundItem()
+	{
+		ground(6, 5, PAGE, "Snape grass", 1, true);
+		java.util.concurrent.atomic.AtomicBoolean selected = new java.util.concurrent.atomic.AtomicBoolean();
+		when(f.client.isWidgetSelected()).thenAnswer(call -> selected.get());
+		try (MockedStatic<MobileActions> actions = mockStatic(MobileActions.class, CALLS_REAL_METHODS))
+		{
+			actions.when(() -> MobileActions.targetGroundItem(anyInt(), any(), anyString())).thenReturn(true);
+			actions.when(() -> MobileActions.groundItem(anyInt(), any(), anyString())).thenReturn(true);
+			actions.clearInvocations();
+			selected.set(true);
+			assertTrue(Rs2GroundItem.interact(PAGE, "Cast", 10));
+			actions.verify(() -> MobileActions.targetGroundItem(eq(PAGE), eq(new WorldPoint(ReadApiFixture.BASE_X + 6, ReadApiFixture.BASE_Y + 5, 0)), eq("Cast")));
+
+			selected.set(false);
+			actions.clearInvocations();
+			assertTrue("nothing selected: the stack's own option", Rs2GroundItem.interact(PAGE, "Take", 10));
+			actions.verify(() -> MobileActions.groundItem(eq(PAGE), any(), eq("Take")));
+			actions.verify(() -> MobileActions.targetGroundItem(anyInt(), any(), anyString()), never());
+			assertFalse("not on the ground", Rs2GroundItem.interact(BONES, "Take", 10));
 		}
 	}
 }

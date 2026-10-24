@@ -68,6 +68,60 @@ public final class Rs2GroundItem
 		}
 		return false;
 	}
+	/** As upstream: picks up the first stack named {@code lootItem} (ignoring case) within {@code range} tiles. */
+	public static boolean loot(String lootItem, int range)
+	{
+		return loot(lootItem, 1, range);
+	}
+
+	/** As upstream: {@link #loot(String, int)}. */
+	public static boolean pickup(String lootItem, int range)
+	{
+		return loot(lootItem, 1, range);
+	}
+
+	/** As upstream: {@link #loot(String, int)}. */
+	public static boolean take(String lootItem, int range)
+	{
+		return loot(lootItem, 1, range);
+	}
+
+	/**
+	 * As upstream: picks up the first stack named {@code lootItem} of at least {@code minQuantity}
+	 * within {@code range} tiles; nothing when the inventory is full and holds none of it already.
+	 * Confirmed by the inventory, as every pickup here.
+	 */
+	public static boolean loot(String lootItem, int minQuantity, int range)
+	{
+		if (lootItem == null || (Rs2Inventory.isFull() && !Rs2Inventory.hasItem(lootItem)))
+		{
+			return false;
+		}
+		return lootMatching(new LootingParameters(range, 1, minQuantity, 0, false, false),
+			item -> lootItem.equalsIgnoreCase(item.getName()));
+	}
+
+	/**
+	 * As upstream: {@code action} on the nearest stack of {@code itemId} within {@code range} tiles.
+	 * With a spell or item selected (Telekinetic Grab: "Cast") it targets the stack; otherwise it is
+	 * the stack's own option. One script action; the caller observes the result.
+	 */
+	public static boolean interact(int itemId, String action, int range)
+	{
+		if (Microbot.getRs2TileItemCache() == null)
+		{
+			return false;
+		}
+		Rs2TileItemModel item = Microbot.getRs2TileItemCache().query().within(range).withId(itemId).nearest();
+		if (item == null)
+		{
+			return false;
+		}
+		boolean selected = MobileActions.read(() -> Microbot.getClient().isWidgetSelected(), false);
+		return selected ? MobileActions.targetGroundItem(itemId, item.getWorldLocation(), action)
+			: MobileActions.groundItem(itemId, item.getWorldLocation(), action);
+	}
+
 	/** As upstream: an item with {@code id} lies within {@code range} tiles of the player. */
 	public static boolean exists(int id, int range)
 	{

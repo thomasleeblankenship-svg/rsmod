@@ -249,6 +249,24 @@ public final class Rs2Npc
 			|| net.runelite.client.plugins.microbot.util.Global.sleepUntil(() -> MobileActions.npcAt(id, index, action), 1_200);
 	}
 
+	/** As upstream: "Pickpocket" on this NPC. */
+	public static boolean pickpocket(Rs2NpcModel npc)
+	{
+		return interact(npc, "Pickpocket");
+	}
+
+	/** As upstream: "Pickpocket" on this NPC. */
+	public static boolean pickpocket(NPC npc)
+	{
+		return npc != null && pickpocket(new Rs2NpcModel(npc));
+	}
+
+	/** As upstream: "Pickpocket" on the nearest NPC named {@code npcName}. */
+	public static boolean pickpocket(String npcName)
+	{
+		return pickpocket(getNpc(npcName));
+	}
+
 	/** As upstream (deprecated there): {@link #interact(Rs2NpcModel, String)} on a raw NPC. */
 	public static boolean interact(NPC npc, String action)
 	{
