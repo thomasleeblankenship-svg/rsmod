@@ -245,6 +245,20 @@ public class MobileMicrobotPlugin extends Plugin
 	}
 
 	/** As upstream's {@code MicrobotPlugin}: any stat change counts as gaining experience for 4 s. */
+	/** Feeds upstream's death-state tracking ({@code Rs2Death}), as upstream's MicrobotPlugin does. */
+	@Subscribe
+	public void onActorDeath(net.runelite.api.events.ActorDeath event)
+	{
+		net.runelite.client.plugins.microbot.util.death.Rs2Death.handleActorDeath(event);
+	}
+
+	/** Notes a grave appearing for {@code Rs2Death}. */
+	@Subscribe
+	public void onVarbitChanged(net.runelite.api.events.VarbitChanged event)
+	{
+		net.runelite.client.plugins.microbot.util.death.Rs2Death.onVarbitChanged(event);
+	}
+
 	@Subscribe
 	public void onStatChanged(StatChanged event)
 	{
