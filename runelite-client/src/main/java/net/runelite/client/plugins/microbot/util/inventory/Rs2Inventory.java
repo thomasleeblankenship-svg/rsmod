@@ -316,6 +316,35 @@ public final class Rs2Inventory
 			&& MobileActions.itemOnItem(first.getSlot(), second.getSlot());
 	}
 
+	/** As upstream: uses the first item with {@code primary}'s id on another slot holding {@code secondary}'s id. */
+	public static boolean combine(Rs2ItemModel primary, Rs2ItemModel secondary)
+	{
+		if (primary == null || secondary == null) return false;
+		Rs2ItemModel first = get(primary.getId());
+		Rs2ItemModel second = first == null ? null
+			: items(i -> i.getId() == secondary.getId() && i.getSlot() != first.getSlot()).findFirst().orElse(null);
+		return second != null && MobileActions.itemOnItem(first.getSlot(), second.getSlot());
+	}
+
+	/** As upstream: sells {@code quantity} ("1", "5", "10" or "50") of the item with this name (exact) to the open shop. */
+	public static boolean sellItem(String itemName, String quantity)
+	{
+		return sell(items(i -> matches(i.getName(), itemName, true)).findFirst().orElse(null), quantity);
+	}
+
+	/** As upstream: sells {@code quantity} of the item with this id to the open shop. */
+	public static boolean sellItem(int itemId, String quantity)
+	{
+		return sell(get(itemId), quantity);
+	}
+
+	/** The item's "Sell N" option on the inventory the shop shows beside its stock. */
+	private static boolean sell(Rs2ItemModel item, String quantity)
+	{
+		String option = "Sell " + quantity;
+		return item != null && waitFor(() -> MobileActions.widget(net.runelite.api.gameval.InterfaceID.Shopside.ITEMS, item.getSlot(), option), 2_000);
+	}
+
 	/** As upstream: combines the first items with these names (any order). */
 	public static boolean combine(String primary, String secondary)
 	{
