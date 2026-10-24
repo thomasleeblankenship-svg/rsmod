@@ -72,7 +72,9 @@ public class HubPortedPluginsTest
 		"net.runelite.client.plugins.microbot.karambwans.GabulhasKarambwansPlugin",
 		"net.runelite.client.plugins.microbot.TearsOfGuthix.TearsOfGuthixPlugin",
 		"net.runelite.client.plugins.microbot.mixology.MixologyPlugin",
-		"net.runelite.client.plugins.microbot.gildedaltar.GildedAltarPlugin");
+		"net.runelite.client.plugins.microbot.gildedaltar.GildedAltarPlugin",
+		"net.runelite.client.plugins.microbot.flipperschaser.FlippersChaserPlugin",
+		"net.runelite.client.plugins.microbot.stonechests.StoneChestThieverPlugin");
 
 	private static Plugin instance(String name) throws Exception
 	{
