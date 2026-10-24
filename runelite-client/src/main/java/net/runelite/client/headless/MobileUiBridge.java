@@ -1878,14 +1878,21 @@ public final class MobileUiBridge
 		return ENABLED ? net.runelite.client.plugins.mobilemicrobot.MobileScriptBridge.panelJson() : "{}";
 	}
 
-	/** Microbot screen Start: starts script {@code kind} (a ScriptKind name) as the user's explicit request. */
+	/**
+	 * Microbot screen Start: starts script {@code kind} (a ScriptKind name) as the user's explicit request. The
+	 * Microbot Mobile plugin is off by default and the screen has no switch for it, so when it is off this turns
+	 * it on; the plugin runs the queued start once its runtime is installed.
+	 */
 	public static String microbotStart(String kind)
 	{
 		if (!ENABLED)
 		{
 			return "{\"ok\":false}";
 		}
-		net.runelite.client.plugins.mobilemicrobot.MobileScriptBridge.start(kind);
+		if (!net.runelite.client.plugins.mobilemicrobot.MobileScriptBridge.start(kind))
+		{
+			return setPluginEnabled(net.runelite.client.plugins.mobilemicrobot.MobileMicrobotPlugin.class.getName(), true);
+		}
 		return "{\"ok\":true}";
 	}
 
