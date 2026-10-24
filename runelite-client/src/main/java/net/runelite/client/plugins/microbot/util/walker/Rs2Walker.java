@@ -202,15 +202,14 @@ public final class Rs2Walker
 			new WorldPoint(centerOfArea.getX() - range, centerOfArea.getY() + range, centerOfArea.getPlane()));
 	}
 
+	/** The arrival distance when none is given. */
+	private static final int DEFAULT_ARRIVAL_TILES = 1;
+
 	public static boolean walkTo(WorldPoint destination)
 	{
-		return walkTo(destination, 1);
+		return walkTo(destination, DEFAULT_ARRIVAL_TILES);
 	}
 
-	/**
- * Bounded off-client-thread operation. It follows walking edges across scene loads, rechecking
- * real movement, collision and cancellation before every waypoint. Never waits on the game thread.
- */
 	/** As upstream: walks to {@code (x, y, plane)} with the default arrival distance. */
 	public static boolean walkTo(int x, int y, int plane)
 	{
@@ -223,6 +222,10 @@ public final class Rs2Walker
 		return walkTo(new WorldPoint(x, y, plane), distance);
 	}
 
+	/**
+ * Bounded off-client-thread operation. It follows walking edges across scene loads, rechecking
+ * real movement, collision and cancellation before every waypoint. Never waits on the game thread.
+ */
 	public static boolean walkTo(WorldPoint destination, int distance)
 	{
 		Client client = Microbot.getClient();
@@ -282,6 +285,11 @@ public final class Rs2Walker
 				if (arrived(scene.player, destination, radius))
 				{
 					lastStatus = "Arrived";
+					return true;
+				}
+				if (completionMet())
+				{
+					lastStatus = "Walk condition met";
 					return true;
 				}
 				if (arrived(scene.player, leg.destination, leg.radius) && leg.stairs != null)
@@ -445,6 +453,137 @@ public final class Rs2Walker
 	public static boolean walkFastCanvas(WorldPoint destination)
 	{
 		return walkTo(destination, 0);
+	}
+
+	/** {@link #walkWithStateUntil}'s condition for the walk running on this thread. */
+	private static final ThreadLocal<java.util.function.BooleanSupplier> COMPLETION = new ThreadLocal<>();
+
+	private static boolean completionMet()
+	{
+		java.util.function.BooleanSupplier condition = COMPLETION.get();
+		try
+		{
+			return condition != null && condition.getAsBoolean();
+		}
+		catch (RuntimeException e)
+		{
+			LOG.warn("Mobile walk: completion condition threw", e);
+			return false;
+		}
+	}
+
+	/**
+	 * As upstream: one minimap tap toward {@code worldPoint} (no route, no transports). False when
+	 * the point is not safely inside the minimap or no tap could be dispatched within two ticks.
+	 */
+	public static boolean walkMiniMap(WorldPoint worldPoint)
+	{
+		return worldPoint != null && (MobileActions.walkMinimap(worldPoint) || Global.sleepUntil(() -> MobileActions.walkMinimap(worldPoint), 1_200));
+	}
+
+	/** As upstream, except that the minimap zoom stays the user's: mobile never changes it. */
+	public static boolean walkMiniMap(WorldPoint worldPoint, double zoomDistance)
+	{
+		return walkMiniMap(worldPoint);
+	}
+
+	/**
+	 * As upstream (used in instances such as Vorkath or the Inferno): one scene walk to a local
+	 * point, resolved to its world tile on the client thread so instanced scenes work too.
+	 */
+	public static void walkFastLocal(net.runelite.api.coords.LocalPoint localPoint)
+	{
+		if (localPoint == null)
+		{
+			return;
+		}
+		WorldPoint world = MobileActions.read(() -> WorldPoint.fromLocal(Microbot.getClient(), localPoint), null);
+		if (world != null)
+		{
+			if (!MobileActions.walk(world))
+			{
+				Global.sleepUntil(() -> MobileActions.walk(world), 1_200);
+			}
+		}
+	}
+
+	/** As upstream: one scene walk to {@code worldPoint}; the point when it was dispatched, else null. */
+	public static WorldPoint walkCanvas(WorldPoint worldPoint)
+	{
+		return worldPoint != null && (MobileActions.walk(worldPoint) || Global.sleepUntil(() -> MobileActions.walk(worldPoint), 1_200))
+			? worldPoint : null;
+	}
+
+	/**
+	 * As upstream: a full walk ({@link #walkTo(WorldPoint, int)}), reported as {@link WalkerState#ARRIVED},
+	 * {@link WalkerState#EXIT} when cancelled (stop, a new target, an interrupt) and
+	 * {@link WalkerState#UNREACHABLE} otherwise.
+	 */
+	public static WalkerState walkWithState(WorldPoint target, int distance)
+	{
+		if (target == null)
+		{
+			return WalkerState.EXIT;
+		}
+		long before = GENERATION.get();
+		if (walkTo(target, distance))
+		{
+			return WalkerState.ARRIVED;
+		}
+		boolean cancelled = !MobileActions.active() || Thread.currentThread().isInterrupted() || GENERATION.get() != before + 1;
+		return cancelled ? WalkerState.EXIT : WalkerState.UNREACHABLE;
+	}
+
+	/** As upstream: {@link #walkWithState(WorldPoint, int)} with the default arrival distance. */
+	public static WalkerState walkWithState(WorldPoint target)
+	{
+		return walkWithState(target, DEFAULT_ARRIVAL_TILES);
+	}
+
+	/**
+	 * As upstream: walks until within {@code distance} or until {@code completionCondition} holds
+	 * (checked before starting and on every walking pass), either of which is {@link WalkerState#ARRIVED}.
+	 */
+	public static WalkerState walkWithStateUntil(WorldPoint target, int distance, java.util.function.BooleanSupplier completionCondition)
+	{
+		java.util.Objects.requireNonNull(completionCondition, "completionCondition");
+		if (target == null)
+		{
+			return walkWithState(null, distance);
+		}
+		if (completionCondition.getAsBoolean())
+		{
+			return WalkerState.ARRIVED;
+		}
+		java.util.function.BooleanSupplier previous = COMPLETION.get();
+		COMPLETION.set(completionCondition);
+		try
+		{
+			return walkWithState(target, distance);
+		}
+		finally
+		{
+			if (previous == null)
+			{
+				COMPLETION.remove();
+			}
+			else
+			{
+				COMPLETION.set(previous);
+			}
+		}
+	}
+
+	/** As upstream: cancels any walk in progress; the reason is logged. */
+	public static void clearWalkingRoute(String reason)
+	{
+		setTarget(null, reason == null || reason.isBlank() ? "unspecified" : reason);
+	}
+
+	/** As upstream: the active walk's destination, or null when no walk is running. */
+	public static WorldPoint getCurrentTarget()
+	{
+		return target;
 	}
 
 	/** Reachability query only; no movement or door clicks. */
