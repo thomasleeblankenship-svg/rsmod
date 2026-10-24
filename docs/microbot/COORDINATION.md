@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | `util/skills/fletching/Rs2Fletching.java` (new upstream methods added after the woodcutting-port ones, which stay as they are: `startFletching` ×2, `combineItems` ×3, `waitForFletchingInterface`, `waitForFletchingCompletion` ×2, `makeHeadlessArrows`, `makeHeadlessArrowsFast`, `makeArrows`, `makeBolts`, `addBoltTips`, `makeBoltsFast`, `addBoltTipsFast`, `makeDarts`, `makeDartsFast` ×2, `isFletchingInterfaceOpen`), new `UtilActionBatchUTest` | **Task: util action batch U** (fletching helpers) | this commit |
 | Claude 2 (user request; util-gap plan) | Read blocks in `util/inventory/Rs2Inventory.java` (reads only), `util/inventory/Rs2ItemModel.java`, `util/equipment/Rs2Equipment.java`; new `HubReadBatchSixteenCTest` | **Task: read batch 16c**: `Rs2Inventory.containsAll`, `get(String[], [stackable,] exact)`, `getActionsForSlot`, `getFirstEmptySlot`, `getFirstFullSlot`, `getIdForSlot`, `getNameForSlot`, `getInventoryWidget`, `getSelectedItemIndex`, `isFull(id)`, `isSlotFull`, `isSlotsEmpty`; `Rs2ItemModel` action/sub-op reads, ha price, linked/noted ids, composition; `Rs2Equipment.get()`/`get(name, exact)`/`all(name, exact)`/`isWearing` overloads. `Rs2LogBasket`/`Rs2InventorySetup` reads left to you (your classes) | this commit |
 
 ## Requests
