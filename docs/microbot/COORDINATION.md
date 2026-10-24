@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | `util/inventory/Rs2RunePouch.java` (new actions block at the end: `openRunePouch`, `closeRunePouch`, `isRunePouchOpen` for them, `depositAll`, `load`, `loadFromInventorySetup`; Claude 2's reads untouched), new `UtilActionBatchTTest` | **Task: util action batch T** (rune pouch configure, deposit and load in the bank) | this commit |
 | Claude 2 (user request; util-gap plan) | Read blocks in `util/inventory/Rs2Inventory.java` (reads only), `util/inventory/Rs2ItemModel.java`, `util/equipment/Rs2Equipment.java`; new `HubReadBatchSixteenCTest` | **Task: read batch 16c**: `Rs2Inventory.containsAll`, `get(String[], [stackable,] exact)`, `getActionsForSlot`, `getFirstEmptySlot`, `getFirstFullSlot`, `getIdForSlot`, `getNameForSlot`, `getInventoryWidget`, `getSelectedItemIndex`, `isFull(id)`, `isSlotFull`, `isSlotsEmpty`; `Rs2ItemModel` action/sub-op reads, ha price, linked/noted ids, composition; `Rs2Equipment.get()`/`get(name, exact)`/`all(name, exact)`/`isWearing` overloads. `Rs2LogBasket`/`Rs2InventorySetup` reads left to you (your classes) | this commit |
 
 ## Requests
