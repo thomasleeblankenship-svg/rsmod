@@ -5,30 +5,50 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
+import java.util.function.IntSupplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.GrandExchangeOffer;
 import net.runelite.api.GrandExchangeOfferState;
+import net.runelite.api.ItemComposition;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.VarbitID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.plugins.microbot.Microbot;
 import net.runelite.client.plugins.microbot.mobile.MobileActions;
+import net.runelite.client.plugins.microbot.util.Global;
+import net.runelite.client.plugins.microbot.util.bank.Rs2Bank;
+import net.runelite.client.plugins.microbot.util.bank.enums.BankLocation;
 import net.runelite.client.plugins.microbot.util.grandexchange.models.GrandExchangeOfferDetails;
 import net.runelite.client.plugins.microbot.util.grandexchange.models.ItemMappingData;
 import net.runelite.client.plugins.microbot.util.grandexchange.models.TimeSeriesAnalysis;
 import net.runelite.client.plugins.microbot.util.grandexchange.models.TimeSeriesInterval;
 import net.runelite.client.plugins.microbot.util.grandexchange.models.WikiPrice;
+import net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory;
+import net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel;
+import net.runelite.client.plugins.microbot.util.keyboard.Rs2Keyboard;
 import net.runelite.client.plugins.microbot.util.misc.Rs2UiHelper;
+import net.runelite.client.plugins.microbot.util.npc.Rs2Npc;
+import net.runelite.client.plugins.microbot.util.npc.Rs2NpcModel;
 import net.runelite.client.plugins.microbot.util.player.Rs2Player;
+import net.runelite.client.plugins.microbot.util.walker.Rs2Walker;
 import net.runelite.client.plugins.microbot.util.widget.Rs2Widget;
 import org.apache.commons.lang3.tuple.Pair;
 
 /**
  * The Grand Exchange (upstream Microbot 2.6.38): interface state, the eight offer slots and
- * their offers, and price lookups ({@link GrandExchangePrices}). Ported for RuneMobile: the client's offer array is copied once per call on the
- * client thread (a null entry or item id 0 is an empty slot), so no offer is dereferenced off it.
+ * their offers, price lookups ({@link GrandExchangePrices}), and the actions (open, close,
+ * buy, sell, collect, abort). Ported for RuneMobile: the client's offer array is copied once
+ * per call on the client thread (a null entry or item id 0 is an empty slot); every click is
+ * one {@link MobileActions} dispatch (upstream's {@code doInvoke(NewMenuEntry)} CC_OPs map to
+ * {@link MobileActions#widget} with the same child and option), retried across ticks for up to
+ * two seconds; keys go through {@link Rs2Keyboard}. Not ported: {@code sellLoot} (needs
+ * {@code Rs2Bank.withdrawLootItems}) and bank PIN entry.
  */
 @Slf4j
 public final class Rs2GrandExchange
@@ -37,6 +57,22 @@ public final class Rs2GrandExchange
 	static final int GE_NEWOFFER_PRICE_VARP = 5753;
 	static final int CHATBOX_SEARCH_RESULTS_CHILD = InterfaceID.Chatbox.MES_LAYER_SCROLLCONTENTS & 0xFFFF;
 	static final int CHATBOX_INPUT_CHILD = InterfaceID.Chatbox.MES_TEXT2 & 0xFFFF;
+	static final int COLLECT_ALL_BUTTON = 30474246;
+	static final int GE_FRAME = InterfaceID.GeOffers.FRAME;
+	/** Child of {@link #GE_FRAME} that closes the interface. */
+	static final int CLOSE_CHILD = 11;
+	/** The offer screen's back button. */
+	static final int BACK_BUTTON = 30474244;
+	/** Child of a slot panel carrying "View offer" and "Abort offer". */
+	static final int SLOT_MENU_CHILD = 2;
+	/** Child of a slot panel showing the item name. */
+	static final int SLOT_ITEM_NAME_CHILD = 19;
+	/** Child of the search results showing the previous search. */
+	static final int PREVIOUS_SEARCH_CHILD = 2;
+	/** Children of the offer container holding the custom -X% and +X% buttons. */
+	static final int MINUS_X_PERCENT_CHILD = 14;
+	static final int PLUS_X_PERCENT_CHILD = 15;
+	private static final Pattern NUMBER = Pattern.compile("\\d+");
 
 	private Rs2GrandExchange()
 	{
@@ -339,6 +375,636 @@ public final class Rs2GrandExchange
 			}
 			return null;
 		}, null);
+	}
+
+	/** Closes the Grand Exchange (its frame's close button). */
+	public static void closeExchange()
+	{
+		Microbot.status = "Closing Grand Exchange";
+		if (!isOpen())
+		{
+			return;
+		}
+		dispatch(() -> MobileActions.widget(GE_FRAME, CLOSE_CHILD, ""));
+		Global.sleepUntil(() -> !isOpen());
+	}
+
+	/** Back from an offer screen to the slot overview. */
+	public static void backToOverview()
+	{
+		Microbot.status = "Back to overview";
+		if (!isOpen() && !isOfferScreenOpen())
+		{
+			return;
+		}
+		dispatch(() -> MobileActions.widget(BACK_BUTTON, -1, ""));
+		Global.sleepUntil(() -> !isOfferScreenOpen());
+	}
+
+	/**
+	 * Opens the Grand Exchange through the nearest clerk ("Exchange"). A selected item is
+	 * deselected first. RuneMobile does not enter a bank PIN: if one is asked for, this returns
+	 * {@code false} once the wait for the interface runs out.
+	 */
+	public static boolean openExchange()
+	{
+		Microbot.status = "Opening Grand Exchange";
+		if (Rs2Inventory.isItemSelected())
+		{
+			Microbot.getMouse().click();
+		}
+		if (isOpen())
+		{
+			return true;
+		}
+		Rs2NpcModel clerk = Rs2Npc.getNpc("Grand Exchange Clerk");
+		return clerk != null && dispatch(() -> MobileActions.npcAt(clerk.getId(), clerk.getIndex(), "Exchange"))
+			&& Global.sleepUntil(Rs2GrandExchange::isOpen, 5000);
+	}
+
+	/** Walks to the Grand Exchange bank. */
+	public static boolean walkToGrandExchange()
+	{
+		return Rs2Walker.walkTo(BankLocation.GRAND_EXCHANGE.getWorldPoint());
+	}
+
+	/**
+	 * Runs {@code request}: COLLECT (one slot whose item matches, else everything), BUY (search,
+	 * price, percent, quantity, confirm) or SELL (offer from the inventory, then the same). Opens or
+	 * walks to the Grand Exchange first, and closes it after a success when asked.
+	 */
+	public static boolean processOffer(GrandExchangeRequest request)
+	{
+		if (!isValidRequest(request) || !useGrandExchange())
+		{
+			return false;
+		}
+		boolean success = false;
+		switch (request.getAction())
+		{
+			case COLLECT:
+				success = collect(request);
+				break;
+			case BUY:
+				success = buy(request);
+				break;
+			case SELL:
+				success = sell(request);
+				break;
+			default:
+				break;
+		}
+		if (success && request.isCloseAfterCompletion())
+		{
+			closeExchange();
+		}
+		return success;
+	}
+
+	/** A BUY request for exactly {@code itemName}. */
+	public static boolean buyItem(String itemName, int price, int quantity)
+	{
+		return processOffer(GrandExchangeRequest.builder().action(GrandExchangeAction.BUY).itemName(itemName)
+			.exact(true).price(price).quantity(quantity).build());
+	}
+
+	/** A SELL request for {@code itemName}. */
+	public static boolean sellItem(String itemName, int quantity, int price)
+	{
+		return processOffer(GrandExchangeRequest.builder().action(GrandExchangeAction.SELL).itemName(itemName)
+			.quantity(quantity).price(price).build());
+	}
+
+	/**
+	 * Collects every completed offer ("Collect to bank" or "Collect to inventory"). True at once
+	 * when every slot is empty; a full inventory is banked first, as upstream.
+	 */
+	public static boolean collectAll(boolean collectToBank)
+	{
+		if (isAllSlotsEmpty())
+		{
+			return true;
+		}
+		if (Rs2Inventory.isFull() && Rs2Bank.openBank())
+		{
+			Rs2Bank.depositAll();
+		}
+		if (!isOpen())
+		{
+			openExchange();
+		}
+		Global.sleepUntil(Rs2GrandExchange::isOpen);
+		if (Rs2Widget.getWidget(COLLECT_ALL_BUTTON) == null)
+		{
+			return false;
+		}
+		String option = collectToBank ? "Collect to bank" : "Collect to inventory";
+		return dispatch(() -> MobileActions.widget(COLLECT_ALL_BUTTON, 0, option) || MobileActions.widget(COLLECT_ALL_BUTTON, -1, option));
+	}
+
+	public static boolean collectAllToInventory()
+	{
+		return collectAll(false);
+	}
+
+	public static boolean collectAllToBank()
+	{
+		return collectAll(true);
+	}
+
+	/** Sells every tradeable inventory item at 5% under the guide price; true once the inventory is empty. */
+	public static boolean sellInventory()
+	{
+		Rs2Inventory.items().filter(Rs2ItemModel::isTradeable).collect(Collectors.toList()).forEach(item ->
+		{
+			if (getAvailableSlot() == null && hasSoldOffer())
+			{
+				collectAllToBank();
+				Global.sleep(600);
+			}
+			processOffer(GrandExchangeRequest.builder().action(GrandExchangeAction.SELL).itemName(item.getName())
+				.quantity(item.getQuantity()).percent(-5).build());
+		});
+		return Rs2Inventory.isEmpty();
+	}
+
+	/** Aborts the offer whose item is named {@code name}, then collects everything. */
+	public static boolean abortOffer(String name, boolean collectToBank)
+	{
+		if (!useGrandExchange())
+		{
+			return false;
+		}
+		for (GrandExchangeSlots slot : GrandExchangeSlots.values())
+		{
+			if (!isSlotAvailable(slot) && name != null && name.equalsIgnoreCase(slotItemName(slot)))
+			{
+				return abort(slot) && collectAll(collectToBank);
+			}
+		}
+		return false;
+	}
+
+	/** Aborts every offer, collects everything, and reports whether all slots are empty. */
+	public static boolean abortAllOffers(boolean collectToBank)
+	{
+		if (!useGrandExchange())
+		{
+			return false;
+		}
+		for (GrandExchangeSlots slot : GrandExchangeSlots.values())
+		{
+			if (GrandExchangeWidget.getSlot(slot) != null && !isSlotAvailable(slot))
+			{
+				abort(slot);
+				Global.sleep(250, 750);
+			}
+		}
+		Global.sleep(1000);
+		collectAll(collectToBank);
+		return isAllSlotsEmpty();
+	}
+
+	/** Views {@code slot}'s offer and collects it to the bank or the inventory. */
+	public static boolean collectOffer(GrandExchangeSlots slot, boolean toBank)
+	{
+		if (slot == null || slotItemName(slot) == null)
+		{
+			log.info("No offer to collect in slot: {}", slot);
+			return false;
+		}
+		if (!viewOffer(slot) || !Global.sleepUntil(Rs2GrandExchange::isOfferScreenOpen, 3000))
+		{
+			log.info("Failed to open offer screen for slot: {}", slot);
+			return false;
+		}
+		return collectViewedOffer(toBank);
+	}
+
+	/** Collects {@code slot} and returns the quantity its offer had traded, or 0 on failure. */
+	public static int collectOfferAndGetQuantity(GrandExchangeSlots slot, boolean toBank, int itemId)
+	{
+		GrandExchangeOfferDetails details = slot == null || itemId == 0 ? null : getOfferDetails(slot);
+		if (details == null)
+		{
+			log.error("No offer details found for slot: {}", slot);
+			return 0;
+		}
+		return collectOffer(slot, toBank) ? details.getQuantitySold() : 0;
+	}
+
+	/** Aborts the offers in {@code slotsToCancel} and returns their details (see {@link #getOfferDetailsForCancellation}). */
+	public static List<Map<String, Object>> cancelSpecificOffers(List<GrandExchangeSlots> slotsToCancel, boolean collectToBank)
+	{
+		List<Map<String, Object>> cancelled = new ArrayList<>();
+		if (slotsToCancel == null || slotsToCancel.isEmpty() || !useGrandExchange())
+		{
+			return cancelled;
+		}
+		for (GrandExchangeSlots slot : slotsToCancel)
+		{
+			Map<String, Object> details = getOfferDetailsForCancellation(slot);
+			if (details != null && GrandExchangeWidget.getSlot(slot) != null && !isSlotAvailable(slot) && abort(slot))
+			{
+				cancelled.add(details);
+				Global.sleep(250, 750);
+			}
+		}
+		if (!cancelled.isEmpty())
+		{
+			Global.sleep(1000);
+			collectAll(collectToBank);
+		}
+		return cancelled;
+	}
+
+	/** Places the remainder of a cancelled offer again (preferring {@code targetSlot}). */
+	public static boolean restoreOffer(Map<String, Object> offerDetails, GrandExchangeSlots targetSlot)
+	{
+		if (offerDetails == null || !useGrandExchange())
+		{
+			return false;
+		}
+		int itemId = (Integer) offerDetails.get("itemId");
+		int remaining = (Integer) offerDetails.get("remainingQuantity");
+		int price = (Integer) offerDetails.get("price");
+		boolean isBuyOffer = (Boolean) offerDetails.get("isBuyOffer");
+		if (remaining <= 0)
+		{
+			return true;
+		}
+		if ((targetSlot == null || !isSlotAvailable(targetSlot)) && getAvailableSlot() == null)
+		{
+			log.warn("No available slots to restore offer for item {}", itemId);
+			return false;
+		}
+		String itemName = MobileActions.read(() ->
+		{
+			ItemComposition definition = Microbot.getClient().getItemDefinition(itemId);
+			return definition == null ? null : definition.getName();
+		}, null);
+		if (itemName == null || itemName.isEmpty())
+		{
+			return false;
+		}
+		return isBuyOffer ? buyItem(itemName, price, remaining) : sellItem(itemName, remaining, price);
+	}
+
+	/**
+	 * Sets the open chatbox number prompt to {@code value}. RuneMobile types the digits through
+	 * {@link Rs2Keyboard} (upstream writes the input varc directly); the caller presses enter.
+	 */
+	public static void setChatboxValue(int value)
+	{
+		if (Rs2Widget.getWidget(InterfaceID.Chatbox.MES_TEXT2) != null)
+		{
+			Rs2Keyboard.typeString(Integer.toString(value));
+		}
+	}
+
+	private static boolean collect(GrandExchangeRequest request)
+	{
+		String current = request.getSlot() == null ? null : slotItemName(request.getSlot());
+		if (current == null)
+		{
+			return collectAll(request.isToBank());
+		}
+		boolean matches = request.isExact() ? current.equalsIgnoreCase(request.getItemName())
+			: request.getItemName() != null && current.toLowerCase().contains(request.getItemName().toLowerCase());
+		if (!matches || !viewOffer(request.getSlot()))
+		{
+			return false;
+		}
+		Global.sleepUntil(Rs2GrandExchange::isOfferScreenOpen);
+		return collectViewedOffer(request.isToBank());
+	}
+
+	private static boolean buy(GrandExchangeRequest request)
+	{
+		GrandExchangeSlots slot = request.getSlot() != null ? request.getSlot() : getAvailableSlot();
+		Widget buyButton = GrandExchangeWidget.getOfferBuyButton(slot);
+		if (buyButton == null || !dispatch(() -> Rs2Widget.clickWidget(buyButton)))
+		{
+			return false;
+		}
+		Global.sleepUntil(GrandExchangeWidget::isOfferTextVisible);
+		Rs2Widget.sleepUntilHasWidgetText("Start typing the name of an item to search for it",
+			InterfaceID.CHATBOX, CHATBOX_SEARCH_RESULTS_CHILD, false, 5000);
+		boolean chosen = isPreviousSearchMatch(request.getItemName()) ? clickPreviousSearch() : searchItemName(request);
+		if (!chosen)
+		{
+			return false;
+		}
+		Global.sleepUntil(() -> GrandExchangeWidget.getPricePerItemButton_X() != null);
+		setPrice(request.getPrice());
+		adjustPriceByPercent(request.getPercent());
+		return setQuantity(request.getQuantity()) && confirm() && Global.sleepUntil(() -> !isOfferSetupOpen());
+	}
+
+	private static boolean sell(GrandExchangeRequest request)
+	{
+		if (!Rs2Inventory.hasItem(request.getItemName(), request.isExact()) || getAvailableSlots().length == 0
+			|| !Rs2Inventory.interact(request.getItemName(), "Offer", request.isExact()))
+		{
+			return false;
+		}
+		Global.sleepUntil(GrandExchangeWidget::isOfferTextVisible);
+		if (request.getPrice() > 0)
+		{
+			setPrice(request.getPrice());
+		}
+		adjustPriceByPercent(request.getPercent());
+		return setQuantity(request.getQuantity()) && confirm() && Global.sleepUntil(() -> !isOfferSetupOpen());
+	}
+
+	/** Upstream's validation: BUY needs a name and a quantity; SELL also a price or a percent. */
+	static boolean isValidRequest(GrandExchangeRequest request)
+	{
+		if (request == null || request.getAction() == null)
+		{
+			return false;
+		}
+		boolean named = request.getItemName() != null && !request.getItemName().isBlank() && request.getQuantity() > 0;
+		switch (request.getAction())
+		{
+			case BUY:
+				return named;
+			case SELL:
+				return named && (request.getPrice() > 0 || request.getPercent() != 0);
+			case COLLECT:
+				return true;
+			default:
+				return false;
+		}
+	}
+
+	/** Types the name (cut to the 25 characters the search holds) and picks the matching result. */
+	private static boolean searchItemName(GrandExchangeRequest request)
+	{
+		String name = request.getItemName();
+		String shown = name.length() > 25 ? name.substring(0, 25) : name;
+		Rs2Keyboard.typeString(name);
+		if (!Rs2Widget.sleepUntilHasWidgetText(shown, InterfaceID.CHATBOX, CHATBOX_INPUT_CHILD, false, 5000))
+		{
+			return false;
+		}
+		Global.sleepUntil(() -> getSearchResultWidget(name, request.isExact()) != null, 2200);
+		Pair<Widget, Integer> result = getSearchResultWidget(name, request.isExact());
+		if (result == null)
+		{
+			return false;
+		}
+		int parent = MobileActions.read(() -> result.getLeft().getId(), -1);
+		return parent != -1 && dispatch(() -> MobileActions.widget(parent, result.getRight(), ""));
+	}
+
+	private static boolean isPreviousSearchMatch(String itemName)
+	{
+		return MobileActions.read(() ->
+		{
+			Widget previous = previousSearch(Microbot.getClient());
+			return previous != null && previous.getText() != null && previous.getText().equalsIgnoreCase(itemName);
+		}, false);
+	}
+
+	private static boolean clickPreviousSearch()
+	{
+		return dispatch(() -> MobileActions.widget(InterfaceID.Chatbox.MES_LAYER_SCROLLCONTENTS, PREVIOUS_SEARCH_CHILD, ""));
+	}
+
+	private static Widget previousSearch(Client client)
+	{
+		Widget results = client.getWidget(InterfaceID.Chatbox.MES_LAYER_SCROLLCONTENTS);
+		return results == null ? null : results.getChild(PREVIOUS_SEARCH_CHILD);
+	}
+
+	/** "View offer" on {@code slot}'s panel. */
+	private static boolean viewOffer(GrandExchangeSlots slot)
+	{
+		int panel = slotPanelId(slot);
+		return panel != -1 && dispatch(() -> MobileActions.widget(panel, SLOT_MENU_CHILD, "View offer"));
+	}
+
+	/** "Abort offer" on {@code slot}'s panel. */
+	private static boolean abort(GrandExchangeSlots slot)
+	{
+		int panel = slotPanelId(slot);
+		return panel != -1 && dispatch(() -> MobileActions.widget(panel, SLOT_MENU_CHILD, "Abort offer"));
+	}
+
+	/** Collects the viewed offer: "Bank", else "Collect", "Collect-items" (one item) or "Collect-notes". */
+	private static boolean collectViewedOffer(boolean toBank)
+	{
+		if (!isOfferScreenOpen())
+		{
+			log.info("Grand Exchange offer screen is not open, cannot collect offer.");
+			return false;
+		}
+		Widget[] buttons = GrandExchangeWidget.getCollectButtons();
+		if (buttons.length == 0)
+		{
+			log.info("No collect buttons found on the offer screen.");
+			return false;
+		}
+		for (Widget button : buttons)
+		{
+			int[] target = MobileActions.read(() ->
+			{
+				String[] actions = button.getActions();
+				long named = actions == null ? 0 : java.util.Arrays.stream(actions).filter(java.util.Objects::nonNull).count();
+				return new int[]{button.getId(), button.getIndex(), (int) named, button.getItemQuantity()};
+			}, null);
+			if (target != null && target[2] > 0)
+			{
+				String option = collectOption(toBank, target[2], target[3]);
+				dispatch(() -> MobileActions.widget(target[0], target[1], option));
+				Global.sleep(250, 750);
+			}
+		}
+		return Global.sleepUntil(() -> !isOfferScreenOpen());
+	}
+
+	/** Upstream's choice of collect option for a button with {@code actionCount} named actions. */
+	static String collectOption(boolean toBank, int actionCount, int itemQuantity)
+	{
+		if (toBank)
+		{
+			return "Bank";
+		}
+		if (actionCount > 3)
+		{
+			return itemQuantity == 1 ? "Collect-items" : "Collect-notes";
+		}
+		return "Collect";
+	}
+
+	/** Uses the +/-5% buttons for multiples of five, else sets and applies the custom +/-X% button. */
+	private static void adjustPriceByPercent(int percent)
+	{
+		if (percent == 0)
+		{
+			return;
+		}
+		boolean increase = percent > 0;
+		int absPercent = Math.abs(percent);
+		long basePrice = getOfferPrice();
+		if (absPercent % 5 == 0)
+		{
+			Widget button = increase ? GrandExchangeWidget.getPricePerItemButton_Plus5Percent() : GrandExchangeWidget.getPricePerItemButton_Minus5Percent();
+			if (button == null)
+			{
+				Microbot.log("Unable to find +-5% button widget.");
+				return;
+			}
+			for (int i = 0; i < absPercent / 5; i++)
+			{
+				long before = getOfferPrice();
+				dispatch(() -> Rs2Widget.clickWidget(button));
+				Global.sleepUntil(() -> GrandExchangeWidget.hasOfferPriceChanged(before), 1600);
+			}
+			return;
+		}
+		int customChild = increase ? PLUS_X_PERCENT_CHILD : MINUS_X_PERCENT_CHILD;
+		Widget button = increase ? GrandExchangeWidget.getPricePerItemButton_PlusXPercent() : GrandExchangeWidget.getPricePerItemButton_MinusXPercent();
+		if (button == null)
+		{
+			Microbot.log("Unable to find +-X% button widget.");
+			return;
+		}
+		int current = extractNumber(MobileActions.read(button::getText, null));
+		if (current != absPercent)
+		{
+			int container = MobileActions.read(button::getId, -1);
+			if (current == -1)
+			{
+				dispatch(() -> Rs2Widget.clickWidget(button));
+			}
+			else
+			{
+				dispatch(() -> MobileActions.widget(container, customChild, "Customise"));
+			}
+			Global.sleepUntil(() -> Rs2Widget.hasWidget("Set a percentage to decrease/increase"), 2000);
+			Rs2Keyboard.typeString(Integer.toString(absPercent));
+			Rs2Keyboard.enter();
+			Global.sleepUntil(() ->
+			{
+				Widget updated = increase ? GrandExchangeWidget.getPricePerItemButton_PlusXPercent() : GrandExchangeWidget.getPricePerItemButton_MinusXPercent();
+				return updated != null && extractNumber(MobileActions.read(updated::getText, null)) != current;
+			}, 2000);
+		}
+		dispatch(() -> Rs2Widget.clickWidget(button));
+		Global.sleepUntil(() -> GrandExchangeWidget.hasOfferPriceChanged(basePrice), 2000);
+	}
+
+	/**
+	 * Clicks confirm, then answers "Yes" to the game's "Your offer is much higher/lower" price
+	 * check (the script chose that price), as upstream.
+	 */
+	private static boolean confirm()
+	{
+		Widget confirm = GrandExchangeWidget.getConfirm();
+		if (confirm == null || !dispatch(() -> Rs2Widget.clickWidget(confirm)))
+		{
+			return false;
+		}
+		Global.sleepUntil(() -> Rs2Widget.hasWidget("Your offer is much"), 2000);
+		if (Rs2Widget.hasWidget("Your offer is much"))
+		{
+			dispatch(() -> Rs2Widget.clickWidget("Yes"));
+		}
+		return true;
+	}
+
+	/** Sets the offer quantity through the "X" prompt (up to three tries); closes the exchange on failure. */
+	private static boolean setQuantity(int quantity)
+	{
+		boolean success = retryQuantity(quantity, Rs2GrandExchange::getOfferQuantity, () ->
+		{
+			Widget button = Global.sleepUntil(() -> GrandExchangeWidget.getQuantityButton_X() != null, 2000)
+				? GrandExchangeWidget.getQuantityButton_X() : null;
+			if (button == null)
+			{
+				log.warn("Quantity button not found");
+				return;
+			}
+			enterNumber(button, quantity);
+		});
+		if (!success)
+		{
+			log.error("Failed to set quantity after 3 tries, breaking out to avoid infinite loop.");
+			closeExchange();
+		}
+		return success;
+	}
+
+	/** Runs {@code attempt} until the quantity matches, at most three times. */
+	static boolean retryQuantity(int quantity, IntSupplier currentQuantity, Runnable attempt)
+	{
+		for (int tries = 0; quantity != currentQuantity.getAsInt() && tries < 3; tries++)
+		{
+			attempt.run();
+		}
+		return quantity == currentQuantity.getAsInt();
+	}
+
+	/** Sets the price per item through the "X" prompt when it differs. */
+	private static void setPrice(int price)
+	{
+		if (price == getOfferPrice())
+		{
+			return;
+		}
+		Widget button = GrandExchangeWidget.getPricePerItemButton_X();
+		if (button != null)
+		{
+			enterNumber(button, price);
+		}
+	}
+
+	private static void enterNumber(Widget button, int value)
+	{
+		dispatch(() -> Rs2Widget.clickWidget(button));
+		Global.sleepUntil(() -> Rs2Widget.getWidget(InterfaceID.Chatbox.MES_TEXT2) != null);
+		Global.sleep(600, 1000);
+		setChatboxValue(value);
+		Global.sleep(500, 750);
+		Rs2Keyboard.enter();
+		Global.sleep(1000);
+	}
+
+	private static boolean useGrandExchange()
+	{
+		return isOpen() || openExchange() || walkToGrandExchange();
+	}
+
+	/** The item name shown on {@code slot}'s panel, or {@code null}. */
+	private static String slotItemName(GrandExchangeSlots slot)
+	{
+		return MobileActions.read(() ->
+		{
+			Widget panel = Microbot.getClient().getWidget(InterfaceID.GE_OFFERS, GrandExchangeWidget.FIRST_SLOT_CHILD + slot.ordinal());
+			Widget name = panel == null ? null : panel.getChild(SLOT_ITEM_NAME_CHILD);
+			return name == null ? null : name.getText();
+		}, null);
+	}
+
+	private static int slotPanelId(GrandExchangeSlots slot)
+	{
+		Widget panel = GrandExchangeWidget.getSlot(slot);
+		return panel == null ? -1 : MobileActions.read(panel::getId, -1);
+	}
+
+	/** One dispatch, retried across game ticks for up to two seconds (one action per tick). */
+	private static boolean dispatch(BooleanSupplier action)
+	{
+		return Global.sleepUntil(action, 2000);
+	}
+
+	/** The first number in {@code text}, or -1 (upstream {@code Rs2UiHelper.extractNumber}). */
+	static int extractNumber(String text)
+	{
+		Matcher matcher = text == null ? null : NUMBER.matcher(text);
+		return matcher != null && matcher.find() ? Integer.parseInt(matcher.group()) : -1;
 	}
 
 	/** GE Tracker's buying price for {@code itemId}, or -1. */
