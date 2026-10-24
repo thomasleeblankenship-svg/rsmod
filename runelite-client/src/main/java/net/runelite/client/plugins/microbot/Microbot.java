@@ -167,6 +167,23 @@ public class Microbot {
         invoke(entry);
     }
 
+    /**
+     * As upstream: drags from the centre of {@code start} to the centre of {@code end} (both on the
+     * canvas), as one script action, then waits (at most 1 s) for the drag to finish so the next
+     * action is not refused. Nothing when either is missing or off the canvas.
+     */
+    public static void drag(java.awt.Rectangle start, java.awt.Rectangle end) {
+        if (start == null || end == null
+                || !net.runelite.client.plugins.microbot.util.misc.Rs2UiHelper.isRectangleWithinCanvas(start)
+                || !net.runelite.client.plugins.microbot.util.misc.Rs2UiHelper.isRectangleWithinCanvas(end)) {
+            return;
+        }
+        if (Global.sleepUntil(() -> MobileActions.drag((int) start.getCenterX(), (int) start.getCenterY(),
+                (int) end.getCenterX(), (int) end.getCenterY()), 2_000)) {
+            Global.sleepUntil(() -> !net.runelite.client.headless.JavaBridge.isScriptDragging(), 1_000);
+        }
+    }
+
     private static void invoke(net.runelite.client.plugins.microbot.util.menu.NewMenuEntry entry) {
         if (entry != null && !MobileActions.menu(entry)) {
             log.debug("Menu entry not dispatched: {} {}", entry.getOption(), entry.getTarget());

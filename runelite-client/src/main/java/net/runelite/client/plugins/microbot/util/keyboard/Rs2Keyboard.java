@@ -8,8 +8,9 @@ import net.runelite.client.plugins.microbot.util.Global;
  * Script-owned key input; manual-key ingress must never be used by scripts.
  * <p>
  * Upstream names. Mobile: each key is one script action, so at most one key per game tick, and
- * only while the script's input session is bound. Holding keys ({@code keyHold}/{@code keyRelease})
- * is not ported.
+ * only while the script's input session is bound. A held key ({@code keyHold}) stays down until
+ * {@code keyRelease}, and is released by itself when the script stops or the player touches the
+ * screen, so a script never leaves a key down.
  */
 public final class Rs2Keyboard
 {
@@ -35,6 +36,18 @@ public final class Rs2Keyboard
 			if (!keyPress(character)) { return false; }
 		}
 		return true;
+	}
+
+	/** As upstream: holds {@code key} down until {@link #keyRelease(int)} (camera arrows, Space). */
+	public static void keyHold(int key)
+	{
+		Global.sleepUntil(() -> MobileActions.keyHold(key), KEY_TIMEOUT_MILLIS);
+	}
+
+	/** As upstream: releases a key this script holds; nothing when it holds none. */
+	public static void keyRelease(int key)
+	{
+		MobileActions.keyRelease(key);
 	}
 
 	public static boolean enter()

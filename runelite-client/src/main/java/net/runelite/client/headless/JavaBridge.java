@@ -891,7 +891,7 @@ public final class JavaBridge
 			return false;
 		}
 		discardCancelledScriptTap();
-		if (tapState != TapState.IDLE || queuedTap || pressed || shiftHeld || ctrlHeld || altHeld
+		if (tapState != TapState.IDLE || queuedTap || pressed || shiftHeld || ctrlHeld || altHeld || scriptDragging
 			|| camHoldDxPerSec != 0 || camHoldDyPerSec != 0)
 		{
 			return false;
@@ -1038,7 +1038,7 @@ public final class JavaBridge
 		final Client c = client;
 		final Canvas canvas = liveCanvas();
 		if (owner == null || !owner.isActive() || MicrobotRuntime.humanOwnsInput() || c == null || !c.isClientThread()
-			|| canvas == null || c.getGameState() != GameState.LOGGED_IN || c.isMenuOpen()
+			|| canvas == null || c.getGameState() != GameState.LOGGED_IN || c.isMenuOpen() || scriptDragging
 			|| pressed || shiftHeld || ctrlHeld || altHeld || tapState != TapState.IDLE)
 		{
 			return false;
@@ -1064,6 +1064,207 @@ public final class JavaBridge
 			}
 		});
 		return true;
+	}
+
+	/** A key a script holds down: who holds it, on which canvas, and the input epoch it was pressed in. */
+	private static final class HeldScriptKey
+	{
+		final ScriptInputSession owner;
+		final Canvas canvas;
+		final long epoch;
+
+		HeldScriptKey(ScriptInputSession owner, Canvas canvas, long epoch)
+		{
+			this.owner = owner;
+			this.canvas = canvas;
+			this.epoch = epoch;
+		}
+	}
+
+	/** Keys scripts hold down (upstream {@code Rs2Keyboard.keyHold}), by key code. Client thread only. */
+	private static final java.util.Map<Integer, HeldScriptKey> scriptHeldKeys = new java.util.HashMap<>();
+
+	/**
+	 * One script key held down (KEY_PRESSED with no release) until {@link #onScriptKeyRelease}, as
+	 * upstream's {@code keyHold}: used for camera arrows and holding Space. Same guards as
+	 * {@link #onScriptKey(int, char, ScriptInputSession)}. A held key is released by itself when its
+	 * session ends or real input arrives (see {@link #releaseStaleScriptKeys}), so a stopped
+	 * script never leaves a key down. Client thread only; true when the key is (already) held.
+	 */
+	public static boolean onScriptKeyHold(int keyCode, ScriptInputSession owner)
+	{
+		final long epoch = ScriptInputSession.inputEpoch();
+		final Client c = client;
+		final Canvas canvas = liveCanvas();
+		if (owner == null || !owner.isActive() || MicrobotRuntime.humanOwnsInput() || c == null || !c.isClientThread()
+			|| canvas == null || c.getGameState() != GameState.LOGGED_IN || c.isMenuOpen() || scriptDragging
+			|| pressed || shiftHeld || ctrlHeld || altHeld || tapState != TapState.IDLE)
+		{
+			return false;
+		}
+		HeldScriptKey held = scriptHeldKeys.get(keyCode);
+		if (held != null)
+		{
+			return held.owner == owner;
+		}
+		scriptHeldKeys.put(keyCode, new HeldScriptKey(owner, canvas, epoch));
+		EventQueue.invokeLater(() ->
+		{
+			KeyEvent down = new KeyEvent(canvas, KeyEvent.KEY_PRESSED, keyClockMs(), 0, keyCode, KeyEvent.CHAR_UNDEFINED);
+			for (KeyListener listener : canvas.getKeyListeners()) { listener.keyPressed(down); }
+		});
+		return true;
+	}
+
+	/**
+	 * Releases a key this session holds (upstream {@code keyRelease}). Never refused for a busy tick
+	 * or a closed session: a release only ever ends a hold. False when this session holds no such key.
+	 * Client thread only.
+	 */
+	public static boolean onScriptKeyRelease(int keyCode, ScriptInputSession owner)
+	{
+		final Client c = client;
+		if (c == null || !c.isClientThread())
+		{
+			return false;
+		}
+		HeldScriptKey held = scriptHeldKeys.get(keyCode);
+		if (held == null || held.owner != owner)
+		{
+			return false;
+		}
+		scriptHeldKeys.remove(keyCode);
+		postScriptKeyRelease(held.canvas, keyCode);
+		return true;
+	}
+
+	/** Every held script key whose session ended or was overtaken by real input is released. Client thread. */
+	static void releaseStaleScriptKeys()
+	{
+		if (scriptHeldKeys.isEmpty())
+		{
+			return;
+		}
+		java.util.Iterator<java.util.Map.Entry<Integer, HeldScriptKey>> it = scriptHeldKeys.entrySet().iterator();
+		while (it.hasNext())
+		{
+			java.util.Map.Entry<Integer, HeldScriptKey> entry = it.next();
+			if (!entry.getValue().owner.allows(entry.getValue().epoch) || MicrobotRuntime.humanOwnsInput())
+			{
+				it.remove();
+				postScriptKeyRelease(entry.getValue().canvas, entry.getKey());
+			}
+		}
+	}
+
+	/** Whether a script holds {@code keyCode} down. Client thread. */
+	static boolean isScriptKeyHeld(int keyCode)
+	{
+		return scriptHeldKeys.containsKey(keyCode);
+	}
+
+	private static void postScriptKeyRelease(Canvas canvas, int keyCode)
+	{
+		EventQueue.invokeLater(() ->
+		{
+			KeyEvent up = new KeyEvent(canvas, KeyEvent.KEY_RELEASED, keyClockMs(), 0, keyCode, KeyEvent.CHAR_UNDEFINED);
+			for (KeyListener listener : canvas.getKeyListeners()) { listener.keyReleased(up); }
+		});
+	}
+
+	/** How long a script drag holds the press before moving: past the engine's drag dead time (about 100 ms). */
+	private static final int SCRIPT_DRAG_HOLD_MS = 160;
+	/** Steps and spacing of the move, then a short rest before the release, so the engine sees a drag. */
+	private static final int SCRIPT_DRAG_STEPS = 4;
+	private static final int SCRIPT_DRAG_STEP_MS = 30;
+	private static final int SCRIPT_DRAG_REST_MS = 60;
+	/** One script drag at a time, on its own daemon timer. */
+	private static volatile java.util.concurrent.ScheduledExecutorService scriptDragTimer;
+	private static volatile boolean scriptDragging;
+
+	/**
+	 * A script drag from {@code (x1,y1)} to {@code (x2,y2)}, as upstream's {@code Microbot.drag}
+	 * (moving an inventory item, for example): press, hold past the engine's drag dead time, move in
+	 * steps, release at the end point. Same guards as {@link #onScriptClick}; while it runs, other
+	 * script input is refused. If the session ends or real input arrives mid-drag, the press is
+	 * released where the pointer is and the rest is dropped. Client thread only; true when started.
+	 */
+	public static boolean onScriptDrag(int x1, int y1, int x2, int y2, ScriptInputSession owner)
+	{
+		final long epoch = ScriptInputSession.inputEpoch();
+		final Client c = client;
+		final Canvas canvas = liveCanvas();
+		if (owner == null || !owner.isActive() || MicrobotRuntime.humanOwnsInput() || c == null || !c.isClientThread()
+			|| canvas == null || c.getGameState() != GameState.LOGGED_IN || c.isMenuOpen() || scriptDragging
+			|| pressed || shiftHeld || ctrlHeld || altHeld || tapState != TapState.IDLE || queuedTap
+			|| !onCanvas(c, x1, y1) || !onCanvas(c, x2, y2))
+		{
+			return false;
+		}
+		scriptDragging = true;
+		final EventQueue q = Toolkit.getDefaultToolkit().getSystemEventQueue();
+		final long t = System.currentTimeMillis();
+		postPointer(q, new MouseEvent(canvas, MouseEvent.MOUSE_MOVED, t, 0, x1, y1, 0, false));
+		postPointer(q, new MouseEvent(canvas, MouseEvent.MOUSE_PRESSED, t + 1, InputEvent.BUTTON1_DOWN_MASK, x1, y1, 1, false,
+			MouseEvent.BUTTON1));
+		java.util.concurrent.ScheduledExecutorService timer = scriptDragTimer();
+		final int[] at = {x1, y1};
+		for (int step = 1; step <= SCRIPT_DRAG_STEPS; step++)
+		{
+			final int x = x1 + (x2 - x1) * step / SCRIPT_DRAG_STEPS;
+			final int y = y1 + (y2 - y1) * step / SCRIPT_DRAG_STEPS;
+			timer.schedule(() ->
+			{
+				if (scriptDragging && owner.allows(epoch))
+				{
+					at[0] = x;
+					at[1] = y;
+					postPointer(q, new MouseEvent(canvas, MouseEvent.MOUSE_DRAGGED, System.currentTimeMillis(),
+						InputEvent.BUTTON1_DOWN_MASK, x, y, 0, false, MouseEvent.NOBUTTON));
+				}
+			}, SCRIPT_DRAG_HOLD_MS + (long) (step - 1) * SCRIPT_DRAG_STEP_MS, java.util.concurrent.TimeUnit.MILLISECONDS);
+		}
+		timer.schedule(() ->
+		{
+			postPointer(q, new MouseEvent(canvas, MouseEvent.MOUSE_RELEASED, System.currentTimeMillis(), 0, at[0], at[1], 1, false,
+				MouseEvent.BUTTON1));
+			scriptDragging = false;
+		}, SCRIPT_DRAG_HOLD_MS + (long) (SCRIPT_DRAG_STEPS - 1) * SCRIPT_DRAG_STEP_MS + SCRIPT_DRAG_REST_MS,
+			java.util.concurrent.TimeUnit.MILLISECONDS);
+		return true;
+	}
+
+	/** Whether a script drag is still running. */
+	public static boolean isScriptDragging()
+	{
+		return scriptDragging;
+	}
+
+	private static boolean onCanvas(Client c, int x, int y)
+	{
+		return x >= 0 && y >= 0 && x < c.getCanvasWidth() && y < c.getCanvasHeight();
+	}
+
+	private static java.util.concurrent.ScheduledExecutorService scriptDragTimer()
+	{
+		java.util.concurrent.ScheduledExecutorService timer = scriptDragTimer;
+		if (timer != null)
+		{
+			return timer;
+		}
+		synchronized (JavaBridge.class)
+		{
+			if (scriptDragTimer == null)
+			{
+				scriptDragTimer = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r ->
+				{
+					Thread thread = new Thread(r, "rm-script-drag");
+					thread.setDaemon(true);
+					return thread;
+				});
+			}
+			return scriptDragTimer;
+		}
 	}
 
 	/** Native lifecycle bridge; resume permits explicit starts but never renews old sessions. */
@@ -1327,6 +1528,7 @@ public final class JavaBridge
 	private static void tapTickImpl(Client c)
 	{
 		discardCancelledScriptTap();
+		releaseStaleScriptKeys();  // a stopped or overtaken script never leaves a key down
 		feedCameraHold();          // a held arrow button turns by feeding the same accumulators a drag uses
 		applyCameraDrag(c);        // drain accumulated two-finger-pan deltas (camera writes are client-thread-only)
 		snapshotTextInputOpen(c);  // publish INPUT_TYPE for isTextInputOpen() to read off the client thread
