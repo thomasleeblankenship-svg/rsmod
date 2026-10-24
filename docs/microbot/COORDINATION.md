@@ -50,7 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
-| Claude 1 | New `util/grounditem/Rs2LootEngine.java` (upstream builder), `util/grounditem/Rs2GroundItem.java` (new actions block at the end: `runWhilePaused`, `interact(GroundItem)`, `waitForGroundItemDespawn`, `coreLoot`, and the pure helpers `calculateDespawnTime`, `canTakeGroundItem`; Claude 2's read blocks untouched), new `HubActionBatchNTest` | **Task: util-gap action batch N** (loot engine) | this commit |
+| Claude 1 | New `util/grounditem/Rs2LootEngine.java` (upstream builder), `util/grounditem/Rs2GroundItem.java` (new actions block at the end: `runWhilePaused`, `interact(GroundItem)`, `waitForGroundItemDespawn`, `coreLoot`, and the pure helpers `calculateDespawnTime`, `canTakeGroundItem`; Claude 2's read blocks untouched), `plugins/grounditems/GroundItem.java` (**`getGePrice()` public, as upstream Microbot**), new `HubActionBatchNTest` | **Task: util-gap action batch N** (loot engine) | this commit |
 
 ## Requests
 
