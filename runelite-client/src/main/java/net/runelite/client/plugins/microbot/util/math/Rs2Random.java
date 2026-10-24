@@ -10,7 +10,8 @@ import net.runelite.client.plugins.microbot.util.Global;
  * detection-avoidance guarantee.
  * <p>
  * The samplers ({@code between}, {@code betweenInclusive}, {@code randomGaussian},
- * {@code nextInt}, {@code dice*}, {@code gaussRand}, {@code truncatedGauss},
+ * {@code nextInt}, {@code dice*}, {@code gaussRand}, {@code truncatedGauss}, {@code skewedRand},
+ * {@code normalRange},
  * {@code logNormalBounded}, {@code fancyNormalSample}, {@code truncatedNormalSample}) follow
  * chsami/Microbot {@code util/math/Rs2Random.java} at
  * {@code a2114401bbbc35e9762db9e8aa666d70ffcd24d8} (BSD 2-Clause); they only return numbers
@@ -108,6 +109,44 @@ public final class Rs2Random
 		}
 		while (result >= limit);
 		return result / limit * (right - left) + left;
+	}
+
+	/**
+	 * As upstream: a sample in {@code [lo, hi]} clustered around {@code mode}: a half-normal tail
+	 * (cut at {@code cutoff} deviations, 4 when {@code cutoff <= 0}) towards one bound, the side
+	 * picked in proportion to its width.
+	 */
+	public static double skewedRand(double mode, double lo, double hi, double cutoff)
+	{
+		double limit = cutoff <= 0 ? GAUSS_CUTOFF : cutoff;
+		double top = ThreadLocalRandom.current().nextDouble() * (hi - lo) > mode - lo ? hi : lo;
+		double result;
+		do
+		{
+			result = Math.abs(Math.sqrt(-2 * Math.log(nzRandom())) * Math.cos(2 * Math.PI * ThreadLocalRandom.current().nextDouble()));
+		}
+		while (result >= limit);
+		return result / limit * (top - mode) + mode;
+	}
+
+	/** As upstream: {@link #skewedRand(double, double, double, double)} rounded. */
+	public static long skewedRand(long mode, long lo, long hi, double cutoff)
+	{
+		return Math.round(skewedRand((double) mode, (double) lo, (double) hi, cutoff));
+	}
+
+	/** As upstream: a sample in {@code [min, max]} clustered around the midpoint. */
+	public static double normalRange(double min, double max, double cutoff)
+	{
+		double limit = cutoff <= 0 ? GAUSS_CUTOFF : cutoff;
+		double offset = truncatedGauss(0, (max - min) / 2, limit);
+		return (max + min) / 2.0 + (ThreadLocalRandom.current().nextBoolean() ? offset : -offset);
+	}
+
+	/** As upstream: {@link #normalRange(double, double, double)} rounded. */
+	public static long normalRange(long min, long max, double cutoff)
+	{
+		return Math.round(normalRange((double) min, (double) max, cutoff));
 	}
 
 	/** As upstream: {@link #truncatedGauss(double, double, double)} rounded. */

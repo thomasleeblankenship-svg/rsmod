@@ -282,6 +282,12 @@ public final class Rs2Npc
 		return npc != null && pickpocket(new Rs2NpcModel(npc));
 	}
 
+	/** As upstream: "Pickpocket" on one of the NPC Indicators plugin's highlighted NPCs. */
+	public static boolean pickpocket(java.util.Map<NPC, net.runelite.client.game.npcoverlay.HighlightedNpc> highlightedNpcs)
+	{
+		return highlightedNpcs != null && !highlightedNpcs.isEmpty() && pickpocket(highlightedNpcs.keySet().iterator().next());
+	}
+
 	/** As upstream: "Pickpocket" on the nearest NPC named {@code npcName}. */
 	public static boolean pickpocket(String npcName)
 	{

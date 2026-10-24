@@ -101,6 +101,7 @@ public final class Rs2Antiban
 		public void applyMiningSetup() { }
 		public void applyHunterSetup() { }
 		public void applyFiremakingSetup() { }
+		public void applyFarmingSetup() { }
 		public void applyFishingSetup() { }
 		public void applyCookingSetup() { }
 		public void applyFletchingSetup() { }

@@ -631,6 +631,53 @@ public final class Rs2Inventory
 			&& Arrays.stream(names).noneMatch(n -> matches(i.getName(), n, exact)), order);
 	}
 
+	/** As upstream: drops every item worth less than {@code gpValue} (price times quantity). */
+	public static boolean dropAllExcept(int gpValue)
+	{
+		return dropAllExcept(gpValue, new String[0]);
+	}
+
+	/**
+	 * As upstream: drops every item worth less than {@code gpValue} (item price times quantity, read
+	 * once on the client thread) unless its name is one of {@code ignoreItems} (case-insensitive).
+	 */
+	public static boolean dropAllExcept(int gpValue, String[] ignoreItems)
+	{
+		String[] keep = ignoreItems == null ? new String[0] : ignoreItems;
+		List<Rs2ItemModel> snapshot = items().collect(Collectors.toList());
+		java.util.Map<Integer, Long> prices = MobileActions.read(() ->
+		{
+			java.util.Map<Integer, Long> map = new java.util.HashMap<>();
+			net.runelite.client.game.ItemManager manager = Microbot.getItemManager();
+			for (Rs2ItemModel item : snapshot)
+			{
+				map.put(item.getSlot(), manager == null ? 0L : manager.getItemPrice(item.getId()) * item.getQuantity());
+			}
+			return map;
+		}, java.util.Map.of());
+		return dropAll(item -> Arrays.stream(keep).noneMatch(n -> n.equalsIgnoreCase(item.getName()))
+			&& prices.getOrDefault(item.getSlot(), 0L) < gpValue);
+	}
+
+	/**
+	 * As upstream: drinks a stamina potion when no stamina effect is running, else a run-energy
+	 * restoring potion; does nothing when none is carried.
+	 */
+	public static void useRestoreEnergyItem()
+	{
+		Rs2ItemModel restore = getPotionsInInventory(net.runelite.client.plugins.microbot.util.misc.Rs2Potion.getStaminaPotion())
+			.findFirst().orElse(null);
+		if (restore == null || net.runelite.client.plugins.microbot.util.player.Rs2Player.hasStaminaBuffActive())
+		{
+			restore = getPotionsInInventory(net.runelite.client.plugins.microbot.util.misc.Rs2Potion.getRestoreEnergyPotionsVariants()
+				.toArray(String[]::new)).findFirst().orElse(null);
+		}
+		if (restore != null)
+		{
+			interact(restore, "Drink");
+		}
+	}
+
 	/** As upstream: drops every inventory item matching {@code predicate}; axes are not protected. */
 	public static boolean dropAll(Predicate<Rs2ItemModel> predicate)
 	{

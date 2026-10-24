@@ -136,8 +136,9 @@ public class NpcIndicatorsPlugin extends Plugin
 	/**
 	 * NPCs to highlight
 	 */
-	@Getter(AccessLevel.PACKAGE)
-	private final Map<NPC, HighlightedNpc> highlightedNpcs = new HashMap<>();
+	// Static with a public getter as in upstream Microbot, so Hub scripts can read the highlights.
+	@Getter(AccessLevel.PUBLIC)
+	private static final Map<NPC, HighlightedNpc> highlightedNpcs = new HashMap<>();
 
 	/**
 	 * Dead NPCs that should be displayed with a respawn indicator if the config is on.

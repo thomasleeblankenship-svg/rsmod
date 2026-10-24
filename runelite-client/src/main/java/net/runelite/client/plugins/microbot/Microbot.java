@@ -236,6 +236,8 @@ public class Microbot {
      * mobile the walker opens doors on its own walks, so nothing here acts on it.
      */
     public static boolean cantReachTarget = false;
+    /** As upstream: scripts may turn off can't-reach detection; nothing on mobile reads it yet. */
+    public static boolean isCantReachTargetDetectionEnabled = true;
 
     /** As upstream: how often a script has retried an unreachable target. */
     public static int cantReachTargetRetries = 0;

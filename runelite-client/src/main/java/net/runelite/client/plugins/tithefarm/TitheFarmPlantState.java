@@ -24,7 +24,8 @@
  */
 package net.runelite.client.plugins.tithefarm;
 
-enum TitheFarmPlantState
+// Public as in upstream Microbot, so Hub tithe farming scripts can read plant states.
+public enum TitheFarmPlantState
 {
 	UNWATERED,
 	WATERED,
