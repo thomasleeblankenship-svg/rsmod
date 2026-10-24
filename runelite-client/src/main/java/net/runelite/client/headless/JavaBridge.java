@@ -2705,6 +2705,33 @@ public final class JavaBridge
 		}
 	}
 
+	// Key timestamps: the wall clock read once, then advanced by the monotonic clock. A key's hold and gap
+	// are real intervals measured on nanoTime, so the interval its timestamps report must come from the same
+	// clock. The wall clock can be stepped (a VM's clock is corrected after a pause, or NTP steps it), and a
+	// step back in the middle of a burst made consecutive presses claim the same instant and shrank a 100ms
+	// burst to a few milliseconds on paper. Event times stay in the wall clock's epoch, as AWT's do.
+	private static final long KEY_CLOCK_WALL_MS = System.currentTimeMillis();
+	private static final long KEY_CLOCK_NANOS = System.nanoTime();
+
+	/** Milliseconds for a synthesized key's {@code when}: monotonic, in the wall clock's epoch. */
+	static long keyClockMs()
+	{
+		return KEY_CLOCK_WALL_MS + java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - KEY_CLOCK_NANOS);
+	}
+
+	/** The last paced key press's timestamp; see {@link #nextPressMs()}. */
+	private static long lastPressMs;
+
+	/**
+	 * Now on {@link #keyClockMs()}, or one millisecond after the previous paced press if that is later, so
+	 * consecutive presses never claim the same instant.
+	 */
+	private static synchronized long nextPressMs()
+	{
+		lastPressMs = Math.max(keyClockMs(), lastPressMs + 1);
+		return lastPressMs;
+	}
+
 	/**
 	 * Synthesize one key the way a key actually happens: {@code KEY_PRESSED} (plus {@code KEY_TYPED} when it
 	 * carries a character) at a moment of its own, and {@code KEY_RELEASED} after a hold that is a real
@@ -2722,31 +2749,18 @@ public final class JavaBridge
 	 * @param typed whether this key also produces a {@code KEY_TYPED} (printable keys do; a bare chord or a
 	 *              navigation key does not)
 	 */
-	/** The last paced key press's timestamp; see {@link #nextPressMs()}. */
-	private static long lastPressMs;
-
-	/**
-	 * Now, or one millisecond after the previous paced press if that is later: under load the pacer can
-	 * run two queued keys within one millisecond, and consecutive presses must not claim the same instant.
-	 */
-	private static synchronized long nextPressMs()
-	{
-		lastPressMs = Math.max(System.currentTimeMillis(), lastPressMs + 1);
-		return lastPressMs;
-	}
-
 	private static void pacedKey(Canvas canvas, int modifiers, int vk, char ch, boolean typed)
 	{
 		if (!KEY_PACING)
 		{
 			// Escape hatch: the old back-to-back shape, with honest timestamps at least.
-			final long t = System.currentTimeMillis();
+			final long t = keyClockMs();
 			dispatchKey(canvas, new KeyEvent(canvas, KeyEvent.KEY_PRESSED, t, modifiers, vk, ch));
 			if (typed)
 			{
 				dispatchKey(canvas, new KeyEvent(canvas, KeyEvent.KEY_TYPED, t, modifiers, KeyEvent.VK_UNDEFINED, ch));
 			}
-			dispatchKey(canvas, new KeyEvent(canvas, KeyEvent.KEY_RELEASED, System.currentTimeMillis(), modifiers, vk, ch));
+			dispatchKey(canvas, new KeyEvent(canvas, KeyEvent.KEY_RELEASED, keyClockMs(), modifiers, vk, ch));
 			return;
 		}
 		submitKey(() ->
@@ -2769,7 +2783,7 @@ public final class JavaBridge
 					// blocking it. Keys therefore overlap a little, which is what a hand typing at speed
 					// does. A late release only lengthens a hold, and a longer hold is still an honest one.
 					keyPacer().schedule(() -> dispatchKey(canvas,
-						new KeyEvent(canvas, KeyEvent.KEY_RELEASED, System.currentTimeMillis(), modifiers, vk, ch)),
+						new KeyEvent(canvas, KeyEvent.KEY_RELEASED, keyClockMs(), modifiers, vk, ch)),
 						java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(jitter(KEY_HOLD_MIN_MS, KEY_HOLD_MAX_MS)),
 						java.util.concurrent.TimeUnit.NANOSECONDS));
 			}
@@ -3319,9 +3333,9 @@ public final class JavaBridge
 			ensureFocus(q, canvas);
 		}
 		final KeyEvent ev = held
-			? new KeyEvent(canvas, KeyEvent.KEY_PRESSED, System.currentTimeMillis(), downMask, vk,
+			? new KeyEvent(canvas, KeyEvent.KEY_PRESSED, keyClockMs(), downMask, vk,
 				KeyEvent.CHAR_UNDEFINED, KeyEvent.KEY_LOCATION_LEFT)
-			: new KeyEvent(canvas, KeyEvent.KEY_RELEASED, System.currentTimeMillis(), 0, vk,
+			: new KeyEvent(canvas, KeyEvent.KEY_RELEASED, keyClockMs(), 0, vk,
 				KeyEvent.CHAR_UNDEFINED, KeyEvent.KEY_LOCATION_LEFT);
 		if (!KEY_PACING)
 		{

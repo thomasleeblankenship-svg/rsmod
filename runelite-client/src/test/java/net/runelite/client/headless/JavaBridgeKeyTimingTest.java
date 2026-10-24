@@ -83,7 +83,7 @@ public class JavaBridgeKeyTimingTest
 		final char ch;
 		final int modifiers;
 		final long claimedMs;    // the event's own when
-		final long arrivedMs;    // wall clock at delivery
+		final long arrivedMs;    // monotonic clock at delivery: a wall-clock step must not move it
 
 		Seen(KeyEvent e)
 		{
@@ -92,7 +92,7 @@ public class JavaBridgeKeyTimingTest
 			this.ch = e.getKeyChar();
 			this.modifiers = e.getModifiersEx();
 			this.claimedMs = e.getWhen();
-			this.arrivedMs = System.currentTimeMillis();
+			this.arrivedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime());
 		}
 	}
 
@@ -188,9 +188,9 @@ public class JavaBridgeKeyTimingTest
 	@Test
 	public void aCommittedStringIsTypedOutRatherThanDumped() throws Exception
 	{
-		final long startedMs = System.currentTimeMillis();
+		final long startedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime());
 		JavaBridge.onText("hello");
-		final long returnedMs = System.currentTimeMillis();
+		final long returnedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime());
 		awaitCount(15);   // five keys x pressed + typed + released
 
 		final List<Seen> presses = allOf(KeyEvent.KEY_PRESSED);
@@ -319,6 +319,27 @@ public class JavaBridgeKeyTimingTest
 		final int pressB = indexOf(order, KeyEvent.KEY_PRESSED, KeyEvent.getExtendedKeyCodeForChar('b'));
 		assertTrue("the latch must go down before the keys it was toggled for", shiftDown < pressB);
 		assertTrue("...and must not come up before them", shiftUp > pressB);
+	}
+
+	/**
+	 * The clock keys are stamped with advances with the monotonic clock, so a wall-clock step (a VM's clock
+	 * corrected after a pause) cannot shrink or reverse the intervals the stream reports. Stamping with the
+	 * wall clock let one step make a 100ms burst claim a few milliseconds.
+	 */
+	@Test
+	public void keysAreStampedOnTheMonotonicClock() throws Exception
+	{
+		final long nanosBefore = System.nanoTime();
+		final long keyBefore = JavaBridge.keyClockMs();
+		Thread.sleep(30);
+		final long keyAfter = JavaBridge.keyClockMs();
+		final long nanosAfter = System.nanoTime();
+		final long monotonicMs = TimeUnit.NANOSECONDS.toMillis(nanosAfter - nanosBefore);
+		assertTrue("the key clock must advance by what the monotonic clock measured (key "
+				+ (keyAfter - keyBefore) + "ms, monotonic " + monotonicMs + "ms)",
+			keyAfter - keyBefore <= monotonicMs + 1 && keyAfter - keyBefore >= monotonicMs - 2);
+		assertTrue("and stays in the wall clock's epoch",
+			Math.abs(JavaBridge.keyClockMs() - System.currentTimeMillis()) < TimeUnit.HOURS.toMillis(1));
 	}
 
 	private static int indexOf(List<Seen> order, int id, int vk)
