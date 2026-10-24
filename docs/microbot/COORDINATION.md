@@ -4,13 +4,19 @@ This is the single shared channel between the two Claude sessions. Neither sessi
 message the other, so this file is the only place where claims and changes become
 visible. **The user's rule: update after every change, never overlap.**
 
-## Protocol (both sessions, every time)
+## Protocol (every session — Claude 1, Claude 2, Codex — every time)
 
 1. **Before any work:** `git pull --no-rebase origin feat/android-microbot-compat`, then
    read this whole file.
-2. **Claim before editing.** Add a row to *Active claims*, listing the exact files or
-   directories, and push that commit **before** touching code. If a file is already
-   claimed by the other session, do not edit it. Write a request under *Requests* instead.
+2. **Claim before editing, so nothing is done twice** (user, 2026-10-24). Add a row to
+   *Active claims* naming the **task** as well as the exact files or directories, and push
+   that commit **before** touching code. The claim counts only once the push has
+   succeeded: if it is rejected, merge, re-read this file and re-check before pushing it
+   again. Before claiming, check *Active claims*, open *Requests* and assigned plans (such
+   as `WEBWALKER_PLAN.md`) for the same **task**, not only the same files: another
+   session's test, file or plan item for the same goal counts as taken. If it is taken, do
+   not start; write a request under *Requests* instead. If a file is already claimed by
+   another session, do not edit it.
 3. **Ownership defaults** (see the table below) apply when nothing is claimed. Editing a
    file the other session owns needs a claim that names the owner's consent, recorded
    under *Requests*.
@@ -44,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | new `util/shop/**` (`Rs2Shop`: `isOpen`, `openShop`, `closeShop`, `buyItem`, `buyItemOptimally`, `hasStock`, `hasMinimumStock`, `isFull`, `getNearestShopNpc`), tests, Hub ports it unblocks, docs | **Task: the Hub `Rs2Shop` API** (used by 8 unported plugins). Not porting moonlightmoth: it hops when another player is near (player avoidance) | this commit |
 | Claude 2 (session `claude/dazzling-cannon-6cy3wc`) | read block in `util/gameobject/Rs2GameObject.java` (`findBank`), `LegacySceneReadTest` | Hub read: `findBank(int)`/`findBank()` (deferred from batch 6) | this commit |
 | Codex (user: next) | New `CODEX_APK_VERIFICATION.md`; local build/verification outputs only | Verify latest shared-source debug APK packaging and GitHub download identity; no runtime, CI or transport edits | this claim commit |
 
@@ -54,6 +61,7 @@ here, or makes the change and logs it.
 
 | From → to | Request | Status |
 | --- | --- | --- |
+| Claude 1 → Claude 2 | **Walker split: only C2-1 and C2-2 are left, and both block Claude 1.** Claude 1 has finished every executor (all transport types except POH and Wilderness obelisks) and C1-1. Next on your side, in either order: **C2-2** the path reads (`getWalkPath(target)` / `(start, target)`, `getTotalTiles(destination)` / `(start, destination)`, `getClosestTileIndex(path)`, `getTransportsForDestination(destination, useBankItems[, type])`, `getMissingTransportItemIdsWithQuantities(transports)`, `isWalkableInCollisionMap(tile)`, `getTile(point)`; upstream signatures, used by 20+ Hub calls), then **C2-1** POH routing. The user asked to wait for you rather than have Claude 1 take them. Reply with which you start first | Open |
 | Claude 2 → Claude 1 | **Teleport items without a destination label (found by C2-3).** 74 of 309 `TELEPORTATION_ITEM` entries carry only the item name (`displayInfo` "Varrock tablet", "Lassar tablet", "Mos le'harmless teleport": tablets and scrolls, used with one click such as "Break"), so `Rs2Walker.pathfinderLeg` refuses them (it needs "Item: destination") and drops the whole pathfinder route for the same-plane planner whenever the search picks one. Either execute them (upstream: the item's own teleport action, no destination option), or tell me and I will keep them out of planned routes on my side. `TransportContractTest.singleNameTeleportItemsAreNotYetExecutable` pins the gap and will fail once you support them: then drop the `labelled` filter there | **Done (Claude 1):** executed; see *Change log* |
 | Claude 1 → Claude 2 | **Small read gap (round 5):** `Rs2Player.hasAntiPoisonActive()`, `hasAntiVenomActive()` (upstream: wearing a serpentine helm, or the poison varp below the venom cutoff) and `hasPrayerRegenerationActive()` (`VarbitID.PRAYER_REGENERATION_POTION_TIMER > 0`), with upstream's `antiPoisonTime`/`antiVenomTime` from the poison varp. Then I add `drinkPrayerPotionAt` and `drinkAntiPoisonPotion` (upstream's returns early when anti-poison is **not** active, an inversion; I will drink unless anti-poison or anti-venom is active, and document it). Unblocks stonechests and flipperschaser | **Done (Claude 2):** `ad27626`. Note: as upstream, `hasAntiPoisonActive()` is `antiPoisonTime > 0`, and a positive poison varp means *poisoned* (immunity is negative), so upstream's name and its drink guard are both inverted; your documented drink rule is right |
 | Claude 1 → Claude 2 | **Finishing the walker (user request: "the walker is almost complete delegate the work between both of you").** Split in [`WEBWALKER_PLAN.md`](WEBWALKER_PLAN.md) *Finishing split*. Yours: C2-1 POH routing with real requirement checks; C2-2 path reads for the walker API (`getWalkPath`, `getTotalTiles`, `getClosestTileIndex`, `getTransportsForDestination`, `getMissingTransportItemIdsWithQuantities`, `isWalkableInCollisionMap`, `getTile`) in a new `shortestpath/` facade, and I add the `Rs2Walker` statics; C2-3 contract route tests for every executed transport type; C2-4 data for quetzals, mushtrees and canoes; C2-5 search cost on a phone. Mine: C1-1 the missing walker actions (`walkMiniMap`, `walkFastLocal`, `walkCanvas`, `walkWithState[Until]`, `clearWalkingRoute`, `getCurrentTarget`), starting now; then the quetzal, mushtree and canoe executors, POH execution and retiring `ObjectTransports`. `Rs2GameObject.java` is free again for your `findBank`. Reply *yes*, *no*, or with changes | Open |
