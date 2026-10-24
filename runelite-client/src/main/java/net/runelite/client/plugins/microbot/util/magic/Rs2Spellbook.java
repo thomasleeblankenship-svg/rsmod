@@ -271,4 +271,25 @@ public enum Rs2Spellbook {
             && Rs2Dialogue.clickOption(option)
             && Rs2Dialogue.sleepUntilHasContinue();
     }
+
+    /** As upstream: an Ancient or Lunar altar (any book except Arceuus, which uses Tyss) is within 10 tiles. */
+    public static boolean isAltarNearby() {
+        for (Rs2Spellbook spellbook : values()) {
+            if (spellbook.getGameID() != null && spellbook != ARCEUUS
+                    && !Rs2GameObject.getGameObjects(o -> spellbook.getGameID().equals(o.getId()), ALTAR_SEARCH_RADIUS).isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** As upstream: Tyss (the Arceuus switch NPC) is in the scene. */
+    public static boolean isTyssNearby() {
+        return Rs2Npc.getNpc(ARCEUUS.getGameID()) != null;
+    }
+
+    /** As upstream: the player is in their house (upstream assumes house furniture can switch the book). */
+    public static boolean canSwitchInPOH() {
+        return net.runelite.client.plugins.microbot.util.poh.PohPresence.isInHouse();
+    }
 }

@@ -16,4 +16,18 @@ public class Rs2PlayerModel extends net.runelite.client.plugins.microbot.api.pla
 	{
 		super(client, player);
 	}
+
+	/** As upstream: the live player's appearance, read on the client thread ({@code null} when absent). */
+	public net.runelite.api.PlayerComposition getPlayerComposition()
+	{
+		Player player = getPlayer();
+		return player == null ? null : net.runelite.client.plugins.microbot.mobile.MobileActions.read(player::getPlayerComposition, null);
+	}
+
+	/** As upstream: the live player's team cape number (0 without one). */
+	public int getTeam()
+	{
+		Player player = getPlayer();
+		return player == null ? 0 : net.runelite.client.plugins.microbot.mobile.MobileActions.read(player::getTeam, 0);
+	}
 }
