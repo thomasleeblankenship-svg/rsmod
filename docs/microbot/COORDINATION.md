@@ -44,6 +44,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | `util/Global.java` (`sleepUntilOnClientThread(BooleanSupplier)`), new `microbot/{arrowmaker,humidifier,lunartanner,summergarden}/**` (Hub copies), Hub exemption lists, `HubPortedPluginsTest`, `HUB_PORTS.md`, tests | One-argument client-thread wait (fixed 5 s timeout); port the 4 Hub plugins it unblocks | this commit |
 | Codex (user: next) | New `CODEX_APK_VERIFICATION.md`; local build/verification outputs only | Verify latest shared-source debug APK packaging and GitHub download identity; no runtime, CI or transport edits | this claim commit |
 
 ## Requests
