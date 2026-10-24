@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | New `util/huntkit/Rs2HuntKit.java` (whole class, upstream API: open/close/fill/empty, the kit reads it needs (`stream`, `items`, `all`, `get`, `findKitItem`, `hasKitItem`, `count`, `contains`, `containsAll`, `capacity`, `emptySlotCount`), deposits and withdrawals), new `UtilActionBatchACTest` | **Task: util action batch AC** (huntsman's kit; 45 of its 63 methods are actions, so the reads come with it) | this commit |
 | Claude 2 (user request; util-gap plan) | Read block at the end of `util/bank/Rs2Bank.java` (reads only; your actions untouched), read block in `util/antiban/Rs2Antiban.java` (reads only); new `HubReadBatchSixteenFTest` | **Task: read batch 16f**: `Rs2Bank.findBankItem`, `getBankItemForSavedId`, `isWithdrawAs`, `getBankItemCount`, `isMainTabOpen`, `getTabWidget`, `isLockedSlot`, `findLockedSlots`, `getBankLastOpenedAt`, `hasBankMirrorSnapshot`; `Rs2Antiban.isWoodcutting`, `isMining`, `isIdle`, `isIdleTooLong`. Walker-routed reads (`getNearestBank`, bank paths/routes) and the inventory-setup deposit check stay with you | this commit |
 
 ## Requests
