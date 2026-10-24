@@ -18,6 +18,23 @@ public final class Rs2Equipment
 {
 	private Rs2Equipment() { }
 
+	// ---- Util action batch AH (Claude 1): container hooks ----
+
+	/** As upstream: the worn-equipment container, read on the client thread (a live handle; null without a client). */
+	public static ItemContainer equipment()
+	{
+		return MobileActions.read(() -> Microbot.getClient().getItemContainer(InventoryID.EQUIPMENT), null);
+	}
+
+	/**
+	 * As upstream's container-event hook. Mobile reads worn items from the container each time, so
+	 * there is no copy to update: this does nothing.
+	 */
+	public static void storeEquipmentItemsInMemory(net.runelite.api.events.ItemContainerChanged e)
+	{
+		// Worn items are read live from the container; nothing is cached.
+	}
+
 	public static boolean isWearing(int itemId)
 	{
 		return any(item -> item.getId() == itemId);

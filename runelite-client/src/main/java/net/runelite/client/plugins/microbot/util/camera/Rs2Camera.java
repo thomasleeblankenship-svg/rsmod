@@ -32,7 +32,6 @@ import net.runelite.client.plugins.microbot.mobile.MobileActions;
  *     {@link Rs2TileObjectModel}), which do not implement {@code Actor}/{@code TileObject}.</li>
  *     <li>All client reads go through the client thread; a read that cannot reach it returns 0
  *     (or {@code false}).</li>
- *     <li>Not ported: NPC tracking ({@code trackNpc}), {@code centerTileOnScreen}.</li>
  * </ul>
  */
 public final class Rs2Camera

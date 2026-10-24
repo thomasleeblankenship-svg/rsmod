@@ -16,7 +16,7 @@ import java.awt.*;
 /**
  * Upstream 2.6.38's legacy {@link TileObject} wrapper that remembers which kind of scene object it
  * holds. Definition reads run on the client thread. (Scripts written against the newer API use
- * {@code api.tileobject.models.Rs2TileObjectModel} instead.) Its {@code click} action is ported separately.
+ * {@code api.tileobject.models.Rs2TileObjectModel} instead.)
  */
 public class Rs2TileObjectModel implements TileObject {
 
@@ -157,5 +157,14 @@ public class Rs2TileObjectModel implements TileObject {
             }
             return composition;
         }, null);
+    }
+
+    /**
+     * As upstream: clicks {@code action} on this object; an object more than 51 tiles away is walked
+     * towards instead and {@code false} returned (call again). Same dispatch as
+     * {@link net.runelite.client.plugins.microbot.util.gameobject.Rs2GameObject#clickObject}.
+     */
+    public boolean click(String action) {
+        return net.runelite.client.plugins.microbot.util.gameobject.Rs2GameObject.clickObject(this, action);
     }
 }
