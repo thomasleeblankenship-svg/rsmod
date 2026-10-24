@@ -7,6 +7,39 @@ live-game, device or APK evidence.
 
 ## Current status (read this first)
 
+**Update 2026-10-24: Hub read API complete.** Every read that a Hub plugin calls is now
+present at the arity it calls (checked against `UTIL_GAP.md` and the Hub sources), except
+the items handed to Claude 1 or not portable, listed at the end of this update. Details and
+commits are in the [COORDINATION.md](COORDINATION.md) change log.
+
+- **Read batches 10 to 15** (plus `checkIdleLogout`, `sellLoot`): inventory, item model,
+  player, NPC, game object, dialogue, tile, widget, UI helper, rune pouch, equipment,
+  combat range (with upstream's `util/combat/weapons/**` data), bank read block, ground
+  items, reachability, death recovery and deposit box reads. New read-only classes:
+  `util/models/RS2Item`, `util/walker/Rs2MiniMap`, `util/inventory/Rs2Gembag`,
+  `util/item/Rs2ExplorersRing`, `util/reachable/Rs2Reachable`, `util/death/Rs2Death`.
+- **Take-over by agreement with Claude 1** (reads and actions): `util/menu/NewMenuEntry`
+  (data only), `util/settings/Rs2Settings`, `util/grandexchange/**` (types, offer reads,
+  GE Tracker/OSRS Wiki price lookups, buy/sell/collect/abort). Every click is one
+  `MobileActions` dispatch; keys go through `Rs2Keyboard`.
+- **Visibility as upstream Microbot:** `bosstimer.Boss`/`RespawnTimer`,
+  `grounditems.GroundItem` (plus upstream's `location`/`height` fields),
+  `mining.MiningAnimation` (and `MINING_ANIMATIONS`), `gameval.ObjectID1` (generated;
+  keep it public on regeneration).
+- **Documented deviations** (each in its Javadoc): no humanised jitter in
+  `Rs2UiHelper.getClickingPoint`; `disableWorldSwitcherConfirmation` never clicks; no
+  bank PIN entry in `openExchange`; GE price lookups refused on the client thread;
+  `Rs2Reachable` returns a packed-point set (no fastutil) and keys its cache by start;
+  `Rs2GameObject.canReach` ends the path at the nearest reachable tile (no `pathTo`);
+  gem bag Fill/Empty measured on the next inventory event; rune pouch combination mode
+  also counts the exact rune; `Rs2NpcModel.matches` is case-insensitive both ways.
+- **Not done here:** `Rs2PathApi.getPathfinderConfig`/`getActiveRoute` and
+  `Rs2Camera.isTrackingNpc` (Claude 1: walker route API, camera tracker); the actions in
+  the new gem bag and explorer's ring files (Claude 1); `Rs2Reflection.getGroundItemActions`
+  (reflection into the obfuscated client, not portable).
+- **Validation:** 780 tests in the standard verify, Checkstyle and PMD clean. Mocked
+  interfaces only; nothing here has been run on a phone.
+
 **Update 2026-10-23 (M6).** Two more upstream caches are ported, both owned by
 `MicrobotReadServices` and listed in the coverage table below:
 
