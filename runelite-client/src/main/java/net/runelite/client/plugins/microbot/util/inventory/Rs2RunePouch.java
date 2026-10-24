@@ -25,6 +25,29 @@ public final class Rs2RunePouch
 	public static final int[] POUCH_IDS = {ItemID.BH_RUNE_POUCH, ItemID.BR_RUNE_REPLACEMENT,
 		ItemID.BH_RUNE_POUCH_TROUVER, ItemID.DIVINE_RUNE_POUCH, ItemID.DIVINE_RUNE_POUCH_TROUVER};
 	private Rs2RunePouch() { }
+
+	// ---- Util action batch AL (Claude 1): refresh hooks ----
+
+	/**
+	 * As upstream: refreshes the pouch's slots. Mobile reads the pouch varbits on every call, so
+	 * there is no copy to refresh: this does nothing (kept for scripts that call it).
+	 */
+	public static void fullUpdate()
+	{
+		// Slots are read live from the pouch varbits; nothing is cached.
+	}
+
+	/** As upstream's event hook: nothing to do, as {@link #fullUpdate()}. */
+	public static void onVarbitChanged(net.runelite.api.events.VarbitChanged event)
+	{
+		// Slots are read live from the pouch varbits; nothing is cached.
+	}
+
+	/** As upstream's event hook: nothing to do, as {@link #fullUpdate()}. */
+	public static void onWidgetLoaded(net.runelite.api.events.WidgetLoaded event)
+	{
+		// Slots are read live from the pouch varbits; nothing is cached.
+	}
 	public static int getQuantity(int itemId)
 	{
 		return MobileActions.read(() ->
