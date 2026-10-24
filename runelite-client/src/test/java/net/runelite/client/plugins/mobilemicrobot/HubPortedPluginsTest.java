@@ -59,7 +59,8 @@ public class HubPortedPluginsTest
 		"net.runelite.client.plugins.microbot.leaguesfiremaking.LeaguesFiremakingPlugin",
 		"net.runelite.client.plugins.microbot.leftclickcast.LeftClickCastPlugin",
 		"net.runelite.client.plugins.microbot.piebaker.PieBakerPlugin",
-		"net.runelite.client.plugins.microbot.varrockcleaner.VarrockCleanerPlugin");
+		"net.runelite.client.plugins.microbot.varrockcleaner.VarrockCleanerPlugin",
+		"net.runelite.client.plugins.microbot.blastoisefurnace.BlastoiseFurnacePlugin");
 
 	private static Plugin instance(String name) throws Exception
 	{
