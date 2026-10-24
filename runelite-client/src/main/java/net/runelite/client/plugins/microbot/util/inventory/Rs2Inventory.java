@@ -1301,6 +1301,76 @@ public final class Rs2Inventory
 		return 28;
 	}
 
+	// ---- Util action batch AG (Claude 1): slot helpers ----
+
+	/** As upstream: the inventory container, read on the client thread (a live handle; null without a client). */
+	public static ItemContainer inventory()
+	{
+		return MobileActions.read(() -> Microbot.getClient().getItemContainer(InventoryID.INV), null);
+	}
+
+	/** As upstream: the items that do not match {@code predicate}. */
+	public static List<Rs2ItemModel> except(Predicate<Rs2ItemModel> predicate)
+	{
+		return items(predicate.negate()).collect(Collectors.toList());
+	}
+
+	/** As upstream: the number of occupied slots. */
+	public static int fullSlotCount()
+	{
+		return (int) items().count();
+	}
+
+	/** As upstream: the total quantity of noted and stackable items. */
+	public static int stackableSize()
+	{
+		return count(item -> item.isNoted() || item.isStackable());
+	}
+
+	/** As upstream: the on-screen bounds of {@code rs2Item}'s slot in the visible inventory, or null. */
+	public static java.awt.Rectangle itemBounds(Rs2ItemModel rs2Item)
+	{
+		net.runelite.api.widgets.Widget inventory = rs2Item == null ? null : getInventory();
+		if (inventory == null)
+		{
+			return null;
+		}
+		return MobileActions.read(() -> Arrays.stream(inventory.getDynamicChildren())
+			.filter(widget -> widget != null && widget.getIndex() == rs2Item.getSlot())
+			.findFirst().map(net.runelite.api.widgets.Widget::getBounds).orElse(null), null);
+	}
+
+	/** As upstream: the slot of the first item with {@code id}, or -1. */
+	public static int slot(int id)
+	{
+		return slotOf(get(id));
+	}
+
+	/** As upstream: the slot of the first item named exactly {@code name} (any case), or -1. */
+	public static int slot(String name)
+	{
+		return slotOf(items(item -> matches(item.getName(), name, true)).findFirst().orElse(null));
+	}
+
+	/** As upstream: the slot of the first item matching {@code filter}, or -1. */
+	public static int slot(Predicate<Rs2ItemModel> filter)
+	{
+		return slotOf(get(filter));
+	}
+
+	private static int slotOf(Rs2ItemModel item)
+	{
+		return item == null ? -1 : item.getSlot();
+	}
+
+	/** As upstream: the item in {@code slot} has a name containing {@code sub} (any case). */
+	public static boolean slotNameContains(int slot, String sub)
+	{
+		Rs2ItemModel item = getItemInSlot(slot);
+		return item != null && item.getName() != null && sub != null
+			&& item.getName().toLowerCase(Locale.ROOT).contains(sub.toLowerCase(Locale.ROOT));
+	}
+
 	/** The item in {@code slot}, or {@code null} when it is empty. */
 	public static Rs2ItemModel getItemInSlot(int slot)
 	{
