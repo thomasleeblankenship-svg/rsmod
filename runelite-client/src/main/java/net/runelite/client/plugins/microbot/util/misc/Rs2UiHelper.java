@@ -69,6 +69,35 @@ public final class Rs2UiHelper
 		return bounds == null ? getDefaultRectangle() : new Rectangle(bounds);
 	}
 
+	/** As upstream: the part of {@code rectangle} on the canvas, or null when none of it is. */
+	public static Rectangle clipToCanvas(Rectangle rectangle)
+	{
+		if (rectangle == null)
+		{
+			return null;
+		}
+		int[] canvas = MobileActions.read(() -> new int[]{
+			net.runelite.client.plugins.microbot.Microbot.getClient().getCanvasWidth(),
+			net.runelite.client.plugins.microbot.Microbot.getClient().getCanvasHeight()}, new int[]{0, 0});
+		Rectangle visible = rectangle.intersection(new Rectangle(0, 0, canvas[0], canvas[1]));
+		return visible.isEmpty() ? null : visible;
+	}
+
+	/** As upstream: {@code text} with each markup tag replaced by a space, through {@link Rs2TextSanitizer#stripTagsToSpace}. */
+	public static String stripTagsToSpace(String text)
+	{
+		return Rs2TextSanitizer.stripTagsToSpace(text);
+	}
+
+	/** As upstream: the first run of digits in {@code input} ("+1%" gives 1), or -1 when there is none (or it is null). */
+	public static int extractNumber(String input)
+	{
+		java.util.regex.Matcher matcher = input == null ? null : FIRST_NUMBER.matcher(input);
+		return matcher != null && matcher.find() ? Integer.parseInt(matcher.group()) : -1;
+	}
+
+	private static final java.util.regex.Pattern FIRST_NUMBER = java.util.regex.Pattern.compile("\\d+");
+
 	/** As upstream: the whole canvas, from (1, 1). */
 	public static Rectangle getDefaultRectangle()
 	{

@@ -7,8 +7,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
@@ -71,7 +69,6 @@ public final class Rs2GrandExchange
 	/** Children of the offer container holding the custom -X% and +X% buttons. */
 	static final int MINUS_X_PERCENT_CHILD = 14;
 	static final int PLUS_X_PERCENT_CHILD = 15;
-	private static final Pattern NUMBER = Pattern.compile("\\d+");
 
 	private Rs2GrandExchange()
 	{
@@ -1013,8 +1010,7 @@ public final class Rs2GrandExchange
 	/** The first number in {@code text}, or -1 (upstream {@code Rs2UiHelper.extractNumber}). */
 	static int extractNumber(String text)
 	{
-		Matcher matcher = text == null ? null : NUMBER.matcher(text);
-		return matcher != null && matcher.find() ? Integer.parseInt(matcher.group()) : -1;
+		return Rs2UiHelper.extractNumber(text);
 	}
 
 	/** GE Tracker's buying price for {@code itemId}, or -1. */

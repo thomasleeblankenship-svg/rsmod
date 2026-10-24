@@ -29,9 +29,69 @@ public final class Rs2LogBasket
 		public BasketContents(int quantity, String logType)
 		{
 			this.quantity = quantity;
-			this.logType = logType;
+			this.logType = logType != null ? logType : "";
 			this.isEmpty = quantity == 0;
 		}
+
+		/** As upstream: an empty basket (also upstream's answer when the contents could not be read). */
+		public static BasketContents empty()
+		{
+			return new BasketContents(0, "");
+		}
+	}
+
+	/**
+	 * As upstream: the basket's contents from its "Check" message, or {@link BasketContents#empty()}
+	 * when there is no basket or the message was not recognised. Use {@link #getCurrentBasketContents()}
+	 * to tell "empty" from "unknown".
+	 */
+	public static BasketContents checkBasketContents()
+	{
+		BasketContents contents = getCurrentBasketContents();
+		return contents != null ? contents : BasketContents.empty();
+	}
+
+	/**
+	 * As upstream: at an open bank, empties the basket, withdraws up to {@code logsToWithdraw} logs
+	 * (at most 27, leaving the basket's slot) and fills the basket from the bank. True once the basket
+	 * was filled or the bank has no more of {@code logId}.
+	 */
+	public static boolean handleLogBasketBanking(int logId, int logsToWithdraw)
+	{
+		if (!hasLogBasket() || !Rs2Bank.isOpen())
+		{
+			return false;
+		}
+		emptyLogBasketAtBank();
+		int withdraw = Math.min(logsToWithdraw, 27);
+		if (withdraw > 0 && Rs2Bank.withdrawX(logId, withdraw))
+		{
+			int target = Math.min(withdraw, Rs2Bank.count(logId));
+			Rs2Inventory.waitFor(() -> Rs2Inventory.count(logId) >= target, 3_000);
+		}
+		return fillLogBasketFromBank(logId);
+	}
+
+	private static boolean fillLogBasketFromBank(int logId)
+	{
+		if (!hasLogBasket() || !Rs2Bank.isOpen())
+		{
+			return false;
+		}
+		int bankLogs = Rs2Bank.count(logId);
+		if (bankLogs <= 0)
+		{
+			return true;
+		}
+		int free = Rs2Inventory.emptySlotCount();
+		if (free <= 0)
+		{
+			return false;
+		}
+		int before = Rs2Inventory.count(logId);
+		return Rs2Bank.withdrawX(logId, Math.min(Math.min(bankLogs, LOG_BASKET_CAPACITY), free))
+			&& Rs2Inventory.waitFor(() -> Rs2Inventory.count(logId) > before, 3_000)
+			&& fillLogBasket();
 	}
 
 	private static Rs2ItemModel basket()

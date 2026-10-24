@@ -749,6 +749,77 @@ public final class Rs2GameObject
 		return nameMatches(objectName, false);
 	}
 
+	// ---- Util action batch AE (Claude 1): object click helpers ----
+
+	/** As upstream: objects named {@code objectName} that offer {@code actionName} (exact or contains matching). */
+	public static <T extends TileObject> java.util.function.Predicate<T> nameAndActionMatches(String objectName, String actionName, boolean exact)
+	{
+		java.util.function.Predicate<T> name = nameMatches(objectName, exact);
+		return name.and(object -> hasAction(convertToObjectComposition(object), actionName, exact));
+	}
+
+	/** As upstream: {@link #nameAndActionMatches(String, String, boolean)} with contains matching. */
+	public static <T extends TileObject> java.util.function.Predicate<T> nameAndActionMatches(String objectName, String actionName)
+	{
+		return nameAndActionMatches(objectName, actionName, false);
+	}
+
+	/** As upstream (deprecated there): {@link #convertToObjectComposition(TileObject)}. */
+	@Deprecated
+	public static ObjectComposition convertGameObjectToObjectComposition(TileObject tileObject)
+	{
+		return convertToObjectComposition(tileObject);
+	}
+
+	/** As upstream (deprecated there): {@link #convertToObjectComposition(int)}. */
+	@Deprecated
+	public static ObjectComposition convertGameObjectToObjectComposition(int objectId)
+	{
+		return convertToObjectComposition(objectId);
+	}
+
+	/** As upstream: the non-null candidate whose location is nearest {@code anchor}. */
+	public static <T> java.util.Optional<T> pickClosest(Collection<T> candidates, Function<T, WorldPoint> locFn, WorldPoint anchor)
+	{
+		if (candidates == null || anchor == null)
+		{
+			return java.util.Optional.empty();
+		}
+		return candidates.stream()
+			.filter(java.util.Objects::nonNull)
+			.filter(candidate -> locFn.apply(candidate) != null)
+			.min(Comparator.comparingInt(candidate -> locFn.apply(candidate).distanceTo(anchor)));
+	}
+
+	/** Upstream's limit for clicking an object without walking towards it first. */
+	private static final int CLICK_OBJECT_MAX_DISTANCE = 51;
+
+	/**
+	 * As upstream: clicks {@code action} on a live object. An object more than 51 tiles away is walked
+	 * towards instead and {@code false} returned (call again), as upstream. Mobile adaptation: the click
+	 * is the {@link #interact(TileObject, String)} dispatch; upstream's can't-reach retry counter is not
+	 * a separate path here.
+	 */
+	public static boolean clickObject(TileObject object, String action)
+	{
+		if (object == null)
+		{
+			return false;
+		}
+		WorldPoint objectLocation = MobileActions.read(object::getWorldLocation, null);
+		WorldPoint here = net.runelite.client.plugins.microbot.util.player.Rs2Player.getWorldLocation();
+		if (objectLocation == null || here == null)
+		{
+			return false;
+		}
+		if (here.distanceTo2D(objectLocation) > CLICK_OBJECT_MAX_DISTANCE)
+		{
+			Rs2Walker.walkTo(objectLocation);
+			return false;
+		}
+		return interact(object, action == null ? "" : action);
+	}
+
 	/**
 	 * As upstream: ids of the {@code ObjectID} constants (legacy and gameval) whose name contains
 	 * {@code name}, ignoring case; cached. Adaptation: Microbot's own {@code ObjectID} is not ported.
