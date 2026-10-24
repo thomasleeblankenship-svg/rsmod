@@ -28,6 +28,16 @@ public final class Rs2DepositBox
 	{
 	}
 
+	/** As upstream: the deposit box interface's bounds while it is open, else {@code null}. */
+	public static java.awt.Rectangle getDepositBoxBounds()
+	{
+		return MobileActions.read(() ->
+		{
+			Widget root = Microbot.getClient().getWidget(GROUP, 0);
+			return root == null || root.isHidden() ? null : root.getBounds();
+		}, null);
+	}
+
 	/** As upstream: the deposit box interface is showing. */
 	public static boolean isOpen()
 	{

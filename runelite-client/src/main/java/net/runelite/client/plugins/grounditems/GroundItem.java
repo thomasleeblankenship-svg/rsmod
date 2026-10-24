@@ -46,6 +46,10 @@ public class GroundItem
 	private String name;
 	private int quantity;
 	private ItemLayer itemLayer;
+	/** Upstream Microbot: the item's world tile (set by {@code Rs2GroundItem.getGroundItems}). */
+	private net.runelite.api.coords.WorldPoint location;
+	/** Upstream Microbot: the item layer height. */
+	private int height;
 	private int haPrice;
 	private long gePrice;
 	private int offset;
