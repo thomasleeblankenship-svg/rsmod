@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | `util/inventory/Rs2RunePouch.java` (fullUpdate, onVarbitChanged, onWidgetLoaded); new `UtilActionBatchALTest` | **Task: util action batch AL**: rune pouch refresh hooks (last Hub-called util action) | this commit |
 
 ## Requests
 
