@@ -1,0 +1,275 @@
+package net.runelite.client.plugins.microbot.moonsofperil.handlers;
+
+import net.runelite.api.gameval.ObjectID;
+import net.runelite.api.gameval.ItemID;
+import net.runelite.api.coords.WorldPoint;
+import net.runelite.client.plugins.microbot.Microbot;
+import net.runelite.client.plugins.microbot.breakhandler.BreakHandlerScript;
+import net.runelite.client.plugins.microbot.moonsofperil.enums.State;
+import net.runelite.client.plugins.microbot.util.dialogues.Rs2Dialogue;
+import net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory;
+import net.runelite.client.plugins.microbot.util.player.Rs2Player;
+import net.runelite.client.plugins.microbot.util.walker.Rs2Walker;
+import net.runelite.client.plugins.microbot.moonsofperil.MoonsOfPerilConfig;
+
+import static net.runelite.client.plugins.microbot.util.Global.sleep;
+import static net.runelite.client.plugins.microbot.util.Global.sleepUntil;
+
+public class ResupplyHandler implements BaseHandler {
+
+    static final int BREAM_FISHING_SPOT_ID = ObjectID.RIVER_FISHING_SPOT;
+    static final long FISHING_STALL_TIMEOUT_MS = 60_000;
+
+    private final int minMoonlightPotions;
+    private final int minCookedBream;
+    private final int potionBatchSize;
+    private final WorldPoint supplyLocation = new WorldPoint(1513, 9692, 0);
+    private final boolean debugLogging;
+
+    public ResupplyHandler(MoonsOfPerilConfig cfg) {
+        this.minMoonlightPotions = cfg.moonlightPotionsMinimum();
+        this.minCookedBream      = cfg.cookedBreamMinimum();
+        this.potionBatchSize     = cfg.moonlightPotionsQuantum();
+        this.debugLogging = cfg.debugLogging();
+    }
+
+    @Override
+    public boolean validate() {
+        return checkSupplies(minMoonlightPotions, minCookedBream);
+    }
+
+    @Override
+    public State execute() {
+        BreakHandlerScript.setLockState(true);
+        walkToSupplies();
+        makeMoonlightPotions(potionBatchSize);
+        obtainBream();
+        BossHandler.rechargeRunEnergy();
+        BreakHandlerScript.setLockState(false);
+        return State.IDLE;
+    }
+
+    private boolean checkSupplies(int moonlightPotionMinimum, int cookedBreamMinimum) {
+        if ((countMoonlightPotions() < moonlightPotionMinimum)
+                || (Rs2Inventory.count(ItemID.BREAM_FISH_COOKED) < cookedBreamMinimum)) {
+            return true;
+        } else {
+            if (debugLogging) {Microbot.log("No need to resupply right now.");}
+        }
+        return false;
+    }
+
+    private void walkToSupplies() {
+        if (debugLogging) {Microbot.log("Attempting to walk to supply area 1");}
+        Rs2Walker.walkWithState(supplyLocation, 0);
+        if (debugLogging) {Microbot.log("Arrived at supply area 1");}
+    }
+
+    private void makeMoonlightPotions(int moonlightPotionsQuantum) {
+        if (debugLogging) {Microbot.log("Need a total of " + moonlightPotionsQuantum + " Moonlight potions");}
+        int amountToCreate = checkPotionQuantum(moonlightPotionsQuantum);
+        if (debugLogging) {Microbot.log("Need to create " + amountToCreate + " Moonlight potions");}
+
+        if ((amountToCreate > 0) && (Rs2Player.distanceTo(supplyLocation) <= 10)) {
+            /* Take herblore supplies */
+            while (Rs2Inventory.count(ItemID.VIAL_WATER) < amountToCreate) {
+                if (debugLogging) {Microbot.log("Take herblore supplies from supply crate");}
+                if (Microbot.getRs2TileObjectCache().query().interact(ObjectID.PMOON_SUPPLY_CRATE, "Take from")) {
+                    Rs2Dialogue.sleepUntilHasDialogueOption("Take herblore supplies.");
+                    Rs2Dialogue.clickOption("Take herblore supplies.");
+                    Rs2Inventory.waitForInventoryChanges(1_500);
+                }
+            }
+
+            /* Forage for grubs */
+            while (Rs2Inventory.count(ItemID.MOONLIGHT_GRUB)
+                    + Rs2Inventory.count(ItemID.MOONLIGHT_GRUB_PASTE) < amountToCreate) {
+                if (debugLogging) {Microbot.log("Collect Moonlight Grub");}
+                if (Microbot.getRs2TileObjectCache().query().interact(ObjectID.PMOON_GRUB_SAPLING, "Collect-from")) {
+                    sleepUntil(() -> Rs2Inventory.count(ItemID.MOONLIGHT_GRUB)
+                            + Rs2Inventory.count(ItemID.MOONLIGHT_GRUB_PASTE) >= amountToCreate, 8_000);
+                }
+            }
+
+            /* Grind to paste */
+            if (Rs2Inventory.contains(ItemID.PESTLE_AND_MORTAR)) {
+                Rs2Inventory.combine(ItemID.PESTLE_AND_MORTAR, ItemID.MOONLIGHT_GRUB);
+                sleepUntil(() -> !Rs2Inventory.contains(ItemID.MOONLIGHT_GRUB), 8_000);
+            } else {
+                if (debugLogging) {Microbot.log("Need a pestle and mortar!");}
+            }
+
+            /* Mix potion */
+            if (Rs2Inventory.combine(ItemID.MOONLIGHT_GRUB_PASTE, ItemID.VIAL_WATER)) {
+                sleepUntil(() -> !Rs2Player.isAnimating(), 10_000);
+            }
+
+            /* Drop leftovers */
+            while (Rs2Inventory.contains(ItemID.PESTLE_AND_MORTAR))  Rs2Inventory.drop(ItemID.PESTLE_AND_MORTAR);
+            sleep(600);
+            while (Rs2Inventory.contains(ItemID.MOONLIGHT_GRUB))      Rs2Inventory.drop(ItemID.MOONLIGHT_GRUB);
+            sleep(600);
+            while (Rs2Inventory.contains(ItemID.MOONLIGHT_GRUB_PASTE))Rs2Inventory.drop(ItemID.MOONLIGHT_GRUB_PASTE);
+            sleep(600);
+            while (Rs2Inventory.contains(ItemID.VIAL_WATER))Rs2Inventory.drop(ItemID.VIAL_WATER);
+            sleep(600);
+            while (Rs2Inventory.contains(ItemID.VIAL_EMPTY))Rs2Inventory.drop(ItemID.VIAL_EMPTY);
+            sleep(600);
+        }
+    }
+
+    private void obtainBream() {
+        fishBream();
+        cookBream();
+    }
+    private boolean ensureBigNet() {
+        if (Rs2Inventory.contains(ItemID.BIG_NET)) {
+            return true;
+        }
+
+        // Keep trying until we actually have it (or timeout)
+        long start = System.currentTimeMillis();
+        while (!Rs2Inventory.contains(ItemID.BIG_NET) && System.currentTimeMillis() - start < 15_000) {
+
+            if (Microbot.getRs2TileObjectCache().query().interact(ObjectID.PMOON_SUPPLY_CRATE, "Take from")) { // interact exists :contentReference[oaicite:1]{index=1}
+                Rs2Dialogue.sleepUntilHasDialogueOption("Take fishing supplies.");
+                Rs2Dialogue.clickOption("Take fishing supplies.");
+
+                // Wait specifically for BIG_NET, not just “any inventory change”
+                sleepUntil(() -> Rs2Inventory.contains(ItemID.BIG_NET), 3_000);
+            }
+
+            sleep(300, 600);
+        }
+
+        if (!Rs2Inventory.contains(ItemID.BIG_NET)) {
+            if (debugLogging) Microbot.log("Failed to obtain BIG_NET (timeout).");
+            return false;
+        }
+
+        return true;
+    }
+
+    public void eatToFull(String foodName) {
+        while (Rs2Player.getHealthPercentage() < 100) {
+
+            if (!Rs2Inventory.contains(foodName)) {
+                Microbot.log("Out of food!");
+                return;
+            }
+
+            Rs2Inventory.interact(foodName, "Eat");
+            Rs2Player.waitForAnimation(1200); // wait for eat animation
+        }
+    }
+
+    private void fishBream() {
+        if (Rs2Player.getHealthPercentage() < 100 && Rs2Inventory.contains("Cooked bream")) {
+            eatToFull("Cooked bream");
+        }
+
+        // HARD GATE: do not walk to fishing spot unless we truly have the net
+        if (!ensureBigNet()) {
+            return;
+        }
+
+        Rs2Walker.walkFastCanvas(new WorldPoint(1520, 9689, 0));
+
+        int lastFreeSlots = Rs2Inventory.emptySlotCount();
+        long lastProgressAt = System.currentTimeMillis();
+        while (!Rs2Inventory.isFull()) {
+            // If for any reason we lost the net mid-loop, bail
+            if (!Rs2Inventory.contains(ItemID.BIG_NET)) {
+                if (debugLogging) Microbot.log("BIG_NET missing while fishing; returning to crate.");
+                return;
+            }
+
+            int freeSlots = Rs2Inventory.emptySlotCount();
+            long now = System.currentTimeMillis();
+            if (freeSlots != lastFreeSlots) {
+                lastFreeSlots = freeSlots;
+                lastProgressAt = now;
+            } else if (isFishingStalled(lastProgressAt, now)) {
+                Microbot.log("No bream caught in " + FISHING_STALL_TIMEOUT_MS / 1000 + "s; giving up on fishing this resupply.");
+                return;
+            }
+
+            if (!Rs2Player.isAnimating()) {
+                if (Microbot.getRs2TileObjectCache().query().interact(BREAM_FISHING_SPOT_ID, "Fish")) {
+                    sleep(3000, 4000);
+                } else if (debugLogging) {
+                    Microbot.log("Bream fishing spot not found.");
+                }
+            }
+            sleep(300, 500);
+        }
+
+        if (debugLogging) Microbot.log("Inventory should now be full of fish");
+        sleep(600, 900);
+
+        // Recommendation: DON'T drop it, unless you have a specific reason
+        // Rs2Inventory.drop(ItemID.BIG_NET);
+    }
+
+    static boolean isFishingStalled(long lastProgressAt, long now) {
+        return now - lastProgressAt >= FISHING_STALL_TIMEOUT_MS;
+    }
+
+    private void cookBream() {
+        if (debugLogging) {Microbot.log("Walking to cooking stove");}
+        Rs2Walker.walkFastCanvas(new WorldPoint(1512, 9693, 0));
+
+        while (Rs2Inventory.contains(ItemID.BREAM_FISH_RAW)) {
+            if (!Rs2Player.isAnimating()) {
+                if (Microbot.getRs2TileObjectCache().query().interact(ObjectID.PMOON_RANGE, "Cook")) {
+                    sleep(600, 900);
+                }
+            }
+            sleep(900, 1200);
+        }
+        if (debugLogging) {Microbot.log("Finished cooking bream.");}
+    }
+
+    /**
+     * Return int: the total number of Moonlight Potions currently in inventory
+     */
+    private int countMoonlightPotions() {
+        return Rs2Inventory.count(ItemID._4DOSEMOONLIGHTPOTION)
+                + Rs2Inventory.count(ItemID._3DOSEMOONLIGHTPOTION)
+                + Rs2Inventory.count(ItemID._2DOSEMOONLIGHTPOTION)
+                + Rs2Inventory.count(ItemID._1DOSEMOONLIGHTPOTION);
+    }
+
+    /**
+     * Return int: The number of new Moonlight potions we need to make
+     */
+    private int checkPotionQuantum(int target)
+    {
+        int desired = target - countMoonlightPotions();
+        if (desired <= 0) return 0;
+
+        final int overheadSlots = 2; // 1 mortar + 1 extra slot for double pulls from crate
+        int requiredSlots = desired * 2 + overheadSlots;    // 2 per potion + 1 mortar + 1 space for double potion pulls from crate
+        if (debugLogging) {Microbot.log("Required free inventory slots: " + requiredSlots);}
+        int freeSlots     = Rs2Inventory.emptySlotCount();
+        if (debugLogging) {Microbot.log("Current free inventory slots: " + freeSlots);}
+
+        /* --------- Free inventory space by dropping fish ---------------- */
+        while (freeSlots < requiredSlots &&
+                (Rs2Inventory.contains(ItemID.BREAM_FISH_COOKED) ||
+                        Rs2Inventory.contains(ItemID.BREAM_FISH_RAW)))
+        {
+            if (Rs2Inventory.contains(ItemID.BREAM_FISH_RAW)) {
+                Rs2Inventory.drop(ItemID.BREAM_FISH_RAW);
+            } else {
+                Rs2Inventory.drop(ItemID.BREAM_FISH_COOKED);
+            }
+            sleep(400, 600);
+            freeSlots = Rs2Inventory.emptySlotCount();
+        }
+        if (freeSlots < requiredSlots) {
+            desired = Math.max((freeSlots - overheadSlots) / 2, 0);
+        }
+        return desired;
+    }
+}
