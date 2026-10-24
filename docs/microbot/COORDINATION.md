@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | `headless/JavaBridge.java` (key pacer only), `JavaBridgeKeyTimingTest`, `WEBWALKER_PLAN.md` | **Task: C1-6, `JavaBridgeKeyTimingTest` intermittent failure** (root cause and fix) | this commit |
 | Codex (user: next) | New `CODEX_APK_VERIFICATION.md`; local build/verification outputs only | Verify latest shared-source debug APK packaging and GitHub download identity; no runtime, CI or transport edits | this claim commit |
 
 ## Requests
