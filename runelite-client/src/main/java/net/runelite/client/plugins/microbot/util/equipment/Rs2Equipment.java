@@ -131,6 +131,104 @@ public final class Rs2Equipment
 		}, null);
 	}
 
+	/** As upstream: equipped items whose name equals ({@code exact}) or contains {@code name}. */
+	public static java.util.stream.Stream<net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel> all(String name, boolean exact)
+	{
+		return all(net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel.matches(exact, name));
+	}
+
+	/** As upstream: the first equipped item, or {@code null}. */
+	public static net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel get()
+	{
+		return all().findFirst().orElse(null);
+	}
+
+	/** As upstream: the first equipped item named {@code name}. */
+	public static net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel get(String name, boolean exact)
+	{
+		return all(name, exact).findFirst().orElse(null);
+	}
+
+	/** As upstream: anything is equipped. */
+	public static boolean isWearing()
+	{
+		return get() != null;
+	}
+
+	/** As upstream: every one of {@code names} is worn in {@code searchSlots}. */
+	public static boolean isWearing(String[] names, boolean exact, EquipmentInventorySlot[] searchSlots)
+	{
+		java.util.Set<Integer> slots = java.util.Arrays.stream(searchSlots).map(EquipmentInventorySlot::getSlotIdx).collect(java.util.stream.Collectors.toSet());
+		java.util.List<net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel> worn =
+			all(item -> slots.contains(item.getSlot())).collect(java.util.stream.Collectors.toList());
+		return java.util.Arrays.stream(names).allMatch(name -> worn.stream().anyMatch(
+			net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel.matches(exact, name)));
+	}
+
+	/** As upstream: as above, searching {@code slots} or, when not {@code areSearchSlots}, every other slot. */
+	public static boolean isWearing(String[] names, boolean exact, EquipmentInventorySlot[] slots, boolean areSearchSlots)
+	{
+		java.util.Set<EquipmentInventorySlot> given = java.util.EnumSet.noneOf(EquipmentInventorySlot.class);
+		given.addAll(java.util.Arrays.asList(slots));
+		EquipmentInventorySlot[] search = areSearchSlots ? slots : java.util.Arrays.stream(EquipmentInventorySlot.values())
+			.filter(slot -> !given.contains(slot)).toArray(EquipmentInventorySlot[]::new);
+		return isWearing(names, exact, search);
+	}
+
+	/** As upstream: equipped items in any of {@code slots}. */
+	public static java.util.stream.Stream<net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel> all(EquipmentInventorySlot... slots)
+	{
+		return all(net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel.matches(slots));
+	}
+
+	/** As upstream: equipped items with any of {@code ids}. */
+	public static java.util.stream.Stream<net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel> all(int... ids)
+	{
+		return all(net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel.matches(ids));
+	}
+
+	/** As upstream: equipped items matching any of {@code names}. */
+	public static java.util.stream.Stream<net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel> all(String[] names, boolean exact)
+	{
+		return all(net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel.matches(exact, names));
+	}
+
+	/** As upstream: equipped items whose name contains any of {@code names}. */
+	public static java.util.stream.Stream<net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel> all(String... names)
+	{
+		return all(names, false);
+	}
+
+	/** As upstream: the first equipped item matching any of {@code names}. */
+	public static net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel get(String[] names, boolean exact)
+	{
+		return all(names, exact).findFirst().orElse(null);
+	}
+
+	/** As upstream: the first equipped item whose name contains any of {@code names}. */
+	public static net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel get(String... names)
+	{
+		return all(names).findFirst().orElse(null);
+	}
+
+	/** As upstream: any of {@code names} is worn. */
+	public static boolean isWearing(String[] names, boolean exact)
+	{
+		return get(names, exact) != null;
+	}
+
+	/** As upstream: any equipped name contains one of {@code names}. */
+	public static boolean isWearing(String... names)
+	{
+		return get(names) != null;
+	}
+
+	/** As upstream: every one of {@code names} is worn in {@code searchSlots} (contains match). */
+	public static boolean isWearing(String[] names, EquipmentInventorySlot[] searchSlots)
+	{
+		return isWearing(names, false, searchSlots);
+	}
+
 	/** As upstream: equipped items matching {@code predicate}. */
 	public static java.util.stream.Stream<net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel> all(
 		Predicate<net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel> predicate)

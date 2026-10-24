@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Locale;
+import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.Collections;
 import java.util.List;
@@ -193,6 +194,72 @@ public final class Rs2Inventory
 		return items(i -> i.getInventoryActions() != null && Arrays.stream(i.getInventoryActions()).anyMatch("scatter"::equalsIgnoreCase))
 			.collect(Collectors.toList());
 	}
+	/** As upstream: every name in {@code names} is in the inventory (exact, ignoring case). */
+	public static boolean containsAll(String... names)
+	{
+		Set<String> present = items().map(Rs2ItemModel::getName).filter(java.util.Objects::nonNull).map(n -> n.toLowerCase(Locale.ROOT))
+			.collect(Collectors.toSet());
+		return names != null && Arrays.stream(names).allMatch(n -> n != null && present.contains(n.toLowerCase(Locale.ROOT)));
+	}
+	/** As upstream: {@link #get(String[], boolean, boolean)} without the stackable filter. */
+	public static Rs2ItemModel get(String[] names, boolean exact) { return get(names, false, exact); }
+	/** As upstream: the first exact match, or the shortest-named contains match (optionally stackable only). */
+	public static Rs2ItemModel get(String[] names, boolean stackable, boolean exact)
+	{
+		Predicate<Rs2ItemModel> filter = Rs2ItemModel.matches(exact, names);
+		if (stackable)
+		{
+			filter = filter.and(Rs2ItemModel::isStackable);
+		}
+		return exact ? items(filter).findFirst().orElse(null)
+			: items(filter).min(Comparator.comparingInt(i -> i.getName().length())).orElse(null);
+	}
+	/** As upstream: the options of the item in {@code slot}, or none. */
+	public static String[] getActionsForSlot(int slot)
+	{
+		Rs2ItemModel item = getItemInSlot(slot);
+		return item == null ? new String[0] : item.getInventoryActions();
+	}
+	/** As upstream: the first empty slot, or -1. */
+	public static int getFirstEmptySlot()
+	{
+		Set<Integer> used = items().map(Rs2ItemModel::getSlot).collect(Collectors.toSet());
+		return java.util.stream.IntStream.range(0, 28).filter(i -> !used.contains(i)).findFirst().orElse(-1);
+	}
+	/** As upstream: the first occupied slot, or -1. */
+	public static int getFirstFullSlot() { return items().mapToInt(Rs2ItemModel::getSlot).min().orElse(-1); }
+	/** As upstream: the item id in {@code slot}, or -1. */
+	public static int getIdForSlot(int slot)
+	{
+		Rs2ItemModel item = getItemInSlot(slot);
+		return item == null ? -1 : item.getId();
+	}
+	/** As upstream: the item name in {@code slot}, or {@code null}. */
+	public static String getNameForSlot(int slot)
+	{
+		Rs2ItemModel item = getItemInSlot(slot);
+		return item == null ? null : item.getName();
+	}
+	/** As upstream: the inventory interface widget (149:0), or {@code null}. */
+	public static net.runelite.api.widgets.Widget getInventoryWidget()
+	{
+		return net.runelite.client.plugins.microbot.util.widget.Rs2Widget.getWidget(net.runelite.api.widgets.InterfaceID.INVENTORY, 0);
+	}
+	/** As upstream: the selected ("Use") widget's slot index, or -1. */
+	public static int getSelectedItemIndex()
+	{
+		return MobileActions.read(() ->
+		{
+			net.runelite.api.widgets.Widget widget = Microbot.getClient().getSelectedWidget();
+			return widget == null ? -1 : widget.getIndex();
+		}, -1);
+	}
+	/** As upstream: all 28 slots hold {@code id}. */
+	public static boolean isFull(int id) { return count(id) == 28; }
+	/** As upstream: not every one of {@code slots} is empty. */
+	public static boolean isSlotFull(int... slots) { return !isSlotsEmpty(slots); }
+	/** As upstream: every one of {@code slots} is empty. */
+	public static boolean isSlotsEmpty(int... slots) { return Arrays.stream(slots).allMatch(Rs2Inventory::isSlotEmpty); }
 	/** As upstream: every item matching {@code filter}. */
 	public static List<Rs2ItemModel> all(Predicate<Rs2ItemModel> filter) { return items(filter).collect(Collectors.toList()); }
 	public static Rs2ItemModel get(int id) { return items(i -> i.getId() == id).findFirst().orElse(null); }
@@ -742,7 +809,7 @@ public final class Rs2Inventory
 	/** As upstream: the inventory's fast food (priority 1 in {@code Rs2Food}, for example karambwans). */
 	public static List<Rs2ItemModel> getInventoryFastFood()
 	{
-		java.util.Set<Integer> fast = net.runelite.client.plugins.microbot.util.misc.Rs2Food.getFastFoodIds();
+		Set<Integer> fast = net.runelite.client.plugins.microbot.util.misc.Rs2Food.getFastFoodIds();
 		return getInventoryFood().stream().filter(item -> fast.contains(item.getId())).collect(Collectors.toList());
 	}
 

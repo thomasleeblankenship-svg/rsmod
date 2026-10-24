@@ -7,6 +7,7 @@ package net.runelite.client.plugins.microbot.util.inventory;
 
 import net.runelite.api.Item;
 import net.runelite.api.ItemComposition;
+import java.util.List;
 
 /**
  * Immutable snapshot of one occupied inventory slot.
@@ -28,6 +29,11 @@ public class Rs2ItemModel
 	private final boolean isNoted;
 	private final boolean isTradeable;
 	private final int unNotedId;
+	private final ItemComposition itemComposition;
+	private final String[][] subops;
+	private final int haPrice;
+	private final int linkedNoteId;
+	private final List<String> equipmentActions;
 
 	/**
 	 * @param linkedComposition definition of the linked (unnoted) id, used only
@@ -51,6 +57,11 @@ public class Rs2ItemModel
 			this.isTradeable = itemComposition != null && itemComposition.isTradeable();
 		}
 		this.unNotedId = unNotedId(item.getId(), itemComposition, isNoted);
+		this.itemComposition = itemComposition;
+		this.subops = itemComposition == null ? null : itemComposition.getSubops();
+		this.haPrice = itemComposition == null ? 0 : itemComposition.getHaPrice();
+		this.linkedNoteId = itemComposition == null ? -1 : itemComposition.getLinkedNoteId();
+		this.equipmentActions = equipmentActions(itemComposition);
 	}
 
 	/**
@@ -110,6 +121,153 @@ public class Rs2ItemModel
 	public boolean isTradeable()
 	{
 		return isTradeable;
+	}
+
+	/** Upstream's worn-item option params (OC_ITEM_OP1 to OC_ITEM_OP8). */
+	private static final int[] WEARABLE_ACTION_PARAMS = {
+		net.runelite.api.ParamID.OC_ITEM_OP1, net.runelite.api.ParamID.OC_ITEM_OP2, net.runelite.api.ParamID.OC_ITEM_OP3,
+		net.runelite.api.ParamID.OC_ITEM_OP4, net.runelite.api.ParamID.OC_ITEM_OP5, net.runelite.api.ParamID.OC_ITEM_OP6,
+		net.runelite.api.ParamID.OC_ITEM_OP7, net.runelite.api.ParamID.OC_ITEM_OP8,
+	};
+
+	private static List<String> equipmentActions(ItemComposition composition)
+	{
+		if (composition == null)
+		{
+			return java.util.Collections.emptyList();
+		}
+		List<String> actions = new java.util.ArrayList<>();
+		for (int param : WEARABLE_ACTION_PARAMS)
+		{
+			String value = composition.getStringValue(param);
+			actions.add(value == null ? "" : value);
+		}
+		return java.util.Collections.unmodifiableList(actions);
+	}
+
+	/** As upstream: the definition this model was built from ({@code null} when unknown). */
+	public ItemComposition getItemComposition()
+	{
+		return itemComposition;
+	}
+
+	/** As upstream: the definition's sub-option menus per inventory option. */
+	public String[][] getSubops()
+	{
+		return subops;
+	}
+
+	/** As upstream: the high alchemy value. */
+	public int getHaPrice()
+	{
+		return haPrice;
+	}
+
+	/** As upstream: the definition's linked note id (-1 without one). */
+	public int getLinkedId()
+	{
+		return linkedNoteId;
+	}
+
+	/** As upstream: the noted variant's id (this id when it has none or is already a stackable note). */
+	public int getNotedId()
+	{
+		if (itemComposition == null)
+		{
+			return id;
+		}
+		if (!isNoted)
+		{
+			return linkedNoteId != -1 ? linkedNoteId : id;
+		}
+		return notedId(itemComposition);
+	}
+
+	/** As upstream: the noted variant of {@code itemId} (definition read on the client thread); -1 when unknown. */
+	public static int getNotedId(int itemId)
+	{
+		ItemComposition composition = net.runelite.client.plugins.microbot.mobile.MobileActions.read(
+			() -> net.runelite.client.plugins.microbot.Microbot.getClient().getItemDefinition(itemId), null);
+		return notedId(composition);
+	}
+
+	private static int notedId(ItemComposition composition)
+	{
+		if (composition == null)
+		{
+			return -1;
+		}
+		boolean noted = composition.getNote() == 799;
+		int linked = composition.getLinkedNoteId();
+		return (noted && composition.isStackable()) || linked == -1 ? composition.getId() : linked;
+	}
+
+	/** As upstream: the worn-item options (8 entries, "" when unset). */
+	public List<String> getEquipmentActions()
+	{
+		return equipmentActions;
+	}
+
+	/** As upstream: the first inventory option containing {@code partOfAction} (case-sensitive on the option, as upstream). */
+	public String getAction(String partOfAction)
+	{
+		return java.util.Arrays.stream(getInventoryActions()).filter(java.util.Objects::nonNull)
+			.filter(action -> action.toLowerCase().contains(partOfAction)).findFirst().orElse(null);
+	}
+
+	/** As upstream: the inventory option matching the earliest keyword in {@code actions}, ignoring case. */
+	public String getActionFromList(List<String> actions)
+	{
+		return java.util.Arrays.stream(getInventoryActions())
+			.filter(action -> action != null && actions.stream().anyMatch(k -> action.toLowerCase().contains(k.toLowerCase())))
+			.min(java.util.Comparator.comparingInt(action -> actions.stream()
+				.filter(k -> action.toLowerCase().contains(k.toLowerCase())).mapToInt(actions::indexOf).findFirst().orElse(Integer.MAX_VALUE)))
+			.orElse(null);
+	}
+
+	/** As upstream: the inventory option and sub-option index whose sub-option contains {@code action}, ignoring case. */
+	public java.util.Map.Entry<String, Integer> getIndexOfSubAction(String action)
+	{
+		if (action == null || subops == null)
+		{
+			return null;
+		}
+		String lower = action.toLowerCase();
+		for (int i = 0; i < subops.length && i < inventoryActions.length; i++)
+		{
+			for (int j = 0; subops[i] != null && j < subops[i].length; j++)
+			{
+				if (subops[i][j] != null && subops[i][j].toLowerCase().contains(lower))
+				{
+					return java.util.Map.entry(inventoryActions[i], j);
+				}
+			}
+		}
+		return null;
+	}
+
+	/** As upstream: high alchemy beats the per-item GE price after a nature rune, and the item is tradeable. */
+	public boolean isHaProfitable()
+	{
+		long nature = net.runelite.client.plugins.microbot.mobile.MobileActions.read(() ->
+		{
+			net.runelite.client.game.ItemManager items = net.runelite.client.plugins.microbot.Microbot.getItemManager();
+			return items == null ? 0L : items.getItemPrice(net.runelite.api.gameval.ItemID.NATURERUNE);
+		}, 0L);
+		return quantity > 0 && haPrice - nature > getPrice() / quantity && isTradeable;
+	}
+
+	/** As upstream: models are equal when their item ids are. */
+	@Override
+	public boolean equals(Object obj)
+	{
+		return obj == this || (obj != null && obj.getClass() == getClass() && ((Rs2ItemModel) obj).id == id);
+	}
+
+	@Override
+	public int hashCode()
+	{
+		return 31 + id;
 	}
 
 	/** As upstream: GE price times quantity from the item manager, 0 when it cannot be read. */
