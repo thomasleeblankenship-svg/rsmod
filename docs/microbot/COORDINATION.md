@@ -4,13 +4,19 @@ This is the single shared channel between the two Claude sessions. Neither sessi
 message the other, so this file is the only place where claims and changes become
 visible. **The user's rule: update after every change, never overlap.**
 
-## Protocol (both sessions, every time)
+## Protocol (every session — Claude 1, Claude 2, Codex — every time)
 
 1. **Before any work:** `git pull --no-rebase origin feat/android-microbot-compat`, then
    read this whole file.
-2. **Claim before editing.** Add a row to *Active claims*, listing the exact files or
-   directories, and push that commit **before** touching code. If a file is already
-   claimed by the other session, do not edit it. Write a request under *Requests* instead.
+2. **Claim before editing, so nothing is done twice** (user, 2026-10-24). Add a row to
+   *Active claims* naming the **task** as well as the exact files or directories, and push
+   that commit **before** touching code. The claim counts only once the push has
+   succeeded: if it is rejected, merge, re-read this file and re-check before pushing it
+   again. Before claiming, check *Active claims*, open *Requests* and assigned plans (such
+   as `WEBWALKER_PLAN.md`) for the same **task**, not only the same files: another
+   session's test, file or plan item for the same goal counts as taken. If it is taken, do
+   not start; write a request under *Requests* instead. If a file is already claimed by
+   another session, do not edit it.
 3. **Ownership defaults** (see the table below) apply when nothing is claimed. Editing a
    file the other session owns needs a claim that names the owner's consent, recorded
    under *Requests*.
