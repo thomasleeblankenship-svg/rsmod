@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | `Microbot.java` (`getNotifier`, bound by `mobilemicrobot/MobileMicrobotPlugin.java`), `util/grounditem/{Rs2GroundItem,LootingParameters}.java` (value looting: `lootItemBasedOnValue(params)`, `lootCoins`, upstream's value constructors, `eatFoodForSpace`), `util/bank/Rs2Bank.java` (`preHover` no-op, `openBank(TileObject)`, `withdrawAllButOne`), `util/npc/Rs2Npc.java` (actions: `interact(int, String)`, `hoverOverActor` no-op), `util/gameobject/Rs2GameObject.java` (`hoverOverObject` no-op), `util/inventory/Rs2Inventory.java` (`hover` no-op), `util/dialogues/Rs2Dialogue.java` (`sleepUntilSelectAnOption`, `sleepUntilHasContinue`), `util/player/Rs2Player.java` (`hopIfPlayerDetected`, inert: never hops), new `HubActionBatchDTest` | **Task: util-gap action batch D** (the near-compiling plugins) | this commit |
 
 ## Requests
 
