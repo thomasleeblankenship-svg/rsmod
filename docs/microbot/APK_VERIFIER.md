@@ -37,6 +37,37 @@ directory. Success exits 0; verification failures exit 1; invalid CLI arguments
 exit 2. A failed report has `status: failed` and an error, not a partial pass.
 The JSON output path cannot overwrite the input APK.
 
+## Verify a GitHub artifact ZIP directly
+
+```sh
+python3 scripts/verify-mobile-apk.py /path/to/runemobile-mobile-debug-arm64.zip \
+  --artifact-zip \
+  --expected-commit FULL_OR_SHORT_COMMIT \
+  --json-out /tmp/artifact-verification.json
+```
+
+This mode expects exactly one APK with `SOURCE_COMMIT.txt` and `SHA256SUMS.txt`
+beside it. Files may share a directory prefix inside the ZIP. The source file
+must contain the full expected Git commit, and exactly one checksum entry must
+identify the APK. A mismatched source/checksum fails before the Android tools run.
+The expected revision is still supplied independently; it is never trusted just
+because the ZIP declares it.
+
+The tool streams only that APK into a fixed temporary filename, then applies all
+normal APK checks. It never extracts arbitrary member paths. Temporary data is
+removed on success or failure. The input ZIP remains unchanged, and cannot be
+used as the report output path. Duplicate ZIP entries, multiple APKs and unsafe
+APK member paths are rejected.
+
+The JSON includes `artifact_zip_sha256` for the downloaded ZIP and `sha256` for
+the APK inside it, plus `source_commit_file_verified` and
+`artifact_checksum_verified`. `apk` names the member inside the bundle rather
+than a temporary file that no longer exists.
+
+The checksum verifies consistency with the bundle's manifest. It does not prove
+who published the bundle; the source, signing and provenance limitations below
+still apply. Matching compiled class files remain required.
+
 ## Checks
 
 - Exactly one `assets/jvm/*-gpu.jar`; no duplicate entries in either ZIP.
@@ -82,7 +113,7 @@ matching source/output evidence; a local APK's checksum does not identify it.
 python3 tests/test_verify_mobile_apk.py -v
 ```
 
-The suite has 22 hermetic CLI tests. It creates temporary Git repositories,
+The suite has 32 hermetic CLI tests. It creates temporary Git repositories,
 synthetic APK/class/resource fixtures and simulated Android SDK executables.
 It requires Python 3 and Git, but no SDK, Gradle, Android device or network.
 Temporary files are removed after each test, and source files are untouched.
@@ -92,7 +123,9 @@ class inventory and content mismatches, resources from the requested revision
 rather than a changed working tree, malformed/duplicate ZIPs, token bundles,
 signing/alignment command failures, v1-only signing, wrong package/ABI, missing
 debug flag, input-overwrite protection, saved failure reports and a package
-modified while verification runs. Paths deliberately contain spaces.
+modified while verification runs. Paths deliberately contain spaces. Artifact cases cover nested bundle paths,
+source/checksum mismatch, missing metadata, multiple APKs, traversal paths,
+ambiguous checksum entries, inner signing failure and temporary-file cleanup.
 
 These tests simulate SDK results to exercise rejection and reporting behavior;
 they do not validate real signatures or ZIP alignment. Keep the real-APK smoke
@@ -120,3 +153,10 @@ The older untracked local helper did not check the dirty flag; this script
 intentionally adds that requirement. The retained `088bc347` APK is rejected
 because its embedded client has `runelite.dirty=true`, even though the older
 helper had passed its class/resource comparison.
+
+The artifact-ZIP mode additionally passed a real Android-tool smoke check using
+a locally constructed GitHub-format ZIP around the retained signed `bbbee9cf`
+APK. Both bundle metadata files, 951 classes, both collision resources and real
+signing/alignment/debug checks passed. This was a local fixture bundle, not a
+claim that a GitHub download was fetched or published. Local result:
+`/workspace/tooling/apk-artifact-real-smoke.json`.

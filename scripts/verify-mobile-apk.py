@@ -9,9 +9,11 @@ import hashlib
 import io
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
+import shutil
 import subprocess
+import tempfile
 import sys
 import zipfile
 
@@ -69,6 +71,66 @@ def build_tools(explicit):
     raise VerificationError("Android build-tools missing; provide --build-tools with apksigner, zipalign and aapt")
 
 
+def file_sha256(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def resolve_commit(repo, value):
+    require(re.fullmatch(r"[0-9a-fA-F]{7,40}", value), "--expected-commit must be a 7–40 character Git commit hash")
+    return git(repo, "rev-parse", "--verify", f"{value}^{{commit}}").strip()
+
+
+def verify_artifact(args):
+    artifact = args.apk.resolve()
+    require(artifact.is_file(), f"Artifact ZIP does not exist: {artifact}")
+    require(not args.json_out or args.json_out.resolve() != artifact, "JSON output must not overwrite the artifact ZIP")
+    initial = artifact.stat()
+    commit = resolve_commit(args.repo.resolve(), args.expected_commit)
+    with zipfile.ZipFile(artifact) as archive:
+        names = unique_entries(archive, "artifact ZIP")
+        apks = [n for n in names if not n.endswith("/") and n.lower().endswith(".apk")]
+        require(len(apks) == 1, "Artifact must contain exactly one APK")
+        member = PurePosixPath(apks[0])
+        require(not member.is_absolute() and ".." not in member.parts and "\\" not in apks[0],
+                "Unsafe APK member path in artifact")
+        source = str(member.parent / "SOURCE_COMMIT.txt")
+        sums = str(member.parent / "SHA256SUMS.txt")
+        require(source in names and sums in names, "Artifact needs SOURCE_COMMIT.txt and SHA256SUMS.txt beside the APK")
+        require(all(archive.getinfo(n).file_size <= 65536 for n in (source, sums)), "Artifact metadata is unexpectedly large")
+        declared = archive.read(source).decode("utf-8").strip().lower()
+        require(re.fullmatch(r"[0-9a-f]{40}", declared) and declared == commit,
+                "Artifact SOURCE_COMMIT.txt does not match the expected source revision")
+        matching = []
+        for line in archive.read(sums).decode("utf-8").splitlines():
+            if not line.strip():
+                continue
+            entry = re.fullmatch(r"([0-9a-fA-F]{64}) [ *](.+)", line)
+            require(entry, "Invalid SHA256SUMS.txt entry")
+            if entry[2] in (member.name, str(member)):
+                matching.append(entry[1].lower())
+        require(len(matching) == 1, "SHA256SUMS.txt must identify the artifact APK exactly once")
+        with tempfile.TemporaryDirectory(prefix="runemobile-apk-verify-") as directory:
+            temporary = Path(directory) / "app.apk"
+            # Copy a single member to a fixed temporary name; never extract member paths.
+            with archive.open(apks[0]) as source_stream, temporary.open("wb") as output:
+                shutil.copyfileobj(source_stream, output, 1024 * 1024)
+            require(file_sha256(temporary) == matching[0], "Artifact APK checksum does not match SHA256SUMS.txt")
+            nested = argparse.Namespace(**dict(vars(args), apk=temporary, json_out=None))
+            report = verify(nested)
+    digest = file_sha256(artifact)
+    final = artifact.stat()
+    require((initial.st_ino, initial.st_size, initial.st_mtime_ns) ==
+            (final.st_ino, final.st_size, final.st_mtime_ns), "Artifact ZIP changed while verification was running")
+    report.update(artifact_zip=str(artifact), artifact_zip_bytes=final.st_size,
+                  artifact_zip_sha256=digest, apk=str(member),
+                  artifact_checksum_verified=True, source_commit_file_verified=True)
+    return report
+
+
 def verify(args):
     repo = args.repo.resolve()
     apk = args.apk.resolve()
@@ -76,8 +138,7 @@ def verify(args):
     require(apk.is_file(), f"APK does not exist: {apk}")
     initial = apk.stat()
     require(not args.json_out or args.json_out.resolve() != apk, "JSON output must not overwrite the APK")
-    require(re.fullmatch(r"[0-9a-fA-F]{7,40}", args.expected_commit), "--expected-commit must be a 7–40 character Git commit hash")
-    commit = git(repo, "rev-parse", "--verify", f"{args.expected_commit}^{{commit}}").strip()
+    commit = resolve_commit(repo, args.expected_commit)
     expected = {p.relative_to(classes).as_posix(): p for p in classes.rglob("*.class")
                 if selected_class(p.relative_to(classes).as_posix())}
     for name in ("plugins/mobilemicrobot/MobileMicrobotPlugin", "plugins/microbot/MicrobotRuntime",
@@ -130,15 +191,12 @@ def verify(args):
     minimum = re.search(r"^sdkVersion:'(\d+)'", badging, re.M)
     target = re.search(r"^targetSdkVersion:'(\d+)'", badging, re.M)
     require(minimum and target, "Missing numeric minimum/target SDK metadata")
-    digest = hashlib.sha256()
-    with apk.open("rb") as stream:
-        for block in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(block)
+    digest = file_sha256(apk)
     final = apk.stat()
     require((initial.st_ino, initial.st_size, initial.st_mtime_ns) ==
             (final.st_ino, final.st_size, final.st_mtime_ns), "APK changed while verification was running")
     return {
-        "status": "passed", "apk": str(apk), "bytes": apk.stat().st_size, "sha256": digest.hexdigest(),
+        "status": "passed", "apk": str(apk), "bytes": apk.stat().st_size, "sha256": digest,
         "expected_commit": commit, "embedded_commit": embedded,
         "compiled_classes_dir": str(classes), "packaged_classes_verified": len(expected),
         "collision_resources_verified": [p[len(resource_root):] for p in resources],
@@ -151,7 +209,8 @@ def verify(args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("apk", type=Path)
+    parser.add_argument("apk", type=Path, help="APK, or downloaded artifact ZIP with --artifact-zip")
+    parser.add_argument("--artifact-zip", action="store_true", help="Check source/checksum files and verify the APK inside a GitHub artifact ZIP")
     parser.add_argument("--expected-commit", required=True, help="Explicit APK source hash; HEAD is never guessed")
     parser.add_argument("--repo", type=Path, default=Path(__file__).resolve().parent.parent)
     parser.add_argument("--classes-dir", type=Path, help="Matching compiled classes (defaults to client build/classes/java/main)")
@@ -159,7 +218,7 @@ def main():
     parser.add_argument("--json-out", type=Path, help="Also save the JSON report here")
     args = parser.parse_args()
     try:
-        report = verify(args)
+        report = verify_artifact(args) if args.artifact_zip else verify(args)
     except (VerificationError, OSError, ValueError, KeyError, zipfile.BadZipFile, subprocess.TimeoutExpired) as error:
         # Do not dump embedded properties, archive contents, subprocess output or environment values.
         report = {"status": "failed", "error": str(error)}
