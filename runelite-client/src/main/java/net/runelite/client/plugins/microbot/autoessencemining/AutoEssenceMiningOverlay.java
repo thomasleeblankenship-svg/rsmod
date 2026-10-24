@@ -2,6 +2,7 @@ package net.runelite.client.plugins.microbot.autoessencemining;
 
 import net.runelite.api.Skill;
 import net.runelite.client.plugins.microbot.Microbot;
+import net.runelite.client.plugins.microbot.mobile.MobileActions;
 import net.runelite.client.plugins.microbot.util.player.Rs2Player;
 import net.runelite.client.ui.overlay.OverlayPanel;
 import net.runelite.client.ui.overlay.OverlayPosition;
@@ -45,7 +46,7 @@ public class AutoEssenceMiningOverlay extends OverlayPanel {
 
             panelComponent.getChildren().add(LineComponent.builder()
                     .left("Mining Lvl: " + Rs2Player.getRealSkillLevel(Skill.MINING))
-                    .right("(" + Microbot.getClient().getSkillExperience(Skill.MINING) + " xp)")
+                    .right("(" + MobileActions.read(() -> Microbot.getClient().getSkillExperience(Skill.MINING), 0) + " xp)")
                     .build());
 
             panelComponent.getChildren().add(LineComponent.builder()

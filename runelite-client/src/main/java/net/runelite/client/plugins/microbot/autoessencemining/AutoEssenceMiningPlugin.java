@@ -54,6 +54,9 @@ public class AutoEssenceMiningPlugin extends Plugin {
 
     protected void shutDown() {
         autoEssenceMiningScript.shutdown();
-        overlayManager.remove(autoEssenceMiningOverlay);
+        // Mobile: startUp tolerates a missing overlay manager, so stopping must too.
+        if (overlayManager != null) {
+            overlayManager.remove(autoEssenceMiningOverlay);
+        }
     }
 }

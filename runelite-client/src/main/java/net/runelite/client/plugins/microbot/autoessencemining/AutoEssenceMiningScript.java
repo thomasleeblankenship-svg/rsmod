@@ -10,6 +10,7 @@ import net.runelite.client.plugins.microbot.agentserver.handler.ScriptHeartbeatR
 import net.runelite.client.plugins.microbot.Microbot;
 import net.runelite.client.plugins.microbot.Script;
 import net.runelite.client.plugins.microbot.autoessencemining.enums.AutoEssenceMiningState;
+import net.runelite.client.plugins.microbot.mobile.MobileActions;
 import net.runelite.client.plugins.microbot.util.antiban.Rs2Antiban;
 import net.runelite.client.plugins.microbot.util.antiban.Rs2AntibanSettings;
 import net.runelite.client.plugins.microbot.util.bank.Rs2Bank;
@@ -28,6 +29,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 
+/**
+ * Auto essence miner: teleports with Aubury to the rune essence mine, mines essence, leaves through the
+ * portal and banks at Varrock East, choosing the best usable pickaxe. Adapted for Microbot Mobile; see
+ * MOBILE_PORT.md in this package.
+ */
 @Slf4j
 public class AutoEssenceMiningScript extends Script {
     private static final WorldPoint AUBURY_LOCATION = new WorldPoint(3253, 3399, 0);
@@ -140,14 +146,14 @@ public class AutoEssenceMiningScript extends Script {
                 }
 
                 if (!super.run()) {
-                    log.info("Super.run() returned false, stopping");
+                    log.debug("Super.run() returned false, stopping");
                     return;
                 }
                 if (shouldStop()) {
                     return;
                 }
                 if (!Microbot.isLoggedIn()) {
-                    log.info("Not logged in, waiting");
+                    log.debug("Not logged in, waiting");
                     return;
                 }
                 if (Rs2AntibanSettings.actionCooldownActive) {
@@ -179,26 +185,26 @@ public class AutoEssenceMiningScript extends Script {
 
                 if (isInEssenceMine) {
                     if (!needsToBank) {
-                        log.info("In mine with space, switching to MINING_ESSENCE");
+                        log.debug("In mine with space, switching to MINING_ESSENCE");
                         hasTeleportedWithAubury = true;
                         changeState(AutoEssenceMiningState.MINING_ESSENCE);
                     } else {
-                        log.info("In mine but inventory full, switching to USING_PORTAL");
+                        log.debug("In mine but inventory full, switching to USING_PORTAL");
                         changeState(AutoEssenceMiningState.USING_PORTAL);
                     }
                 } else {
                     if (needsToBank) {
-                        log.info("Need to bank, switching to BANKING");
+                        log.debug("Need to bank, switching to BANKING");
                         changeState(AutoEssenceMiningState.BANKING);
                     } else {
                         if (Rs2Player.getWorldLocation().distanceTo(AUBURY_LOCATION) <= 8) {
-                            log.info("Near Aubury, switching to TELEPORTING_WITH_AUBURY");
+                            log.debug("Near Aubury, switching to TELEPORTING_WITH_AUBURY");
                             if (hasTeleportedWithAubury) {
                                 hasTeleportedWithAubury = false;
                             }
                             changeState(AutoEssenceMiningState.TELEPORTING_WITH_AUBURY);
                         } else {
-                            log.info("Far from Aubury, switching to WALKING_TO_AUBURY");
+                            log.debug("Far from Aubury, switching to WALKING_TO_AUBURY");
                             changeState(AutoEssenceMiningState.WALKING_TO_AUBURY);
                         }
                     }
@@ -225,15 +231,20 @@ public class AutoEssenceMiningScript extends Script {
                 // track loop performance
                 long endTime = System.currentTimeMillis();
                 long totalTime = endTime - startTime;
-                log.info("Total time for loop: {}ms", totalTime);
+                log.debug("Total time for loop: {}ms", totalTime);
                 
             } catch (Exception ex) {
                 if (isClientThreadInterrupted(ex)) {
-                    log.info("Essence mining loop interrupted during shutdown");
+                    log.debug("Essence mining loop interrupted during shutdown");
                     return;
                 }
 
                 log.error("Error in main essence mining loop: {}", ex.getMessage(), ex);
+                // Mobile: stop rather than retry a failing step every 100 ms, and turn the plugin off so the
+                // Microbot Mobile screen shows it stopped.
+                Microbot.showMessage("Auto Essence Mining stopped after an error: " + ex);
+                shutdown();
+                Microbot.stopPlugin(AutoEssenceMiningPlugin.class);
             }
         }, 0, 100, TimeUnit.MILLISECONDS);
         return true;
@@ -244,7 +255,7 @@ public class AutoEssenceMiningScript extends Script {
             return;
         }
 
-        log.info("State: WALKING_TO_AUBURY");
+        log.debug("State: WALKING_TO_AUBURY");
         Microbot.status = "Walking to Aubury";
 
         if (attemptAuburyTeleportIfVisible()) {
@@ -253,17 +264,17 @@ public class AutoEssenceMiningScript extends Script {
         
         // validate current distance before walking
         int currentDistance = Rs2Player.getWorldLocation().distanceTo(AUBURY_LOCATION);
-        log.info("Current distance to Aubury: {} tiles", currentDistance);
+        log.debug("Current distance to Aubury: {} tiles", currentDistance);
         
         if (currentDistance <= AUBURY_INTERACTION_DISTANCE) {
-            log.info("Already near Aubury, no need to walk");
+            log.debug("Already near Aubury, no need to walk");
             return;
         }
         
         if (walkTowardAuburyNonBlocking()) {
-            log.info("Issued short walk step toward Aubury");
+            log.debug("Issued short walk step toward Aubury");
         } else {
-            log.info("Failed short Aubury step, will retry next loop");
+            log.debug("Failed short Aubury step, will retry next loop");
         }
     }
 
@@ -272,7 +283,7 @@ public class AutoEssenceMiningScript extends Script {
             return;
         }
 
-        log.info("State: TELEPORTING_WITH_AUBURY");
+        log.debug("State: TELEPORTING_WITH_AUBURY");
         Microbot.status = "Teleporting with Aubury";
 
         // find Aubury NPC
@@ -280,7 +291,7 @@ public class AutoEssenceMiningScript extends Script {
         if (aubury != null) {
             teleportWithAubury(aubury);
         } else {
-            log.info("Aubury NPC not found nearby");
+            log.debug("Aubury NPC not found nearby");
         }
     }
 
@@ -289,18 +300,18 @@ public class AutoEssenceMiningScript extends Script {
             return;
         }
 
-        log.info("State: MINING_ESSENCE");
+        log.debug("State: MINING_ESSENCE");
         Microbot.status = "Mining essence";
         
         // validate we're in the essence mine
         if (Rs2Player.getWorldLocation().getRegionID() != ESSENCE_MINE_REGION) {
-            log.info("Not in essence mine, current region: {}", Rs2Player.getWorldLocation().getRegionID());
+            log.debug("Not in essence mine, current region: {}", Rs2Player.getWorldLocation().getRegionID());
             return;
         }
         
         // check if inventory is full before mining
         if (Rs2Inventory.isFull()) {
-            log.info("Inventory full, cannot mine more essence");
+            log.debug("Inventory full, cannot mine more essence");
             return;
         }
         
@@ -308,23 +319,23 @@ public class AutoEssenceMiningScript extends Script {
         var essenceRock = Microbot.getRs2TileObjectCache().query().withName("Rune Essence").nearestOnClientThread();
 
         if (essenceRock != null) {
-            log.info("Found rune essence rock, attempting to mine");
+            log.debug("Found rune essence rock, attempting to mine");
             if (essenceRock.click("Mine")) {
-                log.info("Started mining essence, waiting for XP drop");
+                log.debug("Started mining essence, waiting for XP drop");
                 boolean xpGained = Rs2Player.waitForXpDrop(Skill.MINING, true);
                 if (xpGained) {
-                    log.info("Gained mining XP from essence");
+                    log.debug("Gained mining XP from essence");
                 } else {
-                    log.info("No mining XP gained within timeout");
+                    log.debug("No mining XP gained within timeout");
                 }
                 Rs2Antiban.actionCooldown();
                 Rs2Antiban.takeMicroBreakByChance();
             } else {
-                log.info("Failed to interact with essence rock");
+                log.debug("Failed to interact with essence rock");
             }
         } else {
-            log.info("No rune essence rocks found nearby");
-            log.info("Current region: {}, expected: {}", Rs2Player.getWorldLocation().getRegionID(), ESSENCE_MINE_REGION);
+            log.debug("No rune essence rocks found nearby");
+            log.debug("Current region: {}, expected: {}", Rs2Player.getWorldLocation().getRegionID(), ESSENCE_MINE_REGION);
         }
     }
 
@@ -333,12 +344,12 @@ public class AutoEssenceMiningScript extends Script {
             return;
         }
 
-        log.info("State: USING_PORTAL");
+        log.debug("State: USING_PORTAL");
         Microbot.status = "Using portal to exit";
         
         // validate we're in the essence mine before looking for portal
         if (Rs2Player.getWorldLocation().getRegionID() != ESSENCE_MINE_REGION) {
-            log.info("Not in essence mine, cannot use portal");
+            log.debug("Not in essence mine, cannot use portal");
             return;
         }
 
@@ -353,24 +364,24 @@ public class AutoEssenceMiningScript extends Script {
         }
 
         if (portal != null) {
-            log.info("Found portal, attempting to use it");
+            log.debug("Found portal, attempting to use it");
             if (portal.click() && sleepUntil(() -> !isInEssenceMine(), 5000)) {
-                log.info("Successfully used portal to exit essence mine");
+                log.debug("Successfully used portal to exit essence mine");
                 hasTeleportedWithAubury = false;
             } else {
-                log.info("Failed to interact with portal");
+                log.debug("Failed to interact with portal");
             }
         } else {
-            log.info("Portal not found in essence mine");
+            log.debug("Portal not found in essence mine");
         }
     }
 
     private boolean interactWithPortalObject(String action) {
         String actionDescription = action == null || action.isBlank() ? "default" : action;
-        log.info("Attempting portal object interaction with {} action", actionDescription);
+        log.debug("Attempting portal object interaction with {} action", actionDescription);
 
         if (Rs2GameObject.interact(ESSENCE_MINE_EXIT_PORTAL_OBJECT_IDS, action) && sleepUntil(() -> !isInEssenceMine(), 5000)) {
-            log.info("Successfully used portal object with {} action", actionDescription);
+            log.debug("Successfully used portal object with {} action", actionDescription);
             hasTeleportedWithAubury = false;
             return true;
         }
@@ -384,28 +395,28 @@ public class AutoEssenceMiningScript extends Script {
             return;
         }
 
-        log.info("State: BANKING");
+        log.debug("State: BANKING");
         Microbot.status = "Banking at Varrock East";
         
         int distanceToBank = Rs2Player.getWorldLocation().distanceTo(VARROCK_EAST_BANK_LOCATION);
         
-        log.info("=== Banking State Check ===");
-        log.info("Distance to bank: {} tiles", distanceToBank);
-        log.info("Bank open: {}", Rs2Bank.isOpen());
-        log.info("Inventory full: {}", Rs2Inventory.isFull());
+        log.debug("=== Banking State Check ===");
+        log.debug("Distance to bank: {} tiles", distanceToBank);
+        log.debug("Bank open: {}", Rs2Bank.isOpen());
+        log.debug("Inventory full: {}", Rs2Inventory.isFull());
         
         // walk to bank if too far
         if (!Rs2Bank.isOpen()) {
             if (distanceToBank > BANK_INTERACTION_DISTANCE) {
-                log.info("Too far from bank, walking there");
+                log.debug("Too far from bank, walking there");
                 walkTowardBankNonBlocking();
                 return;
             }
             
             // attempt to open bank
-            log.info("Near bank, attempting to open");
+            log.debug("Near bank, attempting to open");
             if (!Rs2Bank.openBank()) {
-                log.info("Failed to open bank");
+                log.debug("Failed to open bank");
                 walkTowardBankNonBlocking();
                 return;
             }
@@ -424,7 +435,7 @@ public class AutoEssenceMiningScript extends Script {
             return false;
         }
 
-        log.info("Bank is open, preparing mining inventory");
+        log.debug("Bank is open, preparing mining inventory");
 
         Rs2Bank.depositAllExcept(this::isAllowedDuringInitialBankCleanup);
         sleepUntil(this::inventoryOnlyHasInitialBankAllowedItems, 3000);
@@ -436,15 +447,18 @@ public class AutoEssenceMiningScript extends Script {
         if (selectedPickaxe.isEmpty()) {
             Microbot.showMessage("No usable pickaxe found for Auto Essence Mining.");
             log.info("No usable pickaxe found in bank, inventory, or equipment");
+            // Mobile: stop instead of reopening the bank every 100 ms with nothing to mine with.
+            shutdown();
+            Microbot.stopPlugin(AutoEssenceMiningPlugin.class);
             return false;
         }
 
         PickaxeTool pickaxe = selectedPickaxe.get();
-        log.info("Selected pickaxe: {}", pickaxe.itemName);
+        log.debug("Selected pickaxe: {}", pickaxe.itemName);
 
         if (!ensurePickaxeAvailable(pickaxe)) {
             Microbot.showMessage("Could not withdraw selected pickaxe: " + pickaxe.itemName);
-            log.info("Failed to make selected pickaxe available: {}", pickaxe.itemName);
+            log.debug("Failed to make selected pickaxe available: {}", pickaxe.itemName);
             return false;
         }
 
@@ -453,20 +467,20 @@ public class AutoEssenceMiningScript extends Script {
         if (canWieldPickaxe(pickaxe)) {
             if (!equipPickaxe(pickaxe)) {
                 Microbot.showMessage("Could not equip selected pickaxe: " + pickaxe.itemName);
-                log.info("Failed to equip pickaxe: {}", pickaxe.itemName);
+                log.debug("Failed to equip pickaxe: {}", pickaxe.itemName);
                 return false;
             }
             cleanInventoryBeforeMining(pickaxe);
         }
 
         if (!finalInventoryReady(pickaxe)) {
-            log.info("Final inventory check failed after bank prep");
+            log.debug("Final inventory check failed after bank prep");
             return false;
         }
 
-        log.info("Closing bank after inventory prep");
+        log.debug("Closing bank after inventory prep");
         if (!Rs2Bank.closeBank()) {
-            log.info("Failed to close bank after inventory prep");
+            log.debug("Failed to close bank after inventory prep");
             return false;
         }
 
@@ -538,7 +552,7 @@ public class AutoEssenceMiningScript extends Script {
             return;
         }
 
-        log.info("Moving {} to inventory slot 1", pickaxe.itemName);
+        log.debug("Moving {} to inventory slot 1", pickaxe.itemName);
         Rs2Inventory.moveItemToSlot(inventoryPickaxe, PICKAXE_INVENTORY_SLOT);
         sleepUntil(() -> {
             Rs2ItemModel movedPickaxe = Rs2Inventory.get(pickaxe.id);
@@ -639,7 +653,7 @@ public class AutoEssenceMiningScript extends Script {
     // helper method to change state with timeout reset
     private void changeState(AutoEssenceMiningState newState) {
         if (newState != state) {
-            log.info("State change: {} -> {}", state, newState);
+            log.debug("State change: {} -> {}", state, newState);
             state = newState;
         }
     }
@@ -714,7 +728,7 @@ public class AutoEssenceMiningScript extends Script {
         WorldPoint nextStep = stepToward(currentLocation, AUBURY_LOCATION, AUBURY_STEP_DISTANCE);
         lastAuburyWalkAttempt = now;
 
-        log.info("Walking toward Aubury with short step: {}", nextStep);
+        log.debug("Walking toward Aubury with short step: {}", nextStep);
         return !shouldStop() && Rs2Walker.walkMiniMap(nextStep);
     }
 
@@ -728,7 +742,7 @@ public class AutoEssenceMiningScript extends Script {
         WorldPoint nextStep = stepToward(currentLocation, VARROCK_EAST_BANK_LOCATION, BANK_STEP_DISTANCE);
         lastBankWalkAttempt = now;
 
-        log.info("Walking toward bank with short step: {}", nextStep);
+        log.debug("Walking toward bank with short step: {}", nextStep);
         return !shouldStop() && Rs2Walker.walkMiniMap(nextStep);
     }
 
@@ -752,7 +766,7 @@ public class AutoEssenceMiningScript extends Script {
         }
 
         lastBusyWaitLog = now;
-        log.info("Player is moving or animating, waiting");
+        log.debug("Player is moving or animating, waiting");
     }
 
     private void logAntibanCooldownWait() {
@@ -762,7 +776,7 @@ public class AutoEssenceMiningScript extends Script {
         }
 
         lastAntibanCooldownLog = now;
-        log.info("Antiban cooldown active, waiting");
+        log.debug("Antiban cooldown active, waiting");
     }
 
     private void logStateEvaluation() {
@@ -772,11 +786,11 @@ public class AutoEssenceMiningScript extends Script {
         }
 
         lastStateEvaluationLog = now;
-        log.info("=== State Evaluation ===");
-        log.info("In essence mine: {}", isInEssenceMine);
-        log.info("Needs banking: {}", needsToBank);
-        log.info("Inventory full: {}", Rs2Inventory.isFull());
-        log.info("Distance to Aubury: {}", Rs2Player.getWorldLocation().distanceTo(AUBURY_LOCATION));
+        log.debug("=== State Evaluation ===");
+        log.debug("In essence mine: {}", isInEssenceMine);
+        log.debug("Needs banking: {}", needsToBank);
+        log.debug("Inventory full: {}", Rs2Inventory.isFull());
+        log.debug("Distance to Aubury: {}", Rs2Player.getWorldLocation().distanceTo(AUBURY_LOCATION));
     }
 
     private void teleportWithAubury(Rs2NpcModel aubury) {
@@ -784,14 +798,14 @@ public class AutoEssenceMiningScript extends Script {
             return;
         }
 
-        log.info("Found Aubury, attempting right-click teleport");
+        log.debug("Found Aubury, attempting right-click teleport");
         if (aubury.click(AUBURY_TELEPORT_ACTION) && waitUntilInEssenceMine()) {
-            log.info("Teleported to essence mine with Aubury");
+            log.debug("Teleported to essence mine with Aubury");
             hasTeleportedWithAubury = true;
             return;
         }
 
-        log.info("Right-click teleport did not complete, will retry");
+        log.debug("Right-click teleport did not complete, will retry");
     }
 
     @Override
@@ -802,6 +816,9 @@ public class AutoEssenceMiningScript extends Script {
         ScriptHeartbeatRegistry.remove(getClass().getName());
         initialPlayerLocation = null;
         Rs2Antiban.resetAntibanSettings();
+        // Mobile: also run the base shutdown (start announcement and heartbeat reset); the futures are
+        // already cancelled without interrupt above, so it does not interrupt a client-thread wait.
+        super.shutdown();
         log.info("Essence mining script shutdown complete");
     }
 
