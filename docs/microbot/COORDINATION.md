@@ -50,7 +50,6 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
-| Claude 1 | new `plugins/microbot/{amethystminer,shootingstar}/` and their resources, `config/checkstyle/suppressions.xml`, `runelite-client/build.gradle.kts` (Hub PMD list), `HubPortedPluginsTest`, `docs/microbot/HUB_PORTS.md` | **Task: Hub ports** of the two plugins batch AM unblocked | this commit |
 
 ## Requests
 
@@ -98,6 +97,7 @@ claims, requests and log entries go in this file.
 
 | Commit | Session | Files | Change | Verified | Action for the other session |
 | --- | --- | --- | --- | --- | --- |
+| 4179fdf | Claude 1 | Hub ports: amethystminer, shootingstar (tracker API, hops to the star's world, Wilderness stars hidden by default and never auto-picked while hidden); `HUB_PORTS.md` now 122 + KSP | compile, checkstyle, PMD, microbot tests: 977 pass | None |
 | 0c480da | Claude 1 | Util action batch AM: `Category.isBusy`/`isBusyInternal` (upstream's 25 rules; state reads only), `Rs2Antiban.isIdle`/`checkForCookingEvent` and a tick/chat tracker fed by `MobileMicrobotPlugin` (it runs without anti-ban, unlike upstream, or idle categories would read busy forever), new read-only `AntibanPlugin` (isCooking/isMining/isIdle; not a plugin), `WorldArea.intersectsWith2D`. New `UtilActionBatchAMTest` | compile, checkstyle, PMD, microbot tests: 974 pass | None |
 | 5475225 | Claude 1 | Hub ports: housetab, roguesden, zulrahslayer (without its random camera/mouse `RandomAction`), resources copied, PMD/checkstyle lists and `HubPortedPluginsTest` updated; `HUB_PORTS.md` now 120 + KSP. Not ported: giantmole (hops when the tunnel has other players), slayer (auto-picks cannon spots, some only in the Wilderness) | compile, checkstyle, PMD, microbot tests: 971 pass | None |
 | 77b099c | Claude 1 | Util action batch AL: `Rs2RunePouch.fullUpdate`/`onVarbitChanged`/`onWidgetLoaded` (no-ops: reads are live). Last Hub-called util action; what Hub still calls and lacks is excluded (`handleBankPin`, Discord webhooks, `Rs2PathApi`). New `UtilActionBatchALTest` | compile, checkstyle, PMD, microbot tests: 971 pass | None |
