@@ -19,8 +19,6 @@ import net.runelite.client.plugins.microbot.util.player.Rs2Player;
 /**
  * Upstream 2.6.38's description of where an item can be bought or sold: the shop NPC, its area,
  * type, price percentages and access requirements, plus scene lookups for the shop NPC.
- * Upstream's {@code canAccess} is not ported yet: it needs the walker's
- * {@code canReach(WorldPoint, boolean useBankedItems)} overload.
  */
 @Slf4j
 @EqualsAndHashCode()
@@ -185,4 +183,22 @@ public class Rs2ShopSource {
         return null;
     }
 
+    /**
+     * As upstream: the player meets the shop's membership and quest requirements (each quest at its
+     * listed state, or finished) and can reach it, using banked transport items if need be.
+     */
+    public boolean canAccess() {
+        if (this.isMembers() && !Rs2Player.isMember()) {
+            return false;
+        }
+        if (this.getQuests() != null) {
+            for (Map.Entry<Quest, QuestState> entry : this.getQuests().entrySet()) {
+                QuestState playerQuestState = Rs2Player.getQuestState(entry.getKey());
+                if (entry.getValue() != playerQuestState && playerQuestState != QuestState.FINISHED) {
+                    return false;
+                }
+            }
+        }
+        return net.runelite.client.plugins.microbot.util.walker.Rs2Walker.canReach(getLocation(), true);
+    }
 }

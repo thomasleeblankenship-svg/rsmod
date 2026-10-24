@@ -267,6 +267,11 @@ public class Microbot {
 
     private static volatile net.runelite.client.ui.overlay.infobox.InfoBoxManager infoBoxManager;
 
+    /** As upstream: the client's Guice injector (RuneLite's; null before the client has started). */
+    public static com.google.inject.Injector getInjector() {
+        return net.runelite.client.RuneLite.getInjector();
+    }
+
     /** As upstream: RuneLite's info box manager. Bound by the mobile plugin; null until then. */
     public static net.runelite.client.ui.overlay.infobox.InfoBoxManager getInfoBoxManager() {
         return infoBoxManager;

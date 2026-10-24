@@ -979,6 +979,26 @@ public final class Rs2Walker
 		return !MobileRoutePlanner.route(scene.player, destination, 0, MobileRoutePlanner.worldEdges()).isEmpty();
 	}
 
+	/**
+	 * As upstream: {@link #canReach(WorldPoint)}, or, with {@code useBankedItems}, also reachable by
+	 * a route that may use transport items from the remembered bank (planned off the client thread).
+	 */
+	public static boolean canReach(WorldPoint destination, boolean useBankedItems)
+	{
+		if (canReach(destination))
+		{
+			return true;
+		}
+		if (!useBankedItems || destination == null)
+		{
+			return false;
+		}
+		Client client = Microbot.getClient();
+		WorldPoint start = Rs2Player.getWorldLocation();
+		return client != null && !client.isClientThread() && start != null
+			&& MobilePathfinder.find(start, destination, true).isFound();
+	}
+
 	/** Structural capability check for bank selection; actual collision routing is still validated when walking. */
 	public static boolean canReachVertical(WorldPoint origin, WorldPoint destination)
 	{
