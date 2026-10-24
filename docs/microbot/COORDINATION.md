@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | Hub `microbot/kraken/**` (upstream copy), `config/checkstyle/suppressions.xml`, `runelite-client/build.gradle.kts`, `HubPortedPluginsTest`, `HUB_PORTS.md` | **Task: port kraken, now at 0 errors** (policy-checked: reads game messages only to stop off-task) | this commit |
 
 ## Requests
 
