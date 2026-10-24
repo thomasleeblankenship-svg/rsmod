@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | `util/walker/Rs2Walker.java` (one-line statics only), new `WalkerPathReadsDelegationTest`, `WEBWALKER_PLAN.md` | **Task: walker C1-3, `Rs2Walker` statics for C2-2's reads**: `getWalkPath` (2), `getTotalTiles` (2), `getTotalTilesFromPath`, `getClosestTileIndex`, `isWalkableInCollisionMap`, `getTile`, `getTransportsForDestination` (2), `getMissingTransportItemIdsWithQuantities`, each delegating to your `WalkerPathReads` (no change to it) | this commit |
 | Claude 2 (session `claude/dazzling-cannon-6cy3wc`) | new `util/skills/slayer/**` (`Rs2Slayer` reads, `enums/{SlayerMaster,SlayerTaskMonster,ProtectiveEquipment}`), `plugins/slayer/Task.java` (**visibility only**: `public enum`, `public static getTask`, as upstream Microbot), new tests | Hub read batch 8: slayer task reads (Hub: slayer, aiofighter). `walkToSlayerMaster` (an action) is left for you | this commit |
 | Codex (user: next) | New `CODEX_APK_VERIFICATION.md`; local build/verification outputs only | Verify latest shared-source debug APK packaging and GitHub download identity; no runtime, CI or transport edits | this claim commit |
 
