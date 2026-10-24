@@ -124,6 +124,13 @@ public final class MobilePathfinder
 		}
 	}
 
+	/** The shared config (loading it on first use), or {@code null} without an installed client. */
+	static PathfinderConfig sharedConfig()
+	{
+		Client client = Microbot.getClient();
+		return client == null ? null : sharedConfig(client);
+	}
+
 	private static PathfinderConfig sharedConfig(Client client)
 	{
 		PathfinderConfig config = sharedConfig;
