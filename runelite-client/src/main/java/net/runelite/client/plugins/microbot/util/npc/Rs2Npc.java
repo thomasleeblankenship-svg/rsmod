@@ -177,6 +177,35 @@ public final class Rs2Npc
 		return getNpcs(npc -> npc.getId() == id && !excludedIndexes.contains(npc.getIndex())).findFirst();
 	}
 
+	/** As upstream: the NPC with scene index {@code index}, or {@code null}. */
+	public static Rs2NpcModel getNpcByIndex(int index)
+	{
+		return getNpcs(npc -> npc.getIndex() == index).findFirst().orElse(null);
+	}
+
+	/** As upstream: the nearest NPC whose definition offers {@code action} (exact, case-sensitive). */
+	public static Rs2NpcModel getNearestNpcWithAction(String action)
+	{
+		return getNpcs(npc ->
+		{
+			NPCComposition composition = npc.getComposition();
+			return composition != null && composition.getActions() != null
+				&& java.util.Arrays.asList(composition.getActions()).contains(action);
+		}).findFirst().orElse(null);
+	}
+
+	/** As upstream: the random-event NPC: one offering "Dismiss" that is interacting with the local player. */
+	public static Rs2NpcModel getRandomEventNPC()
+	{
+		return getNpcs(npc ->
+		{
+			NPCComposition composition = npc.getComposition();
+			return composition != null && composition.getActions() != null
+				&& java.util.Arrays.asList(composition.getActions()).contains("Dismiss")
+				&& java.util.Objects.equals(npc.getInteracting(), Microbot.getClient().getLocalPlayer());
+		}).findFirst().orElse(null);
+	}
+
 	/**
 	 * As upstream: the nearest NPC offering "Bank" (base or transformed definition); the Hunter
 	 * Guild banker counts only with 46 Hunter.

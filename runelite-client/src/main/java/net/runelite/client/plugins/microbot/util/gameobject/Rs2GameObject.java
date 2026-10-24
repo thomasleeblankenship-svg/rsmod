@@ -245,6 +245,48 @@ public final class Rs2GameObject
 		return getAll(o -> o.getWorldLocation().equals(worldPoint)).stream().findFirst().orElse(null);
 	}
 
+	/** As upstream (deprecated there): the first game object at {@code worldPoint}. */
+	@Deprecated
+	public static TileObject findGameObjectByLocation(WorldPoint worldPoint)
+	{
+		return getGameObjects(o -> o.getWorldLocation().equals(worldPoint)).stream().findFirst().orElse(null);
+	}
+
+	/** As upstream: {@link #convertToObjectComposition(int)}. */
+	public static ObjectComposition findObjectComposition(int id)
+	{
+		return convertToObjectComposition(id);
+	}
+
+	/** As upstream (deprecated there): a game object with {@code id} whose current impostor offers {@code action} exactly. */
+	@Deprecated
+	public static net.runelite.api.GameObject findObjectByImposter(int id, String action)
+	{
+		return findObjectByImposter(id, action, true);
+	}
+
+	/**
+	 * As upstream (deprecated there): the nearest game object with {@code id} whose current
+	 * impostor (for example a farming patch's state) has an action equal to ({@code exact}) or
+	 * containing {@code optionName}, ignoring case.
+	 */
+	@Deprecated
+	public static net.runelite.api.GameObject findObjectByImposter(int id, String optionName, boolean exact)
+	{
+		if (optionName == null)
+		{
+			return null;
+		}
+		String lower = optionName.toLowerCase();
+		return getGameObjects(o -> o.getId() == id).stream().filter(o ->
+		{
+			ObjectComposition composition = convertToObjectComposition(o);
+			String[] actions = composition == null ? null : MobileActions.read(composition::getActions, null);
+			return actions != null && Arrays.stream(actions).anyMatch(a -> a != null
+				&& (exact ? a.equalsIgnoreCase(optionName) : a.toLowerCase().contains(lower)));
+		}).findFirst().orElse(null);
+	}
+
 	public static List<TileObject> getAll()
 	{
 		return getAll(o -> true);

@@ -187,6 +187,13 @@ public final class Rs2Inventory
 	public static List<Rs2ItemModel> getList(Predicate<Rs2ItemModel> predicate) { return items(predicate).collect(Collectors.toList()); }
 	public static Rs2ItemModel get(int id) { return items(i -> i.getId() == id).findFirst().orElse(null); }
 	public static Rs2ItemModel get(String name) { return items(i -> matches(i.getName(), name, false)).findFirst().orElse(null); }
+	/** As upstream: the first item whose name contains any of {@code names}, ignoring case. */
+	public static Rs2ItemModel get(String... names)
+	{
+		return names == null ? null : items(i -> Arrays.stream(names).anyMatch(n -> matches(i.getName(), n, false))).findFirst().orElse(null);
+	}
+	/** As upstream: the first item matching {@code predicate}. */
+	public static Rs2ItemModel get(Predicate<Rs2ItemModel> predicate) { return items(predicate).findFirst().orElse(null); }
 
 	private static boolean matches(String candidate, String search, boolean exact)
 	{
@@ -455,6 +462,30 @@ public final class Rs2Inventory
 			}
 		}
 		return Integer.MAX_VALUE;
+	}
+
+	/** As upstream: whether the inventory tab is the open side panel. */
+	public static boolean isOpen()
+	{
+		return net.runelite.client.plugins.microbot.util.tabs.Rs2Tab.getCurrentTab()
+			== net.runelite.client.plugins.microbot.globval.enums.InterfaceTab.INVENTORY;
+	}
+
+	/** As upstream: whether {@code slot} holds nothing. */
+	public static boolean isSlotEmpty(int slot)
+	{
+		return getItemInSlot(slot) == null;
+	}
+
+	/** As upstream: the selected ("Use") widget's name without colour tags, or {@code null} when none. */
+	public static String getSelectedItemName()
+	{
+		return MobileActions.read(() ->
+		{
+			net.runelite.api.widgets.Widget widget = Microbot.getClient().getSelectedWidget();
+			return widget == null || widget.getName() == null ? null
+				: net.runelite.client.plugins.microbot.util.misc.Rs2UiHelper.stripColTags(widget.getName());
+		}, null);
 	}
 
 	/** As upstream: the item id of the selected widget (a "Use" item), or -1 when none. */

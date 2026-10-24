@@ -301,4 +301,44 @@ public class LegacySceneReadTest
 		when(f.client.getWidget(270, 1)).thenReturn(make);
 		assertTrue(Rs2Dialogue.hasCombinationDialogue());
 	}
+
+	@Test
+	public void batchTenNpcReadsUseIndexActionAndRandomEventTarget()
+	{
+		NPC far = f.npc(1, "Gardener", world(9, 5));
+		NPC near = f.npc(2, "Genie", world(6, 5));
+		when(far.getLocalLocation()).thenAnswer(i -> f.onClientThread(local(9, 5)));
+		when(near.getLocalLocation()).thenAnswer(i -> f.onClientThread(local(6, 5)));
+		when(far.getIndex()).thenReturn(40);
+		when(near.getIndex()).thenReturn(41);
+		net.runelite.api.NPCComposition gardener = mock(net.runelite.api.NPCComposition.class);
+		when(gardener.getActions()).thenReturn(new String[]{"Talk-to", "Pay", null});
+		net.runelite.api.NPCComposition genie = mock(net.runelite.api.NPCComposition.class);
+		when(genie.getActions()).thenReturn(new String[]{"Talk-to", null, "Dismiss"});
+		when(far.getComposition()).thenAnswer(i -> f.onClientThread(gardener));
+		when(near.getComposition()).thenAnswer(i -> f.onClientThread(genie));
+
+		assertEquals("Gardener", Rs2Npc.getNpcByIndex(40).getName());
+		assertNull(Rs2Npc.getNpcByIndex(7));
+		assertEquals("Gardener", Rs2Npc.getNearestNpcWithAction("Pay").getName());
+		assertNull(Rs2Npc.getNearestNpcWithAction("pay"));
+		assertNull("not interacting with the player yet", Rs2Npc.getRandomEventNPC());
+		when(near.getInteracting()).thenAnswer(i -> f.onClientThread(f.localPlayer));
+		assertEquals("Genie", Rs2Npc.getRandomEventNPC().getName());
+	}
+
+	@Test
+	public void batchTenObjectReadsByLocationCompositionAndImpostor()
+	{
+		gameObject(8550, 7, 5);
+		gameObject(8550, 9, 5);
+		definition(8550, "Tree patch", "Inspect", "Guide");
+		assertEquals(8550, Rs2GameObject.findGameObjectByLocation(world(9, 5)).getId());
+		assertNull(Rs2GameObject.findGameObjectByLocation(world(1, 1)));
+		assertNotNull(Rs2GameObject.findObjectComposition(8550));
+		assertNull("no Chop action yet", Rs2GameObject.findObjectByImposter(8550, "Chop", false));
+		definition(8550, "Tree patch", "Chop down", "Inspect");
+		assertEquals(world(7, 5), onClientThread(() -> Rs2GameObject.findObjectByImposter(8550, "chop", false).getWorldLocation()));
+		assertNull("exact needs the whole action", Rs2GameObject.findObjectByImposter(8550, "Chop"));
+	}
 }

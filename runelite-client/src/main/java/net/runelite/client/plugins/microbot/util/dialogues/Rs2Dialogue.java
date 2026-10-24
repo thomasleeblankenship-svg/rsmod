@@ -33,6 +33,8 @@ public final class Rs2Dialogue
 	// ---- Dialogue reads requested for the Hub plugins (Microbot API names, written for mobile) ----
 
 	/** Text components of the NPC, player, message-box and item dialogues. */
+	/** Upstream's {@code getDialogueText} widgets (group, child), in its order. */
+	private static final int[][] DIALOGUE_TEXT_WIDGETS = {{229, 1}, {229, 3}, {231, 6}};
 	private static final int[] DIALOGUE_TEXT = {
 		net.runelite.api.widgets.ComponentID.DIALOG_NPC_TEXT,
 		net.runelite.api.widgets.ComponentID.DIALOG_PLAYER_TEXT,
@@ -250,6 +252,63 @@ public final class Rs2Dialogue
 			}
 			return false;
 		}, false);
+	}
+
+	/** As upstream: the shown option containing {@code text}, ignoring case, or {@code null}. */
+	public static net.runelite.api.widgets.Widget getDialogueOption(String text)
+	{
+		return getDialogueOption(text, false);
+	}
+
+	/**
+	 * As upstream: the shown option equal to ({@code exact}) or containing {@code text}, ignoring
+	 * case, while "Select an option" is up; {@code null} otherwise. A handle for null checks and
+	 * {@code Rs2Widget.clickWidget}.
+	 */
+	public static net.runelite.api.widgets.Widget getDialogueOption(String text, boolean exact)
+	{
+		if (text == null || !hasSelectAnOption())
+		{
+			return null;
+		}
+		return MobileActions.read(() ->
+		{
+			net.runelite.api.widgets.Widget menu = Microbot.getClient().getWidget(net.runelite.api.widgets.ComponentID.DIALOG_OPTION_OPTIONS);
+			net.runelite.api.widgets.Widget[] rows = menu == null || menu.isHidden() ? null : menu.getDynamicChildren();
+			for (int i = 1; rows != null && i < rows.length; i++)
+			{
+				if (rows[i] != null && !rows[i].isHidden() && textMatches(rows[i].getText(), text, exact))
+				{
+					return rows[i];
+				}
+			}
+			return null;
+		}, null);
+	}
+
+	/**
+	 * As upstream: the open dialogue's text without colour tags, from the NPC, player or sprite
+	 * dialogue (229:1, 229:3, 231:6); empty when no dialogue or text is showing.
+	 */
+	public static String getDialogueText()
+	{
+		if (!isInDialogue())
+		{
+			return "";
+		}
+		return MobileActions.read(() ->
+		{
+			for (int[] id : DIALOGUE_TEXT_WIDGETS)
+			{
+				net.runelite.api.widgets.Widget widget = Microbot.getClient().getWidget(id[0], id[1]);
+				String text = widget == null || widget.isHidden() ? null : widget.getText();
+				if (text != null && !text.isEmpty())
+				{
+					return net.runelite.client.plugins.microbot.util.misc.Rs2UiHelper.stripColTags(text);
+				}
+			}
+			return "";
+		}, "");
 	}
 
 	private static boolean textMatches(String shown, String text, boolean exact)

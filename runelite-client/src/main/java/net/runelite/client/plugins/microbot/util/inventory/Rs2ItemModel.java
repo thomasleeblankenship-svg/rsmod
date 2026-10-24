@@ -27,6 +27,7 @@ public class Rs2ItemModel
 	private final boolean isStackable;
 	private final boolean isNoted;
 	private final boolean isTradeable;
+	private final int unNotedId;
 
 	/**
 	 * @param linkedComposition definition of the linked (unnoted) id, used only
@@ -49,6 +50,25 @@ public class Rs2ItemModel
 		{
 			this.isTradeable = itemComposition != null && itemComposition.isTradeable();
 		}
+		this.unNotedId = unNotedId(item.getId(), itemComposition, isNoted);
+	}
+
+	/**
+	 * Upstream's {@code getUnNotedId}: a noted item's linked id (itself without one); an unnoted
+	 * item keeps its id unless it is stackable with a linked id.
+	 */
+	private static int unNotedId(int id, ItemComposition composition, boolean noted)
+	{
+		if (composition == null)
+		{
+			return id;
+		}
+		int linked = composition.getLinkedNoteId();
+		if (noted)
+		{
+			return linked != -1 ? linked : id;
+		}
+		return !composition.isStackable() || linked == -1 ? id : linked;
 	}
 
 	public int getId()
@@ -90,6 +110,12 @@ public class Rs2ItemModel
 	public boolean isTradeable()
 	{
 		return isTradeable;
+	}
+
+	/** The unnoted variant's id (see the constructor), read when the model was built. */
+	public int getUnNotedId()
+	{
+		return unNotedId;
 	}
 
 	/**

@@ -486,6 +486,87 @@ public final class Rs2Player
 		return actual >= level;
 	}
 
+	/**
+	 * As upstream: teleblocked. Upstream counts the {@code TELEBLOCK} varbit only above 100 (its
+	 * event handler drops lower values); read from the varbit cache.
+	 */
+	public static boolean isTeleBlocked()
+	{
+		return net.runelite.client.plugins.microbot.Microbot.getVarbitValue(net.runelite.api.gameval.VarbitID.TELEBLOCK_CYCLES) > 100;
+	}
+
+	/**
+	 * As upstream: whether the client is within {@code randomDelay} ticks of its idle logout, i.e.
+	 * {@code min(mouse idle, keyboard idle) >= idle timeout - randomDelay}; read on the client
+	 * thread, {@code false} when it cannot be read.
+	 */
+	public static boolean checkIdleLogout(long randomDelay)
+	{
+		return net.runelite.client.plugins.microbot.mobile.MobileActions.read(() ->
+		{
+			Client client = net.runelite.client.plugins.microbot.Microbot.getClient();
+			long idleTicks = Math.min(client.getMouseIdleTicks(), client.getKeyboardIdleTicks());
+			return idleTicks >= client.getIdleTimeout() - randomDelay;
+		}, false);
+	}
+
+	/** As upstream: the first other player whose name contains {@code playerName}, ignoring case. */
+	@Deprecated
+	public static Rs2PlayerModel getPlayer(String playerName)
+	{
+		return getPlayer(playerName, false);
+	}
+
+	/** As upstream: the first other player whose name equals ({@code exact}) or contains {@code playerName}. */
+	@Deprecated
+	public static Rs2PlayerModel getPlayer(String playerName, boolean exact)
+	{
+		if (playerName == null)
+		{
+			return null;
+		}
+		String lower = playerName.toLowerCase();
+		return getPlayers(player ->
+		{
+			String name = player.getName();
+			return name != null && (exact ? name.equalsIgnoreCase(playerName) : name.toLowerCase().contains(lower));
+		}).findFirst().orElse(null);
+	}
+
+	/**
+	 * As upstream: the item name worn in each equipment kit slot of {@code rs2Player}, read on the
+	 * client thread. Adaptation: an empty slot (equipment id -1) has no entry, so {@code get}
+	 * returns {@code null} for it.
+	 */
+	public static java.util.Map<net.runelite.api.kit.KitType, String> getPlayerEquipmentNames(Rs2PlayerModel rs2Player)
+	{
+		java.util.Map<net.runelite.api.kit.KitType, String> names = new java.util.EnumMap<>(net.runelite.api.kit.KitType.class);
+		if (rs2Player == null)
+		{
+			return names;
+		}
+		return net.runelite.client.plugins.microbot.mobile.MobileActions.read(() ->
+		{
+			Player player = rs2Player.getPlayer();
+			net.runelite.api.PlayerComposition composition = player == null ? null : player.getPlayerComposition();
+			if (composition == null)
+			{
+				return names;
+			}
+			for (net.runelite.api.kit.KitType kit : net.runelite.api.kit.KitType.values())
+			{
+				int itemId = composition.getEquipmentId(kit);
+				net.runelite.api.ItemComposition item = itemId < 0 ? null
+					: net.runelite.client.plugins.microbot.Microbot.getClient().getItemDefinition(itemId);
+				if (item != null && item.getName() != null)
+				{
+					names.put(kit, item.getName());
+				}
+			}
+			return names;
+		}, names);
+	}
+
 	public static boolean isMember()
 	{
 		return net.runelite.client.plugins.microbot.mobile.MobileActions.read(() ->
