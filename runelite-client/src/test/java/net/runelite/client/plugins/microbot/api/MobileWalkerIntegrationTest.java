@@ -216,6 +216,18 @@ public class MobileWalkerIntegrationTest
 	}
 
 	@Test
+	public void walkWithStateUntilStopsTheRealWalkOnceTheConditionHolds()
+	{
+		position.set(new WorldPoint(3209, 3220, 0));
+		WorldPoint destination = new WorldPoint(3218, 3225, 0);
+		WalkerState state = Rs2Walker.walkWithStateUntil(destination, 0, () -> actions.contains("walk:0"));
+		assertEquals(Rs2Walker.getLastStatus(), WalkerState.ARRIVED, state);
+		assertEquals("Walk condition met", Rs2Walker.getLastStatus());
+		assertEquals("stopped after the first step, short of the destination", 1, actions.size());
+		assertNotEquals(destination, position.get());
+	}
+
+	@Test
 	public void stopEndsAStalledRetryingWalkPromptly() throws Exception
 	{
 		Rs2Walker.setStallMillis(300);

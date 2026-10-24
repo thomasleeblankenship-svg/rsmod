@@ -108,6 +108,7 @@ public final class Rs2Antiban
 		public void applySmithingSetup() { }
 		public void applyAgilitySetup() { }
 		public void applyGeneralBasicSetup() { }
+		public void applyUniversalAntibanSetup() { }
 
 		public void applyWoodcuttingSetup()
 		{

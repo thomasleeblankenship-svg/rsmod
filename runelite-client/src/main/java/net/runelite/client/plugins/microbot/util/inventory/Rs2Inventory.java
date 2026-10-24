@@ -286,6 +286,8 @@ public final class Rs2Inventory
 	}
 
 	public static boolean use(int id) { return interact(id, "Use"); }
+	/** As upstream: "Use" on this item, selecting it for use on something else. */
+	public static boolean use(Rs2ItemModel item) { return item != null && interact(item, "Use"); }
 
 	public static boolean useLast(int id)
 	{
