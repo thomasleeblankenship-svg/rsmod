@@ -50,7 +50,9 @@ public interface VarrockAnvilConfig extends Config {
             name = "Logout On Complete",
             description = "Log out when completed all bars.",
             position = 2,
-            section = smithingSection
+            section = smithingSection,
+            // Mobile: scripts never log out (see MOBILE_PORT.md), so the option is not offered.
+            hidden = true
     )
     default boolean sLogout()
     {

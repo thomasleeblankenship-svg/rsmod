@@ -1,5 +1,6 @@
 package net.runelite.client.plugins.microbot.varrockanvil;
 
+import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.gameval.ItemID;
 import net.runelite.api.Skill;
 import net.runelite.api.coords.WorldPoint;
@@ -25,6 +26,11 @@ enum State {
     WALK_TO_BANK,
 }
 
+/**
+ * Varrock West anvil smither: banks for bars and a hammer at Varrock West bank and smiths the selected item
+ * at the nearby anvil. Adapted for Microbot Mobile; see MOBILE_PORT.md in this package.
+ */
+@Slf4j
 public class VarrockAnvilScript extends Script {
 
     public State state = State.BANKING;
@@ -35,13 +41,14 @@ public class VarrockAnvilScript extends Script {
     private static WorldPoint BankLocation = new WorldPoint(3185, 3438, 0);
     private static int AnvilMakeVarbitPlayer = 2224;
     private static int AnvilContainerWidgetID = 312;
-    private static boolean logout = true;
+    // Mobile: enableAutoRunOn is global; the value before start is put back on stop.
+    private boolean autoRunBefore = true;
 
     public boolean run(VarrockAnvilConfig config) {
         Bars barType = config.sBarType();
         AnvilItem anvilItem = config.sAnvilItem();
-        logout = config.sLogout();
-
+        // Mobile: the "Logout On Complete" setting is not read; stopping never logs out (see MOBILE_PORT.md).
+        autoRunBefore = Microbot.enableAutoRunOn;
         Microbot.enableAutoRunOn = false;
 
         Rs2Antiban.resetAntibanSettings();
@@ -54,6 +61,18 @@ public class VarrockAnvilScript extends Script {
         Rs2AntibanSettings.microBreakDurationHigh = 3;
 
         mainScheduledFuture = scheduledExecutorService.scheduleWithFixedDelay(() -> {
+            try {
+                loop(barType, anvilItem);
+            } catch (Exception ex) {
+                // Mobile: an uncaught exception would silently end the schedule while the plugin still looked
+                // running; turn the plugin off so the Microbot Mobile screen shows it stopped.
+                stop("Varrock Anvil stopped after an error: " + ex);
+            }
+        }, 0, 1000, TimeUnit.MILLISECONDS);
+        return true;
+    }
+
+    private void loop(Bars barType, AnvilItem anvilItem) {
             if (!super.run() || !Microbot.isLoggedIn()) {
                 debug("Not running");
                 return;
@@ -102,14 +121,17 @@ public class VarrockAnvilScript extends Script {
                         sleep(186, 480);
 
                         if (Rs2Widget.getWidget(AnvilContainerWidgetID, 1) != null) {
+                            // Mobile: the "All" and item clicks fall within one game tick of each other and either
+                            // can be refused under the one-action-per-tick rule, so each is retried until accepted.
                             if (Microbot.getVarbitPlayerValue(AnvilMakeVarbitPlayer) < Rs2Inventory.count(barType.getId())) {
                                 debug("Selecting 'All' in the anvil");
-                                Rs2Widget.clickWidget(312, 7);
+                                sleepUntil(() -> Rs2Widget.clickWidget(312, 7), 2000);
                                 sleep(186, 480);
                             }
 
-                            Rs2Widget.clickWidget(AnvilContainerWidgetID, anvilItem.getChildId());
-                            expectingXPDrop = true;
+                            if (sleepUntil(() -> Rs2Widget.clickWidget(AnvilContainerWidgetID, anvilItem.getChildId()), 2000)) {
+                                expectingXPDrop = true;
+                            }
                             sleep(186, 480);
                         }
                     } else {
@@ -158,9 +180,6 @@ public class VarrockAnvilScript extends Script {
             Rs2Antiban.actionCooldown();
             Rs2Antiban.takeMicroBreakByChance();
             sleep(256, 789);
-            return;
-        }, 0, 1000, TimeUnit.MILLISECONDS);
-        return true;
     }
 
     // Determine the state of the script
@@ -203,6 +222,7 @@ public class VarrockAnvilScript extends Script {
                 if (!Rs2Inventory.hasItem(ItemID.HAMMER)) {
                     Rs2Bank.closeBank();
                     stop("Could not find hammer in bank.");
+                    return;
                 }
                 sleep(180, 540);
 
@@ -211,6 +231,7 @@ public class VarrockAnvilScript extends Script {
             if (Rs2Bank.count(barType.toString()) < 1) {
                 Rs2Bank.closeBank();
                 stop("Out of bars.");
+                return;
             }
             Rs2Bank.withdrawAll(barType.toString());
             sleepUntil(() -> Rs2Inventory.hasItem(barType.toString()), 3500);
@@ -218,6 +239,7 @@ public class VarrockAnvilScript extends Script {
             // Exit if we did not end up finding it.
             if (!Rs2Inventory.hasItem(barType.toString())) {
                 stop("Could not find bars in bank.");
+                return;
             }
             sleep(180, 540);
             Rs2Bank.closeBank();
@@ -226,16 +248,19 @@ public class VarrockAnvilScript extends Script {
 
     private void debug(String msg) {
         debug = msg;
-        System.out.println(msg);
+        // Mobile: debug level, not stdout, so a 1 s loop does not flood the device log.
+        log.debug(msg);
     }
 
+    /**
+     * Stops with {@code message}. Mobile: never logs out, and turns the plugin off (not just this loop) so the
+     * Microbot Mobile screen and plugin list show it stopped.
+     */
     public void stop(String message) {
-        if (logout) {
-            Rs2Player.logout();
-        }
         debug(message);
         Microbot.showMessage(message);
         shutdown();
+        Microbot.stopPlugin(VarrockAnvilPlugin.class);
     }
 
     private boolean closeToLocation(WorldPoint location) {
@@ -246,5 +271,6 @@ public class VarrockAnvilScript extends Script {
     public void shutdown() {
         super.shutdown();
         Rs2Antiban.resetAntibanSettings();
+        Microbot.enableAutoRunOn = autoRunBefore;
     }
 }

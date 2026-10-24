@@ -13,8 +13,8 @@ Changes for mobile:
   trips; the flag is global, so without this every later script walked without teleports.
 - Stopping no longer assumes an overlay manager (start already allowed it to be missing).
 
-Free-to-play notes: the script does not restrict the bar list, so pick a free-to-play bar (bronze,
-iron, silver, steel or gold) on a free world. The coal bag is only used on members worlds; the ring
+Free-to-play notes: the bar list is upstream's and is not filtered by membership; bronze, iron,
+silver, steel, gold, mithril, adamantite and runite bars can all be smelted on a free world. The coal bag is only used on members worlds; the ring
 of forging and goldsmithing gauntlets are only equipped when they are already in the bank.
 
 Not verified on a device. Device checks: pick a bar, start next to a furnace and a bank, let it run
