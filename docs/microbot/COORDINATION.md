@@ -50,7 +50,6 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
-| Claude 1 | `util/bank/Rs2Bank.java` (`emptyHerbSack`, `toggleItemLock(String, boolean)`, `lockAllBySlot`, `toggleAllLocks`, `openTab`, `openMainTab`, `scrollBankToSlot`, `withdrawXAndEquip`), `Microbot.java` (`cantHopWorld`, `cantReachTarget`, `cantReachTargetRetries`), new `HubActionBatchG1Test` | **Task: util-gap action batch G1** (bank) | this commit |
 
 ## Requests
 
@@ -94,6 +93,7 @@ claims, requests and log entries go in this file.
 
 | Commit | Session | Files | Change | Verified | Action for the other session |
 | --- | --- | --- | --- | --- | --- |
+| `1516592` | Claude 1 | `util/bank/Rs2Bank.java`, `Microbot.java`, new `HubActionBatchG1Test` | **Util-gap action batch G1 (bank).** `toggleItemLock(String, boolean)`, `lockAllBySlot`, `toggleAllLocks` use the side inventory's own Lock-slot / Unlock-slot option and are confirmed by the option flipping. `openTab`/`openMainTab`. `scrollBankToSlot` scrolls to the slot widget, only while a script runs. `emptyHerbSack`, `withdrawXAndEquip`. `Microbot.cantHopWorld`, `cantReachTarget`, `cantReachTargetRetries`. **Sweep:** 652 -> 631 across 53 plugins; now 0: bankorganizer, herbiboar | compile, checkstyle, PMD, 816 tests (`--rerun-tasks`) | None. Claim released |
 | `cb8537a` | Claude 1 | Hub `microbot/{thievingstalls,vorkath}/**`, `suppressions.xml`, `build.gradle.kts`, `HubPortedPluginsTest`, `HUB_PORTS.md` | **2 more Hub ports (105 + KSP).** thievingstalls hops only when its stall is missing or depleted | compile, checkstyle, PMD, 814 tests | None. Claim released |
 | `c14b187` | Claude 1 | `Microbot.java`, new `configs/SpecialAttackConfigs.java`, `util/inventory/Rs2Gembag.java` (actions block at the end), `util/item/Rs2ExplorersRing.java` (actions block at the end), `util/bank/Rs2Bank.java`, `util/inventory/Rs2Inventory.java`, new `HubActionBatchFTest` | **Util-gap action batch F.** `SpecialAttackConfigs` (upstream) and `Microbot.getSpecialAttackConfigs`. `Rs2Gembag.checkGemBag`, `Rs2Bank.emptyGemBag`. `Rs2ExplorersRing.highAlch` (opens the ring's alchemy interface if needed and confirms the high-value warning when shown), `closeInterface`. `Rs2Inventory.fillPouches`/`emptyPouches`/`checkPouches` over Codex's `Pouch`, `open`. `Rs2Bank.withdrawRunePouch`. **Sweep:** 710 -> 652 across 55 plugins; now 0: thievingstalls, vorkath | compile, checkstyle, PMD, 814 tests (`--rerun-tasks`) | **Claude 2:** your `Rs2Gembag` and `Rs2ExplorersRing` got actions blocks at the end; the reads are untouched. Remaining reads are in *Requests*. Claim released |
 | `951bab2` | Claude 1 | Hub `microbot/{DemonicGorillaKiller,autobankstander,bankseller,banksorter,farmingcontract,mess,natewinemaker,pitfallhunter}/**`, `suppressions.xml`, `build.gradle.kts`, `HubPortedPluginsTest`, `HUB_PORTS.md` | **8 more Hub ports (103 + KSP).** mess hops only when the hall's appreciation drops. **Not ported:** mining (hops when too many players are nearby) | compile, checkstyle, PMD, 811 tests (`--rerun-tasks`) | None. Claim released |
