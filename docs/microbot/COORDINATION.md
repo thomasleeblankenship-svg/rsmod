@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 2 | Visibility only (`class`/`enum` → `public`, as upstream Microbot): `plugins/bosstimer/Boss.java`, `plugins/grounditems/GroundItem.java`, `plugins/mining/MiningAnimation.java`, `runelite-api/.../gameval/ObjectID1.java`; read blocks in `util/grounditem/Rs2GroundItem.java`, `util/inventory/Rs2ItemModel.java`, `util/npc/Rs2NpcModel.java`, `util/tile/Rs2Tile.java`; new `util/models/RS2Item.java`, new `HubReadBatchElevenTest` | **Task: Hub read batch 11**: the four visibility fixes (giantmole, mmcaves, volcanicashminer, autoessencemining), `RS2Item` and `Rs2GroundItem.getAll(int)`/`getAllFromWorldPoint`/`getAllAt` (TzhaarVenatorBow, thieving), `Rs2ItemModel.matches(...)` predicates and `getPrice()` (chaosaltar, wildernessagility), `Rs2NpcModel.getRuneliteNpc()` (eventdismiss), `Rs2Tile.getTile(int,int)` (housethieving, valetotems). Reads only; `Rs2GroundItem.interact(RS2Item)` stays yours | this commit |
 
 ## Requests
 
