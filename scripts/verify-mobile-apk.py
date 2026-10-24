@@ -74,6 +74,7 @@ def verify(args):
     apk = args.apk.resolve()
     classes = (args.classes_dir or repo / "runelite-client/build/classes/java/main").resolve()
     require(apk.is_file(), f"APK does not exist: {apk}")
+    initial = apk.stat()
     require(not args.json_out or args.json_out.resolve() != apk, "JSON output must not overwrite the APK")
     require(re.fullmatch(r"[0-9a-fA-F]{7,40}", args.expected_commit), "--expected-commit must be a 7–40 character Git commit hash")
     commit = git(repo, "rev-parse", "--verify", f"{args.expected_commit}^{{commit}}").strip()
@@ -133,6 +134,9 @@ def verify(args):
     with apk.open("rb") as stream:
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(block)
+    final = apk.stat()
+    require((initial.st_ino, initial.st_size, initial.st_mtime_ns) ==
+            (final.st_ino, final.st_size, final.st_mtime_ns), "APK changed while verification was running")
     return {
         "status": "passed", "apk": str(apk), "bytes": apk.stat().st_size, "sha256": digest.hexdigest(),
         "expected_commit": commit, "embedded_commit": embedded,

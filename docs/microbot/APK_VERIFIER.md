@@ -51,7 +51,8 @@ The JSON output path cannot overwrite the input APK.
 - 16 KB native-library ZIP alignment checked by `zipalign`.
 - RuneMobile package ID, debuggable flag and ARM64-only native code checked by
   `aapt`; version and minimum/target SDK values recorded in the report.
-- File size and SHA256 calculated from the APK itself.
+- File size and SHA256 calculated from the APK itself; an APK replaced or
+  modified during verification is rejected.
 
 External tools have a 120-second command timeout. Their output, the environment
 and embedded properties are not dumped into failure reports.
@@ -77,6 +78,22 @@ matching source/output evidence; a local APK's checksum does not identify it.
 
 ## Validation evidence
 
-The implementation's smoke and rejection checks are recorded in the coordination
-log after completion. The older untracked local helper did not check the dirty
-flag; this script intentionally adds that requirement.
+Nine CLI checks passed: one real clean debug APK plus eight rejection cases
+(wrong revision, dirty retained client, malformed ZIP, bundled token file,
+report path equal to input APK, changed class bytes, changed collision resource,
+and a missing required packaged class). The overwrite case also confirmed the
+APK's SHA256 stayed unchanged.
+
+The passing APK was built from `bbbee9cf06181b29fc734c28fa53415c33c4cd76`:
+951 selected classes and both collision archives matched; SDK tools verified
+signing, alignment, package/debug/ABI metadata. Device testing was not run.
+Retained locally at `/workspace/artifacts/runemobile-verifier-bbbee9c-arm64.apk`.
+SHA256: `7b8359d896882273291468483077966a99122c80e97e1ff05e3a1cee506d9f42`.
+Local validation details: `/workspace/tooling/apk-verifier-validation.json`.
+No Java runtime code was changed, and no additional full Java test result is
+claimed for this tooling task.
+
+The older untracked local helper did not check the dirty flag; this script
+intentionally adds that requirement. The retained `088bc347` APK is rejected
+because its embedded client has `runelite.dirty=true`, even though the older
+helper had passed its class/resource comparison.
