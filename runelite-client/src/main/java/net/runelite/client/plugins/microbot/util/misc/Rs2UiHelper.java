@@ -38,4 +38,18 @@ public final class Rs2UiHelper
 	{
 		return Rs2TextSanitizer.stripTags(text);
 	}
+
+	/** As upstream: whether {@code rectangle} lies wholly on the canvas. */
+	public static boolean isRectangleWithinCanvas(Rectangle rectangle)
+	{
+		if (rectangle == null)
+		{
+			return false;
+		}
+		int[] canvas = MobileActions.read(() -> new int[]{
+			net.runelite.client.plugins.microbot.Microbot.getClient().getCanvasWidth(),
+			net.runelite.client.plugins.microbot.Microbot.getClient().getCanvasHeight()}, new int[]{0, 0});
+		return rectangle.getX() >= 0 && rectangle.getY() >= 0
+			&& rectangle.getX() + rectangle.getWidth() <= canvas[0] && rectangle.getY() + rectangle.getHeight() <= canvas[1];
+	}
 }

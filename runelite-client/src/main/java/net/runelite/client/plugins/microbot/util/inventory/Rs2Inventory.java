@@ -176,6 +176,14 @@ public final class Rs2Inventory
 	public static int emptySlotCount() { return Math.max(0, 28 - count()); }
 	/** As upstream: the number of empty inventory slots ({@link #emptySlotCount()}). */
 	public static int getEmptySlots() { return emptySlotCount(); }
+	/** As upstream: a random item matching {@code filter}, or {@code null}. */
+	public static Rs2ItemModel getRandom(Predicate<Rs2ItemModel> filter)
+	{
+		List<Rs2ItemModel> matching = items(filter).collect(Collectors.toList());
+		return matching.isEmpty() ? null : matching.get(java.util.concurrent.ThreadLocalRandom.current().nextInt(matching.size()));
+	}
+	public static Rs2ItemModel getRandom(int... ids) { return getRandom(item -> Arrays.stream(ids).anyMatch(id -> id == item.getId())); }
+	public static Rs2ItemModel getRandom(String... names) { return getRandom(item -> Arrays.stream(names).anyMatch(name -> item.getName().equalsIgnoreCase(name))); }
 	public static List<Rs2ItemModel> getList(Predicate<Rs2ItemModel> predicate) { return items(predicate).collect(Collectors.toList()); }
 	public static Rs2ItemModel get(int id) { return items(i -> i.getId() == id).findFirst().orElse(null); }
 	public static Rs2ItemModel get(String name) { return items(i -> matches(i.getName(), name, false)).findFirst().orElse(null); }

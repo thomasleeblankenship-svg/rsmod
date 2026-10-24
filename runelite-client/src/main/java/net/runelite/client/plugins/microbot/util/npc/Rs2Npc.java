@@ -176,4 +176,27 @@ public final class Rs2Npc
 	{
 		return getNpcs(npc -> npc.getId() == id && !excludedIndexes.contains(npc.getIndex())).findFirst();
 	}
+
+	/**
+	 * As upstream: the nearest NPC offering "Bank" (base or transformed definition); the Hunter
+	 * Guild banker counts only with 46 Hunter.
+	 */
+	public static Rs2NpcModel getBankerNPC()
+	{
+		WorldPoint hunterGuild = new WorldPoint(1542, 3041, 0);
+		return getNpcs(npc ->
+		{
+			if (java.util.Objects.equals(npc.getWorldLocation(), hunterGuild))
+			{
+				return net.runelite.client.plugins.microbot.util.player.Rs2Player.getSkillRequirement(net.runelite.api.Skill.HUNTER, 46, false);
+			}
+			return offersBank(npc.getComposition()) || offersBank(npc.getTransformedComposition());
+		}).findFirst().orElse(null);
+	}
+
+	private static boolean offersBank(NPCComposition composition)
+	{
+		return composition != null && composition.getActions() != null
+			&& java.util.Arrays.asList(composition.getActions()).contains("Bank");
+	}
 }
