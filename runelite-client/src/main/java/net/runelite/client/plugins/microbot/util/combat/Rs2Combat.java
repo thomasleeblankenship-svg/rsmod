@@ -52,6 +52,54 @@ public final class Rs2Combat
 				Microbot.getVarbitPlayerValue(net.runelite.api.gameval.VarPlayerID.OPTION_NODEF) == expected, 2_000);
 	}
 
+	/** The autocast spell list's container (upstream reads 201:1). */
+	private static final int AUTOCAST_GROUP = 201;
+	private static final int AUTOCAST_CHILD = 1;
+
+	/**
+	 * As upstream: sets {@code combatSpell} as the autocast spell (defensive when
+	 * {@code useDefensiveCast}). It opens the combat tab, presses the spell box, then picks the
+	 * spell by its sprite in the list. True once the autocast varbits show the spell and mode;
+	 * false when it cannot be cast or the list does not offer it. Each step is one script action.
+	 */
+	public static boolean setAutoCastSpell(net.runelite.client.plugins.microbot.util.magic.Rs2CombatSpells combatSpell, boolean useDefensiveCast)
+	{
+		if (combatSpell == null || !net.runelite.client.plugins.microbot.util.magic.Rs2Magic.canCast(combatSpell.getMagicAction()))
+		{
+			return false;
+		}
+		if (autoCastIs(combatSpell, useDefensiveCast))
+		{
+			return true;
+		}
+		int box = useDefensiveCast ? net.runelite.api.gameval.InterfaceID.CombatInterface.AUTOCAST_DEFENSIVE
+			: net.runelite.api.gameval.InterfaceID.CombatInterface.AUTOCAST_NORMAL;
+		if (!net.runelite.client.plugins.microbot.util.tabs.Rs2Tab.switchTo(net.runelite.client.plugins.microbot.globval.enums.InterfaceTab.COMBAT)
+			|| !net.runelite.client.plugins.microbot.util.Global.sleepUntil(() -> MobileActions.widget(box, -1, ""), 2_000)
+			|| !net.runelite.client.plugins.microbot.util.Global.sleepUntil(() ->
+				net.runelite.client.plugins.microbot.util.widget.Rs2Widget.isWidgetVisible(AUTOCAST_GROUP, AUTOCAST_CHILD), 3_000))
+		{
+			return false;
+		}
+		net.runelite.api.widgets.Widget options = net.runelite.client.plugins.microbot.util.widget.Rs2Widget.getWidget(AUTOCAST_GROUP, AUTOCAST_CHILD);
+		net.runelite.api.widgets.Widget spell = options == null ? null
+			: net.runelite.client.plugins.microbot.util.widget.Rs2Widget.findWidget(combatSpell.getMagicAction().getSprite(), java.util.List.of(options));
+		if (spell == null)
+		{
+			return false;
+		}
+		int id = MobileActions.read(spell::getId, -1);
+		int index = MobileActions.read(spell::getIndex, -1);
+		return net.runelite.client.plugins.microbot.util.Global.sleepUntil(() -> MobileActions.widget(id, index, ""), 2_000)
+			&& net.runelite.client.plugins.microbot.util.Global.sleepUntil(() -> autoCastIs(combatSpell, useDefensiveCast), 3_000);
+	}
+
+	private static boolean autoCastIs(net.runelite.client.plugins.microbot.util.magic.Rs2CombatSpells spell, boolean defensive)
+	{
+		return net.runelite.client.plugins.microbot.util.magic.Rs2Magic.getCurrentAutoCastSpell() == spell
+			&& Microbot.getVarbitValue(net.runelite.api.Varbits.DEFENSIVE_CASTING_MODE) == (defensive ? 1 : 0);
+	}
+
 	/** Upstream spelling. */
 	public static boolean enableAutoRetialiate()
 	{
