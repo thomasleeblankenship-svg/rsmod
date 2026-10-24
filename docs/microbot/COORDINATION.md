@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | `headless/JavaBridge.java` (new `onScriptScroll`), `mobile/MobileActions.java` (new `scroll`), `util/mouse/Mouse.java` (`scrollDown`, `scrollUp`), new `JavaBridgeScriptScrollTest`, `HubActionBatchLTest` | **Task: util-gap action batch L** (script mouse-wheel scroll) | this commit |
 
 ## Requests
 
