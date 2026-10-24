@@ -247,6 +247,36 @@ public final class Rs2Prayer
 	}
 
 	/** As upstream: {@code prayer} is one of the selected quick prayers. */
+	/**
+	 * As upstream: opens the quick-prayer setup from the prayer orb, unticks every set quick prayer
+	 * not in {@code prayers}, ticks the missing ones, and presses Done. False when the orb is hidden
+	 * or the setup did not open.
+	 */
+	public static boolean setQuickPrayers(Rs2PrayerEnum[] prayers)
+	{
+		int orb = net.runelite.api.gameval.InterfaceID.Orbs.PRAYERBUTTON;
+		int buttons = net.runelite.api.gameval.InterfaceID.Quickprayer.BUTTONS;
+		if (prayers == null || !net.runelite.client.plugins.microbot.util.widget.Rs2Widget.isWidgetVisible(orb)
+			|| !net.runelite.client.plugins.microbot.util.Global.sleepUntil(
+				() -> net.runelite.client.plugins.microbot.mobile.MobileActions.widget(orb, -1, "Setup"), 2_000)
+			|| !net.runelite.client.plugins.microbot.util.Global.sleepUntil(
+				() -> net.runelite.client.plugins.microbot.util.widget.Rs2Widget.isWidgetVisible(buttons), 3_000))
+		{
+			return false;
+		}
+		List<Rs2PrayerEnum> wanted = java.util.Arrays.asList(prayers);
+		for (Rs2PrayerEnum prayer : Rs2PrayerEnum.values())
+		{
+			if (isQuickPrayerSet(prayer) != wanted.contains(prayer))
+			{
+				net.runelite.client.plugins.microbot.util.Global.sleepUntil(() -> net.runelite.client.plugins.microbot.mobile.MobileActions
+					.widget(buttons, prayer.getQuickPrayerIndex(), "Toggle"), 2_000);
+			}
+		}
+		return net.runelite.client.plugins.microbot.util.Global.sleepUntil(() -> net.runelite.client.plugins.microbot.mobile.MobileActions
+			.widget(net.runelite.api.gameval.InterfaceID.Quickprayer.CLOSE, -1, "Done"), 2_000);
+	}
+
 	public static boolean isQuickPrayerSet(Rs2PrayerEnum prayer)
 	{
 		return (Microbot.getVarbitValue(VarbitID.QUICKPRAYER_SELECTED) & (1 << prayer.getQuickPrayerIndex())) != 0;

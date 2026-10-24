@@ -167,6 +167,48 @@ public final class Rs2Camera
 
 	// --- turning ----------------------------------------------------------------------------
 
+	/** As upstream: the tile's canvas outline lies inside a box {@code marginPercentage}% of the viewport around its centre. */
+	public static boolean isTileCenteredOnScreen(LocalPoint tile, double marginPercentage)
+	{
+		return tile != null && MobileActions.read(() ->
+		{
+			Client client = Microbot.getClient();
+			Polygon poly = Perspective.getCanvasTilePoly(client, tile);
+			if (poly == null)
+			{
+				return false;
+			}
+			int width = client.getViewportWidth();
+			int height = client.getViewportHeight();
+			int marginX = (int) (width * (marginPercentage / 100.0));
+			int marginY = (int) (height * (marginPercentage / 100.0));
+			return new Rectangle(width / 2 - marginX / 2, height / 2 - marginY / 2, marginX, marginY).contains(poly.getBounds());
+		}, false);
+	}
+
+	/** As upstream, with a 10% margin. */
+	public static boolean isTileCenteredOnScreen(LocalPoint tile)
+	{
+		return isTileCenteredOnScreen(tile, 10);
+	}
+
+	/** As upstream: turns the camera to face {@code tile} unless it is already centred within the margin. */
+	public static void centerTileOnScreen(LocalPoint tile, double marginPercentage)
+	{
+		if (tile == null || isTileCenteredOnScreen(tile, marginPercentage))
+		{
+			return;
+		}
+		int raw = angleToTile(tile) - 90;
+		setAngle(raw < 0 ? raw + 360 : raw, 5);
+	}
+
+	/** As upstream, with a 10% margin. */
+	public static void centerTileOnScreen(LocalPoint tile)
+	{
+		centerTileOnScreen(tile, 10.0);
+	}
+
 	/** Turns until the target is within {@code maxAngle}; mobile sets the yaw target directly. */
 	public static void setAngle(int targetDegrees, int maxAngle)
 	{
