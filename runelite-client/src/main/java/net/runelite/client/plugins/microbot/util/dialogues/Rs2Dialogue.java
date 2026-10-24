@@ -415,6 +415,18 @@ public final class Rs2Dialogue
 		return target != null && MobileActions.widget(target[0], target[1], "");
 	}
 
+	/** As upstream: waits (up to 5 s) until the "Select an option" menu is showing. */
+	public static boolean sleepUntilSelectAnOption()
+	{
+		return net.runelite.client.plugins.microbot.util.Global.sleepUntil(Rs2Dialogue::hasSelectAnOption, 5_000);
+	}
+
+	/** As upstream: waits (up to 5 s) until a "Click here to continue" prompt is showing. */
+	public static boolean sleepUntilHasContinue()
+	{
+		return net.runelite.client.plugins.microbot.util.Global.sleepUntil(Rs2Dialogue::hasContinue, 5_000);
+	}
+
 	/** As upstream: waits (up to 5 s) until the "make X" interface is showing. */
 	public static boolean sleepUntilHasCombinationDialogue()
 	{

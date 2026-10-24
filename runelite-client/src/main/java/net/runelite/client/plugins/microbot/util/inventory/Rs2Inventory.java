@@ -257,6 +257,15 @@ public final class Rs2Inventory
 		return true;
 	}
 
+	/**
+	 * As upstream, where it hovers only when natural mouse is on: humanised input is not ported, so
+	 * this never moves anything and returns false.
+	 */
+	public static boolean hover(Rs2ItemModel item)
+	{
+		return false;
+	}
+
 	/** As upstream: the first inventory action of the item in {@code slot}. */
 	public static boolean slotInteract(int slot) { return slotInteract(slot, ""); }
 	/** As upstream: {@code action} (or, blank, the first action) on the item in {@code slot}. */

@@ -49,6 +49,7 @@ public class MobileMicrobotPlugin extends Plugin
 	@Inject private MicrobotReadServices readServices;
 	@Inject private net.runelite.client.ui.overlay.OverlayManager overlayManager;
 	@Inject private net.runelite.client.plugins.PluginManager pluginManager;
+	@Inject private net.runelite.client.Notifier notifier;
 	@Inject private net.runelite.client.game.WorldService worldService;
 	@Inject private net.runelite.client.game.ItemManager itemManager;
 
@@ -89,6 +90,7 @@ public class MobileMicrobotPlugin extends Plugin
 				MicrobotRuntime.install(client, clientThread, eventBus, configManager, pluginManager, worldService, itemManager,
 					java.util.List.of(readServices));
 				runtimeInstalled = true;
+				net.runelite.client.plugins.microbot.Microbot.bindNotifier(notifier);
 				net.runelite.client.plugins.microbot.util.walker.Rs2Walker.setUsePathfinder(config.usePathfinder());
 				setRun(false);
 				enabled = true;

@@ -383,6 +383,16 @@ public final class Rs2Player
 		return !hasGoadingActive() && drinkPotion(net.runelite.client.plugins.microbot.util.misc.Rs2Potion.getGoadingPotion());
 	}
 
+	/**
+	 * Upstream hops worlds when another player is nearby. Hopping to avoid other players is not
+	 * ported (project policy), so this never hops and always returns false; a script that calls it
+	 * simply carries on where it is.
+	 */
+	public static boolean hopIfPlayerDetected(int quantity, int time, int distance)
+	{
+		return false;
+	}
+
 	/** As upstream: {@link #drinkCombatPotionAt(net.runelite.api.Skill, boolean)} preferring super combat potions. */
 	public static boolean drinkCombatPotionAt(net.runelite.api.Skill skill)
 	{

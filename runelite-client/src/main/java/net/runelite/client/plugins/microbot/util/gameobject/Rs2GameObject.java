@@ -936,4 +936,13 @@ public final class Rs2GameObject
 		}
 		return location.distanceTo(anchor) <= distance;
 	}
+
+	/**
+	 * As upstream, where it hovers only when natural mouse is on: humanised input is not ported, so
+	 * this never moves anything and returns false.
+	 */
+	public static boolean hoverOverObject(TileObject object)
+	{
+		return false;
+	}
 }

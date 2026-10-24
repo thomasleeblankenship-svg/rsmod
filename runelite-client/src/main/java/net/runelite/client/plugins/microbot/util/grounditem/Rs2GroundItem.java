@@ -153,6 +153,50 @@ public final class Rs2GroundItem
 			item -> prices.getItemPrice(item.getId()) * item.getQuantity() >= value);
 	}
 
+	/**
+	 * As upstream: the first stack, within the parameters' range and rules, whose total GE value is
+	 * above {@code minValue} and whose value per item is below {@code maxValue}, skipping ignored
+	 * names. Without an item manager nothing is worth looting.
+	 */
+	public static boolean lootItemBasedOnValue(LootingParameters params)
+	{
+		net.runelite.client.game.ItemManager prices = Microbot.getItemManager();
+		if (params == null || prices == null)
+		{
+			return false;
+		}
+		java.util.Set<String> ignored = new java.util.HashSet<>();
+		for (String name : params.getIgnoredNames())
+		{
+			if (name != null)
+			{
+				ignored.add(name.trim().toLowerCase(Locale.ROOT));
+			}
+		}
+		return lootMatching(params, item ->
+		{
+			if (item.getName() != null && ignored.contains(item.getName().trim().toLowerCase(Locale.ROOT)))
+			{
+				return false;
+			}
+			int quantity = Math.max(1, item.getQuantity());
+			long total = prices.getItemPrice(item.getId()) * quantity;
+			return total > params.getMinValue() && total / quantity < params.getMaxValue();
+		});
+	}
+
+	/** As upstream: coin stacks, within the parameters' range and rules. */
+	public static boolean lootCoins(LootingParameters params)
+	{
+		return params != null && lootMatching(params, item -> item.getId() == net.runelite.api.ItemID.COINS_995);
+	}
+
+	/** As upstream: picks up the first stack of {@code itemId} within 10 tiles. */
+	public static boolean pickup(int itemId)
+	{
+		return lootMatching(new LootingParameters(10, 1, 1, 0, false, false), item -> item.getId() == itemId);
+	}
+
 	/** As upstream: {@link #lootItemBasedOnValue(int, int)} within 14 tiles. */
 	public static boolean lootAtGePrice(int minGePrice)
 	{

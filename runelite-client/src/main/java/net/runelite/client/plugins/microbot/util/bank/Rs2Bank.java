@@ -92,6 +92,43 @@ public final class Rs2Bank
 		return npc != null && openBank(new net.runelite.client.plugins.microbot.util.npc.Rs2NpcModel(npc));
 	}
 
+	/**
+	 * As upstream: opens the bank through this booth, chest or deposit object ("Bank", else "Use"),
+	 * then waits for the bank.
+	 */
+	public static boolean openBank(net.runelite.api.TileObject object)
+	{
+		Microbot.status = "Opening bank";
+		if (isOpen())
+		{
+			return true;
+		}
+		if (object == null)
+		{
+			return false;
+		}
+		Object[] target = MobileActions.read(() ->
+		{
+			var composition = Microbot.getClient().getObjectDefinition(object.getId());
+			String[] actions = composition == null ? null : composition.getActions();
+			String action = actions == null ? null : Arrays.stream(actions)
+				.filter(a -> "Bank".equalsIgnoreCase(a) || "Use".equalsIgnoreCase(a)).findFirst().orElse(null);
+			return action == null ? null : new Object[]{object.getId(), object.getWorldLocation(), action};
+		}, null);
+		return target != null
+			&& Rs2Inventory.waitFor(() -> MobileActions.objectAt((int) target[0], (WorldPoint) target[1], (String) target[2]), 2_000)
+			&& Rs2Inventory.waitFor(Rs2Bank::isOpen, 6_000);
+	}
+
+	/**
+	 * As upstream, where it hovers over a bank only when natural mouse is on: humanised input is
+	 * not ported, so this never moves anything and returns false.
+	 */
+	public static boolean preHover()
+	{
+		return false;
+	}
+
 	public static boolean closeBank()
 	{
 		if (!isOpen()) return true;
@@ -406,6 +443,8 @@ public final class Rs2Bank
 	// workflow, these follow upstream and keep the bank's current item/note mode.
 
 	public static boolean withdrawOne(int id) { return withdrawStack(findBankStack(id), "Withdraw-1"); }
+	/** As upstream: withdraws all but one of the stack with this id ("Withdraw-All-but-1"). */
+	public static boolean withdrawAllButOne(int id) { return withdrawStack(findBankStack(id), "Withdraw-All-but-1"); }
 	public static boolean withdrawOne(String name) { return withdrawOne(name, false); }
 	public static boolean withdrawOne(String name, boolean exact) { return withdrawStack(findBankStack(name, exact), "Withdraw-1"); }
 	public static boolean withdrawItem(String name) { return withdrawOne(name); }

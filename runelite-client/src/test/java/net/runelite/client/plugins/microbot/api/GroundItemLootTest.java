@@ -184,4 +184,44 @@ public class GroundItemLootTest
 			assertFalse("not on the ground", Rs2GroundItem.interact(BONES, "Take", 10));
 		}
 	}
+
+	@Test
+	public void valueLootingKeepsWithinTheBoundsAndSkipsIgnoredNames()
+	{
+		ground(6, 5, BONES, "Bones", 1, true);
+		ground(7, 5, PAGE, "Ancient page", 3, false);
+		ground(8, 5, COINS, "Coins", 500, true);
+		when(prices.getItemPrice(BONES)).thenReturn(100L);
+		when(prices.getItemPrice(PAGE)).thenReturn(300L);
+		when(prices.getItemPrice(COINS)).thenReturn(1L);
+		try (MockedStatic<MobileActions> actions = mockStatic(MobileActions.class, CALLS_REAL_METHODS);
+			MockedStatic<Microbot> microbot = mockStatic(Microbot.class, CALLS_REAL_METHODS))
+		{
+			microbot.when(Microbot::getItemManager).thenReturn(prices);
+			List<Integer> taken = pickups(actions);
+			// total above 600 rules out bones (100) and coins (500); 900 for three pages, 300 each
+			assertTrue(Rs2GroundItem.lootItemBasedOnValue(new LootingParameters(600, 1000, 10, 1, 0, false, false)));
+			assertEquals(List.of(PAGE), taken);
+			taken.clear();
+			assertFalse("each page is worth 300, not under 200",
+				Rs2GroundItem.lootItemBasedOnValue(new LootingParameters(600, 200, 10, 1, 0, false, false)));
+			assertFalse("ignored by name", Rs2GroundItem.lootItemBasedOnValue(
+				new LootingParameters(600, 1000, 10, 1, 0, false, false, new String[]{" ancient PAGE "})));
+			assertTrue(Rs2GroundItem.lootCoins(new LootingParameters(0, Integer.MAX_VALUE, 10, 1, 0, false, false)));
+			assertEquals(List.of(COINS), taken);
+		}
+	}
+
+	@Test
+	public void pickupByIdTakesThatStack()
+	{
+		ground(6, 5, BONES, "Bones", 1, true);
+		try (MockedStatic<MobileActions> actions = mockStatic(MobileActions.class, CALLS_REAL_METHODS))
+		{
+			List<Integer> taken = pickups(actions);
+			assertTrue(Rs2GroundItem.pickup(BONES));
+			assertEquals(List.of(BONES), taken);
+			assertFalse(Rs2GroundItem.pickup(PAGE));
+		}
+	}
 }

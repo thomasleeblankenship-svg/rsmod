@@ -220,6 +220,21 @@ public class Microbot {
     /** As upstream: the run energy (0-10000) scripts compare against before toggling run or drinking stamina. */
     public static int runEnergyThreshold = 1000;
 
+    private static volatile net.runelite.client.Notifier notifier;
+
+    /**
+     * As upstream: RuneLite's notifier. On mobile every notification it fires goes to the phone's
+     * own notifications. Bound by the mobile plugin; {@code null} before that.
+     */
+    public static net.runelite.client.Notifier getNotifier() {
+        return notifier;
+    }
+
+    /** Binds the notifier; called by the mobile plugin on install, cleared on uninstall. */
+    public static void bindNotifier(net.runelite.client.Notifier value) {
+        notifier = value;
+    }
+
     private static volatile net.runelite.client.game.ItemManager itemManager;
 
     /** As upstream: RuneLite's item manager (prices, item compositions); bound by the mobile plugin. */
@@ -410,6 +425,7 @@ public class Microbot {
         pluginManager = null;
         worldService = null;
         itemManager = null;
+        notifier = null;
         pauseAllScripts.set(false);
         status = "IDLE";
         isGainingExp = false;

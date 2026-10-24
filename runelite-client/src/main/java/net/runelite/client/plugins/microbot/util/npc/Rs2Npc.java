@@ -249,6 +249,21 @@ public final class Rs2Npc
 			|| net.runelite.client.plugins.microbot.util.Global.sleepUntil(() -> MobileActions.npcAt(id, index, action), 1_200);
 	}
 
+	/** As upstream: {@code action} on the nearest NPC with this id. */
+	public static boolean interact(int npcId, String action)
+	{
+		return interact(getNpc(npcId), action);
+	}
+
+	/**
+	 * As upstream, where it hovers only when natural mouse is on: humanised input is not ported, so
+	 * this never moves anything and returns false.
+	 */
+	public static boolean hoverOverActor(net.runelite.api.Actor actor)
+	{
+		return false;
+	}
+
 	/** As upstream: "Pickpocket" on this NPC. */
 	public static boolean pickpocket(Rs2NpcModel npc)
 	{
