@@ -44,7 +44,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
-| *(none)* | | | |
+| Claude 1 | `util/walker/Rs2Walker.java`, `PathfinderLegTest`, `WEBWALKER_PLAN.md`, `HUB_PORTS.md` | Webwalker step 8: gnome gliders | this commit |
 
 ## Requests
 
