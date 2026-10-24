@@ -50,7 +50,6 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
-| Claude 1 | Hub `microbot/{RoyalTitans,bradleycombat}/**` (upstream copies), `config/checkstyle/suppressions.xml`, `runelite-client/build.gradle.kts`, `HubPortedPluginsTest`, `HUB_PORTS.md` | **Task: port 2 Hub plugins now at 0 errors** (RoyalTitans: anti-ban flags inert, types only the teammate name into "Join a fight"; bradleycombat: hotkey gear/prayer switches) | this commit |
 
 ## Requests
 
@@ -94,6 +93,7 @@ claims, requests and log entries go in this file.
 
 | Commit | Session | Files | Change | Verified | Action for the other session |
 | --- | --- | --- | --- | --- | --- |
+| `817a7c6` | Claude 1 | Hub `microbot/{RoyalTitans,bradleycombat}/**`, `suppressions.xml`, `build.gradle.kts`, `HubPortedPluginsTest`, `HUB_PORTS.md` | **2 more Hub ports (115 + KSP):** RoyalTitans (anti-ban flags inert), bradleycombat | compile, checkstyle, PMD, 834 tests | None. Claim released |
 | `2618e41` | Claude 1 | `util/Rs2InventorySetup.java`, `util/player/Rs2Player.java`, `mobile/MobileActions.java`, `HubActionBatchJTest` | **Util-gap action batch J:** `Rs2InventorySetup.prePot()`/`prePot(List)` as upstream (chug barrel, boosting potions skipping active effects, bank healing, anglerfish, store and restore up to three items), each step one dispatch plus a bounded inventory-change wait instead of random sleeps; new `MobileActions.player(id, option)` (option slot read from the client's player options; "Trade with" refused); `Rs2Player.attack` and `walkUnder` (no trade or follow). Sweep: 574 errors in 44 plugins; RoyalTitans and bradleycombat now at 0 | compile, checkstyle, PMD, 834 tests | None. Claim released |
 | `1d6fd07` | Claude 1 | `Microbot.java`, `MobileMicrobotPlugin.java`, `Rs2Bank.java`, `Rs2Combat.java`, `HubActionBatchITest`, `HUB_PORTS.md` | **Util-gap action batch I:** `Microbot.supplyMessage` (as upstream), `getEnum`/`getStructComposition` (client-thread reads, null when unreadable), `getInfoBoxManager` (bound by the mobile plugin, cleared on uninstall); `Rs2Bank.depositLootingBag` (View, Deposit loot, bounded wait, close) and `emptySeedBox`; `Rs2Combat.setAttackStyle(WidgetInfo)` (clicks only a loaded button). `emptyLogBasket` already existed. Sweep: 578 errors in 45 plugins (from 595). wildernessagility reached 0 but is not ported (PK-escape player monitor, anti-ban hops, deep Wilderness); listed in `HUB_PORTS.md` | compile, checkstyle, PMD, 830 tests | None. Claim released |
 | `f4577f5` | Claude 1 | Hub `microbot/{combathotkeys,firemakingplus}/**`, `suppressions.xml`, `build.gradle.kts`, `HubPortedPluginsTest`, `HUB_PORTS.md` | **2 more Hub ports (113 + KSP):** combathotkeys, firemakingplus (anti-ban calls inert) | compile, checkstyle, PMD, 824 tests | None. Claim released |
