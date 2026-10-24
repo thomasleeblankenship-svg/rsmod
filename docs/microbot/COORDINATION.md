@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | `util/inventory/Rs2Inventory.java` (except, fullSlotCount, inventory, itemBounds, slot x3, slotNameContains, stackableSize), `util/magic/Rs2Magic.java` (quickCanCast x3), `util/keyboard/Rs2Keyboard.java` (resetEnter), new `util/misc/Predicates.java`; new `UtilActionBatchAGTest` | **Task: util action batch AG**: inventory slot helpers, quick spell check, Enter release, distinct predicate | this commit |
 | Claude 2 (user request; util-gap plan) | Read section of `util/death/Rs2Death.java` (above your batch V block), `util/inventory/RunePouchType.java`, `util/tabs/Rs2Tab.java` (reads only), `util/grounditem/Rs2GroundItem.java` (reads only); new `util/combat/models/Rs2DropSource.java`, `util/grounditem/models/Rs2SpawnLocation.java`, `util/widget/Rs2WidgetInspector.java`; new `HubReadBatchSixteenJTest` | **Task: read batch 16j** (small leftovers): `Rs2Death.isItemsKeptOnDeathOpen`, `getItemsKeptOnDeath`, `getItemsSentToGrave`, `getPredictedGraveFee`, `getRiskValue` (reusing your `parseFee`); `RunePouchType.getPouchIds`; `Rs2Tab.getSpellBookTab`; `Rs2GroundItem.hasLineOfSight(Tile)`; upstream's drop-source and spawn-location models and the widget inspector. Farming moves to 16k (after `getInjector`) | this commit |
 
 ## Requests
