@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 (**user request**: woodcutter picks the lone Lumbridge oak; cut the two next to each other) | `woodcutting/enums/WoodcuttingTreeLocations.java` (Lumbridge oak point), new `WoodcuttingLumbridgeOakTest` | **Fix: Lumbridge Oak Trees** start point moves to the oak pair north of the castle | this commit |
 | Claude 2 (**user request**, 2026-10-24: "start button not working") | `mobilemicrobot/{MobileScriptBridge,MobileMicrobotPlugin}.java`, `headless/MobileUiBridge.java` (`microbotStart` only), tests | **Fix: Microbot screen Start does nothing while the Microbot Mobile plugin is off** (it is `enabledByDefault = false` and the new screen never shows its switch). Start will turn the plugin on and run the queued script once its runtime is installed | this commit |
 
 ## Requests
