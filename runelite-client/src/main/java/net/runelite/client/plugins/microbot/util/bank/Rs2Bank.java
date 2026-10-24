@@ -150,6 +150,141 @@ public final class Rs2Bank
 		return false;
 	}
 
+	/** As upstream: "Empty" on a carried herb sack (open or closed) into the bank. */
+	public static boolean emptyHerbSack()
+	{
+		Rs2ItemModel sack = Rs2Inventory.items(i -> i.getId() == net.runelite.api.gameval.ItemID.SLAYER_HERB_SACK
+			|| i.getId() == net.runelite.api.gameval.ItemID.SLAYER_HERB_SACK_OPEN).findFirst().orElse(null);
+		return sack != null && Rs2Inventory.interact(sack, "Empty");
+	}
+
+	/** The bank side inventory (15:3), whose slots carry "Lock-slot" / "Unlock-slot" when locking is on. */
+	private static final int BANK_SIDE_ITEMS = InterfaceID.Bankside.ITEMS;
+
+	/** The lock option this bank-inventory slot offers ("Lock-slot" or "Unlock-slot"), or null. */
+	private static String lockOption(int slot)
+	{
+		return MobileActions.read(() ->
+		{
+			Widget container = Microbot.getClient().getWidget(BANK_SIDE_ITEMS);
+			Widget item = container == null ? null : container.getChild(slot);
+			String[] actions = item == null ? null : item.getActions();
+			return actions == null ? null : Arrays.stream(actions)
+				.filter(a -> "Lock-slot".equalsIgnoreCase(a) || "Unlock-slot".equalsIgnoreCase(a)).findFirst().orElse(null);
+		}, null);
+	}
+
+	/**
+	 * As upstream: toggles the bank-inventory lock of the item named {@code itemName} (exact or
+	 * containing it). False when the bank is closed, the item is missing or slot locking is off (the
+	 * slot then offers no lock option).
+	 */
+	public static boolean toggleItemLock(String itemName, boolean exact)
+	{
+		Rs2ItemModel item = itemName == null ? null : firstInventory(itemName, exact);
+		return item != null && toggleLock(item.getSlot());
+	}
+
+	private static boolean toggleLock(int slot)
+	{
+		if (!isOpen() || slot < 0 || slot >= 28)
+		{
+			return false;
+		}
+		String option = lockOption(slot);
+		if (option == null)
+		{
+			return false;
+		}
+		String after = "Lock-slot".equalsIgnoreCase(option) ? "Unlock-slot" : "Lock-slot";
+		return Rs2Inventory.waitFor(() -> MobileActions.widget(BANK_SIDE_ITEMS, slot, option), 2_000)
+			&& Rs2Inventory.waitFor(() -> after.equalsIgnoreCase(lockOption(slot)), 2_000);
+	}
+
+	/** As upstream: locks every given bank-inventory slot that holds an item and is not locked yet. */
+	public static boolean lockAllBySlot(int... slots)
+	{
+		boolean any = false;
+		for (int slot : slots == null ? new int[0] : slots)
+		{
+			if (slot >= 0 && slot < 28 && Rs2Inventory.getItemInSlot(slot) != null && "Lock-slot".equalsIgnoreCase(lockOption(slot))
+				&& toggleLock(slot))
+			{
+				any = true;
+			}
+		}
+		return any;
+	}
+
+	/** As upstream: unlocks every locked bank-inventory slot; false when none was locked. */
+	public static boolean toggleAllLocks()
+	{
+		boolean any = false;
+		for (int slot = 0; slot < 28; slot++)
+		{
+			if ("Unlock-slot".equalsIgnoreCase(lockOption(slot)) && toggleLock(slot))
+			{
+				any = true;
+			}
+		}
+		return any;
+	}
+
+	/** As upstream: opens bank tab {@code index} (0 is the main tab). */
+	public static boolean openTab(int index)
+	{
+		if (!isOpen() || index < 0 || index > 9)
+		{
+			return false;
+		}
+		return Rs2Inventory.waitFor(() -> MobileActions.widget(InterfaceID.Bankmain.TABS, 10 + index, ""), 2_000);
+	}
+
+	/** As upstream: opens the main bank tab. */
+	public static boolean openMainTab()
+	{
+		return openTab(0);
+	}
+
+	/**
+	 * As upstream: scrolls the bank so item {@code slotId} (its index in the bank item container) is
+	 * in view. Mobile: scrolls to the slot widget's own position rather than upstream's tab-count
+	 * arithmetic. Only while a script session is active; false when the bank or slot is missing.
+	 */
+	public static boolean scrollBankToSlot(int slotId)
+	{
+		if (!MobileActions.active() || !isOpen())
+		{
+			return false;
+		}
+		return MobileActions.read(() ->
+		{
+			Widget container = Microbot.getClient().getWidget(InterfaceID.Bankmain.ITEMS);
+			Widget item = container == null ? null : container.getChild(slotId);
+			if (item == null)
+			{
+				return false;
+			}
+			int scrollY = Math.max(0, item.getRelativeY() - container.getHeight() / 2);
+			Microbot.getClient().setVarcIntValue(net.runelite.api.VarClientInt.BANK_SCROLL, scrollY);
+			Microbot.getClient().runScript(net.runelite.api.ScriptID.UPDATE_SCROLLBAR,
+				InterfaceID.Bankmain.SCROLLBAR, InterfaceID.Bankmain.ITEMS, scrollY);
+			container.setScrollY(scrollY);
+			return true;
+		}, false);
+	}
+
+	/** As upstream: withdraws {@code amount} of {@code name} and wears it (true when already worn). */
+	public static boolean withdrawXAndEquip(String name, int amount)
+	{
+		if (net.runelite.client.plugins.microbot.util.equipment.Rs2Equipment.isWearing(name))
+		{
+			return true;
+		}
+		withdrawX(name, amount);
+		return Rs2Inventory.waitFor(() -> Rs2Inventory.hasItem(name), 3_000) && wearItem(name);
+	}
+
 	public static boolean closeBank()
 	{
 		if (!isOpen()) return true;

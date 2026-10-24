@@ -228,6 +228,18 @@ public class Microbot {
         return SPECIAL_ATTACK_CONFIGS;
     }
 
+    /** As upstream: set by scripts that must not hop yet (for example while a star is being mined). */
+    public static volatile boolean cantHopWorld = false;
+
+    /**
+     * As upstream: the game said "I can't reach that!" after an interaction. Scripts reset it; on
+     * mobile the walker opens doors on its own walks, so nothing here acts on it.
+     */
+    public static boolean cantReachTarget = false;
+
+    /** As upstream: how often a script has retried an unreachable target. */
+    public static int cantReachTargetRetries = 0;
+
     /** As upstream: scripts that drink stamina potions read this before doing so; default on. */
     public static boolean useStaminaPotsIfNeeded = true;
 
