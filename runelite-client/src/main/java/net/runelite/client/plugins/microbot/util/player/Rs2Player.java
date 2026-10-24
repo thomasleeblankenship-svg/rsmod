@@ -406,6 +406,23 @@ public final class Rs2Player
 	}
 
 	/**
+	 * As upstream: picks "Attack" on this player (one script action). The option's slot comes from
+	 * the client's current player options instead of upstream's fixed second option.
+	 */
+	public static boolean attack(net.runelite.client.plugins.microbot.api.player.models.Rs2PlayerModel rs2Player)
+	{
+		return rs2Player != null && net.runelite.client.plugins.microbot.mobile.MobileActions.player(rs2Player.getId(), "Attack");
+	}
+
+	/** As upstream ("Walk here" under the player): walks to the tile this player stands on, as one script action. */
+	public static boolean walkUnder(net.runelite.client.plugins.microbot.api.player.models.Rs2PlayerModel rs2Player)
+	{
+		net.runelite.api.coords.WorldPoint tile = rs2Player == null ? null
+			: net.runelite.client.plugins.microbot.mobile.MobileActions.read(() -> rs2Player.getPlayer().getWorldLocation(), null);
+		return tile != null && net.runelite.client.plugins.microbot.mobile.MobileActions.walk(tile);
+	}
+
+	/**
 	 * Upstream hops worlds when another player is nearby. Hopping to avoid other players is not
 	 * ported (project policy), so this never hops and always returns false; a script that calls it
 	 * simply carries on where it is.

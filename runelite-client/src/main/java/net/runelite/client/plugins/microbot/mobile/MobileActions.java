@@ -312,6 +312,39 @@ public final class MobileActions
 		});
 	}
 
+	/**
+	 * Picks the player menu option {@code option} (for example "Attack") on the player with this id,
+	 * as one script action. The option's slot is read from the client's current player options, so it
+	 * follows the area (Attack moves with PvP rules). "Trade with" is refused: no item transfers.
+	 */
+	public static boolean player(int playerId, String option)
+	{
+		if (option == null || "trade with".equalsIgnoreCase(option.trim()))
+		{
+			return false;
+		}
+		return perform(() ->
+		{
+			Player target = null;
+			for (Player player : client().getTopLevelWorldView().players())
+			{
+				if (player != null && player.getId() == playerId) { target = player; break; }
+			}
+			String[] options = client().getPlayerOptions();
+			if (target == null || options == null) { return false; }
+			String[] plain = new String[options.length];
+			for (int i = 0; i < options.length; i++)
+			{
+				plain[i] = options[i] == null ? null : net.runelite.client.util.Text.removeTags(options[i]);
+			}
+			int op = actionIndex(plain, option);
+			if (op < 0 || op > 7) { return false; }
+			client().menuAction(0, 0, MenuAction.of(MenuAction.PLAYER_FIRST_OPTION.getId() + op),
+				playerId, -1, plain[op], target.getName());
+			return true;
+		});
+	}
+
 	public static boolean walk(WorldPoint destination)
 	{
 		return perform(() ->
