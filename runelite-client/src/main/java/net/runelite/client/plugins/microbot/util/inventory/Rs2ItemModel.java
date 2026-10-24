@@ -142,6 +142,14 @@ public class Rs2ItemModel
 			.anyMatch(slot -> slot.getSlotIdx() == item.getSlot());
 	}
 
+	/** As upstream: the unnoted variant of {@code itemId} (definition read on the client thread); -1 when unknown. */
+	public static int getUnNotedId(int itemId)
+	{
+		ItemComposition composition = net.runelite.client.plugins.microbot.mobile.MobileActions.read(
+			() -> net.runelite.client.plugins.microbot.Microbot.getClient().getItemDefinition(itemId), null);
+		return composition == null ? -1 : unNotedId(composition.getId(), composition, composition.getNote() == 799);
+	}
+
 	/** The unnoted variant's id (see the constructor), read when the model was built. */
 	public int getUnNotedId()
 	{

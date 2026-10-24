@@ -131,6 +131,13 @@ public final class Rs2Equipment
 		}, null);
 	}
 
+	/** As upstream: equipped items matching {@code predicate}. */
+	public static java.util.stream.Stream<net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel> all(
+		Predicate<net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel> predicate)
+	{
+		return all().filter(predicate);
+	}
+
 	/** As upstream: every equipped item, read once on the client thread. */
 	public static java.util.stream.Stream<net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel> all()
 	{

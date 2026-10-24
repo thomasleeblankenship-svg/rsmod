@@ -39,6 +39,36 @@ public final class Rs2UiHelper
 		return Rs2TextSanitizer.stripTags(text);
 	}
 
+	/** As upstream: the rectangle's corner lies inside the viewport. */
+	public static boolean isRectangleWithinViewport(Rectangle rectangle)
+	{
+		if (rectangle == null)
+		{
+			return false;
+		}
+		int[] viewport = MobileActions.read(() -> new int[]{
+			net.runelite.client.plugins.microbot.Microbot.getClient().getViewportWidth(),
+			net.runelite.client.plugins.microbot.Microbot.getClient().getViewportHeight()}, new int[]{0, 0});
+		return rectangle.getX() <= viewport[0] && rectangle.getY() <= viewport[1] && rectangle.getX() >= 0 && rectangle.getY() >= 0;
+	}
+
+	/** As upstream: {@code main} contains {@code sub}. */
+	public static boolean isRectangleWithinRectangle(Rectangle main, Rectangle sub)
+	{
+		return main != null && sub != null && main.contains(sub);
+	}
+
+	/** As upstream: the bounds of {@code object}'s clickbox, or the default rectangle when it has none. */
+	public static Rectangle getObjectClickbox(net.runelite.api.TileObject object)
+	{
+		Rectangle bounds = object == null ? null : MobileActions.read(() ->
+		{
+			Shape clickbox = object.getClickbox();
+			return clickbox == null ? null : clickbox.getBounds();
+		}, null);
+		return bounds == null ? getDefaultRectangle() : new Rectangle(bounds);
+	}
+
 	/** As upstream: the whole canvas, from (1, 1). */
 	public static Rectangle getDefaultRectangle()
 	{

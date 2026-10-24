@@ -27,6 +27,63 @@ public final class Rs2Combat
 	 * Whether the local player is fighting: interacting with an actor that has a combat level, and
 	 * either animating or still interacting. False when logged out or without a player.
 	 */
+	/** Upstream's weapon range table, by item id. */
+	private static final java.util.Map<Integer, net.runelite.client.plugins.microbot.util.combat.weapons.Weapon> WEAPONS_MAP =
+		net.runelite.client.plugins.microbot.util.combat.weapons.WeaponsGenerator.generate();
+
+	/** As upstream: the attack range of the equipped weapon in its current style (1 for melee or unknown). */
+	public static int getAttackRange()
+	{
+		return getAttackRange(false, false);
+	}
+
+	/**
+	 * As upstream: the equipped weapon's range for its current attack style; a manual-castable staff
+	 * counts only while auto-casting unless {@code includeManualCast}; melee is 1 unless
+	 * {@code includeSpecialAttack} (then its special attack range).
+	 */
+	public static int getAttackRange(boolean includeManualCast, boolean includeSpecialAttack)
+	{
+		net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel weapon =
+			net.runelite.client.plugins.microbot.util.equipment.Rs2Equipment.get(net.runelite.api.EquipmentInventorySlot.WEAPON);
+		net.runelite.client.plugins.microbot.util.combat.weapons.Weapon data = weapon == null ? null : WEAPONS_MAP.get(weapon.getId());
+		if (data == null)
+		{
+			return 1;
+		}
+		if (data instanceof net.runelite.client.plugins.microbot.util.combat.weapons.Melee)
+		{
+			return includeSpecialAttack ? ((net.runelite.client.plugins.microbot.util.combat.weapons.Melee) data).getSpecialAttackRange() : 1;
+		}
+		String style = getWeaponAttackStyle();
+		int range = data instanceof net.runelite.client.plugins.microbot.util.combat.weapons.ManualCastable
+			? ((net.runelite.client.plugins.microbot.util.combat.weapons.ManualCastable) data).getRange(style, includeManualCast)
+			: data.getRange(style);
+		return Math.max(range, 1);
+	}
+
+	/**
+	 * As upstream: the current attack style's name ("Accurate", "Longrange", "Casting", ...) from the
+	 * weapon category's style structs; "" when it cannot be read. Client thread.
+	 */
+	public static String getWeaponAttackStyle()
+	{
+		return MobileActions.read(() ->
+		{
+			net.runelite.api.Client client = Microbot.getClient();
+			int style = client.getVarpValue(net.runelite.api.gameval.VarPlayerID.COM_MODE);
+			int category = client.getVarbitValue(net.runelite.api.gameval.VarbitID.COMBAT_WEAPON_CATEGORY);
+			net.runelite.api.EnumComposition styles = client.getEnum(net.runelite.api.EnumID.WEAPON_STYLES);
+			int[] structs = styles == null ? null : client.getEnum(styles.getIntValue(category)).getIntVals();
+			if (structs == null || style < 0 || style >= structs.length)
+			{
+				return "";
+			}
+			String name = client.getStructComposition(structs[style]).getStringValue(net.runelite.api.ParamID.ATTACK_STYLE_NAME);
+			return name == null ? "" : name;
+		}, "");
+	}
+
 	public static boolean inCombat()
 	{
 		return MobileActions.read(() ->

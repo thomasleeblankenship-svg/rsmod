@@ -27,6 +27,25 @@ public class Rs2NpcModel extends ActorModel implements NPC
 		return npc;
 	}
 
+	/**
+	 * As upstream: NPCs whose name equals ({@code exact}) or contains one of {@code names}, ignoring
+	 * case. Adaptation: upstream compares the contains case with the name not lower-cased.
+	 */
+	public static java.util.function.Predicate<Rs2NpcModel> matches(boolean exact, String... names)
+	{
+		return npc ->
+		{
+			String name = npc.getName();
+			if (name == null || names == null)
+			{
+				return false;
+			}
+			String lower = name.toLowerCase();
+			return java.util.Arrays.stream(names).filter(java.util.Objects::nonNull)
+				.anyMatch(s -> exact ? name.equalsIgnoreCase(s) : lower.contains(s.toLowerCase()));
+		};
+	}
+
 	/** As upstream: the wrapped live NPC (same as {@link #getNpc}); read it on the client thread. */
 	public NPC getRuneliteNpc()
 	{

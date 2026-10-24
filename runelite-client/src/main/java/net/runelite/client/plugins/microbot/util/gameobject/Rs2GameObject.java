@@ -287,6 +287,129 @@ public final class Rs2GameObject
 		}).findFirst().orElse(null);
 	}
 
+	/** As upstream: every wall object in the scene, nearest first. */
+	public static List<net.runelite.api.WallObject> getWallObjects()
+	{
+		return sceneObjects(tile -> Collections.singletonList(tile.getWallObject()), o -> true, playerLocation(), Constants.SCENE_SIZE);
+	}
+
+	/** As upstream: the object's definition, resolved to its current impostor. */
+	public static ObjectComposition getObjectComposition(int id)
+	{
+		return convertToObjectComposition(id);
+	}
+
+	/** As upstream: the nearest game object with {@code id} within half a scene. */
+	public static net.runelite.api.GameObject getGameObject(int id)
+	{
+		return getGameObject(o -> o.getId() == id);
+	}
+
+	public static net.runelite.api.GameObject getGameObject(int id, int distance)
+	{
+		return getGameObject(o -> o.getId() == id, playerLocation(), distance);
+	}
+
+	public static net.runelite.api.GameObject getGameObject(int id, WorldPoint anchor)
+	{
+		return getGameObject(o -> o.getId() == id, anchor);
+	}
+
+	public static net.runelite.api.GameObject getGameObject(int id, WorldPoint anchor, int distance)
+	{
+		return getGameObject(o -> o.getId() == id, anchor, distance);
+	}
+
+	public static net.runelite.api.GameObject getGameObject(String objectName)
+	{
+		return getGameObject(objectName, false);
+	}
+
+	public static net.runelite.api.GameObject getGameObject(String objectName, boolean exact)
+	{
+		return getGameObject(nameMatches(objectName, exact));
+	}
+
+	public static net.runelite.api.GameObject getGameObject(String objectName, int distance)
+	{
+		return getGameObject(nameMatches(objectName, false), playerLocation(), distance);
+	}
+
+	public static net.runelite.api.GameObject getGameObject(String objectName, boolean exact, int distance)
+	{
+		return getGameObject(nameMatches(objectName, exact), playerLocation(), distance);
+	}
+
+	public static net.runelite.api.GameObject getGameObject(String objectName, WorldPoint anchor)
+	{
+		return getGameObject(nameMatches(objectName, false), anchor);
+	}
+
+	public static net.runelite.api.GameObject getGameObject(String objectName, WorldPoint anchor, int distance)
+	{
+		return getGameObject(nameMatches(objectName, false), anchor, distance);
+	}
+
+	public static net.runelite.api.GameObject getGameObject(String objectName, boolean exact, WorldPoint anchor, int distance)
+	{
+		return getGameObject(nameMatches(objectName, exact), anchor, distance);
+	}
+
+	public static net.runelite.api.GameObject getGameObject(java.util.function.Predicate<net.runelite.api.GameObject> predicate)
+	{
+		return getGameObject(predicate, playerLocation());
+	}
+
+	public static net.runelite.api.GameObject getGameObject(java.util.function.Predicate<net.runelite.api.GameObject> predicate, WorldPoint anchor)
+	{
+		return getGameObject(predicate, anchor, Constants.SCENE_SIZE / 2);
+	}
+
+	/** As upstream: the nearest game object matching {@code predicate} within {@code distance} of {@code anchor}. */
+	public static net.runelite.api.GameObject getGameObject(java.util.function.Predicate<net.runelite.api.GameObject> predicate, WorldPoint anchor, int distance)
+	{
+		return getGameObjects(predicate, anchor, distance).stream().findFirst().orElse(null);
+	}
+
+	/** As upstream: {@link #canReach(WorldPoint, int, int, int, int)} for a 2x2 object from a 2x2 path end. */
+	public static boolean canReach(WorldPoint target)
+	{
+		return canReach(target, 2, 2, 2, 2);
+	}
+
+	/** As upstream: {@link #canReach(WorldPoint, int, int, int, int)} with a 3x3 path end. */
+	public static boolean canReach(WorldPoint target, int objectSizeX, int objectSizeY)
+	{
+		return canReach(target, objectSizeX, objectSizeY, 3, 3);
+	}
+
+	/**
+	 * As upstream: whether the end of the player's walkable path toward {@code target} (an area of
+	 * {@code pathSizeX} x {@code pathSizeY} around it) touches the object's area grown by one tile.
+	 * Adaptation: upstream ends the path with {@code Rs2WorldPoint.pathTo}; here the path end is the
+	 * reachable tile (collision BFS over the loaded scene) nearest to {@code target}.
+	 */
+	public static boolean canReach(WorldPoint target, int objectSizeX, int objectSizeY, int pathSizeX, int pathSizeY)
+	{
+		WorldPoint player = net.runelite.client.plugins.microbot.util.player.Rs2Player.getWorldLocation();
+		if (target == null || player == null || player.getPlane() != target.getPlane())
+		{
+			return false;
+		}
+		WorldPoint end = net.runelite.client.plugins.microbot.util.tile.Rs2Tile.getReachableTilesFromTile(player, Constants.SCENE_SIZE).keySet().stream()
+			.min(Comparator.comparingInt((WorldPoint p) -> p.distanceTo2D(target)).thenComparingInt(p -> p.distanceTo2D(player)))
+			.orElse(null);
+		if (end == null)
+		{
+			return false;
+		}
+		WorldArea pathArea = new WorldArea(new WorldPoint(end.getX() - pathSizeX / 2, end.getY() - pathSizeY / 2, end.getPlane()), pathSizeX, pathSizeY);
+		WorldArea objectArea = new WorldArea(new WorldPoint(target.getX() - (objectSizeX + 2) / 2, target.getY() - (objectSizeY + 2) / 2, target.getPlane()),
+			objectSizeX + 2, objectSizeY + 2);
+		return pathArea.getX() < objectArea.getX() + objectArea.getWidth() && objectArea.getX() < pathArea.getX() + pathArea.getWidth()
+			&& pathArea.getY() < objectArea.getY() + objectArea.getHeight() && objectArea.getY() < pathArea.getY() + pathArea.getHeight();
+	}
+
 	/** As upstream: the nearest wall, decorative or ground object with {@code id}. */
 	public static TileObject getTileObject(int id)
 	{

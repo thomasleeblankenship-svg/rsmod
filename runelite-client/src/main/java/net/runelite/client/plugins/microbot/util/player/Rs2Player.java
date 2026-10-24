@@ -636,6 +636,84 @@ public final class Rs2Player
 		}, names);
 	}
 
+	/** As upstream: the item id worn in each kit slot of {@code rs2Player} (-1 for an empty slot); client thread. */
+	public static java.util.Map<net.runelite.api.kit.KitType, Integer> getPlayerEquipmentIds(Rs2PlayerModel rs2Player)
+	{
+		java.util.Map<net.runelite.api.kit.KitType, Integer> ids = new java.util.EnumMap<>(net.runelite.api.kit.KitType.class);
+		if (rs2Player == null)
+		{
+			return ids;
+		}
+		return net.runelite.client.plugins.microbot.mobile.MobileActions.read(() ->
+		{
+			Player player = rs2Player.getPlayer();
+			net.runelite.api.PlayerComposition composition = player == null ? null : player.getPlayerComposition();
+			for (net.runelite.api.kit.KitType kit : net.runelite.api.kit.KitType.values())
+			{
+				ids.put(kit, composition == null ? -1 : composition.getEquipmentId(kit));
+			}
+			return ids;
+		}, ids);
+	}
+
+	/** As upstream: {@code rs2Player} wears {@code itemId}. */
+	public static boolean hasPlayerEquippedItem(Rs2PlayerModel rs2Player, int itemId)
+	{
+		return getPlayerEquipmentIds(rs2Player).containsValue(itemId);
+	}
+
+	/** As upstream: {@code rs2Player} wears one of {@code itemIds}. */
+	public static boolean hasPlayerEquippedItem(Rs2PlayerModel rs2Player, int[] itemIds)
+	{
+		java.util.Collection<Integer> worn = getPlayerEquipmentIds(rs2Player).values();
+		return itemIds != null && java.util.Arrays.stream(itemIds).anyMatch(worn::contains);
+	}
+
+	/** As upstream: {@code rs2Player} wears an item named {@code itemName}, ignoring case. */
+	public static boolean hasPlayerEquippedItem(Rs2PlayerModel rs2Player, String itemName)
+	{
+		return getPlayerEquipmentNames(rs2Player).values().stream().anyMatch(name -> name.equalsIgnoreCase(itemName));
+	}
+
+	/** As upstream: {@code rs2Player} wears an item with one of {@code itemNames}, ignoring case. */
+	public static boolean hasPlayerEquippedItem(Rs2PlayerModel rs2Player, java.util.List<String> itemNames)
+	{
+		return itemNames != null && getPlayerEquipmentNames(rs2Player).values().stream()
+			.anyMatch(name -> itemNames.stream().anyMatch(name::equalsIgnoreCase));
+	}
+
+	/** As upstream: other players whose health bar is showing (so in combat recently). */
+	@Deprecated
+	public static java.util.List<Rs2PlayerModel> getPlayersInCombat()
+	{
+		return getPlayers(player -> healthOf(player)[0] != -1).collect(java.util.stream.Collectors.toList());
+	}
+
+	/** As upstream: {@code rs2Player}'s health bar as a percentage, or -1 when no bar is showing. */
+	public static int calculateHealthPercentage(Rs2PlayerModel rs2Player)
+	{
+		int[] health = healthOf(rs2Player);
+		if (health[0] == -1 || health[1] == -1 || health[1] == 0)
+		{
+			return -1;
+		}
+		return (int) ((health[0] / (double) health[1]) * 100);
+	}
+
+	/** {health ratio, health scale} of the player's live model, read on the client thread; -1s when unknown. */
+	private static int[] healthOf(Rs2PlayerModel rs2Player)
+	{
+		if (rs2Player == null)
+		{
+			return new int[]{-1, -1};
+		}
+		return net.runelite.client.plugins.microbot.mobile.MobileActions.read(() ->
+		{
+			Player player = rs2Player.getPlayer();
+			return player == null ? new int[]{-1, -1} : new int[]{player.getHealthRatio(), player.getHealthScale()};
+		}, new int[]{-1, -1});
+	}
+
 	public static boolean isMember()
 	{
 		return net.runelite.client.plugins.microbot.mobile.MobileActions.read(() ->
