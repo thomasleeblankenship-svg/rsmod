@@ -34,7 +34,7 @@ import net.runelite.http.api.loottracker.LootRecordType;
 @Getter
 @AllArgsConstructor
 @EqualsAndHashCode(of = {"title", "type"})
-class LootTrackerRecord
+public class LootTrackerRecord
 {
 	@NonNull
 	private final String title;
