@@ -13,4 +13,22 @@ public final class MobileRouteTestAccess
 	{
 		return MobileRouteTest.offlineConfig(policy);
 	}
+
+	/** {@link MobileRouteTest#offlineConfig(MobileTransportPolicy, java.util.function.Predicate)}. */
+	public static PathfinderConfig offlineConfig(MobileTransportPolicy policy, java.util.function.Predicate<Transport> usable)
+	{
+		return MobileRouteTest.offlineConfig(policy, usable);
+	}
+
+	/** The executor-facing copy of {@code transport}, as a route would carry it. */
+	public static PathResult.TransportStep step(Transport transport)
+	{
+		return new PathResult.TransportStep(transport);
+	}
+
+	/** The loaded transport catalogue (shared, do not modify). */
+	public static java.util.Map<net.runelite.api.coords.WorldPoint, java.util.Set<Transport>> catalogue()
+	{
+		return MobileRouteTest.catalogue();
+	}
 }
