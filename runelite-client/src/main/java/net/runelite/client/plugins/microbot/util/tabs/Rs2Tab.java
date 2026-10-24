@@ -88,4 +88,24 @@ public final class Rs2Tab
 	public static boolean switchToMagicTab() { return switchTo(InterfaceTab.MAGIC); }
 	public static boolean switchToSettingsTab() { return switchTo(InterfaceTab.SETTINGS); }
 	public static boolean switchToLogout() { return switchTo(InterfaceTab.LOGOUT); }
+
+	/** As upstream: the spellbook tab stone for the current layout (fixed, resizable classic or resizable modern). */
+	public static net.runelite.api.widgets.Widget getSpellBookTab()
+	{
+		boolean resized = MobileActions.read(() -> Microbot.getClient().isResized(), false);
+		int component;
+		if (!resized)
+		{
+			component = net.runelite.api.gameval.InterfaceID.Toplevel.STONE6;
+		}
+		else if (Microbot.getVarbitValue(net.runelite.api.gameval.VarbitID.RESIZABLE_STONE_ARRANGEMENT) == 1)
+		{
+			component = net.runelite.api.gameval.InterfaceID.ToplevelPreEoc.STONE6;
+		}
+		else
+		{
+			component = net.runelite.api.gameval.InterfaceID.ToplevelOsrsStretch.STONE6;
+		}
+		return net.runelite.client.plugins.microbot.util.widget.Rs2Widget.getWidget(component);
+	}
 }

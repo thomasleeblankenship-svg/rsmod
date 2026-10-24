@@ -78,6 +78,72 @@ public final class Rs2Death
 		}, Collections.emptyList());
 	}
 
+	// ---- Read batch 16j (upstream 2.6.38): the Items Kept on Death interface ----
+
+	/** Upstream's grave fee caption pattern ("fee: 12,345"). */
+	private static final java.util.regex.Pattern FEE_LABEL = java.util.regex.Pattern.compile("(?i)fee:\\s*([^)<]+)");
+
+	/** As upstream: the Items Kept on Death interface is showing. */
+	public static boolean isItemsKeptOnDeathOpen()
+	{
+		return Rs2Widget.isWidgetVisible(InterfaceID.Deathkeep.KEPT);
+	}
+
+	/** As upstream: the items that interface says are kept. */
+	public static List<Rs2ItemModel> getItemsKeptOnDeath()
+	{
+		return readItemContainer(InterfaceID.Deathkeep.KEPT);
+	}
+
+	/** As upstream: the items that interface says go to the grave. */
+	public static List<Rs2ItemModel> getItemsSentToGrave()
+	{
+		return readItemContainer(InterfaceID.Deathkeep.GRAVE);
+	}
+
+	/** As upstream: the grave fee from the grave panel's caption, or 0. */
+	public static int getPredictedGraveFee()
+	{
+		String label = MobileActions.read(() ->
+		{
+			Widget container = Microbot.getClient().getWidget(InterfaceID.Deathkeep.GRAVE);
+			Widget[] children = container == null ? null : container.getDynamicChildren();
+			for (int i = 0; children != null && i < children.length; i++)
+			{
+				String text = children[i] == null ? null : children[i].getText();
+				if (text != null && !text.isEmpty())
+				{
+					return text;
+				}
+			}
+			return null;
+		}, null);
+		if (label == null)
+		{
+			return 0;
+		}
+		java.util.regex.Matcher fee = FEE_LABEL.matcher(label);
+		if (!fee.find())
+		{
+			return 0;
+		}
+		java.util.regex.Matcher digits = DIGITS.matcher(fee.group(1));
+		try
+		{
+			return digits.find() ? Integer.parseInt(digits.group().replace(",", "")) : 0;
+		}
+		catch (NumberFormatException e)
+		{
+			return 0;
+		}
+	}
+
+	/** As upstream: the risked value shown by the interface, or 0. */
+	public static int getRiskValue()
+	{
+		return parseFee(InterfaceID.Deathkeep.VALUE);
+	}
+
 	// ---- Util action batch V (Claude 1): death state, grave, Death's Office, recovery ----
 	//
 	// As upstream, nothing here runs on its own: a script polls hasDeathToHandle() and calls
