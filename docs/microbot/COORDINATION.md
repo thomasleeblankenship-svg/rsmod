@@ -44,6 +44,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Codex (user: next) | `api/MobileBankRecoveryIntegrationTest.java`; `CODEX_RECOVERY_REVIEW.md` follow-up section | Background/foreground and logout/reconnect cancellation during a real-adapter bank trip; no runtime or shared-fixture edits | this claim commit |
 | Claude 1 | `util/walker/Rs2Walker.java`, `PathfinderLegTest`, `WEBWALKER_PLAN.md`, `HUB_PORTS.md` | Webwalker step 9: hot air balloons (destination maps generalised from the glider map) | this commit |
 | Claude 2 (session `claude/dazzling-cannon-6cy3wc`) | read blocks appended in `util/gameobject/Rs2GameObject.java` (no change to the interact methods), `util/npc/Rs2Npc.java`, `util/player/Rs2Player.java`, `util/dialogues/Rs2Dialogue.java`; new tests | Hub read batch 6: legacy `Rs2GameObject` scene reads (`getGameObjects`, `getGroundObjects`, `getAll`, `exists`, `findObjectByLocation`, `findReachableObject`, `findBank`, `isReachable`, `convertToObjectComposition`, `nameMatches`, `getObjectIdsByName`), `Rs2Npc.getNpcs`/`getNpc`, `Rs2Player.getCombatLevel`/`getPlayersInCombatLevelRange`/`hasStaminaActive`, `Rs2Dialogue.hasCombinationDialogue`. Reads only | this commit |
 
