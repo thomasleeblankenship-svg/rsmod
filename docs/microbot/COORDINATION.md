@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | New Hub ports `microbot/{arceuusrc,attackrangesplus,moonsofperil,plankrunner,wintertodt}/**` with resources, `suppressions.xml`, `build.gradle.kts`, `HubPortedPluginsTest`, `HUB_PORTS.md` (CalcifiedRockMiner recorded as not ported) | **Task: port five more Hub plugins that now compile unchanged** | this commit |
 
 ## Requests
 
