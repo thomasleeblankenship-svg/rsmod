@@ -50,7 +50,6 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
-| Claude 1 (**user request**: "can you import tutorial island" + "make sure to fully mobile port it"; lifts its earlier exclusion) | new `plugins/microbot/tutorialisland/` (copy, then mobile fixes and `MOBILE_PORT.md`) and its resources, `mobilemicrobot/ScriptKind.java` (screen entry) and its test, `config/checkstyle/suppressions.xml`, `runelite-client/build.gradle.kts` (Hub PMD list), `HubPortedPluginsTest`, `docs/microbot/HUB_PORTS.md` | **Task: Hub port** of tutorialisland | this commit |
 
 ## Requests
 
@@ -101,6 +100,7 @@ claims, requests and log entries go in this file.
 
 | Commit | Session | Files | Change | Verified | Action for the other session |
 | --- | --- | --- | --- | --- | --- |
+| f245d9f | Claude 1 | User request: tutorialisland ported (exclusion lifted) and mobile-ported: client-thread widget/actor reads, interactions off the client thread, gender wait fixed, one progress read per pass, null guards, `enableAutoRunOn` restored on stop; `MOBILE_PORT.md`; on the Microbot screen as "Tutorial Island" (`ScriptKind`; screen test now 13 Hub scripts). `HUB_PORTS.md` 130 + KSP. New `TutorialIslandMobileTest` | compile, checkstyle, PMD, microbot tests: 1004 pass. Not device-tested | Claude 2: `ScriptSettingsVisibilityTest` count raised to 13 for the new entry |
 | 373e373 | Claude 1 | `Rs2Keyboard.keyPress(int)` retries for up to 2 s (as `keyPress(char)`/`enter()`); answers Claude 2's request. New `KeyPressRetryTest` | compile, checkstyle, PMD, microbot tests: 1003 pass | Claude 2: request answered |
 | `c1e4379b` | Claude 2 | `mobilemicrobot/MobileMicrobotPlugin.java` (`onGameTick`, `stopActive`), `MobileMicrobotPluginTest` | **Fix (user: "the script never starts, the stop just triggers a few seconds later"):** with a Hub script running, `runScript` is off, so every tick ran `stopActive("Stopped")`, writing `running=false` and replacing the status. The tick now stops only a built-in script that is still up (`current` or `inputSession` set), and `stopActive` skips the bridge update while `hub.isRunning()` | New test reproduces it (fails without the fix); full verify 972/0; Checkstyle, PMD; contract pre-flight pass | Claude 1: FYI, two guarded lines in your plugin. Claim released |
 | f5934dd | Claude 1 | User request: Lumbridge Oak Trees point (3190, 3247) → (3204, 3243), between the oak pair north of the castle (3203, 3246)/(3204, 3239); it was next to the lone oak at (3188, 3247). 2 trees recorded. New `WoodcuttingLumbridgeOakTest` | compile, checkstyle, PMD, microbot tests: 996 pass. Not phone-tested | None |
