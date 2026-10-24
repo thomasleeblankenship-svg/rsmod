@@ -19,9 +19,12 @@ on:
 permissions:
   contents: read
 
+# A started build always finishes: several sessions push to this branch minutes apart, and cancelling
+# in progress meant most builds never uploaded an APK. GitHub keeps only the newest waiting run per
+# group, so the latest push is still built next and older waiting runs are skipped.
 concurrency:
   group: mobile-test-apk-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   apk:

@@ -105,15 +105,15 @@ sys.exit(settings["exit"].get(name, 0))
                     warnings.simplefilter("ignore", UserWarning)
                     outer.writestr("assets/jvm/client-fixture-gpu.jar", data.getvalue())
 
-    def run_cli(self, *extra, expected=None):
-        result = subprocess.run([sys.executable, str(SCRIPT), str(self.apk),
+    def run_cli(self, *extra, expected=None, input_path=None):
+        result = subprocess.run([sys.executable, str(SCRIPT), str(input_path or self.apk),
                                  f"--expected-commit={expected or self.commit}",
                                  "--repo", str(self.repo), "--build-tools", str(self.tools), *extra],
                                 capture_output=True, text=True, timeout=30)
         return result, json.loads(result.stdout)
 
-    def reject(self, error, *extra, expected=None):
-        result, report = self.run_cli(*extra, expected=expected)
+    def reject(self, error, *extra, expected=None, input_path=None):
+        result, report = self.run_cli(*extra, expected=expected, input_path=input_path)
         self.assertEqual(1, result.returncode, result.stderr)
         self.assertEqual("failed", report["status"])
         self.assertIn(error, report["error"])
@@ -241,6 +241,82 @@ sys.exit(settings["exit"].get(name, 0))
 
     def test_invalid_revision_is_not_interpreted_as_git_option(self):
         self.reject("Git commit hash", expected="--help")
+
+
+    def artifact(self, member="test application.apk", declared=None, sums=None, extra=()):
+        path = self.root / "downloaded artifact.zip"
+        payload = self.apk.read_bytes()
+        parent = Path(member).parent
+        checksum = hashlib.sha256(payload).hexdigest()
+        with zipfile.ZipFile(path, "w") as archive:
+            archive.writestr(member, payload)
+            archive.writestr(str(parent / "SOURCE_COMMIT.txt"), declared or self.commit + "\n")
+            archive.writestr(str(parent / "SHA256SUMS.txt"), sums or f"{checksum}  {Path(member).name}\n")
+            for name, value in extra:
+                archive.writestr(name, value)
+        return path
+
+    def test_artifact_zip_passes_manifest_and_apk_checks(self):
+        artifact = self.artifact(member="download/test application.apk")
+        saved = self.root / "artifact report.json"
+        result, report = self.run_cli("--artifact-zip", "--json-out", str(saved), input_path=artifact)
+        self.assertEqual(0, result.returncode, report)
+        self.assertTrue(report["artifact_checksum_verified"])
+        self.assertTrue(report["source_commit_file_verified"])
+        self.assertEqual("download/test application.apk", report["apk"])
+        self.assertEqual(hashlib.sha256(artifact.read_bytes()).hexdigest(), report["artifact_zip_sha256"])
+        self.assertEqual(hashlib.sha256(self.apk.read_bytes()).hexdigest(), report["sha256"])
+        self.assertEqual(report, json.loads(saved.read_text()))
+        calls = [json.loads(line) for line in (self.tools / "calls.jsonl").read_text().splitlines()]
+        self.assertFalse(Path(calls[0][-1]).exists(), "temporary APK must be cleaned up")
+
+    def test_artifact_source_revision_mismatch_is_rejected(self):
+        artifact = self.artifact(declared="0" * 40 + "\n")
+        self.reject("SOURCE_COMMIT.txt does not match", "--artifact-zip", input_path=artifact)
+
+    def test_artifact_wrong_checksum_is_rejected_before_sdk_runs(self):
+        artifact = self.artifact(sums="0" * 64 + "  test application.apk\n")
+        self.reject("APK checksum does not match", "--artifact-zip", input_path=artifact)
+        self.assertFalse((self.tools / "calls.jsonl").exists())
+
+    def test_artifact_requires_both_metadata_files(self):
+        artifact = self.root / "incomplete.zip"
+        with zipfile.ZipFile(artifact, "w") as archive:
+            archive.writestr("app.apk", self.apk.read_bytes())
+        self.reject("SOURCE_COMMIT.txt and SHA256SUMS.txt", "--artifact-zip", input_path=artifact)
+
+    def test_artifact_multiple_apks_are_ambiguous(self):
+        artifact = self.artifact(extra=(("other.apk", self.apk.read_bytes()),))
+        self.reject("exactly one APK", "--artifact-zip", input_path=artifact)
+
+    def test_artifact_path_traversal_is_rejected(self):
+        artifact = self.artifact(member="../outside.apk")
+        self.reject("Unsafe APK member path", "--artifact-zip", input_path=artifact)
+        self.assertFalse((self.root.parent / "outside.apk").exists())
+
+    def test_artifact_duplicate_checksum_lines_are_rejected(self):
+        digest = hashlib.sha256(self.apk.read_bytes()).hexdigest()
+        artifact = self.artifact(sums=(f"{digest}  test application.apk\n" * 2))
+        self.reject("exactly once", "--artifact-zip", input_path=artifact)
+
+    def test_artifact_checksum_cannot_name_a_different_file(self):
+        digest = hashlib.sha256(self.apk.read_bytes()).hexdigest()
+        artifact = self.artifact(sums=f"{digest}  another.apk\n")
+        self.reject("exactly once", "--artifact-zip", input_path=artifact)
+
+    def test_artifact_mode_preserves_inner_signing_failures(self):
+        self.settings["exit"]["apksigner"] = 1
+        self.write_settings()
+        artifact = self.artifact()
+        self.reject("apksigner failed", "--artifact-zip", input_path=artifact)
+        calls = [json.loads(line) for line in (self.tools / "calls.jsonl").read_text().splitlines()]
+        self.assertFalse(Path(calls[0][-1]).exists(), "failed verification must clean its temporary APK")
+
+    def test_artifact_report_cannot_replace_input_zip(self):
+        artifact = self.artifact()
+        before = artifact.read_bytes()
+        self.reject("must not overwrite the artifact ZIP", "--artifact-zip", "--json-out", str(artifact), input_path=artifact)
+        self.assertEqual(before, artifact.read_bytes())
 
 
 if __name__ == "__main__":
