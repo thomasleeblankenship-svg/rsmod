@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | `util/bank/Rs2Bank.java` (`emptyHerbSack`, `toggleItemLock(String, boolean)`, `lockAllBySlot`, `toggleAllLocks`, `openTab`, `openMainTab`, `scrollBankToSlot`, `withdrawXAndEquip`), `Microbot.java` (`cantHopWorld`, `cantReachTarget`, `cantReachTargetRetries`), new `HubActionBatchG1Test` | **Task: util-gap action batch G1** (bank) | this commit |
 
 ## Requests
 
