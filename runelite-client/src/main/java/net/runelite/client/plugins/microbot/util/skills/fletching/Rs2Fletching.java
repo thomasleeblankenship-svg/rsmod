@@ -79,11 +79,205 @@ public final class Rs2Fletching
 		return Rs2Inventory.items(i -> i.getId() == itemId).mapToInt(Rs2ItemModel::getQuantity).sum();
 	}
 
-	/** Invalidates an in-progress production selection; there is no independent background input task. */
-	public static void stopFletchingWhileMoving()
+	/**
+	 * As upstream: stops the fletch-while-moving task (if any) and invalidates an in-progress
+	 * production selection.
+	 */
+	public static synchronized void stopFletchingWhileMoving()
 	{
 		CANCELLATION.incrementAndGet();
+		if (whileMovingTask != null)
+		{
+			whileMovingTask.cancel(false);
+			whileMovingTask = null;
+		}
 	}
+
+	// ---- Util action batch AK (Claude 1): fletching while moving, auto-fletching ----
+
+	/** Upstream's period between fletch-while-moving checks. */
+	private static final long WHILE_MOVING_PERIOD_MILLIS = 1_800;
+	private static java.util.concurrent.ScheduledFuture<?> whileMovingTask;
+
+	/**
+	 * As upstream: on {@code executor} (the script's scheduler), every 1.8 s while the player walks
+	 * and is not animating, knife on {@code materialName} and make 5 of {@code itemName}; stops when
+	 * the material runs out or the player stops moving. Input goes through the script's session, so
+	 * it stops with the script. Nothing when a task is already running or materials are missing.
+	 */
+	public static void startFletchingWhileMoving(String materialName, String itemName, int maxItems,
+		java.util.concurrent.ScheduledExecutorService executor)
+	{
+		startWhileMoving(() -> hasKnife() && Rs2Inventory.hasItem(materialName),
+			() -> startFletching(materialName) && makeOption(itemName, "5"), executor);
+	}
+
+	/** As upstream: headless arrows (arrow shafts and feathers) while moving. */
+	public static void startArrowFletchingWhileMoving(java.util.concurrent.ScheduledExecutorService executor)
+	{
+		startWhileMoving(() -> Rs2Inventory.hasItem("arrow shaft") && Rs2Inventory.hasItem("feather"),
+			() -> combineItems("arrow shaft", "feather") && makeOption("Headless arrow", "5"), executor);
+	}
+
+	/** As upstream: darts ({@code dartTipName} and feathers) while moving. */
+	public static void startDartFletchingWhileMoving(String dartTipName, java.util.concurrent.ScheduledExecutorService executor)
+	{
+		startWhileMoving(() -> Rs2Inventory.hasItem(dartTipName) && Rs2Inventory.hasItem("feather"),
+			() -> combineItems(dartTipName, "feather") && makeOption("Dart", "5"), executor);
+	}
+
+	private static synchronized void startWhileMoving(java.util.function.BooleanSupplier hasMaterials,
+		java.util.function.BooleanSupplier begin, java.util.concurrent.ScheduledExecutorService executor)
+	{
+		if (whileMovingTask != null || executor == null || !hasMaterials.getAsBoolean())
+		{
+			return;
+		}
+		whileMovingTask = executor.scheduleWithFixedDelay(() ->
+		{
+			try
+			{
+				boolean moving = net.runelite.client.plugins.microbot.util.player.Rs2Player.isMoving();
+				if (moving && !net.runelite.client.plugins.microbot.util.player.Rs2Player.isAnimating() && hasMaterials.getAsBoolean())
+				{
+					begin.getAsBoolean();
+				}
+				if (!hasMaterials.getAsBoolean() || !net.runelite.client.plugins.microbot.util.player.Rs2Player.isMoving())
+				{
+					stopFletchingWhileMoving();
+				}
+			}
+			catch (RuntimeException exception)
+			{
+				stopFletchingWhileMoving();
+			}
+		}, 0, WHILE_MOVING_PERIOD_MILLIS, java.util.concurrent.TimeUnit.MILLISECONDS);
+	}
+
+	/** As upstream: knife on the material named {@code materialName}, make {@code quantity} of {@code itemName}, wait until it is used up. */
+	public static boolean fletchItems(String materialName, String itemName, String quantity)
+	{
+		return startFletching(materialName) && makeOption(itemName, quantity) && waitForFletchingCompletion(materialName);
+	}
+
+	/**
+	 * As upstream: makes whatever the inventory allows, in upstream's order: darts, arrows, headless
+	 * arrows, bolts, bolt tips, logs (the bow or shafts worth most, by GE or high-alch value), then
+	 * bow stringing. False when nothing can be made.
+	 */
+	public static boolean autoFletchAvailable(String quantity)
+	{
+		for (net.runelite.client.plugins.microbot.util.skills.fletching.data.FletchingDart dart
+			: net.runelite.client.plugins.microbot.util.skills.fletching.data.FletchingDart.values())
+		{
+			if (dart.meetsLevelRequirement() && Rs2Inventory.hasItem(dart.getDartTipName()) && Rs2Inventory.hasItem("feather"))
+			{
+				return makeDarts(dart.getDartTipName(), quantity);
+			}
+		}
+		for (net.runelite.client.plugins.microbot.util.skills.fletching.data.FletchingArrow arrow
+			: net.runelite.client.plugins.microbot.util.skills.fletching.data.FletchingArrow.values())
+		{
+			if (arrow.meetsLevelRequirement() && Rs2Inventory.hasItem(arrow.getHeadlessArrowName()) && Rs2Inventory.hasItem(arrow.getArrowTipName()))
+			{
+				return makeArrows(arrow.getArrowTipName(), quantity);
+			}
+		}
+		if (Rs2Inventory.hasItem("arrow shaft") && Rs2Inventory.hasItem("feather"))
+		{
+			return makeHeadlessArrows(quantity);
+		}
+		net.runelite.client.plugins.microbot.util.skills.fletching.data.FletchingBolt[] bolts
+			= net.runelite.client.plugins.microbot.util.skills.fletching.data.FletchingBolt.values();
+		for (net.runelite.client.plugins.microbot.util.skills.fletching.data.FletchingBolt bolt : bolts)
+		{
+			if (bolt.meetsLevelRequirement() && Rs2Inventory.hasItem(bolt.getUnfinishedBoltName()) && Rs2Inventory.hasItem("feather"))
+			{
+				return makeBolts(bolt.getUnfinishedBoltName(), quantity);
+			}
+		}
+		for (net.runelite.client.plugins.microbot.util.skills.fletching.data.FletchingBolt bolt : bolts)
+		{
+			if (bolt.supportsTips() && bolt.meetsLevelRequirement() && Rs2Inventory.hasItem(bolt.getFinishedBoltName())
+				&& Rs2Inventory.hasItem(bolt.getBoltTipName()))
+			{
+				return addBoltTips(bolt.getFinishedBoltName(), bolt.getBoltTipName(), quantity);
+			}
+		}
+		if (hasKnife())
+		{
+			for (String prefix : new String[]{"magic", "yew", "maple", "willow", "oak", ""})
+			{
+				String logName = prefix.isEmpty() ? "logs" : prefix + " logs";
+				if (Rs2Inventory.hasItem(logName))
+				{
+					return fletchItems(logName, mostValuableLogProduct(prefix), quantity);
+				}
+			}
+		}
+		if (Rs2Inventory.hasItem("bow string"))
+		{
+			for (String bow : new String[]{"magic longbow (u)", "yew longbow (u)", "maple longbow (u)", "willow longbow (u)",
+				"oak longbow (u)", "longbow (u)", "magic shortbow (u)", "yew shortbow (u)", "maple shortbow (u)",
+				"willow shortbow (u)", "oak shortbow (u)", "shortbow (u)"})
+			{
+				if (Rs2Inventory.hasItem(bow))
+				{
+					return stringBows(bow.replace(" (u)", ""));
+				}
+			}
+		}
+		return false;
+	}
+
+	/** Upstream's choice for a log: shortbow, longbow or arrow shafts, whichever finished item is worth most (shortbow on a tie or no data). */
+	private static String mostValuableLogProduct(String prefix)
+	{
+		String bowPrefix = prefix.isEmpty() ? "" : prefix + " ";
+		String best = "shortbow";
+		int bestValue = 0;
+		String[][] options = {{"shortbow", bowPrefix + "shortbow"}, {"longbow", bowPrefix + "longbow"}, {"arrow shaft", "arrow shaft"}};
+		for (String[] option : options)
+		{
+			int value = estimatedValue(option[1]);
+			if (value > bestValue)
+			{
+				bestValue = value;
+				best = option[0];
+			}
+		}
+		return best;
+	}
+
+	/** The higher of the live GE price and high-alch value of a common fletching product, or 0 (as upstream). */
+	private static int estimatedValue(String itemName)
+	{
+		int itemId = FLETCHING_PRODUCTS.getOrDefault(itemName, -1);
+		if (itemId <= 0)
+		{
+			return 0;
+		}
+		int live = net.runelite.client.plugins.microbot.util.grandexchange.Rs2GrandExchange.getPrice(itemId);
+		net.runelite.client.plugins.microbot.util.grandexchange.models.ItemMappingData mapping
+			= net.runelite.client.plugins.microbot.util.grandexchange.Rs2GrandExchange.getItemMappingData(itemId);
+		return Math.max(0, Math.max(live, mapping == null ? 0 : mapping.highAlch));
+	}
+
+	/** Upstream's name lookup for the finished products it values. */
+	private static final java.util.Map<String, Integer> FLETCHING_PRODUCTS = java.util.Map.ofEntries(
+		java.util.Map.entry("magic longbow", net.runelite.api.ItemID.MAGIC_LONGBOW),
+		java.util.Map.entry("yew longbow", net.runelite.api.ItemID.YEW_LONGBOW),
+		java.util.Map.entry("maple longbow", net.runelite.api.ItemID.MAPLE_LONGBOW),
+		java.util.Map.entry("willow longbow", net.runelite.api.ItemID.WILLOW_LONGBOW),
+		java.util.Map.entry("oak longbow", net.runelite.api.ItemID.OAK_LONGBOW),
+		java.util.Map.entry("longbow", net.runelite.api.ItemID.LONGBOW),
+		java.util.Map.entry("magic shortbow", net.runelite.api.ItemID.MAGIC_SHORTBOW),
+		java.util.Map.entry("yew shortbow", net.runelite.api.ItemID.YEW_SHORTBOW),
+		java.util.Map.entry("maple shortbow", net.runelite.api.ItemID.MAPLE_SHORTBOW),
+		java.util.Map.entry("willow shortbow", net.runelite.api.ItemID.WILLOW_SHORTBOW),
+		java.util.Map.entry("oak shortbow", net.runelite.api.ItemID.OAK_SHORTBOW),
+		java.util.Map.entry("shortbow", net.runelite.api.ItemID.SHORTBOW),
+		java.util.Map.entry("arrow shaft", net.runelite.api.ItemID.ARROW_SHAFT));
 
 	// ---- Util action batch U (Claude 1): upstream's fletching helpers ----
 
