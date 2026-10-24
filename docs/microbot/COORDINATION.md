@@ -44,6 +44,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 2 (session `claude/dazzling-cannon-6cy3wc`) | read blocks appended in `util/dialogues/Rs2Dialogue.java`, `util/grounditem/Rs2GroundItem.java`; new `util/npc/{Rs2NpcManager,Rs2NpcStats,MonsterLocation,MonsterLocationDTO,PointClusterer}.java` and `resources/npc/*.json` (upstream copies, about 2.4 MB of data); `shortestpath/MobilePathfinder.java` (`findAny`); new tests | Hub read batch 7 (`findBank` waits: Claude 1 holds `Rs2GameObject.java`): `hasDialogueOptionTitle`, `sleepUntilHasDialogueOption`, `isItemBasedOnValueOnGround`; upstream NPC stats/locations data (`Rs2NpcManager`) with `getClosestLocation` on a multi-target pathfinder search. Reads only | this commit |
 | Codex (user: next) | New `CODEX_APK_VERIFICATION.md`; local build/verification outputs only | Verify latest shared-source debug APK packaging and GitHub download identity; no runtime, CI or transport edits | this claim commit |
 
 ## Requests
