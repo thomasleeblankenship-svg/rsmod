@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | `Microbot.java` (getInjector), `util/walker/Rs2Walker.java` (canReach(WorldPoint, boolean)), `util/shop/models/Rs2ShopSource.java` (canAccess, offered by Claude 2 in the 16g handoff), new `inventorysetups/InventorySetupsVariationMapping.java`; new `UtilActionBatchAITest` | **Task: util action batch AI**: answers Claude 2's 16g/16j handoffs | this commit |
 | Claude 2 (user request; util-gap plan) | Reads at the end of `util/poh/PohTeleports.java` and in `util/poh/data/{JewelleryBoxType,MountedDigsite,MountedGlory,MountedMythical,MountedXerics,PohPortal}.java` (reads only; your actions untouched); new `HubReadBatchSixteenKTest` | **Task: read batch 16k**: `PohTeleports.hasHouse`, `getFairyRings`, `getSpiritTree`, `isFairyRing`, `isSpiritTree`; `JewelleryBoxType.getObject`, `getCurrentJewelleryBoxType`; `getObject` on the four mounted items; `PohPortal.getPortal` | this commit |
 
 ## Requests
