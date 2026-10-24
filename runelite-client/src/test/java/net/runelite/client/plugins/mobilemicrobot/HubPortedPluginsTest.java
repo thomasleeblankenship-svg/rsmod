@@ -64,7 +64,14 @@ public class HubPortedPluginsTest
 		"net.runelite.client.plugins.microbot.arrowmaker.ArrowPlugin",
 		"net.runelite.client.plugins.microbot.humidifier.HumidifierPlugin",
 		"net.runelite.client.plugins.microbot.lunartanner.TanLeatherPlugin",
-		"net.runelite.client.plugins.microbot.summergarden.SummerGardenPlugin");
+		"net.runelite.client.plugins.microbot.summergarden.SummerGardenPlugin",
+		"net.runelite.client.plugins.microbot.GiantSeaweedFarmer.GiantSeaweedFarmerPlugin",
+		"net.runelite.client.plugins.microbot.pyrefox.PyreFoxPlugin",
+		"net.runelite.client.plugins.microbot.sisyphusinfernalpact.SisyphusInfernalPactPlugin",
+		"net.runelite.client.plugins.microbot.npctanner.npcTannerPlugin",
+		"net.runelite.client.plugins.microbot.karambwans.GabulhasKarambwansPlugin",
+		"net.runelite.client.plugins.microbot.TearsOfGuthix.TearsOfGuthixPlugin",
+		"net.runelite.client.plugins.microbot.mixology.MixologyPlugin");
 
 	private static Plugin instance(String name) throws Exception
 	{
