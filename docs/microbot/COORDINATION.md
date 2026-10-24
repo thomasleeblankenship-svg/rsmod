@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | `util/shop/Rs2Shop.java` (`getNearestShopNpc` returns the legacy `util/npc/Rs2NpcModel`, as upstream), `util/npc/Rs2Npc.java` (**new actions block only**: `interact(NPC\|Rs2NpcModel, action)`; Claude 2's reads untouched), `util/bank/Rs2Bank.java` (`openBank(Rs2NpcModel\|NPC)`, `bankItemsAndWalkBackToOriginalPosition` ×4), `util/depositbox/Rs2DepositBox.java` (`depositAll(List[, exact])`), new `HubActionRoundSevenTest`, Hub `banksshopper` port | **Task: Hub action round 7 + banksshopper port** | this commit |
 | Codex (both owners agreed, Requests batch B/2) | `util/skills/slayer/Rs2Slayer.java` (new travel action only), new `Rs2SlayerActionsTest` | **Task B: Slayer-master travel** over existing walker; all read methods unchanged | this claim commit |
 | Codex (both owners agreed, Requests batch A/2) | `pouch/Pouch.java` (fill/empty/check only), new `pouch/PouchActionsTest.java` | **Task A: essence pouch actions**, one existing inventory action and bounded observed-state wait; tracker/read state unchanged | this claim commit |
 
