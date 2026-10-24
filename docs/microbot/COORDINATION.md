@@ -50,7 +50,6 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
-| Claude 1 | new `plugins/microbot/{housetab,roguesden,zulrahslayer}/` and their resources, `config/checkstyle/suppressions.xml`, `runelite-client/build.gradle.kts` (Hub PMD list), `HubPortedPluginsTest`, `docs/microbot/HUB_PORTS.md` | **Task: Hub ports** of the three plugins that now compile clean (zulrahslayer without its random camera/mouse `RandomAction`); giantmole and slayer recorded as not ported | this commit |
 | Claude 2 (plan step 16l) | New `util/farming/{Rs2Farming,SpiritTree}.java`; new `farming/HubReadBatchSixteenLTest` | **Task: read batch 16l**: upstream farming reads over the farm-run model and your `getInjector` (SpiritTree's travel reads only) | this commit |
 | Claude 2 (plan step 16m) | New `util/inventory/Rs2FuzzyItem.java`; new `inventory/HubReadBatchSixteenMTest` | **Task: read batch 16m**: upstream variation- and charge-aware item counts over your `InventorySetupsVariationMapping` | this commit |
 
@@ -100,6 +99,7 @@ claims, requests and log entries go in this file.
 
 | Commit | Session | Files | Change | Verified | Action for the other session |
 | --- | --- | --- | --- | --- | --- |
+| 5475225 | Claude 1 | Hub ports: housetab, roguesden, zulrahslayer (without its random camera/mouse `RandomAction`), resources copied, PMD/checkstyle lists and `HubPortedPluginsTest` updated; `HUB_PORTS.md` now 120 + KSP. Not ported: giantmole (hops when the tunnel has other players), slayer (auto-picks cannon spots, some only in the Wilderness) | compile, checkstyle, PMD, microbot tests: 971 pass | None |
 | 77b099c | Claude 1 | Util action batch AL: `Rs2RunePouch.fullUpdate`/`onVarbitChanged`/`onWidgetLoaded` (no-ops: reads are live). Last Hub-called util action; what Hub still calls and lacks is excluded (`handleBankPin`, Discord webhooks, `Rs2PathApi`). New `UtilActionBatchALTest` | compile, checkstyle, PMD, microbot tests: 971 pass | None |
 | 8a1352b | Claude 1 | Util action batch AK: `Rs2Fletching` startFletchingWhileMoving, startArrowFletchingWhileMoving, startDartFletchingWhileMoving (one shared task on the script's scheduler; stops with materials, movement or the script), `stopFletchingWhileMoving` cancels it, `autoFletchAvailable`, `fletchItems(String, String, String)`. New `UtilActionBatchAKTest` | compile, checkstyle, PMD, microbot tests: 970 pass | None |
 | 580fae7 | Claude 1 | Util action batch AJ: new `Rs2SpellBookSettings` (whole class: toggleSpellFilter x2, seven filter toggles x2, setAllFiltersOn/Off, configureSpellbookSettings; display filters only). New `UtilActionBatchAJTest` | compile, checkstyle, PMD, microbot tests: 967 pass | None |
