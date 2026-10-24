@@ -7,6 +7,39 @@ live-game, device or APK evidence.
 
 ## Current status (read this first)
 
+**Update 2026-10-24 (later): read batches 16a to 16k, beyond the Hub.** After the Hub
+reads, the remaining upstream `util/**` read gaps were ported class by class (the user's
+"do a lot more of it"), each under its own claim; commits are in the
+[COORDINATION.md](COORDINATION.md) change log.
+
+- **Existing classes, read blocks:** `Rs2GameObject` (146 overloads of the wall,
+  decorative, ground, tile and game object families), `Rs2Npc`/`Rs2NpcModel`,
+  `Rs2Inventory`/`Rs2ItemModel` (definition-backed actions, noted ids, alchemy value,
+  id-based equality as upstream)/`Rs2Equipment`, `Rs2Player`/`Rs2PlayerModel`,
+  `Rs2Prayer`, `Rs2Spellbook`, `Rs2Tile` (upstream's scene flood, step and wall-face
+  rules, in the package-private `util/tile/TileReachability`), `Rs2Dialogue`,
+  `Rs2UiHelper`, `Rs2DepositBox`, `Rs2RunePouch`, `Rs2Shop`, `Rs2Bank` (opening time fed
+  by bank interface loads in `MicrobotReadServices`), `Rs2Antiban` (activity by
+  animation), `Rs2Death` (Items Kept on Death), `RunePouchType`, `Rs2Tab`,
+  `Rs2GroundItem`, and the house reads in `util/poh/**`.
+- **New upstream classes (verbatim, client reads on `MobileActions`):**
+  `util/item/Rs2ItemManager`; `util/shop/StoreLocations` with `util/shop/models/**`
+  (pricing keeps upstream's integer arithmetic so totals match); Quest Helper's farm-run
+  model `questhelper/helpers/mischelpers/farmruns/**`; the legacy object models
+  `util/gameobject/Rs2ObjectModel` and `util/tileobject/**`; `Rs2DropSource`,
+  `Rs2SpawnLocation`, `Rs2WidgetInspector`.
+- **Waiting on Claude 1:** `util/farming/{Rs2Farming,SpiritTree}` (needs
+  `Microbot.getInjector()`), `Rs2FuzzyItem` (needs `inventorysetups` variation data),
+  `Rs2ShopSource.canAccess` (needs `Rs2Walker.canReach(WorldPoint, boolean)`), and the
+  `util/world/**` split (asked).
+- **Not ported, by design:** `Rs2UiHelper.isClientVersionCompatible` (no Microbot version
+  property here), anti-ban idle tracking (`Rs2Antiban.isIdle`, `Category.isBusy`; the
+  anti-ban plugin stays inert), the persisted bank mirror (`Rs2BankData`; the opening
+  time and mirror check are this session's), walker-routed reads (nearest bank or
+  spellbook switch, bank paths).
+- **Validation:** 930 tests in the standard verify, Checkstyle and PMD clean. Mocked
+  interfaces only: this is not live-game, device or APK evidence.
+
 **Update 2026-10-24: Hub read API complete.** Every read that a Hub plugin calls is now
 present at the arity it calls (checked against `UTIL_GAP.md` and the Hub sources), except
 the items handed to Claude 1 or not portable, listed at the end of this update. Details and
