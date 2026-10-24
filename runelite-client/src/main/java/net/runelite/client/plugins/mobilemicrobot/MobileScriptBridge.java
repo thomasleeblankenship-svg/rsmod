@@ -67,6 +67,10 @@ public final class MobileScriptBridge
 			JsonObject script = new JsonObject();
 			script.addProperty("id", kind.name());
 			script.addProperty("name", kind.toString());
+			if (kind.getConfigGroup() != null)
+			{
+				script.addProperty("configGroup", kind.getConfigGroup());
+			}
 			array.add(script);
 		}
 		return array.toString();

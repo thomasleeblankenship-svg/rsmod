@@ -38,6 +38,8 @@ import org.json.JSONObject
 data class MicrobotScript(
     val id: String,
     val name: String,
+    // A Hub script's own settings group (opened from "Script settings"); null for built-in scripts.
+    val configGroup: String? = null,
 )
 
 /** Microbot Mobile's live state, from MobileUiBridge.microbotStatus(). */
@@ -60,7 +62,7 @@ fun parseMicrobotStatus(json: String?): MicrobotStatus =
         val scripts =
             (0 until (arr?.length() ?: 0)).map { i ->
                 val s = arr!!.getJSONObject(i)
-                MicrobotScript(s.optString("id"), s.optString("name"))
+                MicrobotScript(s.optString("id"), s.optString("name"), s.optString("configGroup").ifEmpty { null })
             }
         MicrobotStatus(
             ready = obj.optBoolean("ready", false),
@@ -75,7 +77,8 @@ fun parseMicrobotStatus(json: String?): MicrobotStatus =
 /**
  * Microbot Mobile's own screen: a control card (live status, script picker, Start/Stop) above the selected
  * script's settings. The bridge already filters the settings to the selected script, so switching scripts
- * swaps the list below. Start/Stop writes the same `runScript` setting the plugin watches each game tick.
+ * swaps the list below. Start/Stop are explicit requests to the plugin (MobileUiBridge.microbotStart/Stop); a Hub
+ * script's own settings open one level down from "Script settings".
  */
 @Composable
 fun MicrobotScreen(
@@ -83,13 +86,19 @@ fun MicrobotScreen(
     onBack: () -> Unit,
     onTextActive: (Boolean) -> Unit = {},
 ) {
+    var scriptSettings by remember { mutableStateOf<MicrobotScript?>(null) }
+    val open = scriptSettings
+    if (open?.configGroup != null) {
+        ConfigScreen(open.configGroup, open.name, onBack = { scriptSettings = null }, onTextActive = onTextActive)
+        return
+    }
     ConfigScreen(
         MICROBOT_GROUP,
         pluginName,
         onBack,
         onTextActive,
         hiddenKeys = setOf(MICROBOT_SCRIPT_KEY, MICROBOT_RUN_KEY),
-        header = { items, change -> MicrobotControlCard(items, change) },
+        header = { items, change -> MicrobotControlCard(items, change) { scriptSettings = it } },
     )
 }
 
@@ -97,6 +106,7 @@ fun MicrobotScreen(
 private fun MicrobotControlCard(
     items: List<ConfigItem>,
     change: (ConfigItem, String) -> Unit,
+    onOpenScriptSettings: (MicrobotScript) -> Unit,
 ) {
     var live by remember { mutableStateOf(MicrobotStatus.UNKNOWN) }
     // Poll while the card is on screen (the LaunchedEffect is cancelled when it leaves).
@@ -108,10 +118,18 @@ private fun MicrobotControlCard(
         }
     }
     val scriptItem = items.firstOrNull { it.key == MICROBOT_SCRIPT_KEY }
-    val runItem = items.firstOrNull { it.key == MICROBOT_RUN_KEY }
-    // "Run" is what the user asked for; "running" is what the plugin reports (it may still be starting).
-    val runRequested = runItem?.value?.toBoolean() ?: false
-    val active = live.running || runRequested
+    val selected = live.scripts.firstOrNull { it.id == scriptItem?.value }
+    // Between a tap and the next status poll, show the requested state so the button does not flicker back.
+    var pending by remember { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(live) { if (pending == live.running) pending = null }
+    LaunchedEffect(pending) {
+        // A start that never takes (not logged in, plugin missing) falls back to the reported state.
+        if (pending != null) {
+            delay(5000)
+            pending = null
+        }
+    }
+    val active = pending ?: live.running
 
     Surface(
         color = Color(0xFF1E1E1E),
@@ -140,10 +158,26 @@ private fun MicrobotControlCard(
                 Text("Stop the script to change it.", color = Color.Gray, fontSize = 12.sp)
             }
             Spacer(Modifier.size(12.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                if (selected?.configGroup != null) {
+                    TextButton(
+                        onClick = { onOpenScriptSettings(selected) },
+                        modifier = Modifier.semantics { contentDescription = "${selected.name} settings" },
+                    ) { Text("Script settings ›") }
+                    Spacer(Modifier.weight(1f))
+                }
                 Button(
-                    onClick = { if (runItem != null) change(runItem, (!active).toString()) },
-                    enabled = runItem != null,
+                    onClick = {
+                        val id = scriptItem?.value
+                        if (active) {
+                            pending = false
+                            JvmLauncher.onBridgeTouch { JvmLauncher.microbotStop() }
+                        } else if (id != null) {
+                            pending = true
+                            JvmLauncher.onBridgeTouch { JvmLauncher.microbotStart(id) }
+                        }
+                    },
+                    enabled = active || scriptItem?.value != null,
                     colors =
                         ButtonDefaults.buttonColors(
                             containerColor = if (active) Color(0xFFC62828) else Color(0xFF2E7D32),

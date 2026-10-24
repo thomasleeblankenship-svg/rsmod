@@ -317,6 +317,13 @@ public class MobileMicrobotPlugin extends Plugin
 		}
 
 		ScriptKind desired = config.selectedScript();
+		if (desired.isHub())
+		{
+			// "Run script" with a Hub script selected (e.g. from the generic settings list): start it the Hub way.
+			setRun(false);
+			startHub(desired);
+			return;
+		}
 		try
 		{
 			if (current == null || activeKind != desired || restartRequested)
@@ -407,7 +414,7 @@ public class MobileMicrobotPlugin extends Plugin
 	boolean inputActive()
 	{
 		ScriptInputSession session = inputSession;
-		return enabled && session != null && session.isActive();
+		return enabled && ((session != null && session.isActive()) || hub.isRunning());
 	}
 
 	private void setRun(boolean value)
@@ -439,6 +446,11 @@ public class MobileMicrobotPlugin extends Plugin
 			MobileScriptBridge.update("Unknown script: " + kind, "", false);
 			return;
 		}
+		if (selected.isHub())
+		{
+			startHub(selected);
+			return;
+		}
 		final long generation = commandGeneration.incrementAndGet();
 		cancelInput();
 		hub.end(true);
@@ -460,6 +472,10 @@ public class MobileMicrobotPlugin extends Plugin
 	{
 		final long generation = commandGeneration.incrementAndGet();
 		cancelInput();
+		if (hub.end(true))
+		{
+			MobileScriptBridge.update("Stopped by user", "", false);
+		}
 		clientThread.invokeLater(() ->
 		{
 			if (!enabled || generation != commandGeneration.get())
@@ -468,6 +484,36 @@ public class MobileMicrobotPlugin extends Plugin
 			}
 			setRun(false);
 			stopActive("Stopped by user");
+		});
+	}
+
+	/**
+	 * Starts a Hub-backed script from the Microbot screen: stops any built-in script, selects it and turns its
+	 * plugin on; {@link #onPluginChanged} then gives it its input session through {@link HubPluginHost}.
+	 */
+	private void startHub(ScriptKind selected)
+	{
+		final long generation = commandGeneration.incrementAndGet();
+		cancelInput();
+		clientThread.invokeLater(() ->
+		{
+			if (!enabled || generation != commandGeneration.get())
+			{
+				return;
+			}
+			setRun(false);
+			stopActive("Starting script");
+			configManager.setConfiguration(GROUP, "selectedScript", selected);
+			Plugin plugin = net.runelite.client.plugins.microbot.Microbot.getPlugin(selected.getHubPluginClass());
+			if (plugin == null)
+			{
+				MobileScriptBridge.update("Not available: " + selected, "", false);
+				return;
+			}
+			if (hub.activePlugin() != plugin)
+			{
+				net.runelite.client.plugins.microbot.Microbot.startPlugin(plugin);
+			}
 		});
 	}
 }

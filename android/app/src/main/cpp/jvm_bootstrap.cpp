@@ -109,6 +109,7 @@ static jmethodID g_midNotificationDefaults = nullptr;  // SC-1/NOTIF-2: default 
 static jmethodID g_midNextNotification = nullptr, g_midNextLink = nullptr, g_midHubState = nullptr;
 static jmethodID g_midNextScreenshot = nullptr; // PARITY-ANDROID-SHOT: next auto-screenshot path or null
 static jmethodID g_midMicrobotStatus = nullptr; // Microbot Mobile screen: {ready,running,script,status,scripts}
+static jmethodID g_midMicrobotStart = nullptr, g_midMicrobotStop = nullptr; // Microbot screen Start/Stop
 static jmethodID g_midHubManifest = nullptr, g_midHubInstall = nullptr, g_midHubUninstall = nullptr;
 // Native-origin publish into the SAME shared queues (host-raised alerts/links; also deterministic path tests).
 static jmethodID g_midPublishNotification = nullptr, g_midPublishLink = nullptr;
@@ -783,6 +784,8 @@ static bool publishBridge(JNIEnv *env) {
             g_midNextScreenshot = midOpt(env, mug, "nextScreenshot", "()Ljava/lang/String;");
             g_midHubState         = midOpt(env, mug, "hubState", "()Ljava/lang/String;");
             g_midMicrobotStatus   = midOpt(env, mug, "microbotStatus", "()Ljava/lang/String;");
+            g_midMicrobotStart    = midOpt(env, mug, "microbotStart", "(Ljava/lang/String;)Ljava/lang/String;");
+            g_midMicrobotStop     = midOpt(env, mug, "microbotStop", "()Ljava/lang/String;");
             // Finding 17 plugin-hub browse/install (best-effort; null disables the hub screen only).
             g_midHubManifest      = midOpt(env, mug, "hubManifest", "()Ljava/lang/String;");
             g_midHubInstall       = midOpt(env, mug, "hubInstall", "(Ljava/lang/String;)Ljava/lang/String;");
@@ -2307,6 +2310,17 @@ static jstring mobileUiStrArg(JNIEnv *artEnv, jmethodID m, jstring jArg) {
     if (ha) hs->DeleteLocalRef(ha);
     if (r) hs->DeleteLocalRef(r);
     return artEnv->NewStringUTF(out.c_str());
+}
+// Microbot screen Start (script kind name) / Stop: the user's explicit start and stop requests.
+extern "C" JNIEXPORT jstring JNICALL
+Java_dev_audaro_runemobile_JvmLauncher_nativeMicrobotStart(JNIEnv *artEnv, jobject, jstring jKind) {
+    if (!mobileUiReady() || !g_midMicrobotStart) return artEnv->NewStringUTF("");
+    return mobileUiStrArg(artEnv, g_midMicrobotStart, jKind);
+}
+extern "C" JNIEXPORT jstring JNICALL
+Java_dev_audaro_runemobile_JvmLauncher_nativeMicrobotStop(JNIEnv *artEnv, jobject) {
+    if (!mobileUiReady() || !g_midMicrobotStop) return artEnv->NewStringUTF("");
+    return mobileUiStr(artEnv, g_midMicrobotStop);
 }
 // Finding 17 — hubInstall/hubUninstall by internal name: register synchronously (config write + flush),
 // download+load async. Returns {"ok":true,"writeId":n}; the screen then polls hubState() for the seq bump.

@@ -1878,6 +1878,28 @@ public final class MobileUiBridge
 		return ENABLED ? net.runelite.client.plugins.mobilemicrobot.MobileScriptBridge.panelJson() : "{}";
 	}
 
+	/** Microbot screen Start: starts script {@code kind} (a ScriptKind name) as the user's explicit request. */
+	public static String microbotStart(String kind)
+	{
+		if (!ENABLED)
+		{
+			return "{\"ok\":false}";
+		}
+		net.runelite.client.plugins.mobilemicrobot.MobileScriptBridge.start(kind);
+		return "{\"ok\":true}";
+	}
+
+	/** Microbot screen Stop: stops whichever script is running. */
+	public static String microbotStop()
+	{
+		if (!ENABLED)
+		{
+			return "{\"ok\":false}";
+		}
+		net.runelite.client.plugins.mobilemicrobot.MobileScriptBridge.stop();
+		return "{\"ok\":true}";
+	}
+
 	// ---- Writes: queued onto the correct lane, fire-and-forget -----------------------------------------
 
 	/**

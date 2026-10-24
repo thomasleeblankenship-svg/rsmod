@@ -295,6 +295,10 @@ object JvmLauncher {
 
     external fun nativeMicrobotStatus(): String // Microbot Mobile: {ready,running,script,status,scripts:[{id,name}]}
 
+    external fun nativeMicrobotStart(kind: String): String // Microbot screen Start (ScriptKind name)
+
+    external fun nativeMicrobotStop(): String // Microbot screen Stop
+
     external fun nativeHubManifest(): String // Finding 17: {"status":loading|ok,...,plugins:[...]}
 
     external fun nativeHubInstall(internalName: String): String // Finding 17: {"ok":true,"writeId":n}
@@ -777,6 +781,10 @@ object JvmLauncher {
     fun getPluginConfig(group: String) = nativeGetPluginConfig(group)
 
     fun microbotStatus() = nativeMicrobotStatus()
+
+    fun microbotStart(kind: String) = nativeMicrobotStart(kind)
+
+    fun microbotStop() = nativeMicrobotStop()
 
     fun setConfig(
         group: String,

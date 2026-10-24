@@ -86,4 +86,43 @@ public class ScriptSettingsVisibilityTest
 		assertEquals("AUTO_WOODCUTTING", auto.get("id").getAsString());
 		assertEquals("Auto Woodcutting (mobile port)", auto.get("name").getAsString());
 	}
+
+	@Test
+	public void hubScriptsPointAtRealPluginsAndTheirConfigGroups() throws Exception
+	{
+		int hubs = 0;
+		for (ScriptKind kind : ScriptKind.values())
+		{
+			if (!kind.isHub())
+			{
+				assertEquals(kind + " has no plugin group", null, kind.getConfigGroup());
+				continue;
+			}
+			hubs++;
+			Class<?> plugin = Class.forName(kind.getHubPluginClass());
+			assertTrue(kind + " is a plugin", net.runelite.client.plugins.Plugin.class.isAssignableFrom(plugin));
+			Set<String> groups = new HashSet<>();
+			java.nio.file.Path dir = java.nio.file.Paths.get(plugin.getProtectionDomain().getCodeSource().getLocation().toURI())
+				.resolve(plugin.getPackage().getName().replace('.', '/'));
+			try (java.util.stream.Stream<java.nio.file.Path> files = java.nio.file.Files.list(dir))
+			{
+				for (java.nio.file.Path file : (Iterable<java.nio.file.Path>) files::iterator)
+				{
+					String name = file.getFileName().toString();
+					if (name.endsWith(".class") && !name.contains("$"))
+					{
+						Class<?> type = Class.forName(plugin.getPackage().getName() + "." + name.substring(0, name.length() - 6));
+						net.runelite.client.config.ConfigGroup group = type.getAnnotation(net.runelite.client.config.ConfigGroup.class);
+						if (group != null)
+						{
+							groups.add(group.value());
+						}
+					}
+				}
+			}
+			assertTrue(kind + " settings group " + kind.getConfigGroup() + " in " + groups, groups.contains(kind.getConfigGroup()));
+			assertTrue(kind + " starts at no Microbot section", kind.getSettingsSections().isEmpty());
+		}
+		assertEquals("the 12 F2P scripts", 12, hubs);
+	}
 }

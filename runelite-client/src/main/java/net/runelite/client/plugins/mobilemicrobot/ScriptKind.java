@@ -13,15 +13,78 @@ public enum ScriptKind
 	SCENE_SCAN("Scene scan (read-only)"),
 	STATE_MACHINE_EXAMPLE("Upstream state machine example (read-only)"),
 	WOODCUTTING("Woodcutting (example)", MobileMicrobotConfig.EXAMPLE_WOODCUTTING_SECTION),
-	AUTO_WOODCUTTING("Auto Woodcutting (mobile port)", "general", "inventory", "forestry");
+	AUTO_WOODCUTTING("Auto Woodcutting (mobile port)", "general", "inventory", "forestry"),
+	// Free-to-play Hub scripts, run through HubPluginHost with their own plugin settings.
+	F2P_RUNECRAFTING("F2P: Auto Runecrafter", hub("chillRunecraft.AutoRunecraftPlugin", "autoRunecraft")),
+	F2P_FIREMAKING("F2P: Auto Firemaking Plus", hub("firemakingplus.AutoFiremakingPlusPlugin", "FiremakingPlus")),
+	F2P_COOKING("F2P: Auto Cooking", hub("cooking.AutoCookingPlugin", "autocooking")),
+	F2P_SMELTING("F2P: Auto Smelting", hub("smelting.AutoSmeltingPlugin", "Smithing")),
+	F2P_VARROCK_ANVIL("F2P: Varrock Anvil", hub("varrockanvil.VarrockAnvilPlugin", "VarrockAnvil")),
+	F2P_ESSENCE_MINING("F2P: Essence Mining", hub("autoessencemining.AutoEssenceMiningPlugin", "EssenceMining")),
+	F2P_BARBARIAN_FISHING("F2P: Barbarian Village Fisher", hub("barbarianvillagefisher.BarbarianVillageFisherPlugin", "BarbarianVillageFisher")),
+	F2P_GE_COOKER("F2P: GE Cooker", hub("gecooker.GECookerPlugin", "GECooker")),
+	F2P_GE_FIREMAKER("F2P: GE Firemaker", hub("gefiremaker.GEFiremakerPlugin", "GEFiremaker")),
+	F2P_MUSEUM_CLEANER("F2P: Varrock Museum Cleaner", hub("varrockcleaner.VarrockCleanerPlugin", "varrockmuseum")),
+	F2P_FISHING("F2P: Auto Fishing", hub("autofishing.AutoFishingPlugin", "AutoFishing")),
+	F2P_BANK_SELLER("F2P: Bank Seller (GE)", hub("bankseller.BankSellerPlugin", "bankseller"));
+
+	private static final String HUB_PACKAGE = "net.runelite.client.plugins.microbot.";
 
 	private final String display;
 	private final Set<String> settingsSections;
+	private final String hubPluginClass;
+	private final String configGroup;
 
 	ScriptKind(String display, String... settingsSections)
 	{
 		this.display = display;
 		this.settingsSections = Set.of(settingsSections);
+		this.hubPluginClass = null;
+		this.configGroup = null;
+	}
+
+	ScriptKind(String display, HubPlugin hub)
+	{
+		this.display = display;
+		this.settingsSections = Set.of();
+		this.hubPluginClass = HUB_PACKAGE + hub.className;
+		this.configGroup = hub.configGroup;
+	}
+
+	private static HubPlugin hub(String className, String configGroup)
+	{
+		return new HubPlugin(className, configGroup);
+	}
+
+	/** A Hub plugin a script kind runs: its class (relative to the Microbot package) and config group. */
+	private static final class HubPlugin
+	{
+		private final String className;
+		private final String configGroup;
+
+		private HubPlugin(String className, String configGroup)
+		{
+			this.className = className;
+			this.configGroup = configGroup;
+		}
+	}
+
+	/** Whether this script is a Hub plugin started through {@link HubPluginHost}. */
+	public boolean isHub()
+	{
+		return hubPluginClass != null;
+	}
+
+	/** The Hub plugin's class name, or {@code null} for a built-in script. */
+	public String getHubPluginClass()
+	{
+		return hubPluginClass;
+	}
+
+	/** The Hub plugin's own config group (its settings), or {@code null} for a built-in script. */
+	public String getConfigGroup()
+	{
+		return configGroup;
 	}
 
 	/** The settings sections this script uses. */
