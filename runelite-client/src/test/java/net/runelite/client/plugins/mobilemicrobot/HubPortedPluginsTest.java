@@ -113,7 +113,15 @@ public class HubPortedPluginsTest
 		"net.runelite.client.plugins.microbot.sandminer.GabulhasSandMinerPlugin",
 		"net.runelite.client.plugins.microbot.scurrius.ScurriusPlugin",
 		"net.runelite.client.plugins.microbot.valetotems.ValeTotemPlugin",
-		"net.runelite.client.plugins.microbot.virewatch.PVirewatchKillerPlugin");
+		"net.runelite.client.plugins.microbot.virewatch.PVirewatchKillerPlugin",
+		"net.runelite.client.plugins.microbot.DemonicGorillaKiller.DemonicGorillaPlugin",
+		"net.runelite.client.plugins.microbot.autobankstander.AutoBankStanderPlugin",
+		"net.runelite.client.plugins.microbot.bankseller.BankSellerPlugin",
+		"net.runelite.client.plugins.microbot.banksorter.BankTabSorterPlugin",
+		"net.runelite.client.plugins.microbot.farmingcontract.FarmingContractPlugin",
+		"net.runelite.client.plugins.microbot.mess.TheMessPlugin",
+		"net.runelite.client.plugins.microbot.natewinemaker.WinePlugin",
+		"net.runelite.client.plugins.microbot.pitfallhunter.PitfallHunterPlugin");
 
 	private static Plugin instance(String name) throws Exception
 	{
