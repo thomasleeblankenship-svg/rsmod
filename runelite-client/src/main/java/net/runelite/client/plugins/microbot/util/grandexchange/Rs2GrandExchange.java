@@ -16,6 +16,10 @@ import net.runelite.client.game.ItemManager;
 import net.runelite.client.plugins.microbot.Microbot;
 import net.runelite.client.plugins.microbot.mobile.MobileActions;
 import net.runelite.client.plugins.microbot.util.grandexchange.models.GrandExchangeOfferDetails;
+import net.runelite.client.plugins.microbot.util.grandexchange.models.ItemMappingData;
+import net.runelite.client.plugins.microbot.util.grandexchange.models.TimeSeriesAnalysis;
+import net.runelite.client.plugins.microbot.util.grandexchange.models.TimeSeriesInterval;
+import net.runelite.client.plugins.microbot.util.grandexchange.models.WikiPrice;
 import net.runelite.client.plugins.microbot.util.misc.Rs2UiHelper;
 import net.runelite.client.plugins.microbot.util.player.Rs2Player;
 import net.runelite.client.plugins.microbot.util.widget.Rs2Widget;
@@ -23,7 +27,7 @@ import org.apache.commons.lang3.tuple.Pair;
 
 /**
  * The Grand Exchange (upstream Microbot 2.6.38): interface state, the eight offer slots and
- * their offers. Ported for RuneMobile: the client's offer array is copied once per call on the
+ * their offers, and price lookups ({@link GrandExchangePrices}). Ported for RuneMobile: the client's offer array is copied once per call on the
  * client thread (a null entry or item id 0 is an empty slot), so no offer is dereferenced off it.
  */
 @Slf4j
@@ -335,6 +339,84 @@ public final class Rs2GrandExchange
 			}
 			return null;
 		}, null);
+	}
+
+	/** GE Tracker's buying price for {@code itemId}, or -1. */
+	public static int getOfferPrice(int itemId)
+	{
+		return GrandExchangePrices.geTracker(itemId, "buying");
+	}
+
+	/** GE Tracker's overall price for {@code itemId}, or -1. */
+	public static int getPrice(int itemId)
+	{
+		return GrandExchangePrices.geTracker(itemId, "overall");
+	}
+
+	/** GE Tracker's selling price for {@code itemId}, or -1. */
+	public static int getSellPrice(int itemId)
+	{
+		return GrandExchangePrices.geTracker(itemId, "selling");
+	}
+
+	/** GE Tracker's buying volume for {@code itemId}, or -1. */
+	public static int getBuyingVolume(int itemId)
+	{
+		return GrandExchangePrices.geTracker(itemId, "buyingQuantity");
+	}
+
+	/** GE Tracker's selling volume for {@code itemId}, or -1. */
+	public static int getSellingVolume(int itemId)
+	{
+		return GrandExchangePrices.geTracker(itemId, "sellingQuantity");
+	}
+
+	/** Real-time prices (OSRS Wiki, then GE Tracker), cached for a minute; {@code null} when unavailable. */
+	public static WikiPrice getRealTimePrices(int itemId)
+	{
+		return GrandExchangePrices.getRealTimePrices(itemId);
+	}
+
+	/** A buy price that rises with each retry (see upstream); -1 when no price is available. */
+	public static int getAdaptiveBuyPrice(int itemId, double basePercentage, int retryAttempt)
+	{
+		return GrandExchangePrices.getAdaptiveBuyPrice(itemId, basePercentage, retryAttempt);
+	}
+
+	/** A sell price that falls with each retry (see upstream); -1 when no price is available. */
+	public static int getAdaptiveSellPrice(int itemId, double basePercentage, int retryAttempt)
+	{
+		return GrandExchangePrices.getAdaptiveSellPrice(itemId, basePercentage, retryAttempt);
+	}
+
+	/** OSRS Wiki price history from {@code fromTimestamp} (or now); empty on failure. */
+	public static TimeSeriesAnalysis getTimeSeriesData(int itemId, TimeSeriesInterval interval, Long fromTimestamp)
+	{
+		return GrandExchangePrices.getTimeSeriesData(itemId, interval, fromTimestamp);
+	}
+
+	public static TimeSeriesAnalysis getTimeSeriesData(int itemId, TimeSeriesInterval interval)
+	{
+		return getTimeSeriesData(itemId, interval, null);
+	}
+
+	/** The average price over {@code interval}'s history, or -1. */
+	public static int getAveragePrice(int itemId, TimeSeriesInterval interval)
+	{
+		TimeSeriesAnalysis analysis = getTimeSeriesData(itemId, interval);
+		return analysis.averagePrice > 0 ? analysis.averagePrice : -1;
+	}
+
+	/** The average price over the last hour, or -1. */
+	public static int getAveragePrice(int itemId)
+	{
+		return getAveragePrice(itemId, TimeSeriesInterval.ONE_HOUR);
+	}
+
+	/** OSRS Wiki item mapping (buy limit, alch values), cached for the session; {@code null} when unavailable. */
+	public static ItemMappingData getItemMappingData(int itemId)
+	{
+		return GrandExchangePrices.getItemMappingData(itemId);
 	}
 
 	private static int getMaxSlots()
