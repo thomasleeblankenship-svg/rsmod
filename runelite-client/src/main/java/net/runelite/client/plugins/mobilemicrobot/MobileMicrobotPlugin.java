@@ -296,7 +296,12 @@ public class MobileMicrobotPlugin extends Plugin
 		}
 		if (!config.runScript())
 		{
-			stopActive("Stopped");
+			// Only when a built-in script is still up: a Hub script runs with runScript off, and stopping
+			// here every tick would mark it stopped and wipe its status (and any failure reason).
+			if (current != null || inputSession != null)
+			{
+				stopActive("Stopped");
+			}
 			return;
 		}
 		if (current != null && current.finished())
@@ -401,7 +406,11 @@ public class MobileMicrobotPlugin extends Plugin
 				LOG.warn("Mobile script cleanup failed", exception);
 			}
 		}
-		MobileScriptBridge.update(reason, "", false);
+		// A built-in stop never reports a running Hub plugin as stopped.
+		if (!hub.isRunning())
+		{
+			MobileScriptBridge.update(reason, "", false);
+		}
 	}
 
 	private void cancelInput()

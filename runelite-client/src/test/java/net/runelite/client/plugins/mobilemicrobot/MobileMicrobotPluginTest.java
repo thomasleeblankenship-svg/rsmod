@@ -122,6 +122,23 @@ public class MobileMicrobotPluginTest
 	}
 
 	@Test
+	public void runningHubPluginStaysRunningAcrossGameTicks()
+	{
+		// A Hub script runs with runScript off; the tick must not report it stopped or wipe its status.
+		net.runelite.client.plugins.Plugin hubPlugin =
+			new net.runelite.client.plugins.microbot.varrockcleaner.VarrockCleanerPlugin();
+		plugin.onPluginChanged(new net.runelite.client.events.PluginChanged(hubPlugin, true));
+		for (int i = 0; i < 3; i++)
+		{
+			plugin.onGameTick(new GameTick());
+			drain();
+		}
+		String status = MobileScriptBridge.statusJson();
+		assertTrue(status, status.contains("\"running\":true"));
+		assertTrue(status, status.contains("Running Hub plugin"));
+	}
+
+	@Test
 	public void stopInvalidatesPendingStart()
 	{
 		MobileScriptBridge.start("DIAGNOSTICS");
