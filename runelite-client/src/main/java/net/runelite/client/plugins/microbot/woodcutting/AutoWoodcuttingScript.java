@@ -87,6 +87,10 @@ public class AutoWoodcuttingScript extends Script {
     public int currentLogBasketCount = -1;
     private WoodcuttingTree activeTree = WoodcuttingTree.TREE;
     private ResourceLocationOption activeLocation;
+    // Mobile: the progressive search reads every location's requirements on the client thread,
+    // so it reruns only when the woodcutting level or the world (members access) changes.
+    private int progressiveLevel = -1;
+    private int progressiveWorld = -1;
     @Inject
     public AutoWoodcuttingScript(AutoWoodcuttingPlugin plugin) {
         this.plugin = plugin;
@@ -147,6 +151,7 @@ public class AutoWoodcuttingScript extends Script {
         Rs2AntibanSettings.dynamicIntensity = true;
         activeTree = config.TREE();
         activeLocation = null;
+        resetProgressiveSelection();
         if (config.firemakeOnly()) {
             woodcuttingScriptState = WoodcuttingScriptState.FIREMAKING;
         }
@@ -655,7 +660,7 @@ public class AutoWoodcuttingScript extends Script {
         return activeTree;
     }
 
-    private void updateActiveTree(AutoWoodcuttingConfig config) {
+    void updateActiveTree(AutoWoodcuttingConfig config) {
         WoodcuttingTree previousTree = activeTree;
         WoodcuttingTree resolvedTree;
         ResourceLocationOption candidateLocation = null;
@@ -663,6 +668,12 @@ public class AutoWoodcuttingScript extends Script {
 
         if (progressive) {
             int woodcuttingLevel = getRealSkillLevel(Skill.WOODCUTTING);
+            int world = Rs2Player.getWorld();
+            if (woodcuttingLevel == progressiveLevel && world == progressiveWorld && activeLocation != null) {
+                return;
+            }
+            progressiveLevel = woodcuttingLevel;
+            progressiveWorld = world;
             ProgressiveSelection selection = determineProgressiveSelection(woodcuttingLevel);
             resolvedTree = selection.getTree();
             candidateLocation = selection.getLocation();
@@ -684,7 +695,12 @@ public class AutoWoodcuttingScript extends Script {
             }
         } else {
             activeLocation = null;
+            resetProgressiveSelection();
         }
+    }
+
+    ResourceLocationOption getActiveLocation() {
+        return activeLocation;
     }
 
     private ProgressiveSelection determineProgressiveSelection(int woodcuttingLevel) {
@@ -753,5 +769,11 @@ public class AutoWoodcuttingScript extends Script {
         initialPlayerLocation = null;
         Rs2Antiban.resetAntibanSettings();
         activeLocation = null;
+        resetProgressiveSelection();
+    }
+
+    private void resetProgressiveSelection() {
+        progressiveLevel = -1;
+        progressiveWorld = -1;
     }
 }

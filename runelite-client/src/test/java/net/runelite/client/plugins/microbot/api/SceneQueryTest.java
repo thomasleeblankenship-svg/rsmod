@@ -11,6 +11,8 @@ import net.runelite.api.Tile;
 import net.runelite.api.TileItem;
 import net.runelite.api.WallObject;
 import net.runelite.api.coords.WorldPoint;
+import net.runelite.api.events.GameObjectDespawned;
+import net.runelite.api.events.ItemSpawned;
 import net.runelite.client.plugins.microbot.api.tileitem.models.Rs2TileItemModel;
 import net.runelite.client.plugins.microbot.api.tileobject.models.Rs2TileObjectModel;
 import net.runelite.client.plugins.microbot.api.tileobject.models.TileObjectType;
@@ -164,6 +166,37 @@ public class SceneQueryTest
 		assertEquals(1, f.services.getRs2TileObjectCache().query().within(5).count());
 		assertEquals(1, f.services.getRs2TileItemCache().query().within(5).count());
 		assertEquals(995, f.services.getRs2TileItemCache().query().first().getId());
+	}
+
+	@Test
+	public void aFelledTreeIsSeenWithinTheSameTick()
+	{
+		objectDefinition(10, "Tree");
+		objectDefinition(11, "Tree stump");
+		GameObject tree = gameObject(10, 6, 6, 6, 6);
+		assertEquals(10, f.services.getRs2TileObjectCache().query().withName("Tree").nearest().getId());
+
+		GameObject stump = mock(GameObject.class);
+		when(stump.getId()).thenReturn(11);
+		when(stump.getWorldView()).thenReturn(f.topLevel);
+		when(stump.getSceneMinLocation()).thenReturn(new Point(6, 6));
+		WorldPoint treeLocation = tree.getWorldLocation();
+		when(stump.getWorldLocation()).thenReturn(treeLocation);
+		tile(6, 6, 0).getGameObjects()[0] = stump;
+		assertNotNull("same tick, no scene event: the snapshot is reused",
+			f.services.getRs2TileObjectCache().query().withName("Tree").nearest());
+
+		GameObjectDespawned despawned = new GameObjectDespawned();
+		despawned.setGameObject(tree);
+		f.eventBus.post(despawned);
+		assertNull(f.services.getRs2TileObjectCache().query().withName("Tree").nearest());
+		assertEquals(11, f.services.getRs2TileObjectCache().query().withName("Tree stump").nearest().getId());
+
+		assertFalse(Rs2GroundItem.exists(1511, 5));
+		groundItem(7, 5, 1511, "Logs", 1, TileItem.OWNERSHIP_SELF);
+		assertFalse("same tick, no scene event", Rs2GroundItem.exists(1511, 5));
+		f.eventBus.post(new ItemSpawned(tile(7, 5, 0), tile(7, 5, 0).getGroundItems().get(0)));
+		assertTrue(Rs2GroundItem.exists(1511, 5));
 	}
 
 	@Test
