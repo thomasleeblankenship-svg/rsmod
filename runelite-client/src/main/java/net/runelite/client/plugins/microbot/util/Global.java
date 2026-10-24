@@ -25,7 +25,9 @@ import java.util.function.BooleanSupplier;
  *     <li>The polling pool uses daemon threads, so it cannot keep the embedded JVM alive.</li>
  *     <li>Not ported, because they depend on {@code SessionFatigue} or {@code Rs2Random}'s anti-ban distributions:
  *     {@code sleepFatigued} (both), {@code sleepGaussianFatigued},
- *     {@code sleepTickJitterFatigued} and {@code sleepUntilOnClientThread(BooleanSupplier)}.</li>
+ *     {@code sleepTickJitterFatigued}.</li>
+ *     <li>{@code sleepUntilOnClientThread(BooleanSupplier)} waits a fixed 5 s, upstream's upper bound,
+ *     instead of a random 2.5–5 s.</li>
  * </ul>
  */
 public class Global {
@@ -271,6 +273,11 @@ public class Global {
             Microbot.logStackTrace("Global Sleep: ", e);
         }
         return false;
+    }
+
+    /** Mobile: waits up to 5 s, upstream's longest; upstream picks a random 2.5–5 s timeout. */
+    public static void sleepUntilOnClientThread(BooleanSupplier awaitedCondition) {
+        sleepUntilOnClientThread(awaitedCondition, 5_000);
     }
 
     public static void sleepUntilOnClientThread(BooleanSupplier awaitedCondition, int time) {

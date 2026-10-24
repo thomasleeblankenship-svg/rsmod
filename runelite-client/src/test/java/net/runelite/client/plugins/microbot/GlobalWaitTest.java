@@ -38,6 +38,7 @@ public class GlobalWaitTest {
         assertFalse(Global.sleepTicks(100));
         Global.sleep(60_000);
         Global.sleepUntilOnClientThread(() -> false, 60_000);
+        Global.sleepUntilOnClientThread(() -> false);
         long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - before);
 
         assertEquals("the condition must not even be polled on the client thread", 0, polls.get());
@@ -60,6 +61,18 @@ public class GlobalWaitTest {
         Global.sleep(20, 10);       // reversed bounds
         Global.sleep(7, 7);         // empty range
         Global.sleepGaussian(-1_000, 10); // floored at zero
+        assertTrue(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - before) < 1_000);
+    }
+
+    @Test
+    public void theOneArgumentClientThreadWaitPollsUntilTheConditionHolds() {
+        RuntimeFixture fx = new RuntimeFixture().installLoggedIn();
+        AtomicInteger polls = new AtomicInteger();
+        when(fx.clientThread.runOnClientThreadOptional(org.mockito.ArgumentMatchers.any()))
+            .thenAnswer(call -> java.util.Optional.of(polls.incrementAndGet() >= 3));
+        long before = System.nanoTime();
+        Global.sleepUntilOnClientThread(() -> true);
+        assertEquals("returns as soon as the condition reads true", 3, polls.get());
         assertTrue(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - before) < 1_000);
     }
 
