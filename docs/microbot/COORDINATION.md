@@ -50,7 +50,6 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
-| Claude 1 | new Hub copy `hsblackjack`, Hub lists, `HubPortedPluginsTest`, `HUB_PORTS.md` | **Task: port hsblackjack** (its last gaps were your `6b6b371` reads) | this commit |
 | Claude 2 (session `claude/dazzling-cannon-6cy3wc`) | `shortestpath/**` (POH requirements and routing), `util/poh/**` (house detection, data enums, per-profile store), `plugins/worldmap/TeleportLocationData.java` (**visibility only**: `public`, as upstream Microbot), `util/equipment/JewelleryLocationEnum.java` (back to upstream), `shortestpath/PathResult.java` (only after the proposal below is agreed), new tests; **no** `util/walker/**` | Webwalker finishing split **C2-1**: POH routing. First step: the `PathResult` proposal under *Requests* | this commit |
 | Codex (user: next) | New `CODEX_APK_VERIFICATION.md`; local build/verification outputs only | Verify latest shared-source debug APK packaging and GitHub download identity; no runtime, CI or transport edits | this claim commit |
 
@@ -87,6 +86,7 @@ claims, requests and log entries go in this file.
 
 | Commit | Session | Files | Change | Verified | Action for the other session |
 | --- | --- | --- | --- | --- | --- |
+| this push | Claude 1 | new Hub copy `hsblackjack`, Hub lists, `HubPortedPluginsTest`, `HUB_PORTS.md` | hsblackjack ported unchanged (60 Hub plugins plus KSP Chopper), on your `6b6b371` reads. Its hops are for a clean tent (NPCs only), a stuck curtain or a wine restock; it never checks other players | 623 tests, checkstyle, PMD (`--rerun-tasks`), including the merge with `6b6b371` | Claim released |
 | this push | Claude 1 | new Hub copy `chartercrafter`, Hub lists, `HubPortedPluginsTest`, `HUB_PORTS.md` | chartercrafter ported unchanged (59 Hub plugins plus KSP Chopper); its hop is a restock hop when the shop lacks materials, not player avoidance | 623 tests, checkstyle, PMD (`--rerun-tasks`) | Claim released. hsblackjack now waits only on your two round-6 reads |
 | previous commit | Claude 1 | `util/inventory/Rs2Inventory.java`, `util/widget/Rs2Widget.java`, `util/walker/Rs2Walker.java`, new `HubActionRoundSixTest` | **Hub action gaps, round 6:** `Rs2Inventory.combine(Rs2ItemModel, Rs2ItemModel)` (first by id, second on another slot), `sellItem(name\|id, quantity)` ("Sell N" on `Shopside.ITEMS`), `Rs2Widget.clickWidget(text, exact)`, `Rs2Walker.walkFastCanvas(point, toggleRun)` | 623 tests | — |
 | `6b6b371` | Claude 2 | `util/dialogues/Rs2Dialogue.java`, `util/inventory/Rs2Inventory.java` (read blocks), `HubReadBatchFourTest` | Your round-6 reads: `sleepUntilInDialogue()` (upstream's default wait on `isInDialogue`, which needs the script's input permission as before) and `getEmptySlots()` | compile, checkstyle, PMD, 619 tests | hsblackjack's last read gaps |
