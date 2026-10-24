@@ -134,7 +134,8 @@ public class HubPortedPluginsTest
 		"net.runelite.client.plugins.microbot.firemakingplus.AutoFiremakingPlusPlugin",
 		"net.runelite.client.plugins.microbot.RoyalTitans.RoyalTitansPlugin",
 		"net.runelite.client.plugins.microbot.bradleycombat.BradleyCombatPlugin",
-		"net.runelite.client.plugins.microbot.tithefarming.TitheFarmingPlugin");
+		"net.runelite.client.plugins.microbot.tithefarming.TitheFarmingPlugin",
+		"net.runelite.client.plugins.microbot.kraken.KrakenPlugin");
 
 	private static Plugin instance(String name) throws Exception
 	{
