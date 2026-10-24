@@ -369,6 +369,77 @@ public final class Rs2Dialogue
 		return marked > 0 && keyPressForDialogueOption(marked);
 	}
 
+	// ---- Util action batch S (Claude 1): dialogue waits ----
+
+	/** As upstream: waits (bounded) until a combination option named {@code text} shows, exactly or containing it. */
+	public static boolean sleepUntilHasCombinationOption(String text, boolean exact)
+	{
+		return text != null && net.runelite.client.plugins.microbot.util.Global.sleepUntilTrue(() -> combinationOptionTarget(text, exact) != null);
+	}
+
+	/** As upstream: {@link #sleepUntilHasCombinationOption(String, boolean)} by containment. */
+	public static boolean sleepUntilHasCombinationOption(String text)
+	{
+		return sleepUntilHasCombinationOption(text, false);
+	}
+
+	/** As upstream: waits (bounded) until the dialogue text matches. */
+	public static boolean sleepUntilHasDialogueText(String text, boolean exact)
+	{
+		return net.runelite.client.plugins.microbot.util.Global.sleepUntilTrue(() -> hasDialogueText(text, exact));
+	}
+
+	/** As upstream: {@link #sleepUntilHasDialogueText(String, boolean)} by containment. */
+	public static boolean sleepUntilHasDialogueText(String text)
+	{
+		return sleepUntilHasDialogueText(text, false);
+	}
+
+	/** As upstream: waits (bounded) until the dialogue question matches. */
+	public static boolean sleepUntilHasQuestion(String text, boolean exact)
+	{
+		return net.runelite.client.plugins.microbot.util.Global.sleepUntilTrue(() -> hasQuestion(text, exact));
+	}
+
+	/** As upstream: {@link #sleepUntilHasQuestion(String, boolean)} by containment. */
+	public static boolean sleepUntilHasQuestion(String text)
+	{
+		return sleepUntilHasQuestion(text, false);
+	}
+
+	/** As upstream: a cutscene is playing (varbit 542). */
+	public static boolean isInCutScene()
+	{
+		return Microbot.getVarbitValue(542) == 1;
+	}
+
+	/** As upstream: waits up to 5 s for a cutscene to start, then up to 5 s for it to end. */
+	public static void waitForCutScene()
+	{
+		waitForCutScene(100, 5000);
+	}
+
+	/** As upstream: polls every {@code time} ms, up to {@code timeout} ms, for a cutscene to start and then end. */
+	public static void waitForCutScene(int time, int timeout)
+	{
+		if (net.runelite.client.plugins.microbot.util.Global.sleepUntilTrue(Rs2Dialogue::isInCutScene, time, timeout))
+		{
+			net.runelite.client.plugins.microbot.util.Global.sleepUntilTrue(() -> !isInCutScene(), time, timeout);
+		}
+	}
+
+	/** As upstream: answers "Yes" to a "Would you like to start ... quest?" question. */
+	public static boolean acceptQuestStartDialogue()
+	{
+		String question = getQuestion();
+		if (question == null)
+		{
+			return false;
+		}
+		String q = question.toLowerCase(java.util.Locale.ROOT).trim();
+		return q.startsWith("would you like to start") && q.contains("quest") && q.endsWith("?") && clickOption("Yes", false);
+	}
+
 	/** As upstream: presses the number key of the shown option at {@code index} (from 1). */
 	public static boolean keyPressForDialogueOption(int index)
 	{
@@ -415,13 +486,10 @@ public final class Rs2Dialogue
 	 * As upstream: taps the "make X" entry (270:14) whose name, without colour tags, equals
 	 * ({@code exact}) or contains {@code text}, ignoring case; one script action.
 	 */
-	public static boolean clickCombinationOption(String text, boolean exact)
+	/** The {@code {widgetId, index}} of the shown combination option named {@code text}, or null. */
+	private static int[] combinationOptionTarget(String text, boolean exact)
 	{
-		if (text == null || !hasCombinationDialogue())
-		{
-			return false;
-		}
-		int[] target = MobileActions.read(() ->
+		return MobileActions.read(() ->
 		{
 			if (!Rs2Widget.isWidgetVisible(270, 13))
 			{
@@ -444,6 +512,15 @@ public final class Rs2Dialogue
 			}
 			return null;
 		}, null);
+	}
+
+	public static boolean clickCombinationOption(String text, boolean exact)
+	{
+		if (text == null || !hasCombinationDialogue())
+		{
+			return false;
+		}
+		int[] target = combinationOptionTarget(text, exact);
 		return target != null && MobileActions.widget(target[0], target[1], "");
 	}
 

@@ -435,4 +435,25 @@ public final class Rs2Equipment
 	{
 		return interact(get(ids), "remove");
 	}
+
+	/** As upstream: removes the worn item named {@code name}, exactly or containing it. */
+	public static boolean unEquip(String name, boolean exact)
+	{
+		return unEquip(new String[]{name}, exact);
+	}
+
+	/** As upstream: removes the first worn item named one of {@code names}, exactly or containing it. */
+	public static boolean unEquip(String[] names, boolean exact)
+	{
+		if (names == null) return false;
+		return unEquip(item -> item.getName() != null && java.util.Arrays.stream(names).filter(java.util.Objects::nonNull)
+			.anyMatch(n -> exact ? item.getName().equalsIgnoreCase(n)
+				: item.getName().toLowerCase(Locale.ROOT).contains(n.toLowerCase(Locale.ROOT))));
+	}
+
+	/** As upstream: removes the first worn item whose name contains one of {@code names}. */
+	public static boolean unEquip(String... names)
+	{
+		return unEquip(names, false);
+	}
 }
