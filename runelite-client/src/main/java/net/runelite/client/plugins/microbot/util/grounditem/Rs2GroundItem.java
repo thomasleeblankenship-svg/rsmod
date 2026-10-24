@@ -62,7 +62,7 @@ public final class Rs2GroundItem
 			return false;
 		}
 		return MobileActions.read(() -> items.stream()
-			.anyMatch(item -> (long) prices.getItemPrice(item.getId()) * item.getQuantity() >= value), false);
+			.anyMatch(item -> prices.getItemPrice(item.getId()) * item.getQuantity() >= value), false);
 	}
 	static boolean accepts(Rs2TileItemModel item, LootingParameters parameters)
 	{

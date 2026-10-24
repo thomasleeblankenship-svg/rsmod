@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.coords.WorldPoint;
@@ -49,11 +50,37 @@ public final class MobilePathfinder
 	{
 		Objects.requireNonNull(start, "start");
 		Objects.requireNonNull(goal, "goal");
+		PathfinderConfig config = refreshedConfig(start, goal);
+		return config == null ? PathResult.failed(start, goal) : search(config, start, goal);
+	}
+
+	/**
+	 * Finds a route from {@code start} to whichever of {@code goals} the search reaches first (the
+	 * nearest by route), as upstream's multi-target planner. On {@link PathResult.Status#FOUND} the
+	 * result's goal is the reached target; otherwise it is {@code null}. Same blocking rules as
+	 * {@link #find}.
+	 *
+	 * @throws IllegalStateException when called on the client thread
+	 */
+	public static PathResult findAny(WorldPoint start, Set<WorldPoint> goals)
+	{
+		Objects.requireNonNull(start, "start");
+		if (goals == null || goals.isEmpty())
+		{
+			return PathResult.failed(start, null);
+		}
+		PathfinderConfig config = refreshedConfig(start, null);
+		return config == null ? PathResult.failed(start, null) : search(config, start, goals);
+	}
+
+	/** The shared config with requirements refreshed on the client thread, or {@code null}. */
+	private static PathfinderConfig refreshedConfig(WorldPoint start, WorldPoint goal)
+	{
 		Client client = Microbot.getClient();
 		ClientThread clientThread = Microbot.getClientThread();
 		if (client == null || clientThread == null)
 		{
-			return PathResult.failed(start, goal);
+			return null;
 		}
 		if (client.isClientThread())
 		{
@@ -69,9 +96,9 @@ public final class MobilePathfinder
 		if (!refreshed)
 		{
 			log.warn("Pathfinder requirement refresh did not run on the client thread; no route for {} -> {}", start, goal);
-			return PathResult.failed(start, goal);
+			return null;
 		}
-		return search(config, start, goal);
+		return config;
 	}
 
 	/** Cancels the running search, if any; it returns {@link PathResult.Status#CANCELLED}. */
@@ -148,6 +175,26 @@ public final class MobilePathfinder
 			return PathResult.failed(start, goal);
 		}
 		return toResult(pathfinder, start, goal);
+	}
+
+	/** {@link #search(PathfinderConfig, WorldPoint, WorldPoint)} towards any of {@code goals}. */
+	public static PathResult search(PathfinderConfig config, WorldPoint start, Set<WorldPoint> goals)
+	{
+		Pathfinder pathfinder = new Pathfinder(config, start, goals);
+		ShortestPathPlugin.setPathfinder(pathfinder);
+		try
+		{
+			pathfinder.run();
+		}
+		catch (RuntimeException e)
+		{
+			log.warn("Pathfinder failed for {} -> any of {}", start, goals.size(), e);
+			return PathResult.failed(start, null);
+		}
+		List<WorldPoint> tiles = pathfinder.getPath();
+		WorldPoint end = tiles == null || tiles.isEmpty() ? null : tiles.get(tiles.size() - 1);
+		boolean reached = pathfinder.getTerminationReason() == PathTerminationReason.TARGET_REACHED && goals.contains(end);
+		return toResult(pathfinder, start, reached ? end : null);
 	}
 
 	static PathResult toResult(Pathfinder pathfinder, WorldPoint start, WorldPoint goal)
