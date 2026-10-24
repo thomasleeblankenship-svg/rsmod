@@ -939,6 +939,218 @@ public final class Rs2Bank
 		return Rs2Inventory.items(i -> true).mapToLong(Rs2ItemModel::getQuantity).sum();
 	}
 
+	// ---- Util action batch Q (Claude 1): withdraw-as, equipment deposits, collection box ----
+
+	/** As upstream: switches the bank to withdraw notes ({@code true}) or items; observed after the click. */
+	public static boolean setWithdrawAs(boolean noted)
+	{
+		return noted ? setWithdrawAsNote() : setWithdrawAsItem();
+	}
+
+	/** As upstream: one of each item; true when every withdrawal was confirmed. */
+	public static boolean withdrawItems(int... ids)
+	{
+		boolean success = true;
+		for (int id : ids)
+		{
+			success &= withdrawOne(id);
+		}
+		return success;
+	}
+
+	/** As upstream: withdraws the whole stack whose name contains {@code name}, then wears it. */
+	public static boolean withdrawAllAndEquip(String name)
+	{
+		if (net.runelite.client.plugins.microbot.util.equipment.Rs2Equipment.isWearing(name)) return true;
+		return withdrawAll(name) && Rs2Inventory.waitFor(() -> Rs2Inventory.hasItem(name), 3_000) && wearItem(name);
+	}
+
+	/** As upstream: withdraws the whole stack with this ID, then wears it. */
+	public static boolean withdrawAllAndEquip(int id)
+	{
+		if (net.runelite.client.plugins.microbot.util.equipment.Rs2Equipment.isWearing(id)) return true;
+		return withdrawAll(id) && Rs2Inventory.waitFor(() -> Rs2Inventory.hasItem(id), 3_000) && wearItem(id);
+	}
+
+	/** As upstream: deposits a carried rune pouch of any kind. */
+	public static boolean depositRunePouch()
+	{
+		for (int id : net.runelite.client.plugins.microbot.util.inventory.Rs2RunePouch.POUCH_IDS)
+		{
+			if (Rs2Inventory.hasItem(id))
+			{
+				return depositOne(id);
+			}
+		}
+		return false;
+	}
+
+	/** As upstream: the bank's "Empty containers" button (log basket, herb sack and the like). */
+	public static boolean emptyContainers()
+	{
+		return isOpen() && Rs2Widget.getWidget(InterfaceID.Bankmain.DEPOSITCONTAINERS) != null
+			&& Rs2Inventory.waitForInventoryChanges(() -> Rs2Widget.clickWidget(InterfaceID.Bankmain.DEPOSITCONTAINERS), 0, 3_000);
+	}
+
+	/** As upstream: unequips the item in this slot and deposits it. */
+	public static boolean depositEquippedItem(net.runelite.api.EquipmentInventorySlot equipmentSlot)
+	{
+		return isOpen() && depositEquipped(List.of(net.runelite.client.plugins.microbot.util.equipment.Rs2Equipment.get(equipmentSlot)));
+	}
+
+	/** As upstream: unequips the worn item with this ID and deposits it. */
+	public static boolean depositEquippedItem(int itemId)
+	{
+		return isOpen() && depositEquipped(java.util.Collections.singletonList(
+			net.runelite.client.plugins.microbot.util.equipment.Rs2Equipment.get(itemId)));
+	}
+
+	/** As upstream: unequips the worn item whose name contains {@code itemName} and deposits it. */
+	public static boolean depositEquippedItem(String itemName)
+	{
+		return depositEquippedItem(itemName, false);
+	}
+
+	/** As upstream: unequips the worn item named {@code itemName} (exactly, or containing it) and deposits it. */
+	public static boolean depositEquippedItem(String itemName, boolean exact)
+	{
+		return isOpen() && depositEquipped(java.util.Collections.singletonList(wornNamed(itemName, exact)));
+	}
+
+	/** As upstream: unequips the items in these slots and deposits them; slots with nothing worn are skipped. */
+	public static boolean depositEquippedItems(net.runelite.api.EquipmentInventorySlot... equipmentSlots)
+	{
+		if (!isOpen()) return false;
+		List<Rs2ItemModel> worn = new java.util.ArrayList<>();
+		for (net.runelite.api.EquipmentInventorySlot slot : equipmentSlots == null ? new net.runelite.api.EquipmentInventorySlot[0] : equipmentSlots)
+		{
+			worn.add(net.runelite.client.plugins.microbot.util.equipment.Rs2Equipment.get(slot));
+		}
+		return depositEquipped(worn);
+	}
+
+	/** As upstream: unequips the worn items with these IDs and deposits them. */
+	public static boolean depositEquippedItems(int... itemIds)
+	{
+		if (!isOpen()) return false;
+		List<Rs2ItemModel> worn = new java.util.ArrayList<>();
+		for (int id : itemIds == null ? new int[0] : itemIds)
+		{
+			worn.add(net.runelite.client.plugins.microbot.util.equipment.Rs2Equipment.get(id));
+		}
+		return depositEquipped(worn);
+	}
+
+	/** As upstream: unequips the worn items whose names contain these and deposits them. */
+	public static boolean depositEquippedItems(String... itemNames)
+	{
+		if (!isOpen()) return false;
+		List<Rs2ItemModel> worn = new java.util.ArrayList<>();
+		for (String name : itemNames == null ? new String[0] : itemNames)
+		{
+			worn.add(wornNamed(name, false));
+		}
+		return depositEquipped(worn);
+	}
+
+	private static Rs2ItemModel wornNamed(String name, boolean exact)
+	{
+		if (name == null) return null;
+		String wanted = name.toLowerCase(Locale.ROOT);
+		return net.runelite.client.plugins.microbot.util.equipment.Rs2Equipment.get(item -> item.getName() != null
+			&& (exact ? item.getName().equalsIgnoreCase(name) : item.getName().toLowerCase(Locale.ROOT).contains(wanted)));
+	}
+
+	/**
+	 * Upstream's core: unequip each, wait for it in the inventory, then deposit each. Mobile
+	 * adaptation: when the inventory lacks the free slots, nothing is moved and false is returned,
+	 * instead of upstream's banking and re-withdrawing other items to make room.
+	 */
+	private static boolean depositEquipped(List<Rs2ItemModel> worn)
+	{
+		List<Rs2ItemModel> items = worn.stream().filter(java.util.Objects::nonNull).collect(java.util.stream.Collectors.toList());
+		if (items.isEmpty()) return true;
+		if (Rs2Inventory.emptySlotCount() < items.size()) return false;
+		for (Rs2ItemModel item : items)
+		{
+			if (!net.runelite.client.plugins.microbot.util.equipment.Rs2Equipment.unEquip(item.getId())
+				|| !Rs2Inventory.waitFor(() -> Rs2Inventory.hasItem(item.getId()), 3_000))
+			{
+				return false;
+			}
+		}
+		boolean deposited = true;
+		for (Rs2ItemModel item : items)
+		{
+			deposited &= depositOne(item.getId());
+		}
+		return deposited;
+	}
+
+	/** The collection box (402): its title row, and the "to inventory" and "to bank" buttons. */
+	private static final int COLLECTION_BOX_GROUP = 402;
+	private static final int COLLECTION_BOX_TITLE = 2;
+	private static final int COLLECTION_TO_INVENTORY = (COLLECTION_BOX_GROUP << 16) | 3;
+	private static final int COLLECTION_TO_BANK = (COLLECTION_BOX_GROUP << 16) | 4;
+
+	/** As upstream: whether the collection box title is shown. */
+	public static boolean isCollectionBoxVisible()
+	{
+		return Rs2Widget.hasWidgetText("Collection box", COLLECTION_BOX_GROUP, COLLECTION_BOX_TITLE, false);
+	}
+
+	/** As upstream: {@link #isCollectionBoxVisible()}. */
+	public static boolean collectionBoxIsOpen()
+	{
+		return isCollectionBoxVisible();
+	}
+
+	/**
+	 * As upstream: "Collect" on the nearest bank booth or chest, else on a banker, then waits for the
+	 * collection box. True when it is open.
+	 */
+	public static boolean openCollectionBox()
+	{
+		if (collectionBoxIsOpen()) return true;
+		net.runelite.api.TileObject bank = net.runelite.client.plugins.microbot.util.gameobject.Rs2GameObject.findBank();
+		boolean sent;
+		if (bank != null)
+		{
+			sent = net.runelite.client.plugins.microbot.util.gameobject.Rs2GameObject.interact(bank, "Collect");
+		}
+		else
+		{
+			net.runelite.client.plugins.microbot.util.npc.Rs2NpcModel banker = net.runelite.client.plugins.microbot.util.npc.Rs2Npc.getBankerNPC();
+			sent = banker != null && net.runelite.client.plugins.microbot.util.npc.Rs2Npc.interact(banker, "Collect");
+		}
+		return sent && Rs2Inventory.waitFor(Rs2Bank::collectionBoxIsOpen, 5_000);
+	}
+
+	/** As upstream: opens the collection box and sends everything in it to the bank. */
+	public static boolean bankAllCollectionBoxItems()
+	{
+		return openCollectionBox() && Rs2Widget.clickWidget(COLLECTION_TO_BANK);
+	}
+
+	/** As upstream: opens the collection box and takes everything in it into the inventory. */
+	public static boolean inventoryAllCollectionBoxItems()
+	{
+		return openCollectionBox() && Rs2Widget.clickWidget(COLLECTION_TO_INVENTORY);
+	}
+
+	/** As upstream: closes the collection box (its close button, child 3 of 402:2) and waits for it to go. */
+	public static boolean closeCollectionBox()
+	{
+		Widget title = Rs2Widget.getWidget(COLLECTION_BOX_GROUP, COLLECTION_BOX_TITLE);
+		if (title == null) return true;
+		Widget close = MobileActions.read(() ->
+		{
+			Widget[] children = title.getDynamicChildren();
+			return children != null && children.length > 3 ? children[3] : null;
+		}, null);
+		return close != null && Rs2Widget.clickWidget(close) && Rs2Inventory.waitFor(() -> !collectionBoxIsOpen(), 5_000);
+	}
+
 	// ---- Hub read APIs: remembered bank contents (Microbot API names, written for mobile) ----
 
 	private static volatile List<Rs2ItemModel> rememberedBank = java.util.Collections.emptyList();
