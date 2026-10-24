@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | `util/walker/Rs2Walker.java` (public API: `walkUntil`, `walkNextTo`, `walkNextToInstance`, `closeWorldMap`, `walkWithBankedTransports` ×3, `walkWithBankedTransportsAndState`, `recalculatePath`, `restartPathfinding` ×2), new `UtilActionBatchXTest` | **Task: util action batch X** (walker public API) | this commit |
 | Claude 2 (user request; util-gap plan) | Read blocks in `util/player/Rs2Player.java` (reads only; your actions untouched), `util/player/Rs2PlayerModel.java`, `util/prayer/Rs2Prayer.java` (reads only), `util/magic/Rs2Spellbook.java` (reads only); new `HubReadBatchSixteenDTest` | **Task: read batch 16d**: `Rs2Player.isMoving(Player)`, `getWorldView`, `isPlayerAreaIntersecting`, `isInMulti`, `isInPoh`, `isStandingOnGroundItem`, `isIronman`, `isGroupIronman`, `isInCave`, `getGraphicId`, `hasCompletedTutorialIsland` (the `_Internal` pair stays out: upstream internals); `Rs2PlayerModel` delegating reads (`getId`, `getPlayerComposition`, `getTeam`, friend/clan/FC flags, overhead and skull icons, `getFootprintSize`); `Rs2Prayer.isQuickPrayerSet`, `hasAnyQuickPrayers`, `isRange/Mage/MeleePrayerActive`, `isPiety/ChivalryUnlocked`; `Rs2Spellbook.isAltarNearby`, `isTyssNearby`, `getNearestSwitchLocation`, `canSwitchInPOH` | this commit |
 
 ## Requests
