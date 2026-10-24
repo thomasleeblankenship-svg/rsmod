@@ -73,4 +73,17 @@ public class ScriptSettingsVisibilityTest
 		assertFalse("missing or stale selection uses the default script", ScriptKind.isSectionShown(null, "general"));
 		assertFalse(ScriptKind.isSectionShown("REMOVED_SCRIPT", "general"));
 	}
+
+	@Test
+	public void panelJsonCarriesStatusAndScriptNames()
+	{
+		com.google.gson.JsonObject panel = new com.google.gson.JsonParser().parse(MobileScriptBridge.panelJson()).getAsJsonObject();
+		assertTrue(panel.has("running"));
+		assertTrue(panel.has("status"));
+		com.google.gson.JsonArray scripts = panel.getAsJsonArray("scripts");
+		assertEquals(ScriptKind.values().length, scripts.size());
+		com.google.gson.JsonObject auto = scripts.get(ScriptKind.AUTO_WOODCUTTING.ordinal()).getAsJsonObject();
+		assertEquals("AUTO_WOODCUTTING", auto.get("id").getAsString());
+		assertEquals("Auto Woodcutting (mobile port)", auto.get("name").getAsString());
+	}
 }

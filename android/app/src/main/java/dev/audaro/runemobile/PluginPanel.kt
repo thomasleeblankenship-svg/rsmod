@@ -341,7 +341,11 @@ fun PluginPanel(
 
                 configFor != null -> {
                     val cf = configFor!!
-                    ConfigScreen(cf.first, cf.second, onBack = { configFor = null }, onTextActive = onPanelTextActive)
+                    if (cf.first == MICROBOT_GROUP) {
+                        MicrobotScreen(cf.second, onBack = { configFor = null }, onTextActive = onPanelTextActive)
+                    } else {
+                        ConfigScreen(cf.first, cf.second, onBack = { configFor = null }, onTextActive = onPanelTextActive)
+                    }
                 }
 
                 else -> {

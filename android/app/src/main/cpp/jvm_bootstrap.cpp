@@ -108,6 +108,7 @@ static jmethodID g_midNotificationDefaults = nullptr;  // SC-1/NOTIF-2: default 
 //   hubState()         -> {"refreshing":b,"seq":i}    (Finding 17: hub install progress)
 static jmethodID g_midNextNotification = nullptr, g_midNextLink = nullptr, g_midHubState = nullptr;
 static jmethodID g_midNextScreenshot = nullptr; // PARITY-ANDROID-SHOT: next auto-screenshot path or null
+static jmethodID g_midMicrobotStatus = nullptr; // Microbot Mobile screen: {ready,running,script,status,scripts}
 static jmethodID g_midHubManifest = nullptr, g_midHubInstall = nullptr, g_midHubUninstall = nullptr;
 // Native-origin publish into the SAME shared queues (host-raised alerts/links; also deterministic path tests).
 static jmethodID g_midPublishNotification = nullptr, g_midPublishLink = nullptr;
@@ -781,6 +782,7 @@ static bool publishBridge(JNIEnv *env) {
             g_midNextLink         = midOpt(env, mug, "nextLink", "()Ljava/lang/String;");
             g_midNextScreenshot = midOpt(env, mug, "nextScreenshot", "()Ljava/lang/String;");
             g_midHubState         = midOpt(env, mug, "hubState", "()Ljava/lang/String;");
+            g_midMicrobotStatus   = midOpt(env, mug, "microbotStatus", "()Ljava/lang/String;");
             // Finding 17 plugin-hub browse/install (best-effort; null disables the hub screen only).
             g_midHubManifest      = midOpt(env, mug, "hubManifest", "()Ljava/lang/String;");
             g_midHubInstall       = midOpt(env, mug, "hubInstall", "(Ljava/lang/String;)Ljava/lang/String;");
@@ -2279,6 +2281,12 @@ extern "C" JNIEXPORT jstring JNICALL
 Java_dev_audaro_runemobile_JvmLauncher_nativeHubState(JNIEnv *artEnv, jobject) {
     if (!mobileUiReady() || !g_midHubState) return artEnv->NewStringUTF("");
     return mobileUiStr(artEnv, g_midHubState);
+}
+// Microbot Mobile screen: live status + script list (polled ~1 Hz while the screen is open). No args.
+extern "C" JNIEXPORT jstring JNICALL
+Java_dev_audaro_runemobile_JvmLauncher_nativeMicrobotStatus(JNIEnv *artEnv, jobject) {
+    if (!mobileUiReady() || !g_midMicrobotStatus) return artEnv->NewStringUTF("");
+    return mobileUiStr(artEnv, g_midMicrobotStatus);
 }
 // Finding 17 — hubManifest: one-time async catalog download. First call returns {"status":"loading"}; the
 // native screen polls until {"status":"ok",plugins:[...]} (or error:*). No args.

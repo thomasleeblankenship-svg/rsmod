@@ -179,6 +179,10 @@ fun ConfigScreen(
     pluginName: String,
     onBack: () -> Unit,
     onTextActive: (Boolean) -> Unit = {},
+    // Keys the settings list leaves out (a header renders them instead).
+    hiddenKeys: Set<String> = emptySet(),
+    // Optional controls above the settings list, given the current items and the write-back for an item.
+    header: (@Composable (items: List<ConfigItem>, change: (ConfigItem, String) -> Unit) -> Unit)? = null,
 ) {
     var items by remember { mutableStateOf<List<ConfigItem>>(emptyList()) }
     var sections by remember { mutableStateOf<List<ConfigSectionMeta>>(emptyList()) }
@@ -270,7 +274,10 @@ fun ConfigScreen(
             } else if (items.isEmpty()) {
                 Text("No configurable options.", color = Color.Gray, modifier = Modifier.padding(8.dp))
             } else {
-                val groups = remember(items, sections) { groupConfig(ConfigSchema(items, sections)) }
+                val groups =
+                    remember(items, sections, hiddenKeys) {
+                        groupConfig(ConfigSchema(items.filter { it.key !in hiddenKeys }, sections))
+                    }
 
                 fun onItemChange(
                     item: ConfigItem,
@@ -310,6 +317,9 @@ fun ConfigScreen(
                 // UX-KBD-1: pad the list above the soft keyboard so editors deep in the sheet aren't hidden
                 // under it (text fields bring themselves into view on focus once the viewport shrinks).
                 LazyColumn(Modifier.fillMaxSize().imePadding()) {
+                    if (header != null) {
+                        item(key = "header") { header(items) { item, value -> onItemChange(item, value) } }
+                    }
                     for (g in groups) {
                         val meta = g.meta
                         if (meta != null) {
@@ -641,6 +651,7 @@ private fun BoundedIntSlider(
 /** Microbot Mobile's config group and its script selector (the bridge filters settings by that selection). */
 internal const val MICROBOT_GROUP = "mobilemicrobot"
 internal const val MICROBOT_SCRIPT_KEY = "selectedScript"
+internal const val MICROBOT_RUN_KEY = "runScript"
 
 private const val KEYBIND_NOT_SET = "0:0"
 

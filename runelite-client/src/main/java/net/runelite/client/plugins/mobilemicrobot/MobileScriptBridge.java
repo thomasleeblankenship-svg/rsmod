@@ -48,6 +48,17 @@ public final class MobileScriptBridge
 		return obj.toString();
 	}
 
+	/**
+	 * The Microbot Mobile screen's live view: {@link #statusJson()}'s fields plus {@code scripts}, each
+	 * script's id (enum name) and display name.
+	 */
+	public static String panelJson()
+	{
+		JsonObject obj = new com.google.gson.JsonParser().parse(statusJson()).getAsJsonObject();
+		obj.add("scripts", new com.google.gson.JsonParser().parse(scriptsJson()));
+		return obj.toString();
+	}
+
 	public static String scriptsJson()
 	{
 		JsonArray array = new JsonArray();

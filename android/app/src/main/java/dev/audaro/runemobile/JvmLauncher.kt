@@ -293,6 +293,8 @@ object JvmLauncher {
 
     external fun nativeHubState(): String // Finding 17: {"refreshing":bool,"seq":int}
 
+    external fun nativeMicrobotStatus(): String // Microbot Mobile: {ready,running,script,status,scripts:[{id,name}]}
+
     external fun nativeHubManifest(): String // Finding 17: {"status":loading|ok,...,plugins:[...]}
 
     external fun nativeHubInstall(internalName: String): String // Finding 17: {"ok":true,"writeId":n}
@@ -773,6 +775,8 @@ object JvmLauncher {
     ) = nativeSetPinned(pluginName, pinned)
 
     fun getPluginConfig(group: String) = nativeGetPluginConfig(group)
+
+    fun microbotStatus() = nativeMicrobotStatus()
 
     fun setConfig(
         group: String,

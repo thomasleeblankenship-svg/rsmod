@@ -1868,6 +1868,16 @@ public final class MobileUiBridge
 
 	private static final String MOBILE_MICROBOT_GROUP = "mobilemicrobot";
 
+	/**
+	 * Microbot Mobile's live status for the native Microbot screen (polled about once a second while it is
+	 * open): ready, running, script, status and the script list. Pure read of volatile fields, so it is safe
+	 * off the client thread.
+	 */
+	public static String microbotStatus()
+	{
+		return ENABLED ? net.runelite.client.plugins.mobilemicrobot.MobileScriptBridge.panelJson() : "{}";
+	}
+
 	// ---- Writes: queued onto the correct lane, fire-and-forget -----------------------------------------
 
 	/**
