@@ -334,4 +334,90 @@ public final class Rs2Dialogue
 	{
 		return Rs2Widget.isWidgetVisible(270, 1);
 	}
+
+	// ---- Actions (Claude 1): util-gap batch C ----
+
+	/** As upstream: presses the number key of the shown option at {@code index} (from 1). */
+	public static boolean keyPressForDialogueOption(int index)
+	{
+		if (index < 1 || index > 9 || !hasSelectAnOption())
+		{
+			return false;
+		}
+		int shown = MobileActions.read(() ->
+		{
+			net.runelite.api.widgets.Widget menu = Microbot.getClient().getWidget(net.runelite.api.widgets.ComponentID.DIALOG_OPTION_OPTIONS);
+			net.runelite.api.widgets.Widget[] rows = menu == null || menu.isHidden() ? null : menu.getDynamicChildren();
+			int count = 0;
+			for (int i = 1; rows != null && i < rows.length; i++)
+			{
+				if (rows[i] != null && !rows[i].isHidden() && rows[i].getText() != null && !rows[i].getText().isBlank())
+				{
+					count++;
+				}
+			}
+			return count;
+		}, 0);
+		return index <= shown && MobileActions.key(KeyEvent.VK_0 + index);
+	}
+
+	/** As upstream: the option containing {@code text}, by its number key. */
+	public static boolean keyPressForDialogueOption(String text)
+	{
+		return keyPressForDialogueOption(text, false);
+	}
+
+	/** As upstream: the option equal to ({@code exact}) or containing {@code text}, by its number key. */
+	public static boolean keyPressForDialogueOption(String text, boolean exact)
+	{
+		return hasSelectAnOption() && clickOption(text, exact);
+	}
+
+	/** As upstream: the "make X" entry whose name contains {@code text}. */
+	public static boolean clickCombinationOption(String text)
+	{
+		return clickCombinationOption(text, false);
+	}
+
+	/**
+	 * As upstream: taps the "make X" entry (270:14) whose name, without colour tags, equals
+	 * ({@code exact}) or contains {@code text}, ignoring case; one script action.
+	 */
+	public static boolean clickCombinationOption(String text, boolean exact)
+	{
+		if (text == null || !hasCombinationDialogue())
+		{
+			return false;
+		}
+		int[] target = MobileActions.read(() ->
+		{
+			if (!Rs2Widget.isWidgetVisible(270, 13))
+			{
+				return null;
+			}
+			net.runelite.api.widgets.Widget list = Microbot.getClient().getWidget(270, 14);
+			net.runelite.api.widgets.Widget[] children = list == null ? null : list.getStaticChildren();
+			for (int i = 0; children != null && i < children.length; i++)
+			{
+				net.runelite.api.widgets.Widget child = children[i];
+				if (child == null || child.getActions() == null || child.getActions().length == 0 || child.getName() == null)
+				{
+					continue;
+				}
+				String name = child.getName().replaceAll("<[^>]*>", "").trim();
+				if (exact ? name.equalsIgnoreCase(text) : name.toLowerCase(java.util.Locale.ROOT).contains(text.toLowerCase(java.util.Locale.ROOT)))
+				{
+					return new int[]{child.getId(), child.getIndex()};
+				}
+			}
+			return null;
+		}, null);
+		return target != null && MobileActions.widget(target[0], target[1], "");
+	}
+
+	/** As upstream: waits (up to 5 s) until the "make X" interface is showing. */
+	public static boolean sleepUntilHasCombinationDialogue()
+	{
+		return net.runelite.client.plugins.microbot.util.Global.sleepUntil(Rs2Dialogue::hasCombinationDialogue, 5_000);
+	}
 }

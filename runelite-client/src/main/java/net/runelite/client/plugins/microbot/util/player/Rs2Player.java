@@ -341,6 +341,48 @@ public final class Rs2Player
 		return drinkPotion(net.runelite.client.plugins.microbot.util.misc.Rs2Potion.getAntiPoisonVariants().toArray(new String[0]));
 	}
 
+	/**
+	 * As upstream: drinks a prayer potion once prayer has dropped by more than one dose restores
+	 * (the dose of the best potion carried: moonlight moth mix, moonlight, super restore or prayer
+	 * potion) plus 5 points. Mobile: a fixed threshold; upstream randomises it.
+	 */
+	public static boolean drinkPrayerPotion()
+	{
+		int maxPrayer = getRealSkillLevel(net.runelite.api.Skill.PRAYER);
+		int maxHerblore = getRealSkillLevel(net.runelite.api.Skill.HERBLORE);
+		int restore;
+		if (potion("moonlight moth mix") != null)
+		{
+			restore = 22;
+		}
+		else if (potion("moonlight potion") != null || potion("moonlight moth") != null)
+		{
+			restore = Math.max(maxPrayer / 4 + 7, (int) Math.floor(maxHerblore * 3.0 / 10.0) + 7);
+		}
+		else if (potion("super restore") != null || potion("blighted super restore") != null)
+		{
+			restore = maxPrayer / 4 + 8;
+		}
+		else
+		{
+			restore = maxPrayer / 4 + 7;
+		}
+		return drinkPrayerPotionAt(maxPrayer - restore - 5);
+	}
+
+	/** As upstream: an antifire potion unless antifire protection is already active (then true). */
+	public static boolean drinkAntiFirePotion()
+	{
+		return hasAntiFireActive()
+			|| drinkPotion(net.runelite.client.plugins.microbot.util.misc.Rs2Potion.getAntifirePotionsVariants().toArray(new String[0]));
+	}
+
+	/** As upstream: a goading potion unless its effect is active (then false). */
+	public static boolean drinkGoadingPotion()
+	{
+		return !hasGoadingActive() && drinkPotion(net.runelite.client.plugins.microbot.util.misc.Rs2Potion.getGoadingPotion());
+	}
+
 	/** As upstream: {@link #drinkCombatPotionAt(net.runelite.api.Skill, boolean)} preferring super combat potions. */
 	public static boolean drinkCombatPotionAt(net.runelite.api.Skill skill)
 	{

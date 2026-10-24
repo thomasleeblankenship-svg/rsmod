@@ -66,6 +66,47 @@ public class ClientThread
 		return client.isClientThread();
 	}
 
+	/**
+	 * As Microbot's fork of this class: runs {@code supplier} on the client thread and returns its
+	 * result (inline when already on it). Waits at most 10 s; a timeout or interrupt throws, as upstream.
+	 */
+	public <T> T invoke(java.util.function.Supplier<T> supplier)
+	{
+		if (client.isClientThread())
+		{
+			return supplier.get();
+		}
+		java.util.concurrent.CompletableFuture<T> result = new java.util.concurrent.CompletableFuture<>();
+		invoke(() ->
+		{
+			try
+			{
+				result.complete(supplier.get());
+			}
+			catch (Throwable t)
+			{
+				result.completeExceptionally(t);
+			}
+		});
+		try
+		{
+			return result.get(10, TimeUnit.SECONDS);
+		}
+		catch (InterruptedException e)
+		{
+			Thread.currentThread().interrupt();
+			throw new RuntimeException("Interrupted waiting for client thread", e);
+		}
+		catch (TimeoutException e)
+		{
+			throw new RuntimeException("Timed out waiting for client thread", e);
+		}
+		catch (ExecutionException e)
+		{
+			throw new RuntimeException("Client thread task failed", e);
+		}
+	}
+
 	/** One worker for {@link #runOnSeperateThread}, created on first use; never holds the VM open. */
 	private java.util.concurrent.ExecutorService separateThread;
 	private java.util.concurrent.Future<?> separateTask;

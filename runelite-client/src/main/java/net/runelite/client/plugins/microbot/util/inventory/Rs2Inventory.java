@@ -372,6 +372,37 @@ public final class Rs2Inventory
 			&& MobileActions.itemOnItem(first.getSlot(), second.getSlot());
 	}
 
+	/**
+	 * As upstream: uses the stack of {@code primaryItemId} on the stack of {@code secondaryItemId}
+	 * whose slots are closest in the inventory grid (Manhattan distance over rows of four).
+	 */
+	public static boolean combineClosest(int primaryItemId, int secondaryItemId)
+	{
+		List<Rs2ItemModel> primaries = items(i -> i.getId() == primaryItemId).collect(Collectors.toList());
+		List<Rs2ItemModel> secondaries = items(i -> i.getId() == secondaryItemId).collect(Collectors.toList());
+		Rs2ItemModel bestFirst = null;
+		Rs2ItemModel bestSecond = null;
+		int best = Integer.MAX_VALUE;
+		for (Rs2ItemModel first : primaries)
+		{
+			for (Rs2ItemModel second : secondaries)
+			{
+				if (first.getSlot() == second.getSlot())
+				{
+					continue;
+				}
+				int distance = Math.abs(first.getSlot() / 4 - second.getSlot() / 4) + Math.abs(first.getSlot() % 4 - second.getSlot() % 4);
+				if (distance < best)
+				{
+					best = distance;
+					bestFirst = first;
+					bestSecond = second;
+				}
+			}
+		}
+		return bestFirst != null && MobileActions.itemOnItem(bestFirst.getSlot(), bestSecond.getSlot());
+	}
+
 	public static boolean combine(int firstId, int secondId)
 	{
 		Rs2ItemModel first = get(firstId);
