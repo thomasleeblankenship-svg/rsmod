@@ -44,6 +44,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | action blocks in `util/equipment/Rs2Equipment.java` (appended; reads untouched), `util/gameobject/Rs2GameObject.java` (`interact(TileObject…)`), `util/inventory/Rs2Inventory.java` (`use(Rs2ItemModel)`), `util/antiban/Rs2Antiban.java`, `util/walker/Rs2Walker.java` (`walkTo(int,int,int[,int])`, worn-slot table moved to `Rs2Equipment`), new Hub copies `GiantSeaweedFarmer`, `pyrefox`, `sisyphusinfernalpact`, `npctanner`, `karambwans`, `TearsOfGuthix`, Hub lists, tests, docs | Hub action gaps round 4 | this commit |
 | Codex (user: next) | New `CODEX_APK_VERIFICATION.md`; local build/verification outputs only | Verify latest shared-source debug APK packaging and GitHub download identity; no runtime, CI or transport edits | this claim commit |
 
 ## Requests
