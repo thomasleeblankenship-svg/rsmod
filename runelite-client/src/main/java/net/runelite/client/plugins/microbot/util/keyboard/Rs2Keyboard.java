@@ -19,7 +19,16 @@ public final class Rs2Keyboard
 
 	private Rs2Keyboard() { }
 
-	public static boolean keyPress(int code) { return MobileActions.key(code); }
+	/**
+	 * As upstream: presses one key. Retried for up to 2 s, as {@link #keyPress(char)} and
+	 * {@link #enter()} are: a key is refused while another action already went out this tick, and
+	 * scripts press Space or Enter right after an interaction. A refused attempt sends nothing, so
+	 * the key goes out at most once.
+	 */
+	public static boolean keyPress(int code)
+	{
+		return Global.sleepUntil(() -> MobileActions.key(code), KEY_TIMEOUT_MILLIS);
+	}
 
 	/** As upstream: types one character. */
 	public static boolean keyPress(char character)
