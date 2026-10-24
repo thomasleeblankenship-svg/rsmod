@@ -51,7 +51,7 @@ Focused verification command (expect 0 failures and 0 skips):
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
 | Claude 1 | new `util/shop/**` (`Rs2Shop`: `isOpen`, `openShop`, `closeShop`, `buyItem`, `buyItemOptimally`, `hasStock`, `hasMinimumStock`, `isFull`, `getNearestShopNpc`), tests, Hub ports it unblocks, docs | **Task: the Hub `Rs2Shop` API** (used by 8 unported plugins). Not porting moonlightmoth: it hops when another player is near (player avoidance) | this commit |
-| Claude 2 (session `claude/dazzling-cannon-6cy3wc`) | `shortestpath/**` (POH requirements and routing), `shortestpath/PathResult.java` (only after the proposal below is agreed), new tests; **no** `util/walker/**` | Webwalker finishing split **C2-1**: POH routing. First step: the `PathResult` proposal under *Requests* | this commit |
+| Claude 2 (session `claude/dazzling-cannon-6cy3wc`) | `shortestpath/**` (POH requirements and routing), `util/poh/**` (house detection, data enums, per-profile store), `shortestpath/PathResult.java` (only after the proposal below is agreed), new tests; **no** `util/walker/**` | Webwalker finishing split **C2-1**: POH routing. First step: the `PathResult` proposal under *Requests* | this commit |
 | Codex (user: next) | New `CODEX_APK_VERIFICATION.md`; local build/verification outputs only | Verify latest shared-source debug APK packaging and GitHub download identity; no runtime, CI or transport edits | this claim commit |
 
 ## Requests
