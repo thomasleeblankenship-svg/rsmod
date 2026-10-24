@@ -495,6 +495,57 @@ public final class Rs2Npc
 		return false;
 	}
 
+	/**
+	 * As upstream: "Attack" on this NPC when it is in line of sight, the player is not already in
+	 * combat, and (outside multi-combat) it is not fighting someone else.
+	 */
+	public static boolean attack(Rs2NpcModel npc)
+	{
+		if (npc == null || !hasLineOfSight(npc) || net.runelite.client.plugins.microbot.util.combat.Rs2Combat.inCombat()) return false;
+		boolean busyElsewhere = MobileActions.read(() ->
+		{
+			net.runelite.api.Actor target = npc.getInteracting();
+			return npc.isInteracting() && target != null && target != Microbot.getClient().getLocalPlayer()
+				&& Microbot.getClient().getVarbitValue(net.runelite.api.gameval.VarbitID.MULTIWAY_INDICATOR) != 1;
+		}, true);
+		return !busyElsewhere && interact(npc, "Attack");
+	}
+
+	/** As upstream (deprecated there): {@link #attack(Rs2NpcModel)} on a raw NPC. */
+	public static boolean attack(NPC npc)
+	{
+		return npc != null && attack(new Rs2NpcModel(npc));
+	}
+
+	/** As upstream: {@link #attack(Rs2NpcModel)} on the nearest NPC with this ID. */
+	public static boolean attack(int npcId)
+	{
+		return attack(getNpc(npcId));
+	}
+
+	/**
+	 * As upstream: walks to the nearest known spawn cluster of {@code name} with at least
+	 * {@code minClustering} NPCs; {@code avoidWilderness} skips clusters in the Wilderness.
+	 */
+	public static boolean walkToNearestMonster(String name, int minClustering, boolean avoidWilderness)
+	{
+		MonsterLocation location = Rs2NpcManager.getClosestLocation(name, minClustering, avoidWilderness);
+		WorldPoint target = location == null ? null : location.getClosestToCenter();
+		return target != null && Rs2Walker.walkTo(target);
+	}
+
+	/** Mobile adaptation: avoids the Wilderness (upstream does not, by default). */
+	public static boolean walkToNearestMonster(String name, int minClustering)
+	{
+		return walkToNearestMonster(name, minClustering, true);
+	}
+
+	/** Mobile adaptation: avoids the Wilderness (upstream does not, by default). */
+	public static boolean walkToNearestMonster(String name)
+	{
+		return walkToNearestMonster(name, 1, true);
+	}
+
 	/** As upstream: "Pickpocket" on this NPC. */
 	public static boolean pickpocket(Rs2NpcModel npc)
 	{

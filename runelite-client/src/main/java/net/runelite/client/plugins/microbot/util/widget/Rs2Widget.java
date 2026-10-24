@@ -164,6 +164,21 @@ public final class Rs2Widget
 	public static boolean clickWidget(int group, int child) { return clickWidget((group << 16) | child); }
 	/** As upstream: clicks child {@code childId} of the widget {@code id} (its first option, else a tap on it). */
 	public static boolean clickChildWidget(int id, int childId) { return MobileActions.widget(id, childId, ""); }
+	/**
+	 * As upstream: when interface {@code widgetGroupId} is showing, clicks through a "continue" line
+	 * and waits (up to 2 s) for it to clear. False when the interface is not showing.
+	 */
+	public static boolean handleProcessConfirmation(int widgetGroupId)
+	{
+		if (!isWidgetVisible(widgetGroupId, 0)) return false;
+		if (net.runelite.client.plugins.microbot.util.dialogues.Rs2Dialogue.hasContinue())
+		{
+			net.runelite.client.plugins.microbot.util.dialogues.Rs2Dialogue.clickContinue();
+		}
+		return Global.sleepUntil(
+			() -> !net.runelite.client.plugins.microbot.util.dialogues.Rs2Dialogue.hasContinue(), 2_000);
+	}
+
 	public static boolean isWidgetVisible(int group, int child)
 	{
 		return MobileActions.read(() ->

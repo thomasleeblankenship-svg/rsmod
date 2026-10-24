@@ -47,6 +47,30 @@ public final class Rs2Tab
 		return switchTo(InterfaceTab.MUSIC);
 	}
 
+	/** As upstream (deprecated there): the quest list tab. */
+	public static boolean switchToQuestTab()
+	{
+		return switchTo(InterfaceTab.QUESTS);
+	}
+
+	/** As upstream (deprecated there): the friends list tab. */
+	public static boolean switchToFriendsTab()
+	{
+		return switchTo(InterfaceTab.FRIENDS);
+	}
+
+	/** As upstream (deprecated there): the account management tab. */
+	public static boolean switchToAccountManagementTab()
+	{
+		return switchTo(InterfaceTab.ACC_MAN);
+	}
+
+	/** As upstream (deprecated there): the grouping (chat channel) tab. */
+	public static boolean switchToGroupingTab()
+	{
+		return switchTo(InterfaceTab.CHAT);
+	}
+
 	public static boolean switchTo(InterfaceTab tab)
 	{
 		if (tab == null) { return false; }

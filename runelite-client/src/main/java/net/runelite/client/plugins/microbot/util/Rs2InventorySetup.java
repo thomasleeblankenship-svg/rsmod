@@ -642,4 +642,88 @@ public class Rs2InventorySetup
 		boolean changed = Rs2Inventory.waitForInventoryChanges(() -> sent[0] = action.getAsBoolean(), 0, 1_800);
 		return sent[0] && changed;
 	}
+
+	// ---- Util action batch W (Claude 1): items not in the setup ----
+
+	/**
+	 * As upstream: carried items the setup does not list (by ID, or by name for fuzzy rows), all of
+	 * them when there is no setup; teleport items are left out when {@code excludeTeleportItems}.
+	 */
+	public List<Rs2ItemModel> getItemsNotInInventorySetup(boolean excludeTeleportItems)
+	{
+		if (inventorySetup == null || inventorySetup.getInventory() == null)
+		{
+			return Rs2Inventory.all();
+		}
+		return notInRows(Rs2Inventory.all().stream(), inventorySetup.getInventory(), excludeTeleportItems);
+	}
+
+	/** As upstream: worn items the setup's equipment does not list, all of them when there is no setup. */
+	public List<Rs2ItemModel> getEquipmentNotInSetup(boolean excludeTeleportItems)
+	{
+		if (inventorySetup == null || inventorySetup.getEquipment() == null)
+		{
+			return Rs2Equipment.all().collect(Collectors.toList());
+		}
+		return notInRows(Rs2Equipment.all().filter(Objects::nonNull), inventorySetup.getEquipment(), excludeTeleportItems);
+	}
+
+	/** As upstream: anything carried or worn that the setup does not list. */
+	public boolean hasNotInventorySetup(boolean excludeTeleportItems)
+	{
+		return !getItemsNotInInventorySetup(excludeTeleportItems).isEmpty() || !getEquipmentNotInSetup(excludeTeleportItems).isEmpty();
+	}
+
+	private static List<Rs2ItemModel> notInRows(java.util.stream.Stream<Rs2ItemModel> items, List<InventorySetupsItem> rows, boolean excludeTeleportItems)
+	{
+		Set<Integer> ids = rows.stream().filter(r -> !InventorySetupsItem.itemIsDummy(r)).map(InventorySetupsItem::getId).collect(Collectors.toSet());
+		Set<String> fuzzyNames = rows.stream().filter(r -> !InventorySetupsItem.itemIsDummy(r) && r.isFuzzy() && r.getName() != null)
+			.map(r -> r.getName().toLowerCase(Locale.ROOT)).collect(Collectors.toSet());
+		return items.filter(item -> !(excludeTeleportItems && net.runelite.client.plugins.microbot.util.walker.Rs2Walker.isTeleportItem(item.getId())))
+			.filter(item -> !ids.contains(item.getId()))
+			.filter(item -> item.getName() == null || fuzzyNames.stream().noneMatch(item.getName().toLowerCase(Locale.ROOT)::contains))
+			.collect(Collectors.toList());
+	}
+
+	/** As upstream: with the bank open, deposits every carried item the setup does not list. */
+	public boolean bankItemsNotInInventorySetup(boolean excludeTeleportItems)
+	{
+		List<Rs2ItemModel> items = getItemsNotInInventorySetup(excludeTeleportItems);
+		if (items.isEmpty()) return true;
+		if (!Rs2Bank.isOpen()) return false;
+		for (Rs2ItemModel item : items)
+		{
+			if (isMainSchedulerCancelled() || !MobileActions.active()) return false;
+			if (Rs2Inventory.hasItem(item.getId()))
+			{
+				Rs2Bank.depositAll(item.getId());
+			}
+		}
+		return true;
+	}
+
+	/** As upstream: with the bank open, removes and deposits every worn item the setup does not list. */
+	public boolean bankEquipmentNotInSetup(boolean excludeTeleportItems)
+	{
+		List<Rs2ItemModel> worn = getEquipmentNotInSetup(excludeTeleportItems);
+		if (worn.isEmpty()) return true;
+		if (!Rs2Bank.isOpen()) return false;
+		for (Rs2ItemModel item : worn)
+		{
+			if (isMainSchedulerCancelled() || !MobileActions.active()) return false;
+			if (Rs2Equipment.unEquip(item.getId()) && Rs2Inventory.waitFor(() -> Rs2Inventory.hasItem(item.getId()), 3_000))
+			{
+				Rs2Bank.depositAll(item.getId());
+			}
+		}
+		return true;
+	}
+
+	/** As upstream: both of the above. */
+	public boolean bankAllItemsNotInSetup(boolean excludeTeleportItems)
+	{
+		boolean inventory = bankItemsNotInInventorySetup(excludeTeleportItems);
+		boolean equipment = bankEquipmentNotInSetup(excludeTeleportItems);
+		return inventory && equipment;
+	}
 }
