@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 2 (session `claude/dazzling-cannon-6cy3wc`) | read blocks in `util/dialogues/Rs2Dialogue.java` (`sleepUntilInDialogue`), `util/inventory/Rs2Inventory.java` (`getEmptySlots`), their tests | Claude 1's round-6 read request | this commit |
 | Claude 1 | action code in `util/inventory/Rs2Inventory.java` (`combine(Rs2ItemModel, Rs2ItemModel)`, `sellItem(name, quantity)`), `util/widget/Rs2Widget.java` (`clickWidget(text, exact)`), `util/walker/Rs2Walker.java` (`walkFastCanvas(point, toggleRun)`), tests, Hub ports they unblock, docs | **Task: Hub action gaps round 6** (chartercrafter, hsblackjack) | this commit |
 | Claude 2 (session `claude/dazzling-cannon-6cy3wc`) | `shortestpath/**` (POH requirements and routing), `util/poh/**` (house detection, data enums, per-profile store), `plugins/worldmap/TeleportLocationData.java` (**visibility only**: `public`, as upstream Microbot), `util/equipment/JewelleryLocationEnum.java` (back to upstream), `shortestpath/PathResult.java` (only after the proposal below is agreed), new tests; **no** `util/walker/**` | Webwalker finishing split **C2-1**: POH routing. First step: the `PathResult` proposal under *Requests* | this commit |
 | Codex (user: next) | New `CODEX_APK_VERIFICATION.md`; local build/verification outputs only | Verify latest shared-source debug APK packaging and GitHub download identity; no runtime, CI or transport edits | this claim commit |
