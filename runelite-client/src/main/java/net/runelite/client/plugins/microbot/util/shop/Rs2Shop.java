@@ -59,6 +59,34 @@ public final class Rs2Shop
 		}
 	}
 
+	// ---- Util action batch AH (Claude 1): change waits ----
+
+	/**
+	 * As upstream's container-event hook. Mobile reads the stock from the shop interface each time
+	 * (see the class comment), so there is no copy to update: this does nothing.
+	 */
+	public static void storeShopItemsInMemory(net.runelite.api.events.ItemContainerChanged e, int id)
+	{
+		// Stock is read live from the shop interface; nothing is cached.
+	}
+
+	/** As upstream: waits (Global's default timeout) until the shop's stock differs from now; false on timeout. */
+	public static boolean waitForShopChanges()
+	{
+		String before = stockSignature();
+		return Global.sleepUntil(() -> !stockSignature().equals(before));
+	}
+
+	private static String stockSignature()
+	{
+		StringBuilder signature = new StringBuilder();
+		for (Stock item : stock())
+		{
+			signature.append(item.slot).append(':').append(item.id).append('x').append(item.quantity).append(';');
+		}
+		return signature.toString();
+	}
+
 	/** As upstream: the shop interface is showing. */
 	public static boolean isOpen()
 	{
