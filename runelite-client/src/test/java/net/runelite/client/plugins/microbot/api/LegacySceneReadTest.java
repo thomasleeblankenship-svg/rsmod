@@ -218,6 +218,24 @@ public class LegacySceneReadTest
 	}
 
 	@Test
+	public void findBankIsTheNearestBankIdOfferingBankOrCollect()
+	{
+		int booth = net.runelite.client.plugins.microbot.util.gameobject.Rs2BankID.bankIds[0];
+		int chest = net.runelite.client.plugins.microbot.util.gameobject.Rs2BankID.bankIds[1];
+		definition(booth, "Bank booth", "Bank", "Collect");
+		definition(chest, "Closed booth", "Examine");
+		definition(1, "Zqxv statue", "Bank");
+		gameObject(chest, 6, 5);
+		gameObject(1, 7, 5);
+		gameObject(booth, 9, 5);
+
+		GameObject bank = Rs2GameObject.findBank();
+		assertNotNull(bank);
+		assertEquals("not the closed booth or the statue", booth, bank.getId());
+		assertNull("outside the radius", Rs2GameObject.findBank(3));
+	}
+
+	@Test
 	public void npcsAreFoundByNameOrIdNearestFirst()
 	{
 		NPC far = f.npc(1, "Tool leprechaun", world(9, 5));

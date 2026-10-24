@@ -93,6 +93,17 @@ public final class Rs2Widget
 		return target != null && MobileActions.widget(target[0], target[1], "");
 	}
 
+	/** As upstream: the first visible widget whose text matches {@code text} exactly (ignoring case) or contains it. */
+	public static boolean clickWidget(String text, boolean exact)
+	{
+		int[] target = MobileActions.read(() ->
+		{
+			Widget widget = findOnClientThread(text, null, exact);
+			return widget == null ? null : new int[]{widget.getId(), widget.getIndex()};
+		}, null);
+		return target != null && MobileActions.widget(target[0], target[1], "");
+	}
+
 	public static boolean clickWidget(Widget widget)
 	{
 		int[] target = MobileActions.read(() -> widget == null ? null : new int[]{widget.getId(), widget.getIndex()}, null);
@@ -101,6 +112,8 @@ public final class Rs2Widget
 
 	public static boolean clickWidget(int id) { return MobileActions.widget(id, -1, ""); }
 	public static boolean clickWidget(int group, int child) { return clickWidget((group << 16) | child); }
+	/** As upstream: clicks child {@code childId} of the widget {@code id} (its first option, else a tap on it). */
+	public static boolean clickChildWidget(int id, int childId) { return MobileActions.widget(id, childId, ""); }
 	public static boolean isWidgetVisible(int group, int child)
 	{
 		return MobileActions.read(() ->

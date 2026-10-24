@@ -70,6 +70,29 @@ public class Microbot {
      */
     public static boolean enableAutoRunOn = true;
 
+    /**
+     * As upstream: true from a stat change until 4 s after the last one. Set from the mobile
+     * plugin's {@code StatChanged} handler through {@link #setIsGainingExp(boolean)}.
+     */
+    public static volatile boolean isGainingExp = false;
+    // Mobile: a daemon thread, so it cannot keep the embedded JVM alive.
+    private static final java.util.concurrent.ScheduledExecutorService XP_SCHEDULER =
+        java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "Microbot-xp");
+            t.setDaemon(true);
+            return t;
+        });
+    private static java.util.concurrent.ScheduledFuture<?> xpReset;
+
+    /** As upstream: sets {@link #isGainingExp} and clears it 4 s later unless set again. */
+    public static synchronized void setIsGainingExp(boolean value) {
+        isGainingExp = value;
+        if (xpReset != null) {
+            xpReset.cancel(false);
+        }
+        xpReset = XP_SCHEDULER.schedule(() -> { isGainingExp = false; }, 4_000, java.util.concurrent.TimeUnit.MILLISECONDS);
+    }
+
     private static volatile Client client;
     private static volatile ClientThread clientThread;
     private static volatile EventBus eventBus;
@@ -313,6 +336,7 @@ public class Microbot {
         itemManager = null;
         pauseAllScripts.set(false);
         status = "IDLE";
+        isGainingExp = false;
     }
 
     public static boolean isDebug() {

@@ -174,6 +174,8 @@ public final class Rs2Inventory
 	}
 	public static boolean isFull() { return count() >= 28; }
 	public static int emptySlotCount() { return Math.max(0, 28 - count()); }
+	/** As upstream: the number of empty inventory slots ({@link #emptySlotCount()}). */
+	public static int getEmptySlots() { return emptySlotCount(); }
 	public static List<Rs2ItemModel> getList(Predicate<Rs2ItemModel> predicate) { return items(predicate).collect(Collectors.toList()); }
 	public static Rs2ItemModel get(int id) { return items(i -> i.getId() == id).findFirst().orElse(null); }
 	public static Rs2ItemModel get(String name) { return items(i -> matches(i.getName(), name, false)).findFirst().orElse(null); }
@@ -286,6 +288,8 @@ public final class Rs2Inventory
 	}
 
 	public static boolean use(int id) { return interact(id, "Use"); }
+	/** As upstream: "Use" on this item, selecting it for use on something else. */
+	public static boolean use(Rs2ItemModel item) { return item != null && interact(item, "Use"); }
 
 	public static boolean useLast(int id)
 	{
@@ -314,6 +318,35 @@ public final class Rs2Inventory
 			&& MobileActions.itemOnItem(first.getSlot(), second.getSlot());
 	}
 
+	/** As upstream: uses the first item with {@code primary}'s id on another slot holding {@code secondary}'s id. */
+	public static boolean combine(Rs2ItemModel primary, Rs2ItemModel secondary)
+	{
+		if (primary == null || secondary == null) return false;
+		Rs2ItemModel first = get(primary.getId());
+		Rs2ItemModel second = first == null ? null
+			: items(i -> i.getId() == secondary.getId() && i.getSlot() != first.getSlot()).findFirst().orElse(null);
+		return second != null && MobileActions.itemOnItem(first.getSlot(), second.getSlot());
+	}
+
+	/** As upstream: sells {@code quantity} ("1", "5", "10" or "50") of the item with this name (exact) to the open shop. */
+	public static boolean sellItem(String itemName, String quantity)
+	{
+		return sell(items(i -> matches(i.getName(), itemName, true)).findFirst().orElse(null), quantity);
+	}
+
+	/** As upstream: sells {@code quantity} of the item with this id to the open shop. */
+	public static boolean sellItem(int itemId, String quantity)
+	{
+		return sell(get(itemId), quantity);
+	}
+
+	/** The item's "Sell N" option on the inventory the shop shows beside its stock. */
+	private static boolean sell(Rs2ItemModel item, String quantity)
+	{
+		String option = "Sell " + quantity;
+		return item != null && waitFor(() -> MobileActions.widget(net.runelite.api.gameval.InterfaceID.Shopside.ITEMS, item.getSlot(), option), 2_000);
+	}
+
 	/** As upstream: combines the first items with these names (any order). */
 	public static boolean combine(String primary, String secondary)
 	{
@@ -335,6 +368,35 @@ public final class Rs2Inventory
 	{
 		Rs2ItemModel item = get(itemId);
 		return item != null && MobileActions.itemOnObject(item.getSlot(), objectId);
+	}
+
+	/** As upstream: uses the item with this id on the nearest NPC with {@code npcId}. False while the bank is open. */
+	public static boolean useItemOnNpc(int itemId, int npcId)
+	{
+		net.runelite.client.plugins.microbot.api.npc.models.Rs2NpcModel npc = Microbot.getRs2NpcCache() == null ? null
+			: Microbot.getRs2NpcCache().query().withId(npcId).nearest();
+		return npc != null && useItemOnNpc(itemId, npc);
+	}
+
+	/** As upstream: uses the item with this id on {@code npc}. False while the bank is open. */
+	public static boolean useItemOnNpc(int itemId, net.runelite.api.NPC npc)
+	{
+		if (npc == null) return false;
+		Integer index = MobileActions.read(npc::getIndex, null);
+		return index != null && useItemOnNpcIndex(itemId, index);
+	}
+
+	/** As upstream: uses the item with this id on {@code npc}. False while the bank is open. */
+	public static boolean useItemOnNpc(int itemId, net.runelite.client.plugins.microbot.api.npc.models.Rs2NpcModel npc)
+	{
+		return npc != null && useItemOnNpcIndex(itemId, npc.getIndex());
+	}
+
+	private static boolean useItemOnNpcIndex(int itemId, int npcIndex)
+	{
+		if (net.runelite.client.plugins.microbot.util.bank.Rs2Bank.isOpen()) return false;
+		Rs2ItemModel item = get(itemId);
+		return item != null && MobileActions.itemOnNpc(item.getSlot(), npcIndex);
 	}
 
 	/**

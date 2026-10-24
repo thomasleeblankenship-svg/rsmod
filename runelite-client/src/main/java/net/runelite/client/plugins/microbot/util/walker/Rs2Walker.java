@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import net.runelite.api.Client;
@@ -31,7 +32,9 @@ import net.runelite.client.plugins.microbot.mobile.MobileActions;
 import net.runelite.client.plugins.microbot.shortestpath.MobilePathfinder;
 import net.runelite.client.plugins.microbot.shortestpath.MobileTransportPolicy;
 import net.runelite.client.plugins.microbot.shortestpath.PathResult;
+import net.runelite.client.plugins.microbot.shortestpath.Transport;
 import net.runelite.client.plugins.microbot.shortestpath.TransportType;
+import net.runelite.client.plugins.microbot.shortestpath.WalkerPathReads;
 import net.runelite.client.plugins.microbot.shortestpath.pathfinder.PathfinderConfig;
 import net.runelite.client.plugins.microbot.util.Global;
 import net.runelite.client.plugins.microbot.util.dialogues.Rs2Dialogue;
@@ -202,9 +205,24 @@ public final class Rs2Walker
 			new WorldPoint(centerOfArea.getX() - range, centerOfArea.getY() + range, centerOfArea.getPlane()));
 	}
 
+	/** The arrival distance when none is given. */
+	private static final int DEFAULT_ARRIVAL_TILES = 1;
+
 	public static boolean walkTo(WorldPoint destination)
 	{
-		return walkTo(destination, 1);
+		return walkTo(destination, DEFAULT_ARRIVAL_TILES);
+	}
+
+	/** As upstream: walks to {@code (x, y, plane)} with the default arrival distance. */
+	public static boolean walkTo(int x, int y, int plane)
+	{
+		return walkTo(new WorldPoint(x, y, plane));
+	}
+
+	/** As upstream: walks to within {@code distance} tiles of {@code (x, y, plane)}. */
+	public static boolean walkTo(int x, int y, int plane, int distance)
+	{
+		return walkTo(new WorldPoint(x, y, plane), distance);
 	}
 
 	/**
@@ -263,7 +281,8 @@ public final class Rs2Walker
 				{
 					return fail("Walking stopped: no collision snapshot or game state changed");
 				}
-				if (scene.player.getPlane() != leg.destination.getPlane())
+				boolean houseStep = leg.stairs != null && leg.stairs.house != null;
+				if (!houseStep && scene.player.getPlane() != leg.destination.getPlane())
 				{
 					return fail("Walking stopped: unexpected plane change");
 				}
@@ -272,9 +291,19 @@ public final class Rs2Walker
 					lastStatus = "Arrived";
 					return true;
 				}
-				if (arrived(scene.player, leg.destination, leg.radius) && leg.stairs != null)
+				if (completionMet())
 				{
-					if (!(leg.stairs.fairyRing ? useFairyRing(leg.stairs, generation, deadline)
+					lastStatus = "Walk condition met";
+					return true;
+				}
+				// A way out of the house runs from wherever the player stands in it (its origin is synthetic).
+				if (leg.stairs != null && (arrived(scene.player, leg.destination, leg.radius)
+					|| (houseStep && net.runelite.client.plugins.microbot.util.poh.PohPresence.isInHouse())))
+				{
+					if (!(leg.stairs.house != null && leg.stairs.house != net.runelite.client.plugins.microbot.shortestpath.PohDevice.FAIRY_RING
+						? useHouseDevice(leg.stairs, generation, deadline)
+						: leg.stairs.canoe ? useCanoe(leg.stairs, generation, deadline)
+						: leg.stairs.fairyRing ? useFairyRing(leg.stairs, generation, deadline)
 						: leg.stairs.spell ? useTeleportSpell(leg.stairs, generation, deadline)
 						: leg.stairs.item ? useTeleportItem(leg.stairs, generation, deadline)
 						: leg.stairs.travel ? useTravel(leg.stairs, generation, deadline)
@@ -435,6 +464,211 @@ public final class Rs2Walker
 		return walkTo(destination, 0);
 	}
 
+	/** As upstream: sets run to {@code toggleRun}, then {@link #walkFastCanvas(WorldPoint)}. */
+	public static boolean walkFastCanvas(WorldPoint destination, boolean toggleRun)
+	{
+		Rs2Player.toggleRunEnergy(toggleRun);
+		return walkFastCanvas(destination);
+	}
+
+	/** {@link #walkWithStateUntil}'s condition for the walk running on this thread. */
+	private static final ThreadLocal<java.util.function.BooleanSupplier> COMPLETION = new ThreadLocal<>();
+
+	private static boolean completionMet()
+	{
+		java.util.function.BooleanSupplier condition = COMPLETION.get();
+		try
+		{
+			return condition != null && condition.getAsBoolean();
+		}
+		catch (RuntimeException e)
+		{
+			LOG.warn("Mobile walk: completion condition threw", e);
+			return false;
+		}
+	}
+
+	/**
+	 * As upstream: one minimap tap toward {@code worldPoint} (no route, no transports). False when
+	 * the point is not safely inside the minimap or no tap could be dispatched within two ticks.
+	 */
+	public static boolean walkMiniMap(WorldPoint worldPoint)
+	{
+		return worldPoint != null && (MobileActions.walkMinimap(worldPoint) || Global.sleepUntil(() -> MobileActions.walkMinimap(worldPoint), 1_200));
+	}
+
+	/** As upstream, except that the minimap zoom stays the user's: mobile never changes it. */
+	public static boolean walkMiniMap(WorldPoint worldPoint, double zoomDistance)
+	{
+		return walkMiniMap(worldPoint);
+	}
+
+	/**
+	 * As upstream (used in instances such as Vorkath or the Inferno): one scene walk to a local
+	 * point, resolved to its world tile on the client thread so instanced scenes work too.
+	 */
+	public static void walkFastLocal(net.runelite.api.coords.LocalPoint localPoint)
+	{
+		if (localPoint == null)
+		{
+			return;
+		}
+		WorldPoint world = MobileActions.read(() -> WorldPoint.fromLocal(Microbot.getClient(), localPoint), null);
+		if (world != null)
+		{
+			if (!MobileActions.walk(world))
+			{
+				Global.sleepUntil(() -> MobileActions.walk(world), 1_200);
+			}
+		}
+	}
+
+	/** As upstream: one scene walk to {@code worldPoint}; the point when it was dispatched, else null. */
+	public static WorldPoint walkCanvas(WorldPoint worldPoint)
+	{
+		return worldPoint != null && (MobileActions.walk(worldPoint) || Global.sleepUntil(() -> MobileActions.walk(worldPoint), 1_200))
+			? worldPoint : null;
+	}
+
+	/**
+	 * As upstream: a full walk ({@link #walkTo(WorldPoint, int)}), reported as {@link WalkerState#ARRIVED},
+	 * {@link WalkerState#EXIT} when cancelled (stop, a new target, an interrupt) and
+	 * {@link WalkerState#UNREACHABLE} otherwise.
+	 */
+	public static WalkerState walkWithState(WorldPoint target, int distance)
+	{
+		if (target == null)
+		{
+			return WalkerState.EXIT;
+		}
+		long before = GENERATION.get();
+		if (walkTo(target, distance))
+		{
+			return WalkerState.ARRIVED;
+		}
+		boolean cancelled = !MobileActions.active() || Thread.currentThread().isInterrupted() || GENERATION.get() != before + 1;
+		return cancelled ? WalkerState.EXIT : WalkerState.UNREACHABLE;
+	}
+
+	/** As upstream: {@link #walkWithState(WorldPoint, int)} with the default arrival distance. */
+	public static WalkerState walkWithState(WorldPoint target)
+	{
+		return walkWithState(target, DEFAULT_ARRIVAL_TILES);
+	}
+
+	/**
+	 * As upstream: walks until within {@code distance} or until {@code completionCondition} holds
+	 * (checked before starting and on every walking pass), either of which is {@link WalkerState#ARRIVED}.
+	 */
+	public static WalkerState walkWithStateUntil(WorldPoint target, int distance, java.util.function.BooleanSupplier completionCondition)
+	{
+		java.util.Objects.requireNonNull(completionCondition, "completionCondition");
+		if (target == null)
+		{
+			return walkWithState(null, distance);
+		}
+		if (completionCondition.getAsBoolean())
+		{
+			return WalkerState.ARRIVED;
+		}
+		java.util.function.BooleanSupplier previous = COMPLETION.get();
+		COMPLETION.set(completionCondition);
+		try
+		{
+			return walkWithState(target, distance);
+		}
+		finally
+		{
+			if (previous == null)
+			{
+				COMPLETION.remove();
+			}
+			else
+			{
+				COMPLETION.set(previous);
+			}
+		}
+	}
+
+	/** As upstream: cancels any walk in progress; the reason is logged. */
+	public static void clearWalkingRoute(String reason)
+	{
+		setTarget(null, reason == null || reason.isBlank() ? "unspecified" : reason);
+	}
+
+	/** As upstream: the active walk's destination, or null when no walk is running. */
+	public static WorldPoint getCurrentTarget()
+	{
+		return target;
+	}
+
+	/** As upstream: the pathfinder's tiles from {@code start} to {@code target}; see {@link WalkerPathReads}. */
+	public static List<WorldPoint> getWalkPath(WorldPoint start, WorldPoint target)
+	{
+		return WalkerPathReads.getWalkPath(start, target);
+	}
+
+	/** As upstream: the pathfinder's tiles from the player to {@code target}. */
+	public static List<WorldPoint> getWalkPath(WorldPoint target)
+	{
+		return WalkerPathReads.getWalkPath(target);
+	}
+
+	/** As upstream: the route length in tiles from {@code start} to {@code destination}. */
+	public static int getTotalTiles(WorldPoint start, WorldPoint destination)
+	{
+		return WalkerPathReads.getTotalTiles(start, destination);
+	}
+
+	/** As upstream: the route length in tiles from the player to {@code destination}. */
+	public static int getTotalTiles(WorldPoint destination)
+	{
+		return WalkerPathReads.getTotalTiles(destination);
+	}
+
+	/** As upstream: the length of {@code path} in tiles up to {@code destination}. */
+	public static int getTotalTilesFromPath(List<WorldPoint> path, WorldPoint destination)
+	{
+		return WalkerPathReads.getTotalTilesFromPath(path, destination);
+	}
+
+	/** As upstream: the index of the tile in {@code path} closest to the player. */
+	public static int getClosestTileIndex(List<WorldPoint> path)
+	{
+		return WalkerPathReads.getClosestTileIndex(path);
+	}
+
+	/** As upstream: whether the collision map lets the player stand on {@code tile}. */
+	public static boolean isWalkableInCollisionMap(WorldPoint tile)
+	{
+		return WalkerPathReads.isWalkableInCollisionMap(tile);
+	}
+
+	/** As upstream: the loaded scene tile at {@code point}, or null when it is not loaded. */
+	public static Tile getTile(WorldPoint point)
+	{
+		return WalkerPathReads.getTile(point);
+	}
+
+	/** As upstream: the transports a route to {@code destination} uses that bank planning withdraws for. */
+	public static List<Transport> getTransportsForDestination(WorldPoint destination, boolean useBankItems)
+	{
+		return WalkerPathReads.getTransportsForDestination(destination, useBankItems);
+	}
+
+	/** As upstream, with a preferred transport type. */
+	public static List<Transport> getTransportsForDestination(WorldPoint destination, boolean useBankItems,
+		TransportType prefTransportType)
+	{
+		return WalkerPathReads.getTransportsForDestination(destination, useBankItems, prefTransportType);
+	}
+
+	/** As upstream: item id to quantity to withdraw for {@code transports}. */
+	public static Map<Integer, Integer> getMissingTransportItemIdsWithQuantities(List<Transport> transports)
+	{
+		return WalkerPathReads.getMissingTransportItemIdsWithQuantities(transports);
+	}
+
 	/** Reachability query only; no movement or door clicks. */
 	public static boolean canReach(WorldPoint destination)
 	{
@@ -493,14 +727,14 @@ public final class Rs2Walker
 	/** Rides on an NPC or vehicle: interact, answer the destination dialogue, wait for the landing. */
 	static final Set<TransportType> TRAVEL_TRANSPORTS = EnumSet.of(TransportType.BOAT, TransportType.SHIP, TransportType.NPC,
 		TransportType.CHARTER_SHIP, TransportType.SPIRIT_TREE, TransportType.MINECART, TransportType.MAGIC_CARPET,
-		TransportType.GNOME_GLIDER, TransportType.HOT_AIR_BALLOON);
+		TransportType.GNOME_GLIDER, TransportType.HOT_AIR_BALLOON, TransportType.QUETZAL, TransportType.MAGIC_MUSHTREE);
 
 	/** One object click that teleports: arrival is anywhere near the catalogued landing. */
 	static final Set<TransportType> TELEPORT_OBJECTS = EnumSet.of(TransportType.TELEPORTATION_LEVER,
 		TransportType.TELEPORTATION_PORTAL);
 
 	/** Each gnome glider destination's button on the glider map (interface 138), as upstream's {@code handleGlider}. */
-	static final java.util.Map<String, Integer> GLIDER_BUTTONS = java.util.Map.of(
+	static final Map<String, Integer> GLIDER_BUTTONS = Map.of(
 		"ta quir priw", InterfaceID.Glidermap.GRANDTREE_BUTTON,
 		"sindarpos", InterfaceID.Glidermap.WHITEWOLFMOUNTAIN_BUTTON,
 		"lemanto andra", InterfaceID.Glidermap.VARROCK_BUTTON,
@@ -510,7 +744,7 @@ public final class Rs2Walker
 		"ookookolly undri", InterfaceID.Glidermap.APEATOLL_BUTTON);
 
 	/** Each hot air balloon destination's button on the balloon map, as upstream's {@code Rs2HotAirBalloon}. */
-	static final java.util.Map<String, Integer> BALLOON_BUTTONS = java.util.Map.of(
+	static final Map<String, Integer> BALLOON_BUTTONS = Map.of(
 		"castle wars", InterfaceID.ZepBalloonMap.BTN_CAST,
 		"grand tree", InterfaceID.ZepBalloonMap.BTN_GNO,
 		"crafting guild", InterfaceID.ZepBalloonMap.BTN_CRAFT,
@@ -519,24 +753,36 @@ public final class Rs2Walker
 		"varrock", InterfaceID.ZepBalloonMap.BTN_VARR);
 
 	/** Destination maps answered with one button per destination, by the map's root widget. */
-	private static final java.util.Map<Integer, java.util.Map<String, Integer>> DESTINATION_MAPS = java.util.Map.of(
+	private static final Map<Integer, Map<String, Integer>> DESTINATION_MAPS = Map.of(
 		InterfaceID.Glidermap.UNIVERSE, GLIDER_BUTTONS,
 		InterfaceID.ZepBalloonMap.ROOT_RECT0, BALLOON_BUTTONS);
 
 	/** The charter-ship destination map (upstream: widget 885, child 4). */
 	private static final int CHARTER_GROUP = 885;
 	private static final int CHARTER_CHILD = 4;
+	/**
+	 * Destination maps answered by the entry whose text names the destination, by the widgets to
+	 * search: the charter map, Renu's quetzal map and the whistle's (any layer: the root can stay
+	 * hidden while the map shows, as upstream notes), and the Fossil Island mushtree menu.
+	 */
+	private static final int[] TEXT_MAPS = {(CHARTER_GROUP << 16) | CHARTER_CHILD,
+		InterfaceID.QuetzalMenu.UNIVERSE, InterfaceID.QuetzalMenu.CONTENTS, InterfaceID.QuetzalMenu.MAP, InterfaceID.QuetzalMenu.ICONS,
+		InterfaceID.QuetzalwhistleMenu.UNIVERSE, InterfaceID.QuetzalwhistleMenu.CONTENTS, InterfaceID.QuetzalwhistleMenu.MAP,
+		InterfaceID.QuetzalwhistleMenu.ICONS, InterfaceID.FossilMushtrees.UNIVERSE};
 
 	/** Transport types the walker can execute; the pathfinder is told to admit only these. */
 	static final Set<TransportType> EXECUTABLE_TRANSPORTS = EnumSet.of(TransportType.TRANSPORT, TransportType.AGILITY_SHORTCUT,
 		TransportType.BOAT, TransportType.SHIP, TransportType.NPC, TransportType.CHARTER_SHIP, TransportType.TELEPORTATION_ITEM,
 		TransportType.TELEPORTATION_SPELL, TransportType.SPIRIT_TREE, TransportType.FAIRY_RING, TransportType.MINECART,
 		TransportType.MAGIC_CARPET, TransportType.TELEPORTATION_LEVER, TransportType.TELEPORTATION_PORTAL,
-		TransportType.GNOME_GLIDER, TransportType.HOT_AIR_BALLOON);
+		TransportType.GNOME_GLIDER, TransportType.HOT_AIR_BALLOON, TransportType.QUETZAL, TransportType.MAGIC_MUSHTREE,
+		TransportType.CANOE, TransportType.POH);
 
-	/** The spirit tree destination menu (upstream {@code ADVENTURE_LOG_CONTAINER}, 187) and its option list (187:3). */
-	private static final int DESTINATION_MENU_GROUP = 187;
-	private static final int DESTINATION_MENU_OPTIONS = 3;
+	/**
+	 * Destination lists as {group, child}: the spirit tree menu (upstream {@code ADVENTURE_LOG_CONTAINER},
+	 * 187:3) and the Lovakengj minecart list (947:9, "Minecart rides").
+	 */
+	private static final int[][] DESTINATION_MENUS = {{187, 3}, {947, 9}};
 
 	/** Staves that open fairy rings until the Lumbridge elite diary is done. */
 	private static final int[] FAIRY_RING_STAVES = {net.runelite.api.gameval.ItemID.DRAMEN_STAFF,
@@ -549,6 +795,13 @@ public final class Rs2Walker
 	/** A fairy ring lands on the destination ring. */
 	private static final int FAIRY_RING_ARRIVAL_TILES = 2;
 
+	/** The station's options in the order a canoe trip goes through them, as upstream's {@code handleCanoe}. */
+	static final List<String> CANOE_STAGES = List.of("Chop-down", "Shape-Canoe", "Float Canoe", "Paddle Canoe");
+	/** A canoe lands at the destination station's jetty (upstream allows twice its usual offset). */
+	private static final int CANOE_ARRIVAL_TILES = 10;
+	/** Chopping, shaping, floating and the paddle (with its cutscene) together. */
+	private static final long CANOE_MILLIS = 90_000;
+
 	/** A home teleport channels for about ten seconds before the landing. */
 	private static final long SPELL_TELEPORT_MILLIS = 30_000;
 
@@ -557,14 +810,6 @@ public final class Rs2Walker
 	private static final long TELEPORT_MILLIS = 20_000;
 	/** Inventory options that open a teleport item's destinations or use it, in preference order. */
 	private static final List<String> TELEPORT_ITEM_OPTIONS = List.of("Rub", "Teleport", "Break", "Read", "Commune");
-	/** Worn-equipment widgets by equipment slot index (head 0 ... ammo 13; 6, 8 and 11 are unused). */
-	private static final java.util.Map<Integer, Integer> WORN_SLOT_WIDGETS = java.util.Map.ofEntries(
-		java.util.Map.entry(0, InterfaceID.Wornitems.SLOT0), java.util.Map.entry(1, InterfaceID.Wornitems.SLOT1),
-		java.util.Map.entry(2, InterfaceID.Wornitems.SLOT2), java.util.Map.entry(3, InterfaceID.Wornitems.SLOT3),
-		java.util.Map.entry(4, InterfaceID.Wornitems.SLOT4), java.util.Map.entry(5, InterfaceID.Wornitems.SLOT5),
-		java.util.Map.entry(7, InterfaceID.Wornitems.SLOT7), java.util.Map.entry(9, InterfaceID.Wornitems.SLOT9),
-		java.util.Map.entry(10, InterfaceID.Wornitems.SLOT10), java.util.Map.entry(12, InterfaceID.Wornitems.SLOT12),
-		java.util.Map.entry(13, InterfaceID.Wornitems.SLOT13));
 
 	/** A ride lands roughly where the catalogue says (gangplanks and docks shift by a few tiles). */
 	private static final int TRAVEL_ARRIVAL_TILES = 5;
@@ -585,7 +830,8 @@ public final class Rs2Walker
 	private static WalkLeg nextLeg(MobileRoutePlanner.Scene scene, WorldPoint destination, int radius,
 		Set<ObjectTransports.Step> excluded, boolean pathfinder)
 	{
-		if (pathfinder && !scene.instance)
+		// The house is an instance, but the pathfinder knows it (it starts a search inside it at the house tile).
+		if (pathfinder && (!scene.instance || net.runelite.client.plugins.microbot.util.poh.PohPresence.isInHouse()))
 		{
 			WalkLeg leg = pathfinderLeg(scene.player, destination, radius);
 			if (leg != null)
@@ -631,16 +877,25 @@ public final class Rs2Walker
 				LOG.info("Mobile walk: route takes {} into the Wilderness; using the same-plane planner", transport);
 				return null;
 			}
-			if (transport.getType() == TransportType.MINECART && transport.getDisplayInfo() != null
-				&& !transport.getDisplayInfo().isBlank())
+			boolean intoHouse = transport.isIntoHouse();
+			if (transport.getType() == TransportType.POH)
 			{
-				// A minecart with a destination list (Lovakengj, interface 947) is not handled yet.
-				LOG.info("Mobile walk: route needs minecart menu {}; using the same-plane planner", transport);
-				return null;
+				if (transport.getPohDevice() == null || transport.getPohOption() == null || transport.getPohOption().isBlank())
+				{
+					LOG.info("Mobile walk: route needs house step {} without a device or option; using the same-plane planner", transport);
+					return null;
+				}
+				ObjectTransports.Step step = new ObjectTransports.Step(transport.getOrigin(), transport.getDestination(),
+					transport.getObjectId(), transport.getAction(), transport.getName(), TELEPORT_ARRIVAL_TILES, false,
+					transport.getPohOption().trim(), false, Set.of(), false,
+					transport.getPohDevice() == net.runelite.client.plugins.microbot.shortestpath.PohDevice.FAIRY_RING, false, intoHouse,
+					transport.getPohDevice());
+				return new WalkLeg(transport.getOrigin(), 1, step, new ArrayList<>(tiles.subList(0, i + 1)), true);
 			}
 			if (!EXECUTABLE_TRANSPORTS.contains(transport.getType())
 				|| (transport.getAction() == null && transport.getType() != TransportType.TELEPORTATION_ITEM
-					&& transport.getType() != TransportType.TELEPORTATION_SPELL && transport.getType() != TransportType.FAIRY_RING))
+					&& transport.getType() != TransportType.TELEPORTATION_SPELL && transport.getType() != TransportType.FAIRY_RING
+					&& transport.getType() != TransportType.POH))
 			{
 				LOG.info("Mobile walk: route needs {} ({}); using the same-plane planner", transport.getType(), transport);
 				return null;
@@ -655,11 +910,12 @@ public final class Rs2Walker
 				WorldPoint from = tiles.get(i);
 				ObjectTransports.Step step = new ObjectTransports.Step(from, transport.getDestination(), -1, "",
 					transport.getName(), TELEPORT_ARRIVAL_TILES, false, transport.getDisplayInfo().trim(), false, Set.of(), true);
-				return new WalkLeg(from, 1, step, new ArrayList<>(tiles.subList(0, i + 1)), true);
+				return new WalkLeg(from, 1, intoHouse ? step.toHouse() : step, new ArrayList<>(tiles.subList(0, i + 1)), true);
 			}
 			if (transport.getType() == TransportType.TELEPORTATION_ITEM)
 			{
-				if (disableTeleports || transport.getDisplayInfo() == null || !transport.getDisplayInfo().contains(":"))
+				// "Item: destination", or only the item ("Varrock tablet"): a tablet or scroll used with its own option.
+				if (disableTeleports || transport.getDisplayInfo() == null || transport.getDisplayInfo().isBlank())
 				{
 					LOG.info("Mobile walk: route needs teleport item {}; using the same-plane planner", transport);
 					return null;
@@ -668,7 +924,19 @@ public final class Rs2Walker
 				WorldPoint from = tiles.get(i);
 				ObjectTransports.Step step = new ObjectTransports.Step(from, transport.getDestination(), -1, "",
 					transport.getName(), TELEPORT_ARRIVAL_TILES, false, transport.getDisplayInfo(), true, transport.getItemIds());
-				return new WalkLeg(from, 1, step, new ArrayList<>(tiles.subList(0, i + 1)), true);
+				return new WalkLeg(from, 1, intoHouse ? step.toHouse() : step, new ArrayList<>(tiles.subList(0, i + 1)), true);
+			}
+			if (transport.getType() == TransportType.CANOE)
+			{
+				if (transport.getDisplayInfo() == null || transport.getDisplayInfo().isBlank() || transport.getOrigin() == null)
+				{
+					LOG.info("Mobile walk: route needs canoe {} without a destination; using the same-plane planner", transport);
+					return null;
+				}
+				ObjectTransports.Step step = new ObjectTransports.Step(transport.getOrigin(), transport.getDestination(),
+					transport.getObjectId(), transport.getAction(), transport.getName(), CANOE_ARRIVAL_TILES, false,
+					transport.getDisplayInfo().trim(), false, Set.of(), false, false, true);
+				return new WalkLeg(transport.getOrigin(), 1, intoHouse ? step.toHouse() : step, new ArrayList<>(tiles.subList(0, i + 1)), true);
 			}
 			if (transport.getType() == TransportType.FAIRY_RING)
 			{
@@ -680,13 +948,13 @@ public final class Rs2Walker
 				}
 				ObjectTransports.Step step = new ObjectTransports.Step(transport.getOrigin(), transport.getDestination(), -1, "",
 					"Fairy ring", FAIRY_RING_ARRIVAL_TILES, false, code, false, Set.of(), false, true);
-				return new WalkLeg(transport.getOrigin(), 1, step, new ArrayList<>(tiles.subList(0, i + 1)), true);
+				return new WalkLeg(transport.getOrigin(), 1, intoHouse ? step.toHouse() : step, new ArrayList<>(tiles.subList(0, i + 1)), true);
 			}
 			boolean travel = TRAVEL_TRANSPORTS.contains(transport.getType());
 			int arrival = travel ? TRAVEL_ARRIVAL_TILES : TELEPORT_OBJECTS.contains(transport.getType()) ? TELEPORT_ARRIVAL_TILES : 1;
 			ObjectTransports.Step step = new ObjectTransports.Step(transport.getOrigin(), transport.getDestination(),
 				transport.getObjectId(), transport.getAction(), transport.getName(), arrival, travel, transport.getDisplayInfo());
-			return new WalkLeg(transport.getOrigin(), 1, step, new ArrayList<>(tiles.subList(0, i + 1)), true);
+			return new WalkLeg(transport.getOrigin(), 1, intoHouse ? step.toHouse() : step, new ArrayList<>(tiles.subList(0, i + 1)), true);
 		}
 		return new WalkLeg(destination, radius, null, new ArrayList<>(tiles), true);
 	}
@@ -817,7 +1085,7 @@ public final class Rs2Walker
 			{
 				return true;
 			}
-			java.util.Map<String, Integer> buttons = visibleDestinationMap();
+			Map<String, Integer> buttons = visibleDestinationMap();
 			if (buttons != null)
 			{
 				Integer button = destinationButton(buttons, step.destinationText);
@@ -839,11 +1107,12 @@ public final class Rs2Walker
 				Thread.sleep(600);
 				continue;
 			}
-			if (charterMapVisible())
+			int textMap = visibleTextMap();
+			if (textMap >= 0)
 			{
-				if (!chooseCharterDestination(step.destinationText))
+				if (!chooseTextMapDestination(textMap, step.destinationText))
 				{
-					lastStatus = "charter map does not offer " + step.destinationText;
+					lastStatus = "destination map does not offer " + step.destinationText;
 					return false;
 				}
 				Thread.sleep(600);
@@ -1025,8 +1294,9 @@ public final class Rs2Walker
 	/** One use of the item: worn first (its destination option), then carried. */
 	private static boolean dispatchTeleportItem(java.util.function.Predicate<Rs2ItemModel> isItem, String place)
 	{
-		Rs2ItemModel worn = Rs2Equipment.get(isItem);
-		Integer widget = worn == null ? null : WORN_SLOT_WIDGETS.get(worn.getSlot());
+		// Worn items are used by their destination option, so only when there is a destination.
+		Rs2ItemModel worn = place.isEmpty() ? null : Rs2Equipment.get(isItem);
+		Integer widget = worn == null ? null : Rs2Equipment.wornSlotWidget(worn.getSlot());
 		if (widget != null)
 		{
 			String option = MobileActions.read(() ->
@@ -1122,14 +1392,17 @@ public final class Rs2Walker
 				Thread.sleep(600);
 				continue;
 			}
-			if (!dispatched && scene.player.getPlane() == step.origin.getPlane() && scene.player.distanceTo(step.origin) <= 3
+			boolean inHouse = step.house != null;
+			if (!dispatched && (inHouse || (scene.player.getPlane() == step.origin.getPlane() && scene.player.distanceTo(step.origin) <= 3))
 				&& System.currentTimeMillis() - lastAttempt >= 6_000)
 			{
 				lastAttempt = System.currentTimeMillis();
 				Object[] ring = MobileActions.read(() ->
 				{
+					// The house ring is found as detected (id or name); an outside ring stands on its catalogue tile.
 					Rs2TileObjectModel model = MicrobotReadServices.require().getRs2TileObjectCache().query()
-						.where(candidate -> step.origin.equals(candidate.getWorldLocation()) && candidate.getObjectComposition() != null)
+						.where(candidate -> (inHouse ? isHouseDevice(step, candidate) : step.origin.equals(candidate.getWorldLocation()))
+							&& candidate.getObjectComposition() != null)
 						.nearest();
 					String option = model == null ? null : fairyRingOption(model.getObjectComposition().getActions(), code);
 					return option == null ? null : new Object[]{model.getId(), model.getWorldLocation(), option};
@@ -1152,6 +1425,338 @@ public final class Rs2Walker
 		lastStatus = !MobileActions.active() || GENERATION.get() != generation
 			? "fairy ring cancelled" : dispatched ? "fairy ring landing was not observed" : "fairy ring was not used";
 		return false;
+	}
+
+	/** How long a way out of the house may take, menus and the teleport included. */
+	private static final long HOUSE_DEVICE_MILLIS = 30_000;
+	/** Portal nexus entries show their shortcut key as {@code <col=ffffff>K</col>}; upstream types it. */
+	private static final java.util.regex.Pattern NEXUS_KEY = java.util.regex.Pattern.compile("<col=ffffff>(.*?)</col>");
+
+	/**
+	 * Leaves the house through a detected device, as upstream's {@code PohTeleports}: portals and
+	 * mounted items by their own option; the portal nexus by the destination entry's shortcut key
+	 * (entries can be scrolled out of view); the jewellery box by its entry (refusing one that is
+	 * struck through, not unlocked); Xeric's talisman and the digsite pendant by their menu; the
+	 * spirit tree by "Travel" and its menu. Never confirms a Wilderness warning. Requires an observed
+	 * landing. The house fairy ring goes through {@link #useFairyRing}.
+	 */
+	private static boolean useHouseDevice(ObjectTransports.Step step, long generation, long walkDeadline) throws InterruptedException
+	{
+		long deadline = Math.min(walkDeadline, System.currentTimeMillis() + HOUSE_DEVICE_MILLIS);
+		long lastAttempt = 0;
+		boolean dispatched = false;
+		String option = step.destinationText;
+		lastStatus = "House " + step.house + ": " + option;
+		while (System.currentTimeMillis() < deadline && GENERATION.get() == generation
+			&& MobileActions.active() && !Thread.currentThread().isInterrupted())
+		{
+			MobileRoutePlanner.Scene scene = awaitSnapshot(generation, deadline);
+			if (scene == null)
+			{
+				lastStatus = "no collision snapshot, loading timed out or game state changed";
+				return false;
+			}
+			if (dispatched && step.observedArrival(scene.player))
+			{
+				return true;
+			}
+			if (net.runelite.client.plugins.microbot.util.widget.Rs2Widget.isWildernessInterfaceOpen())
+			{
+				lastStatus = "house teleport leads into the Wilderness; not confirmed";
+				return false;
+			}
+			if (widgetVisible(InterfaceID.TelenexusTeleport.UNIVERSE))
+			{
+				if (!chooseNexusDestination(option))
+				{
+					lastStatus = "portal nexus does not offer " + option;
+					return false;
+				}
+				dispatched = true;
+				Thread.sleep(600);
+				continue;
+			}
+			if (widgetVisible(InterfaceID.PohJewelleryBox.UNIVERSE))
+			{
+				String locked = jewelleryBoxEntryState(option);
+				if (!"open".equals(locked))
+				{
+					lastStatus = "jewellery box: " + option + (locked == null ? " is not listed" : " is not unlocked");
+					return false;
+				}
+				if (!chooseTextMapDestination(InterfaceID.PohJewelleryBox.UNIVERSE, option))
+				{
+					lastStatus = "jewellery box does not offer " + option;
+					return false;
+				}
+				dispatched = true;
+				Thread.sleep(600);
+				continue;
+			}
+			if (destinationMenuVisible())
+			{
+				if (!chooseMenuDestination(option))
+				{
+					lastStatus = "destination menu does not offer " + option;
+					return false;
+				}
+				dispatched = true;
+				Thread.sleep(600);
+				continue;
+			}
+			if (Rs2Dialogue.hasSelectAnOption())
+			{
+				if (!Rs2Dialogue.clickOption(menuDestinationName(option)))
+				{
+					lastStatus = "house teleport menu does not offer " + option;
+					return false;
+				}
+				dispatched = true;
+				Thread.sleep(600);
+				continue;
+			}
+			if (!dispatched && System.currentTimeMillis() - lastAttempt >= 6_000)
+			{
+				lastAttempt = System.currentTimeMillis();
+				Object[] device = MobileActions.read(() ->
+				{
+					Rs2TileObjectModel model = MicrobotReadServices.require().getRs2TileObjectCache().query()
+						.where(candidate -> isHouseDevice(step, candidate) && candidate.getObjectComposition() != null)
+						.nearest();
+					String use = model == null ? null : houseDeviceOption(step, model.getObjectComposition().getActions());
+					return use == null ? null : new Object[]{model.getId(), model.getWorldLocation(), use};
+				}, null);
+				if (device == null)
+				{
+					lastStatus = "no house " + step.house + " with a usable option";
+					return false;
+				}
+				String use = (String) device[2];
+				if (Global.sleepUntil(() -> MobileActions.objectAt((int) device[0], (WorldPoint) device[1], use), 2_000)
+					&& !opensAMenu(step.house, use))
+				{
+					dispatched = true;
+				}
+			}
+			long remaining = deadline - System.currentTimeMillis();
+			if (remaining > 0) { Thread.sleep(Math.min(300, remaining)); }
+		}
+		lastStatus = !MobileActions.active() || GENERATION.get() != generation
+			? "house teleport cancelled" : dispatched ? "house teleport landing was not observed" : "house device was not used";
+		return false;
+	}
+
+	/** A live object is this step's house device: its detected id, else its detected name. */
+	static boolean isHouseDevice(ObjectTransports.Step step, Rs2TileObjectModel candidate)
+	{
+		return candidate.getId() == step.objectId
+			|| (!step.target.isEmpty() && step.target.equalsIgnoreCase(candidate.getName()));
+	}
+
+	/**
+	 * The device option to use: the step's own action when the device offers it; for the spirit
+	 * tree "Travel"; for the nexus and jewellery box their menu option; for Xeric's and the digsite
+	 * their menu when the direct option is missing. Null when the device offers none of these.
+	 */
+	static String houseDeviceOption(ObjectTransports.Step step, String[] actions)
+	{
+		if (actions == null)
+		{
+			return null;
+		}
+		List<String> wanted = new ArrayList<>();
+		if (step.action != null && !step.action.isBlank())
+		{
+			wanted.add(step.action);
+		}
+		if (step.house == net.runelite.client.plugins.microbot.shortestpath.PohDevice.SPIRIT_TREE)
+		{
+			wanted.add("Travel");
+		}
+		wanted.add("Teleport Menu");
+		wanted.add("Teleport menu");
+		for (String candidate : wanted)
+		{
+			for (String action : actions)
+			{
+				if (action != null && action.equalsIgnoreCase(candidate))
+				{
+					return action;
+				}
+			}
+		}
+		return null;
+	}
+
+	/** Whether this device option opens a menu or interface (the teleport follows a later choice). */
+	static boolean opensAMenu(net.runelite.client.plugins.microbot.shortestpath.PohDevice device, String action)
+	{
+		return action.equalsIgnoreCase("Teleport Menu") || device == net.runelite.client.plugins.microbot.shortestpath.PohDevice.SPIRIT_TREE;
+	}
+
+	/** As upstream: types the nexus entry's shortcut key, or taps the entry when it shows none. */
+	private static boolean chooseNexusDestination(String destination)
+	{
+		String needle = Text.removeTags(destination).trim().toLowerCase(java.util.Locale.ROOT);
+		String key = MobileActions.read(() ->
+		{
+			net.runelite.api.widgets.Widget root = Microbot.getClient().getWidget(InterfaceID.TelenexusTeleport.UNIVERSE);
+			net.runelite.api.widgets.Widget entry = root == null || needle.isEmpty() ? null : findCharterEntry(root, needle);
+			return entry == null || entry.getText() == null ? null : nexusKey(entry.getText());
+		}, null);
+		if (key != null && key.length() == 1)
+		{
+			return Global.sleepUntil(() -> MobileActions.type(Character.toLowerCase(key.charAt(0))), 2_000);
+		}
+		return chooseTextMapDestination(InterfaceID.TelenexusTeleport.UNIVERSE, destination);
+	}
+
+	/** The shortcut key a nexus entry shows ("<col=ffffff>K</col> : Lumbridge" gives "K"), or null. */
+	static String nexusKey(String entryText)
+	{
+		java.util.regex.Matcher matcher = NEXUS_KEY.matcher(entryText);
+		return matcher.find() ? matcher.group(1).trim() : null;
+	}
+
+	/** "open", "locked" (struck through, as upstream checks) or null when the box does not list it. */
+	private static String jewelleryBoxEntryState(String destination)
+	{
+		String needle = Text.removeTags(destination).trim().toLowerCase(java.util.Locale.ROOT);
+		return MobileActions.read(() ->
+		{
+			net.runelite.api.widgets.Widget root = Microbot.getClient().getWidget(InterfaceID.PohJewelleryBox.UNIVERSE);
+			net.runelite.api.widgets.Widget entry = root == null || needle.isEmpty() ? null : findCharterEntry(root, needle);
+			if (entry == null)
+			{
+				return null;
+			}
+			return entry.getText() != null && entry.getText().contains("<str>") ? "locked" : "open";
+		}, null);
+	}
+
+	/**
+	 * Takes a canoe as upstream does, one stage per visit to the station: its live option is
+	 * Chop-down, then Shape-Canoe (the best canoe the Woodcutting level allows, on the shaping
+	 * interface), then Float Canoe, then Paddle Canoe (the destination on the river map). Requires an
+	 * observed landing.
+	 */
+	private static boolean useCanoe(ObjectTransports.Step step, long generation, long walkDeadline) throws InterruptedException
+	{
+		long deadline = Math.min(walkDeadline, System.currentTimeMillis() + CANOE_MILLIS);
+		long lastAttempt = 0;
+		boolean paddled = false;
+		lastStatus = "Canoe to " + step.destinationText;
+		while (System.currentTimeMillis() < deadline && GENERATION.get() == generation
+			&& MobileActions.active() && !Thread.currentThread().isInterrupted())
+		{
+			MobileRoutePlanner.Scene scene = awaitSnapshot(generation, deadline);
+			if (scene == null)
+			{
+				lastStatus = "no collision snapshot, loading timed out or game state changed";
+				return false;
+			}
+			if (paddled && step.observedArrival(scene.player))
+			{
+				return true;
+			}
+			int map = visibleCanoeMap();
+			if (map >= 0)
+			{
+				if (!chooseTextMapDestination(map, "Travel to " + step.destinationText))
+				{
+					lastStatus = "canoe map does not offer " + step.destinationText;
+					return false;
+				}
+				paddled = true;
+				Thread.sleep(600);
+				continue;
+			}
+			if (widgetVisible(InterfaceID.Canoeing.QUESTION))
+			{
+				String canoe = canoeFor(Rs2Player.getRealSkillLevel(net.runelite.api.Skill.WOODCUTTING));
+				if (canoe == null || !chooseTextMapDestination(InterfaceID.Canoeing.UNIVERSE, "Make " + canoe))
+				{
+					lastStatus = "cannot shape a canoe at this Woodcutting level";
+					return false;
+				}
+				Thread.sleep(600);
+				continue;
+			}
+			if (!paddled && !Rs2Player.isAnimating() && !Rs2Player.isMoving()
+				&& scene.player.getPlane() == step.origin.getPlane() && scene.player.distanceTo(step.origin) <= 3
+				&& System.currentTimeMillis() - lastAttempt >= 2_000)
+			{
+				lastAttempt = System.currentTimeMillis();
+				Object[] station = MobileActions.read(() ->
+				{
+					Rs2TileObjectModel model = MicrobotReadServices.require().getRs2TileObjectCache().query()
+						.where(candidate -> candidate.getWorldLocation().getPlane() == step.origin.getPlane()
+							&& candidate.getWorldLocation().distanceTo(step.origin) <= 6
+							&& (candidate.getId() == step.objectId || "Canoe Station".equalsIgnoreCase(candidate.getName()))
+							&& candidate.getObjectComposition() != null)
+						.nearest();
+					String stage = model == null ? null : canoeStage(model.getObjectComposition().getActions());
+					return stage == null ? null : new Object[]{model.getId(), model.getWorldLocation(), stage};
+				}, null);
+				if (station == null)
+				{
+					lastStatus = "no canoe station with a canoe option near " + step.origin;
+					return false;
+				}
+				Global.sleepUntil(() -> MobileActions.objectAt((int) station[0], (WorldPoint) station[1], (String) station[2]), 2_000);
+			}
+			long remaining = deadline - System.currentTimeMillis();
+			if (remaining > 0) { Thread.sleep(Math.min(300, remaining)); }
+		}
+		lastStatus = !MobileActions.active() || GENERATION.get() != generation
+			? "canoe cancelled" : paddled ? "canoe landing was not observed" : "canoe was not reached";
+		return false;
+	}
+
+	/** The station's current canoe option, the first of {@link #CANOE_STAGES} it offers; null when none. */
+	static String canoeStage(String[] actions)
+	{
+		if (actions == null)
+		{
+			return null;
+		}
+		for (String stage : CANOE_STAGES)
+		{
+			for (String action : actions)
+			{
+				if (stage.equalsIgnoreCase(action))
+				{
+					return action;
+				}
+			}
+		}
+		return null;
+	}
+
+	/** As upstream: the best canoe for a Woodcutting level (waka 57, stable dugout 42, dugout 27, log 12), or null. */
+	static String canoeFor(int woodcuttingLevel)
+	{
+		return woodcuttingLevel >= 57 ? "Waka canoe" : woodcuttingLevel >= 42 ? "Stable dugout canoe"
+			: woodcuttingLevel >= 27 ? "Dugout canoe" : woodcuttingLevel >= 12 ? "Log canoe" : null;
+	}
+
+	/** The destination list of whichever river's canoe map is showing, or -1. */
+	private static int visibleCanoeMap()
+	{
+		if (widgetVisible(InterfaceID.CanoeMapLum.MAIN_MAP))
+		{
+			return InterfaceID.CanoeMapLum.DESTINATIONS;
+		}
+		return widgetVisible(InterfaceID.CanoeMapDougne.MAIN_MAP) ? InterfaceID.CanoeMapDougne.DESTINATIONS : -1;
+	}
+
+	private static boolean widgetVisible(int widgetId)
+	{
+		return MobileActions.read(() ->
+		{
+			net.runelite.api.widgets.Widget widget = Microbot.getClient().getWidget(widgetId);
+			return widget != null && !widget.isHidden();
+		}, false);
 	}
 
 	/** "AIQ" from the catalogue's display info ("AIQ", or several codes, the first used); null when it has none. */
@@ -1258,15 +1863,25 @@ public final class Rs2Walker
 
 	private static boolean destinationMenuVisible()
 	{
-		return MobileActions.read(() ->
+		return MobileActions.read(() -> visibleDestinationMenu() != null, false);
+	}
+
+	/** The option list of whichever destination menu is showing, or null; client thread only. */
+	private static net.runelite.api.widgets.Widget visibleDestinationMenu()
+	{
+		for (int[] menu : DESTINATION_MENUS)
 		{
-			net.runelite.api.widgets.Widget menu = Microbot.getClient().getWidget(DESTINATION_MENU_GROUP, DESTINATION_MENU_OPTIONS);
-			return menu != null && !menu.isHidden();
-		}, false);
+			net.runelite.api.widgets.Widget list = Microbot.getClient().getWidget(menu[0], menu[1]);
+			if (list != null && !list.isHidden())
+			{
+				return list;
+			}
+		}
+		return null;
 	}
 
 	/**
-	 * As upstream: the spirit tree menu's entry naming the destination ("4: Grand Exchange" names
+	 * As upstream: the destination menu's entry naming the destination ("4: Grand Exchange" names
 	 * "Grand Exchange"), else the entry's shortcut key (the character before the colon).
 	 */
 	private static boolean chooseMenuDestination(String displayInfo)
@@ -1278,7 +1893,7 @@ public final class Rs2Walker
 		String needle = menuDestinationName(displayInfo).toLowerCase(java.util.Locale.ROOT);
 		int[] entry = MobileActions.read(() ->
 		{
-			net.runelite.api.widgets.Widget root = Microbot.getClient().getWidget(DESTINATION_MENU_GROUP, DESTINATION_MENU_OPTIONS);
+			net.runelite.api.widgets.Widget root = visibleDestinationMenu();
 			net.runelite.api.widgets.Widget match = root == null || needle.isEmpty() ? null : findCharterEntry(root, needle);
 			return match == null ? null : new int[]{match.getId(), match.getIndex()};
 		}, null);
@@ -1290,10 +1905,13 @@ public final class Rs2Walker
 		return key != 0 && Global.sleepUntil(() -> MobileActions.type(key), 2_000);
 	}
 
-	/** "4: Grand Exchange" gives "Grand Exchange"; text without a shortcut prefix is returned trimmed. */
+	/**
+	 * "4: Grand Exchange" gives "Grand Exchange", and the mushtree form "4. Mushroom Meadow" gives
+	 * "Mushroom Meadow"; text without such a prefix is returned trimmed.
+	 */
 	static String menuDestinationName(String displayInfo)
 	{
-		return displayInfo.trim().replaceAll("^[0-9A-Za-z]:\\s*", "").trim();
+		return displayInfo.trim().replaceAll("^[0-9A-Za-z][:.]\\s*", "").trim();
 	}
 
 	/** "4: Grand Exchange" gives '4', "A: Port Piscarilius" gives 'a'; 0 without a shortcut prefix. */
@@ -1305,13 +1923,13 @@ public final class Rs2Walker
 	}
 
 	/** A destination map's button for a destination name (case-insensitive), or null. */
-	static Integer destinationButton(java.util.Map<String, Integer> buttons, String destination)
+	static Integer destinationButton(Map<String, Integer> buttons, String destination)
 	{
 		return destination == null ? null : buttons.get(destination.trim().toLowerCase(java.util.Locale.ROOT));
 	}
 
 	/** The buttons of whichever destination map (glider or balloon) is showing, or null when none is. */
-	private static java.util.Map<String, Integer> visibleDestinationMap()
+	private static Map<String, Integer> visibleDestinationMap()
 	{
 		Integer root = MobileActions.read(() ->
 		{
@@ -1328,30 +1946,39 @@ public final class Rs2Walker
 		return root == null ? null : DESTINATION_MAPS.get(root);
 	}
 
-	private static boolean charterMapVisible()
+	/** The first of {@link #TEXT_MAPS} that is showing, or -1. */
+	private static int visibleTextMap()
 	{
 		return MobileActions.read(() ->
 		{
-			net.runelite.api.widgets.Widget map = Microbot.getClient().getWidget(CHARTER_GROUP, CHARTER_CHILD);
-			return map != null && !map.isHidden();
-		}, false);
+			for (int root : TEXT_MAPS)
+			{
+				net.runelite.api.widgets.Widget map = Microbot.getClient().getWidget(root);
+				if (map != null && !map.isHidden())
+				{
+					return root;
+				}
+			}
+			return -1;
+		}, -1);
 	}
 
 	/**
-	 * As upstream: the charter map entry whose text, name or option names {@code destination}, or its
-	 * nearest ancestor with an option, dispatched with its first option.
+	 * As upstream: the map entry under {@code rootId} whose text, name or option names the
+	 * destination ("4. Mushroom Meadow" names "Mushroom Meadow"), dispatched with the first option
+	 * of it or its nearest ancestor that has one, else tapped.
 	 */
-	private static boolean chooseCharterDestination(String destination)
+	private static boolean chooseTextMapDestination(int rootId, String destination)
 	{
 		if (destination == null || destination.isBlank())
 		{
 			return false;
 		}
-		String needle = Text.removeTags(destination).trim().toLowerCase(java.util.Locale.ROOT);
+		String needle = menuDestinationName(Text.removeTags(destination)).toLowerCase(java.util.Locale.ROOT);
 		Object[] target = MobileActions.read(() ->
 		{
-			net.runelite.api.widgets.Widget root = Microbot.getClient().getWidget(CHARTER_GROUP, CHARTER_CHILD);
-			net.runelite.api.widgets.Widget match = root == null ? null : findCharterEntry(root, needle);
+			net.runelite.api.widgets.Widget root = Microbot.getClient().getWidget(rootId);
+			net.runelite.api.widgets.Widget match = root == null || needle.isEmpty() ? null : findCharterEntry(root, needle);
 			for (net.runelite.api.widgets.Widget current = match; current != null; current = current == root ? null : current.getParent())
 			{
 				String option = current.getActions() == null ? null : Arrays.stream(current.getActions())
@@ -1362,7 +1989,7 @@ public final class Rs2Walker
 					return new Object[]{current.getId(), current.getIndex(), option};
 				}
 			}
-			return null;
+			return match == null ? null : new Object[]{match.getId(), match.getIndex(), ""};
 		}, null);
 		return target != null && Global.sleepUntil(() -> MobileActions.widget((int) target[0], (int) target[1], (String) target[2]), 2_000);
 	}

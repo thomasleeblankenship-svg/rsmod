@@ -7,6 +7,7 @@ import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
+import net.runelite.api.events.StatChanged;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
@@ -235,6 +236,13 @@ public class MobileMicrobotPlugin extends Plugin
 				MobileScriptBridge.update("Hub plugin stopped: " + HubPluginHost.name(plugin), "", false);
 			}
 		}
+	}
+
+	/** As upstream's {@code MicrobotPlugin}: any stat change counts as gaining experience for 4 s. */
+	@Subscribe
+	public void onStatChanged(StatChanged event)
+	{
+		net.runelite.client.plugins.microbot.Microbot.setIsGainingExp(true);
 	}
 
 	@Subscribe

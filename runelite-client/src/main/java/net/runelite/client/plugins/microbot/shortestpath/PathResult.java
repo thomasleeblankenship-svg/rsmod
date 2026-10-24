@@ -49,9 +49,15 @@ public final class PathResult
 		private final String displayInfo;
 		private final List<Set<Integer>> itemRequirements;
 		private final Set<Integer> itemIds;
+		private final int[] skillLevels;
+		private final boolean intoHouse;
+		private final PohDevice pohDevice;
+		private final String pohOption;
+		private final Transport source;
 
 		TransportStep(Transport transport)
 		{
+			this.source = transport;
 			this.type = transport.getType();
 			this.origin = transport.getOrigin();
 			this.destination = transport.getDestination();
@@ -72,6 +78,62 @@ public final class PathResult
 			}
 			this.itemRequirements = Collections.unmodifiableList(requirements);
 			this.itemIds = Collections.unmodifiableSet(ids);
+			this.skillLevels = transport.getSkillLevels() == null ? new int[0] : transport.getSkillLevels().clone();
+			HouseTransport house = transport instanceof HouseTransport ? (HouseTransport) transport : null;
+			this.intoHouse = (house != null && house.isIntoHouse()) || PohPanel.HOUSE_TILE.equals(transport.getDestination());
+			this.pohDevice = house == null ? null : house.getPohDevice();
+			this.pohOption = house == null ? null : house.getPohOption();
+		}
+
+		/** The catalogue transport this step was copied from, for the planner's own reads. */
+		Transport source()
+		{
+			return source;
+		}
+
+		/**
+		 * Whether this step lands in the player-owned house (house teleport spell, tablet, cape or the
+		 * outside portal): arrival is being in the house, and the landing tile is synthetic.
+		 */
+		public boolean isIntoHouse()
+		{
+			return intoHouse;
+		}
+
+		/**
+		 * For a {@link TransportType#POH} step out of the house, the device it uses; {@code null}
+		 * otherwise. Its {@link #getObjectId()} and {@link #getName()} are the device as detected, and
+		 * its origin (the house tile) is never walked to.
+		 */
+		public PohDevice getPohDevice()
+		{
+			return pohDevice;
+		}
+
+		/**
+		 * For a POH step, what the device shows for the destination: the destination name for the
+		 * nexus and jewellery box, the code for the fairy ring, the "N: Name" entry for the spirit
+		 * tree, and the exact menu option (also {@link #getAction()}) for portals and mounted items.
+		 */
+		public String getPohOption()
+		{
+			return pohOption;
+		}
+
+		/**
+		 * The level this step requires in each skill, indexed by {@link net.runelite.api.Skill#ordinal()}
+		 * (0 when none), as the catalogue states it. A canoe's Woodcutting level names the canoe that
+		 * makes the trip (12 log, 27 dugout, 42 stable dugout, 57 waka). A copy on every call.
+		 */
+		public int[] getSkillLevels()
+		{
+			return skillLevels.clone();
+		}
+
+		/** {@link #getSkillLevels()} for one skill; 0 when the step needs no level in it. */
+		public int getSkillLevel(net.runelite.api.Skill skill)
+		{
+			return skill.ordinal() < skillLevels.length ? skillLevels[skill.ordinal()] : 0;
 		}
 
 		/**

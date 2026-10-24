@@ -200,6 +200,25 @@ public class SceneQueryTest
 	}
 
 	@Test
+	public void groundValueIsPriceTimesQuantityReadOnTheClientThread()
+	{
+		net.runelite.client.game.ItemManager prices = mock(net.runelite.client.game.ItemManager.class);
+		when(prices.getItemPrice(995)).thenAnswer(i -> f.onClientThread(1L));
+		when(prices.getItemPrice(1)).thenAnswer(i -> f.onClientThread(300L));
+		groundItem(6, 5, 995, "Coins", 450, TileItem.OWNERSHIP_NONE);
+		groundItem(7, 5, 1, "Rune", 1, TileItem.OWNERSHIP_NONE);
+		assertFalse("no item manager bound", Rs2GroundItem.isItemBasedOnValueOnGround(400, 15));
+
+		net.runelite.client.plugins.microbot.MicrobotRuntime.uninstall();
+		net.runelite.client.plugins.microbot.MicrobotRuntime.install(f.client, f.clientThread, f.eventBus,
+			mock(net.runelite.client.config.ConfigManager.class), null, null, prices, List.of(f.services));
+		f.gameState(GameState.LOGGED_IN);
+		assertTrue("450 coins", Rs2GroundItem.isItemBasedOnValueOnGround(400, 15));
+		assertFalse(Rs2GroundItem.isItemBasedOnValueOnGround(451, 15));
+		assertFalse("coins out of range", Rs2GroundItem.isItemBasedOnValueOnGround(400, 0));
+	}
+
+	@Test
 	public void groundItemLootabilityFollowsOwnership()
 	{
 		groundItem(6, 5, 1, "Bones", 1, TileItem.OWNERSHIP_OTHER);

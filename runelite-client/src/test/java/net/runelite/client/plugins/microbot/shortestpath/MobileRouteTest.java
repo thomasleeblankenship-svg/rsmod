@@ -48,6 +48,13 @@ public class MobileRouteTest
 	}
 
 	/** Loads the bundled collision map and catalogue once, whichever test class asks first. */
+	/** The whole catalogue as loaded from resources (shared, do not modify). */
+	static Map<WorldPoint, Set<Transport>> catalogue()
+	{
+		ensureLoaded();
+		return allTransports;
+	}
+
 	private static synchronized void ensureLoaded()
 	{
 		if (collisionMap == null)
@@ -55,6 +62,11 @@ public class MobileRouteTest
 			collisionMap = SplitFlagMap.fromResources();
 			allTransports = Transport.loadAllFromResources();
 		}
+	}
+
+	static boolean freshFreeToPlayForTest(Transport t)
+	{
+		return freshFreeToPlay(t);
 	}
 
 	private static boolean freshFreeToPlay(Transport t)
@@ -69,8 +81,24 @@ public class MobileRouteTest
 	}
 
 	/** Offline config: the usable set injected as upstream's route corpus does (test-only reflection). */
-	@SuppressWarnings("unchecked")
 	static PathfinderConfig offlineConfig(MobileTransportPolicy policy)
+	{
+		return offlineConfig(policy, MobileRouteTest::freshFreeToPlay);
+	}
+
+	/**
+	 * Offline config admitting the transports {@code policy} admits and {@code usable} accepts, as if
+	 * the player met their requirements; origin-less teleports become usable teleports.
+	 */
+	static PathfinderConfig offlineConfig(MobileTransportPolicy policy, java.util.function.Predicate<Transport> usable)
+	{
+		return offlineConfig(policy, usable, Map.of());
+	}
+
+	/** {@link #offlineConfig(MobileTransportPolicy, java.util.function.Predicate)} plus {@code extra} transports (key {@code null}: teleports). */
+	@SuppressWarnings("unchecked")
+	static PathfinderConfig offlineConfig(MobileTransportPolicy policy, java.util.function.Predicate<Transport> usable,
+		Map<WorldPoint, Set<Transport>> extra)
 	{
 		ensureLoaded();
 		PathfinderConfig config = new PathfinderConfig(
@@ -88,21 +116,30 @@ public class MobileRouteTest
 			packedField.setAccessible(true);
 			PrimitiveIntHashMap<Set<Transport>> packed = (PrimitiveIntHashMap<Set<Transport>>) packedField.get(config);
 
-			for (Map.Entry<WorldPoint, Set<Transport>> entry : allTransports.entrySet())
+			Field teleportsField = PathfinderConfig.class.getDeclaredField("usableTeleports");
+			teleportsField.setAccessible(true);
+			Set<Transport> teleports = (Set<Transport>) teleportsField.get(config);
+
+			Map<WorldPoint, Set<Transport>> source = new HashMap<>();
+			allTransports.forEach((key, value) -> source.put(key, new java.util.HashSet<>(value)));
+			extra.forEach((key, value) -> source.computeIfAbsent(key, k -> new java.util.HashSet<>()).addAll(value));
+			for (Map.Entry<WorldPoint, Set<Transport>> entry : source.entrySet())
 			{
-				if (entry.getKey() == null)
+				Set<Transport> admitted = entry.getValue().stream()
+					.filter(policy::isAdmitted)
+					.filter(usable)
+					.collect(Collectors.toSet());
+				if (admitted.isEmpty())
 				{
 					continue;
 				}
-				Set<Transport> usable = entry.getValue().stream()
-					.filter(policy::isAdmitted)
-					.filter(MobileRouteTest::freshFreeToPlay)
-					.collect(Collectors.toSet());
-				if (!usable.isEmpty())
+				if (entry.getKey() == null)
 				{
-					transports.put(entry.getKey(), usable);
-					packed.put(WorldPointUtil.packWorldPoint(entry.getKey()), usable);
+					teleports.addAll(admitted);
+					continue;
 				}
+				transports.put(entry.getKey(), admitted);
+				packed.put(WorldPointUtil.packWorldPoint(entry.getKey()), admitted);
 			}
 		}
 		catch (ReflectiveOperationException e)

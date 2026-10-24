@@ -120,13 +120,59 @@ public final class Rs2Dialogue
 		{
 			return null;
 		}
-		String text = MobileActions.read(() ->
+		String text = optionTitleText();
+		return text == null ? null : net.runelite.client.plugins.microbot.util.misc.Rs2UiHelper.stripColTags(text);
+	}
+
+	/** The option menu's title row as the client holds it (tags included), or {@code null}. */
+	private static String optionTitleText()
+	{
+		return MobileActions.read(() ->
 		{
 			net.runelite.api.widgets.Widget menu = Microbot.getClient().getWidget(net.runelite.api.widgets.ComponentID.DIALOG_OPTION_OPTIONS);
 			net.runelite.api.widgets.Widget[] rows = menu == null ? null : menu.getDynamicChildren();
 			return rows == null || rows.length == 0 || rows[0] == null ? null : rows[0].getText();
 		}, null);
-		return text == null ? null : net.runelite.client.plugins.microbot.util.misc.Rs2UiHelper.stripColTags(text);
+	}
+
+	/**
+	 * As upstream: whether the option menu's title equals ({@code exact}) or contains {@code text},
+	 * ignoring case. Unlike {@link #getQuestion()} the title is compared with its tags, as upstream.
+	 */
+	public static boolean hasDialogueOptionTitle(String text, boolean exact)
+	{
+		if (text == null || !hasSelectAnOption())
+		{
+			return false;
+		}
+		String title = optionTitleText();
+		if (title == null)
+		{
+			return false;
+		}
+		return exact ? title.equalsIgnoreCase(text) : title.toLowerCase().contains(text.toLowerCase());
+	}
+
+	public static boolean hasDialogueOptionTitle(String text)
+	{
+		return hasDialogueOptionTitle(text, false);
+	}
+
+	/** As upstream: waits (upstream's default wait) until an option containing {@code text} shows. */
+	/** As upstream: waits (upstream's default wait) until a dialogue is showing. */
+	public static boolean sleepUntilInDialogue()
+	{
+		return net.runelite.client.plugins.microbot.util.Global.sleepUntilTrue(Rs2Dialogue::isInDialogue);
+	}
+
+	public static boolean sleepUntilHasDialogueOption(String text)
+	{
+		return sleepUntilHasDialogueOption(text, false);
+	}
+
+	public static boolean sleepUntilHasDialogueOption(String text, boolean exact)
+	{
+		return net.runelite.client.plugins.microbot.util.Global.sleepUntilTrue(() -> hasDialogueOption(text, exact));
 	}
 
 	/** Whether the option menu's question contains {@code text}, ignoring case. */

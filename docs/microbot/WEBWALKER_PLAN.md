@@ -96,8 +96,39 @@ Claude 1 acts (every click, tap, key and transport interaction).**
 - Done (step 9): hot air balloons ("Use" on the basket, then the destination's button on the
   balloon map, as upstream's `Rs2HotAirBalloon`). Gliders and balloons share one table of
   destination maps.
-- Next: quetzals, magic mushtrees and the Lovakengj minecarts
-  (each needs its destination interface), canoes, then POH (routing is off on Claude 2's side
+- Done (step 10): the Lovakengj minecarts, whose destination list (947:9) is answered like the
+  spirit tree menu (the entry by name, else its shortcut key).
+- Next: quetzals and magic mushtrees (each needs its destination interface), canoes, then POH (routing is off on Claude 2's side
   until then). Wilderness obelisks are not planned: their destinations are random and in the
   Wilderness.
 - None of these transports has been tried on a phone yet.
+
+## Finishing split (user request 2026-10-24: "the walker is almost complete delegate the work between both of you")
+
+Same line as before: **Claude 2 computes (paths, data, requirements), Claude 1 acts (every click
+and executor).** Hub use counts are calls across the Hub sources.
+
+### Claude 2: reads, data and pathfinding
+
+| # | Work | Notes |
+| --- | --- | --- |
+| C2-1 | **POH routing**: turn on `POH` in `PathfinderConfig` with real requirement checks (house teleport tab, spell or construction cape; the house's portals, nexus, jewellery box, fairy ring and spirit tree read from varbits), and say in `PathResult` which POH object and option each step uses | Claude 1 executes it (C1-4). Propose any `PathResult` change in `COORDINATION.md` first |
+| C2-2 | **Path reads for the walker API**, in a new `shortestpath/` facade (yours): `getWalkPath(WorldPoint)` (7 Hub uses), `getTotalTiles` (4), `getClosestTileIndex` (2), `getTransportsForDestination` (1), `getMissingTransportItemIdsWithQuantities` (1), `isWalkableInCollisionMap` (1), `getTile` (1) | Claude 1 adds the one-line `Rs2Walker` statics that call them |
+| C2-3 | **Contract route tests** over the real collision map for every transport the walker executes: fairy ring (staff requirement), spirit tree, glider, balloon (logs), Lovakengj minecart, magic carpet (coins), portal, lever (Wilderness avoided by default), teleport item and spell. Each asserts the `type`, `action`, `objectId` and `displayInfo` the executor relies on | Catches data or merge changes that would break an executor silently |
+| C2-4 | **Data for the last three transports**: quetzals (destination names, Varlamore unlock varplayers), magic mushtrees (destination text), canoes (station, destination, Woodcutting level, axe). Confirm `PathResult` carries what an executor needs | Claude 1 then writes the executors (C1-2) |
+| C2-5 | **Search cost on a phone**: time a long route (Lumbridge to Varrock, Draynor to Falador) on the slowest path, and cache or cut off so `walkTo` starts moving within a tick or two | |
+
+### Claude 1: execution and the walker API
+
+| # | Work | Notes |
+| --- | --- | --- |
+| C1-1 | **Done** — **Missing walker actions**: `walkMiniMap` (12 Hub uses), `walkFastLocal` (12), `walkCanvas` (9), `walkWithState` (7), `walkWithStateUntil` (3), `clearWalkingRoute` (6), `getCurrentTarget` (1) | First, as it unblocks the most plugins |
+| C1-2 | **Executors** for quetzals (Renu's map) and magic mushtrees (destination menu): **done**, both answered by map text like the charter map; canoes (the station steps and destination map): **done** | After C2-4 |
+| C1-3 | **Done** — the `Rs2Walker` statics for C2-2's reads: `getWalkPath` (2), `getTotalTiles` (2), `getTotalTilesFromPath`, `getClosestTileIndex`, `isWalkableInCollisionMap`, `getTile`, `getTransportsForDestination` (2), `getMissingTransportItemIdsWithQuantities`, each one line onto `WalkerPathReads` | Right after C2-2 lands |
+| C1-4 | **Done** — **POH execution**: ways in (house teleport spell, tablet, construction cape, the outside portal, a ring or tree to the house) land when the player is in the house; ways out run from wherever the player stands: portals and mounted items by their option, the nexus by the entry's shortcut key (else a tap), the jewellery box by its entry (struck-through entries refused), Xeric's and the digsite by their menu, the spirit tree by "Travel" and its menu, the house fairy ring dialled like any ring. The pathfinder plans from inside the house; a house exit into the Wilderness is refused like any other transport | After C2-1 |
+| C1-5 | **Retire `ObjectTransports`** and the same-plane planner fallback once a phone walk confirms the pathfinder route; keep a phone checklist per transport | Needs phone results from the user |
+| C1-6 | `JavaBridgeKeyTimingTest` intermittent failure (not walker): spans of 1, 3, 41 and 55 ms in full-suite runs suggest concurrent key-pump chains | Own change |
+
+Wilderness obelisks stay out (random Wilderness destinations), as does any transport that lands
+in the Wilderness unless the goal is there.
+

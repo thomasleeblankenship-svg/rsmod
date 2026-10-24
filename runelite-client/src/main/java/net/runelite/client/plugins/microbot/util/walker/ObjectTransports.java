@@ -50,6 +50,15 @@ final class ObjectTransports
 		final boolean spell;
 		/** A fairy ring: {@link #destinationText} is the three-letter code, {@link #origin} the ring. */
 		final boolean fairyRing;
+		/** A canoe station: {@link #destinationText} is the destination, {@link #objectId} the station. */
+		final boolean canoe;
+		/** Lands in the player-owned house: arrival is being in the house, not a tile. */
+		final boolean intoHouse;
+		/**
+		 * A way out of the house: the device used ({@link #objectId} and {@link #target} as detected,
+		 * {@link #destinationText} its option); {@code null} otherwise. Its origin is never walked to.
+		 */
+		final net.runelite.client.plugins.microbot.shortestpath.PohDevice house;
 
 		Step(WorldPoint origin, WorldPoint arrival, int objectId, String action, String target)
 		{
@@ -88,6 +97,23 @@ final class ObjectTransports
 		Step(WorldPoint origin, WorldPoint arrival, int objectId, String action, String target, int arrivalRadius,
 			boolean travel, String destinationText, boolean item, Set<Integer> itemIds, boolean spell, boolean fairyRing)
 		{
+			this(origin, arrival, objectId, action, target, arrivalRadius, travel, destinationText, item, itemIds, spell, fairyRing, false);
+		}
+
+		Step(WorldPoint origin, WorldPoint arrival, int objectId, String action, String target, int arrivalRadius,
+			boolean travel, String destinationText, boolean item, Set<Integer> itemIds, boolean spell, boolean fairyRing, boolean canoe)
+		{
+			this(origin, arrival, objectId, action, target, arrivalRadius, travel, destinationText, item, itemIds, spell, fairyRing,
+				canoe, false, null);
+		}
+
+		Step(WorldPoint origin, WorldPoint arrival, int objectId, String action, String target, int arrivalRadius,
+			boolean travel, String destinationText, boolean item, Set<Integer> itemIds, boolean spell, boolean fairyRing, boolean canoe,
+			boolean intoHouse, net.runelite.client.plugins.microbot.shortestpath.PohDevice house)
+		{
+			this.intoHouse = intoHouse;
+			this.house = house;
+			this.canoe = canoe;
 			this.fairyRing = fairyRing;
 			this.spell = spell;
 			this.item = item;
@@ -118,7 +144,18 @@ final class ObjectTransports
 
 		boolean observedArrival(WorldPoint player)
 		{
+			if (intoHouse)
+			{
+				return net.runelite.client.plugins.microbot.util.poh.PohPresence.isInHouse();
+			}
 			return player != null && player.getPlane() == arrival.getPlane() && player.distanceTo(arrival) <= arrivalRadius;
+		}
+
+		/** This step, landing in the player-owned house (arrival is being in the house). */
+		Step toHouse()
+		{
+			return new Step(origin, arrival, objectId, action, target, arrivalRadius, travel, destinationText, item, itemIds, spell,
+				fairyRing, canoe, true, house);
 		}
 
 		@Override

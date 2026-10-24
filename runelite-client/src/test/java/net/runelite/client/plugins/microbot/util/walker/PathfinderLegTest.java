@@ -5,6 +5,7 @@ import java.util.Map;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.plugins.microbot.shortestpath.MobilePathfinder;
 import net.runelite.client.plugins.microbot.shortestpath.PathResult;
+import net.runelite.client.plugins.microbot.shortestpath.PohDevice;
 import net.runelite.client.plugins.microbot.shortestpath.TransportType;
 import org.junit.Test;
 import org.mockito.MockedStatic;
@@ -68,7 +69,7 @@ public class PathfinderLegTest
 	public void routesNeedingATransportTheWalkerCannotExecuteFallBack()
 	{
 		assertNull(legFor(result(PathResult.Status.FOUND, TILES,
-			Map.of(1, transport(B, GOAL, TransportType.QUETZAL, "Travel", "Renu", 13350)))));
+			Map.of(1, transport(B, GOAL, TransportType.WILDERNESS_OBELISK, "Activate", "Obelisk", 14829)))));
 	}
 
 	@Test
@@ -273,15 +274,19 @@ public class PathfinderLegTest
 	}
 
 	@Test
-	public void minecartsWithAFixedDestinationRideAndMenuMinecartsFallBack()
+	public void minecartsRideWithAFixedDestinationOrADestinationList()
 	{
 		Rs2Walker.WalkLeg trapdoor = legFor(result(PathResult.Status.FOUND, TILES,
 			Map.of(1, transport(B, GOAL, TransportType.MINECART, "Travel", "", 16168))));
 		assertNotNull(trapdoor);
 		assertTrue(trapdoor.stairs.travel);
 		assertEquals(5, trapdoor.stairs.arrivalRadius);
-		assertNull("the Lovakengj destination list is not handled yet", legFor(result(PathResult.Status.FOUND, TILES,
-			Map.of(1, transport(B, GOAL, TransportType.MINECART, "Travel", "1: Arceuus", 33107)))));
+		Rs2Walker.WalkLeg lovakengj = legFor(result(PathResult.Status.FOUND, TILES,
+			Map.of(1, transport(B, GOAL, TransportType.MINECART, "Travel", "1: Arceuus", 33107))));
+		assertNotNull("a minecart with a destination list rides and picks its entry", lovakengj);
+		assertTrue(lovakengj.stairs.travel);
+		assertEquals("Arceuus", Rs2Walker.menuDestinationName(lovakengj.stairs.destinationText));
+		assertEquals('1', Rs2Walker.menuShortcut(lovakengj.stairs.destinationText));
 	}
 
 	@Test
@@ -337,5 +342,177 @@ public class PathfinderLegTest
 		assertEquals(Integer.valueOf(net.runelite.api.gameval.InterfaceID.ZepBalloonMap.BTN_CRAFT),
 			Rs2Walker.destinationButton(Rs2Walker.BALLOON_BUTTONS, "Crafting Guild"));
 		assertEquals("one button per catalogued balloon destination", 6, Rs2Walker.BALLOON_BUTTONS.size());
+	}
+
+	@Test
+	public void aTabletIsATeleportItemWithoutADestination()
+	{
+		Rs2Walker.WalkLeg leg = legFor(result(PathResult.Status.FOUND, TILES,
+			Map.of(0, transport(null, GOAL, TransportType.TELEPORTATION_ITEM, null, "Varrock tablet", -1))));
+		assertNotNull("a single-name item is executable", leg);
+		assertTrue(leg.stairs.item);
+		assertEquals("Varrock tablet", Rs2Walker.teleportItemName(leg.stairs));
+		assertEquals("no destination: the item's own Break/Read/Teleport option is used", "",
+			Rs2Walker.teleportDestination(leg.stairs));
+		assertNull("a blank label is still refused", legFor(result(PathResult.Status.FOUND, TILES,
+			Map.of(0, transport(null, GOAL, TransportType.TELEPORTATION_ITEM, null, " ", -1)))));
+	}
+
+	@Test
+	public void quetzalsAndMushtreesAreTravelStepsAnsweredByTheirMapText()
+	{
+		Rs2Walker.WalkLeg quetzal = legFor(result(PathResult.Status.FOUND, TILES,
+			Map.of(1, transport(B, GOAL, TransportType.QUETZAL, "Travel", "Tal Teklan", 13350))));
+		assertNotNull(quetzal);
+		assertTrue(quetzal.stairs.travel);
+		assertEquals("Tal Teklan", Rs2Walker.menuDestinationName(quetzal.stairs.destinationText));
+
+		Rs2Walker.WalkLeg mushtree = legFor(result(PathResult.Status.FOUND, TILES,
+			Map.of(1, transport(B, GOAL, TransportType.MAGIC_MUSHTREE, "Use", "4. Mushroom Meadow", 30920))));
+		assertNotNull(mushtree);
+		assertTrue(mushtree.stairs.travel);
+		assertEquals("Use", mushtree.stairs.action);
+		assertEquals("Mushroom Meadow", Rs2Walker.menuDestinationName(mushtree.stairs.destinationText));
+		assertEquals("no shortcut key for the dot form", 0, Rs2Walker.menuShortcut(mushtree.stairs.destinationText));
+		assertEquals("a destination name is unchanged", "Port Sarim", Rs2Walker.menuDestinationName("Port Sarim"));
+	}
+
+	@Test
+	public void aCanoeIsAStationStepThatGoesThroughItsStages()
+	{
+		Rs2Walker.WalkLeg leg = legFor(result(PathResult.Status.FOUND, TILES,
+			Map.of(1, transport(B, GOAL, TransportType.CANOE, "Paddle Canoe", "Barbarian Village", 12166))));
+		assertNotNull(leg);
+		assertTrue(leg.stairs.canoe);
+		assertFalse(leg.stairs.travel);
+		assertEquals(B, leg.destination);
+		assertEquals("Barbarian Village", leg.stairs.destinationText);
+		assertEquals(12166, leg.stairs.objectId);
+		assertNull("no destination, no canoe leg", legFor(result(PathResult.Status.FOUND, TILES,
+			Map.of(1, transport(B, GOAL, TransportType.CANOE, "Paddle Canoe", "", 12166)))));
+
+		assertEquals("Chop-down", Rs2Walker.canoeStage(new String[]{"Chop-down", null, null, null, "Examine"}));
+		assertEquals("the first stage on offer wins", "Shape-Canoe",
+			Rs2Walker.canoeStage(new String[]{"Examine", "Shape-Canoe"}));
+		assertEquals("matched case-insensitively, returned as the station spells it", "paddle canoe",
+			Rs2Walker.canoeStage(new String[]{"paddle canoe"}));
+		assertNull(Rs2Walker.canoeStage(new String[]{"Examine"}));
+		assertNull(Rs2Walker.canoeStage(null));
+
+		assertNull(Rs2Walker.canoeFor(11));
+		assertEquals("Log canoe", Rs2Walker.canoeFor(12));
+		assertEquals("Dugout canoe", Rs2Walker.canoeFor(41));
+		assertEquals("Stable dugout canoe", Rs2Walker.canoeFor(42));
+		assertEquals("Waka canoe", Rs2Walker.canoeFor(99));
+	}
+
+	private static final WorldPoint HOUSE = net.runelite.client.plugins.microbot.shortestpath.PohPanel.HOUSE_TILE;
+
+	@Test
+	public void aWayOutOfTheHouseIsAHouseStepRunFromWhereverThePlayerStands()
+	{
+		Rs2Walker.WalkLeg leg = legFor(result(PathResult.Status.FOUND, List.of(HOUSE, GOAL), Map.of(0,
+			new net.runelite.client.plugins.microbot.shortestpath.HouseTransport(HOUSE, GOAL, "Varrock", PohDevice.NEXUS,
+				"Varrock", "Teleport Menu", "Portal Nexus", 33410, 4))));
+		assertNotNull(leg);
+		assertEquals(PohDevice.NEXUS, leg.stairs.house);
+		assertEquals("Varrock", leg.stairs.destinationText);
+		assertEquals("Teleport Menu", leg.stairs.action);
+		assertEquals(33410, leg.stairs.objectId);
+		assertEquals(HOUSE, leg.destination);
+		assertFalse(leg.stairs.intoHouse);
+		assertFalse(leg.stairs.fairyRing);
+
+		Rs2Walker.WalkLeg ring = legFor(result(PathResult.Status.FOUND, List.of(HOUSE, GOAL), Map.of(0,
+			new net.runelite.client.plugins.microbot.shortestpath.HouseTransport(HOUSE, GOAL, "AIQ", PohDevice.FAIRY_RING,
+				"AIQ", null, "Fairy ring", 29228, 5))));
+		assertNotNull("a device without an action is executable", ring);
+		assertTrue("the house ring is dialled like any ring", ring.stairs.fairyRing);
+		assertEquals("AIQ", ring.stairs.destinationText);
+
+		assertNull("no option, no house leg", legFor(result(PathResult.Status.FOUND, List.of(HOUSE, GOAL), Map.of(0,
+			new net.runelite.client.plugins.microbot.shortestpath.HouseTransport(HOUSE, GOAL, "", PohDevice.PORTAL,
+				" ", "Enter", "Varrock Portal", 13615, 4)))));
+	}
+
+	@Test
+	public void aHousePortalIntoTheWildernessIsRefused()
+	{
+		WorldPoint carrallangar = new WorldPoint(3156, 3666, 0);
+		assertNull(legFor(result(PathResult.Status.FOUND, List.of(HOUSE, carrallangar), Map.of(0,
+			new net.runelite.client.plugins.microbot.shortestpath.HouseTransport(HOUSE, carrallangar, "Carrallangar",
+				PohDevice.PORTAL, "Enter", "Enter", "Carrallangar Portal", 13623, 4))), GOAL));
+	}
+
+	@Test
+	public void waysIntoTheHouseLandByBeingInIt()
+	{
+		Rs2Walker.WalkLeg spell = legFor(result(PathResult.Status.FOUND, List.of(A, HOUSE), Map.of(0,
+			new net.runelite.client.plugins.microbot.shortestpath.HouseTransport(null, HOUSE, "Teleport to House",
+				TransportType.TELEPORTATION_SPELL, null, "Teleport to House", -1, 4))), HOUSE);
+		assertNotNull(spell);
+		assertTrue(spell.stairs.spell);
+		assertTrue(spell.stairs.intoHouse);
+		assertNull("a way in uses no house device", spell.stairs.house);
+
+		Rs2Walker.WalkLeg ring = legFor(result(PathResult.Status.FOUND, List.of(A, B, HOUSE),
+			Map.of(1, transport(B, HOUSE, TransportType.FAIRY_RING, null, "DIQ", -1))), HOUSE);
+		assertNotNull(ring);
+		assertTrue("a ring or tree into the house lands there too", ring.stairs.intoHouse);
+
+		try (MockedStatic<net.runelite.client.plugins.microbot.util.poh.PohPresence> presence =
+			mockStatic(net.runelite.client.plugins.microbot.util.poh.PohPresence.class))
+		{
+			presence.when(net.runelite.client.plugins.microbot.util.poh.PohPresence::isInHouse).thenReturn(false);
+			assertFalse("standing on no tile counts until the house is entered", spell.stairs.observedArrival(HOUSE));
+			presence.when(net.runelite.client.plugins.microbot.util.poh.PohPresence::isInHouse).thenReturn(true);
+			assertTrue(spell.stairs.observedArrival(A));
+		}
+	}
+
+	@Test
+	public void houseDevicesUseTheirOwnOptionElseTheirMenu()
+	{
+		ObjectTransports.Step glory = houseStep(PohDevice.MOUNTED_GLORY, "Edgeville", "Edgeville");
+		assertEquals("Edgeville", Rs2Walker.houseDeviceOption(glory, new String[]{"Edgeville", "Karamja", null, "Al Kharid"}));
+		assertNull(Rs2Walker.houseDeviceOption(glory, new String[]{"Examine"}));
+		assertNull(Rs2Walker.houseDeviceOption(glory, null));
+
+		ObjectTransports.Step xerics = houseStep(PohDevice.MOUNTED_XERICS, "Teleport menu", "Xeric's Honour");
+		assertEquals("as the device spells it", "Teleport Menu",
+			Rs2Walker.houseDeviceOption(xerics, new String[]{"Teleport Menu", "Examine"}));
+		assertTrue(Rs2Walker.opensAMenu(PohDevice.MOUNTED_XERICS, "Teleport Menu"));
+		assertFalse(Rs2Walker.opensAMenu(PohDevice.MOUNTED_GLORY, "Edgeville"));
+
+		ObjectTransports.Step tree = houseStep(PohDevice.SPIRIT_TREE, null, "A: Tree Gnome Village");
+		assertEquals("Travel", Rs2Walker.houseDeviceOption(tree, new String[]{"Travel", "Examine"}));
+		assertTrue("a spirit tree's travel opens its menu", Rs2Walker.opensAMenu(PohDevice.SPIRIT_TREE, "Travel"));
+
+		assertEquals("K", Rs2Walker.nexusKey("<col=ffffff>K</col> : Lumbridge"));
+		assertNull(Rs2Walker.nexusKey("Lumbridge"));
+	}
+
+	@Test
+	public void theHouseDeviceIsFoundByItsIdOrName()
+	{
+		ObjectTransports.Step glory = houseStep(PohDevice.MOUNTED_GLORY, "Edgeville", "Edgeville");
+		assertTrue(Rs2Walker.isHouseDevice(glory, device(13523, "Amulet of Glory")));
+		assertTrue(Rs2Walker.isHouseDevice(glory, device(1, "amulet of glory")));
+		assertFalse(Rs2Walker.isHouseDevice(glory, device(1, "Portal")));
+	}
+
+	private static ObjectTransports.Step houseStep(PohDevice device, String action, String option)
+	{
+		return new ObjectTransports.Step(HOUSE, GOAL, 13523, action, "Amulet of Glory", 4, false, option, false, java.util.Set.of(),
+			false, false, false, false, device);
+	}
+
+	private static net.runelite.client.plugins.microbot.api.tileobject.models.Rs2TileObjectModel device(int id, String name)
+	{
+		net.runelite.client.plugins.microbot.api.tileobject.models.Rs2TileObjectModel model =
+			org.mockito.Mockito.mock(net.runelite.client.plugins.microbot.api.tileobject.models.Rs2TileObjectModel.class);
+		org.mockito.Mockito.when(model.getId()).thenReturn(id);
+		org.mockito.Mockito.when(model.getName()).thenReturn(name);
+		return model;
 	}
 }

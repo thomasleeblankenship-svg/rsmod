@@ -2115,6 +2115,8 @@ public class PathfinderConfig {
                 chronicleCharges,
                 usePoh,
                 inHouse,
+                // Mobile: the detected house changes which POH transports exist.
+                usePoh ? PohPanel.layoutHash() : 0,
                 maxSimilar,
                 preferTp,
                 distanceBeforeUsingTeleport);

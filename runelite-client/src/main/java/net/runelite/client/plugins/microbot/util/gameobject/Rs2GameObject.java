@@ -23,6 +23,7 @@ import net.runelite.api.TileObject;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldArea;
 import net.runelite.api.coords.WorldPoint;
+import net.runelite.client.plugins.microbot.api.MicrobotReadServices;
 import net.runelite.client.plugins.microbot.api.tileobject.models.Rs2TileObjectModel;
 import net.runelite.client.plugins.microbot.mobile.MobileActions;
 import net.runelite.client.plugins.microbot.util.walker.Rs2Walker;
@@ -135,6 +136,39 @@ public final class Rs2GameObject
 		if (net.runelite.client.plugins.microbot.Microbot.getRs2TileObjectCache() == null) return null;
 		var query = net.runelite.client.plugins.microbot.Microbot.getRs2TileObjectCache().query().where(filter);
 		return distance >= 0 ? query.within(distance).nearest() : query.nearest();
+	}
+
+	/**
+	 * As upstream: interacts with a live object (a game, wall, decorative or ground object, for
+	 * example from a scene read or a spawn event), through a snapshot taken on the client thread so
+	 * it is located as the object cache locates it. An empty action means its first action.
+	 */
+	public static boolean interact(TileObject object, String action, boolean checkCanReach)
+	{
+		if (object == null)
+		{
+			return false;
+		}
+		Rs2TileObjectModel model = MobileActions.read(() -> new Rs2TileObjectModel(MicrobotReadServices.require(), object), null);
+		return interact(model, action, checkCanReach);
+	}
+
+	/** As upstream: a live object's first action. */
+	public static boolean interact(TileObject object)
+	{
+		return interact(object, "", false);
+	}
+
+	/** As upstream: a live object's {@code action}. */
+	public static boolean interact(TileObject object, String action)
+	{
+		return interact(object, action, false);
+	}
+
+	/** As upstream: a live object's first action, walking to it first when {@code checkCanReach}. */
+	public static boolean interact(TileObject object, boolean checkCanReach)
+	{
+		return interact(object, "", checkCanReach);
 	}
 
 	/** Upstream overload: interacts with the model's first action. */
@@ -503,6 +537,53 @@ public final class Rs2GameObject
 			}
 			return Collections.unmodifiableList(ids);
 		});
+	}
+
+	/**
+	 * As upstream: the nearest bank booth or chest (by {@link Rs2BankID}) within
+	 * {@code maxSearchRadius} tiles that offers "Bank" or "Collect", skipping the Cooks' Guild banks
+	 * without its requirements, the northern Farming Guild bank below 85 Farming, the Lunar Isle
+	 * booth before Dream Mentor and its two neighbours without a seal of passage.
+	 */
+	public static net.runelite.api.GameObject findBank(int maxSearchRadius)
+	{
+		java.util.function.Predicate<net.runelite.api.GameObject> bankable = gameObject ->
+		{
+			WorldPoint loc = gameObject.getWorldLocation();
+			if ((loc.equals(new WorldPoint(3147, 3449, 0)) || loc.equals(new WorldPoint(3148, 3449, 0)))
+				&& !net.runelite.client.plugins.microbot.util.bank.enums.BankLocation.COOKS_GUILD.hasRequirements())
+			{
+				return false;
+			}
+			if ((loc.equals(new WorldPoint(1248, 3759, 0)) || loc.equals(new WorldPoint(1249, 3759, 0)))
+				&& !net.runelite.client.plugins.microbot.util.player.Rs2Player.getSkillRequirement(net.runelite.api.Skill.FARMING, 85, true))
+			{
+				return false;
+			}
+			if (loc.equals(new WorldPoint(2099, 3920, 0))
+				&& net.runelite.client.plugins.microbot.util.player.Rs2Player.getQuestState(net.runelite.api.Quest.DREAM_MENTOR)
+				!= net.runelite.api.QuestState.FINISHED)
+			{
+				return false;
+			}
+			if ((loc.equals(new WorldPoint(2098, 3920, 0)) || loc.equals(new WorldPoint(2097, 3920, 0)))
+				&& !(net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory.hasItem(net.runelite.api.gameval.ItemID.LUNAR_SEAL_OF_PASSAGE)
+				|| net.runelite.client.plugins.microbot.util.equipment.Rs2Equipment.isWearing(net.runelite.api.gameval.ItemID.LUNAR_SEAL_OF_PASSAGE)))
+			{
+				return false;
+			}
+			ObjectComposition composition = convertToObjectComposition(gameObject);
+			return composition != null && (hasAction(composition, "Bank", false) || hasAction(composition, "Collect", false));
+		};
+		// Unlike upstream the filter runs inside the scan, so its live reads stay on the client thread.
+		return getGameObjects(o -> Rs2BankID.BANK_ID_SET.contains(o.getId()) && bankable.test(o), maxSearchRadius).stream()
+			.findFirst()
+			.orElse(null);
+	}
+
+	public static net.runelite.api.GameObject findBank()
+	{
+		return findBank(20);
 	}
 
 	static <T> T findNearestReachable(List<T> candidates, Function<? super T, WorldPoint> location, WorldPoint from,

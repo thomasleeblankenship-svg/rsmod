@@ -119,6 +119,9 @@ none has run on a phone yet.
 | gefiremaker | Firemaking on the campfires around the Grand Exchange | Logs and a tinderbox |
 | varrockanvil | Smithing at the Varrock West anvils | Bars and a hammer |
 | chillRunecraft | F2P runecrafting | Essence, and Rune Mysteries for the altars |
+| bonestobananas | Casts Bones to Bananas | Bones, and the runes or staves for the spell |
+| jewelleryenchant | Enchants jewellery (sapphire and emerald on free worlds) | The jewellery and runes or staves |
+| varrockcleaner | Cleans finds at the Varrock Museum | Nothing; start at the museum dig site |
 | banksbankstander | Bank-standing skills: combine or use items from the bank (configured by id or name) | The items in the bank, standing at a bank |
 
 banksbankstander's quick mode (one action on every inventory slot, as when cleaning herbs) issues one
@@ -161,8 +164,8 @@ Known differences from desktop:
 - **Inventory setups** match by item totals, not slot order; the rune pouch is checked, not filled.
 - **Anti-ban settings** are inert. **Walking** (with the pathfinder setting on) executes stairs,
   doors, shortcuts, boats, ships, travel NPCs, charter ships, teleport items, teleport spells,
-  fairy rings, spirit trees, levers, portals, fixed-destination minecarts, magic carpets, gnome
-  gliders and hot air balloons; not yet quetzals, mushtrees, the Lovakengj minecarts, canoes or POH. It never
+  fairy rings, spirit trees, levers, portals, minecarts (including Lovakengj's list), magic carpets,
+  gnome gliders, hot air balloons, quetzals, magic mushtrees, canoes and the player-owned house (house teleports, then its portals, nexus, jewellery box, mounted items, fairy ring or spirit tree). It never
   takes a transport into the Wilderness unless the goal is there. None of the transports has been
   tried on a phone.
 
@@ -195,7 +198,7 @@ unchanged.
 | Plugin | Status |
 | --- | --- |
 | Hub base | Done (`PluginDescriptor` metadata, `PluginConstants`, `Overlay.setNaughty`) |
-| **Ported (33 + KSP Chopper)** | banksbankstander, smelting, gefiremaker, autofishing, barbarianvillagefisher, autochompykiller, fishingtrawler, birdhunter, toweroflife_creaturecreation, salamanders, HueycoatlPrayer, sandcrabs, AmmoniteCrabs, animatedarmour, anonymous, autogauntletprayer, baggedplants, blessedwine, butterflycatcher, chillRunecraft, colosseumprayer, delveprayerhelper, gauntlethelper, goldrush, hunterKabbits, jad, lunartablets, minnowsfishing, pumper, theatre, varrockanvil, zeroprayer, zulrah. Hub sources copied byte-identical (Hub `ee6e066`) into `plugins/microbot/<name>/` with their resources; hosted by `HubPluginHost`, disabled by default (`HubPortedPluginsTest`). Style-only checkstyle/PMD exemptions are scoped to these directories. None run on a phone yet |
+| **Ported (60 + KSP Chopper)** | hsblackjack (hops for a clean tent or a shop restock, never because of other players), chartercrafter (hops only when the shop is out of its materials), aiocamdozaal, shadeskiller, flipperschaser, stonechests, gildedaltar, GiantSeaweedFarmer, pyrefox, sisyphusinfernalpact, npctanner, karambwans, TearsOfGuthix (its stream click runs `Microbot.getMouse().click` inside a client-thread task, where the mobile mouse cannot wait for its tap, so that click may not land), mixology, arrowmaker, humidifier, lunartanner, summergarden, blastoisefurnace, birdhouseruns, bonestobananas, eelfishing, jewelleryenchant, leaguesfiremaking, leftclickcast (replaces left-click Attack with a chosen spell; a menu convenience, not a script), piebaker, varrockcleaner, banksbankstander, smelting, gefiremaker, autofishing, barbarianvillagefisher, autochompykiller, fishingtrawler, birdhunter, toweroflife_creaturecreation, salamanders, HueycoatlPrayer, sandcrabs, AmmoniteCrabs, animatedarmour, anonymous, autogauntletprayer, baggedplants, blessedwine, butterflycatcher, chillRunecraft, colosseumprayer, delveprayerhelper, gauntlethelper, goldrush, hunterKabbits, jad, lunartablets, minnowsfishing, pumper, theatre, varrockanvil, zeroprayer, zulrah. Hub sources copied byte-identical (Hub `ee6e066`) into `plugins/microbot/<name>/` with their resources; hosted by `HubPluginHost`, disabled by default (`HubPortedPluginsTest`). Style-only checkstyle/PMD exemptions are scoped to these directories. None run on a phone yet |
 | Compile but not ported | `chatbot` (AI-written replies to other players in chat: presents the bot as a person to them), `microbotdashboardplus` (desktop Swing window and Discord webhooks; no phone equivalent), `actions` (library, no plugin), `playermonitor` (anti-detection policy) |
 | woodcutting (Hub) | Compiles unchanged, **not copied**: `plugins/microbot/woodcutting` is our mobile-adapted AutoWoodcutting (phone-tested), which a copy would overwrite. Batch 3's tenth slot passes to the next eligible plugin |
 | shared Hub APIs | Done: `@ConfigInformation`, break-handler lock state, camera, `Rs2Random`, plugin control, `interact`/`isWearing`, `waitForWalking`, inert anti-ban types, `dropAll`, `Rs2Inventory.interact`/`wield`/`wear`, `waitForXpDrop`, `IEntity.click`/queryable `interact`, public `HunterTrap`, `Rs2Bank` withdraw/deposit/walk overloads, `Rs2Keyboard.typeString`, `Rs2Tab`, `InterfaceTab`, walker location enums, `isInArea`, prayer toggles, auto retaliate, `eatAt`/`useFood`, `toggleRunEnergy` |

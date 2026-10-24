@@ -47,6 +47,11 @@ public final class Rs2Player
 	public static volatile int divineMagicTime = -1;
 	public static volatile int goadingTime = -1;
 	public static volatile int moonlightTime = -1;
+	/** Upstream's poison-varp readings: the varp when it is at or above the venom cutoff, else 0 / -1. */
+	public static volatile int antiVenomTime = -1;
+	public static volatile int antiPoisonTime = -1;
+	/** As upstream: poison-varp values below this mean venom immunity (anti-venom). */
+	static final int VENOM_VALUE_CUTOFF = -38;
 
 	private static final long COMBAT_TIMEOUT_MS = 10000;
 	private static volatile long lastCombatTime = 0;
@@ -96,6 +101,8 @@ public final class Rs2Player
 		divineMagicTime = -1;
 		goadingTime = -1;
 		moonlightTime = -1;
+		antiVenomTime = -1;
+		antiPoisonTime = -1;
 		lastCombatTime = 0;
 		playerDetectionTimes.clear();
 	}
@@ -299,6 +306,52 @@ public final class Rs2Player
 		return net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory.interact(chosen, action);
 	}
 
+	/**
+	 * As upstream: at or below {@code prayerPoints}, drinks a prayer regeneration potion when its
+	 * effect is not active, else a blighted super restore in the Wilderness or on a PvP world, else
+	 * any prayer potion variant. False when above the threshold or nothing could be drunk.
+	 */
+	public static boolean drinkPrayerPotionAt(int prayerPoints)
+	{
+		if (getBoostedSkillLevel(net.runelite.api.Skill.PRAYER) > prayerPoints) return false;
+		boolean wilderness = net.runelite.client.plugins.microbot.Microbot.getVarbitValue(net.runelite.api.Varbits.IN_WILDERNESS) == 1;
+		boolean pvp = net.runelite.client.plugins.microbot.mobile.MobileActions.read(() ->
+			net.runelite.client.plugins.microbot.Microbot.getClient().getWorldType().contains(net.runelite.api.WorldType.PVP), false);
+		if (!hasPrayerRegenerationActive()
+			&& drinkPotion(net.runelite.client.plugins.microbot.util.misc.Rs2Potion.getPrayerRegenerationPotion())) return true;
+		if ((wilderness || pvp) && potion("blighted super restore") != null) return drinkPotion("blighted super restore");
+		return drinkPotion(net.runelite.client.plugins.microbot.util.misc.Rs2Potion.getPrayerPotionsVariants().toArray(new String[0]));
+	}
+
+	/**
+	 * Drinks an anti-poison when neither anti-poison nor anti-venom protection is active; true when
+	 * already protected or one was drunk. Mobile: upstream returns early when protection is
+	 * <em>not</em> active (an inversion that never drinks when it is needed); this follows the
+	 * method's documented intent instead.
+	 */
+	public static boolean drinkAntiPoisonPotion()
+	{
+		if (hasAntiPoisonActive() || hasAntiVenomActive()) return true;
+		return drinkPotion(net.runelite.client.plugins.microbot.util.misc.Rs2Potion.getAntiPoisonVariants().toArray(new String[0]));
+	}
+
+	/** The first unnoted potion whose name, without its dose suffix, is one of {@code names} (case-insensitive). */
+	private static net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel potion(String... names)
+	{
+		return net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory.items(item ->
+		{
+			if (item.isNoted() || item.getName() == null) return false;
+			String base = item.getName().replaceAll("\\(\\d+\\)$", "").trim();
+			return java.util.Arrays.stream(names).anyMatch(name -> name != null && name.equalsIgnoreCase(base));
+		}).findFirst().orElse(null);
+	}
+
+	private static boolean drinkPotion(String... names)
+	{
+		net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel potion = potion(names);
+		return potion != null && net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory.interact(potion, "Drink");
+	}
+
 	public static boolean isStandingOnGameObject()
 	{
 		return net.runelite.client.plugins.microbot.mobile.MobileActions.read(() ->
@@ -449,8 +502,8 @@ public final class Rs2Player
 
 	/**
 	 * Event hook (client thread); routed by {@code MicrobotReadServices}. As upstream for the
-	 * varbit-backed potion timers; adaptation: the poison-varp (anti-poison/anti-venom) timers are
-	 * not tracked.
+	 * potion timers, including the poison varp behind {@link #hasAntiPoisonActive()} and
+	 * {@link #hasAntiVenomActive()}.
 	 */
 	public static void handlePotionTimers(net.runelite.api.events.VarbitChanged event)
 	{
@@ -492,6 +545,37 @@ public final class Rs2Player
 		{
 			divineMagicTime = value;
 		}
+		if (event.getVarpId() == net.runelite.api.VarPlayer.POISON)
+		{
+			antiVenomTime = value >= VENOM_VALUE_CUTOFF ? 0 : value;
+			antiPoisonTime = value == 0 ? -1 : value;
+		}
+	}
+
+	/**
+	 * As upstream: {@code antiPoisonTime > 0}. Note that a positive poison varp means the player is
+	 * <em>poisoned</em> (immunity is negative), so upstream's name reads inverted; kept as upstream.
+	 */
+	public static boolean hasAntiPoisonActive()
+	{
+		return antiPoisonTime > 0;
+	}
+
+	/** As upstream: wearing a serpentine helm, or the poison varp below the venom cutoff. */
+	public static boolean hasAntiVenomActive()
+	{
+		if (net.runelite.client.plugins.microbot.util.equipment.Rs2Equipment.isWearing("serpentine helm"))
+		{
+			return true;
+		}
+		return antiVenomTime < VENOM_VALUE_CUTOFF;
+	}
+
+	/** As upstream: the prayer regeneration potion timer varbit is running. */
+	public static boolean hasPrayerRegenerationActive()
+	{
+		return net.runelite.client.plugins.microbot.Microbot.getVarbitValue(
+			net.runelite.api.gameval.VarbitID.PRAYER_REGENERATION_POTION_TIMER) > 0;
 	}
 
 	public static boolean hasAntiFireActive()
