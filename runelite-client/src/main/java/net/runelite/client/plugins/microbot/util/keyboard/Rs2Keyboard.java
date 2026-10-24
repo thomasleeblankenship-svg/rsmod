@@ -54,6 +54,18 @@ public final class Rs2Keyboard
 		MobileActions.keyRelease(key);
 	}
 
+	/** As upstream: holds Shift (for example, for shift-click dropping) until {@link #releaseShift()}. */
+	public static void holdShift()
+	{
+		keyHold(KeyEvent.VK_SHIFT);
+	}
+
+	/** As upstream: releases a held Shift. */
+	public static void releaseShift()
+	{
+		keyRelease(KeyEvent.VK_SHIFT);
+	}
+
 	/** As upstream: releases every key held through {@link #keyHold(int)}. Safe to call repeatedly. */
 	public static void releaseHeldKeys()
 	{

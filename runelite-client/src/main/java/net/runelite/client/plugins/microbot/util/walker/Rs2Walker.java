@@ -208,6 +208,35 @@ public final class Rs2Walker
 	/** The arrival distance when none is given. */
 	private static final int DEFAULT_ARRIVAL_TILES = 1;
 
+	/** Item IDs any teleport item transport needs, plus the Dramen and Lunar staves (as upstream); built once. */
+	private static volatile Set<Integer> teleportItemIds;
+
+	/** As upstream: whether this item is used to teleport (any teleport-item transport needs it). */
+	public static boolean isTeleportItem(int itemId)
+	{
+		Set<Integer> ids = teleportItemIds;
+		if (ids == null)
+		{
+			Set<Integer> built = new HashSet<>(List.of(
+				net.runelite.api.gameval.ItemID.DRAMEN_STAFF, net.runelite.api.gameval.ItemID.LUNAR_MOONCLAN_LIMINAL_STAFF));
+			for (Set<Transport> set
+				: Transport.loadAllFromResources().values())
+			{
+				for (Transport transport : set)
+				{
+					if (transport.getType() == TransportType.TELEPORTATION_ITEM
+						&& transport.getItemIdRequirements() != null)
+					{
+						transport.getItemIdRequirements().forEach(built::addAll);
+					}
+				}
+			}
+			ids = Set.copyOf(built);
+			teleportItemIds = ids;
+		}
+		return ids.contains(itemId);
+	}
+
 	public static boolean walkTo(WorldPoint destination)
 	{
 		return walkTo(destination, DEFAULT_ARRIVAL_TILES);

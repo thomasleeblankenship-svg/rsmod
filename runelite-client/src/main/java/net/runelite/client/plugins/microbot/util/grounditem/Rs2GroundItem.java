@@ -227,6 +227,12 @@ public final class Rs2GroundItem
 		return false;
 	}
 	/** As upstream: picks up the item with this ID within 50 tiles. */
+	public static boolean take(int itemId)
+	{
+		return loot(itemId);
+	}
+
+	/** As upstream: picks up the item with this ID within 50 tiles. */
 	public static boolean loot(int itemId)
 	{
 		return loot(itemId, 50);

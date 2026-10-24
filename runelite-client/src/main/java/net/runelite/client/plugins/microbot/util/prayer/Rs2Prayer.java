@@ -209,6 +209,31 @@ public final class Rs2Prayer
 		disableAllPrayers();
 	}
 
+	/** As upstream: turns off every active prayer not in {@code prayersToKeep}. */
+	public static void disableAllPrayersExcept(Rs2PrayerEnum[] prayersToKeep)
+	{
+		java.util.Set<Rs2PrayerEnum> keep = new java.util.HashSet<>(java.util.Arrays.asList(prayersToKeep));
+		for (Rs2PrayerEnum prayer : getActivePrayers())
+		{
+			if (!keep.contains(prayer))
+			{
+				toggle(prayer, false);
+			}
+		}
+	}
+
+	/** As upstream; mobile has one way to toggle, so {@code withMouse} changes nothing. */
+	public static void disableAllPrayersExcept(Rs2PrayerEnum[] prayersToKeep, boolean withMouse)
+	{
+		disableAllPrayersExcept(prayersToKeep);
+	}
+
+	/** As upstream; {@code withMouse} changes nothing on mobile. */
+	public static void enablePrayers(Rs2PrayerEnum[] prayers, boolean withMouse)
+	{
+		enablePrayers(prayers);
+	}
+
 	/** As upstream: turns each listed prayer on. */
 	public static void enablePrayers(Rs2PrayerEnum[] prayers)
 	{
