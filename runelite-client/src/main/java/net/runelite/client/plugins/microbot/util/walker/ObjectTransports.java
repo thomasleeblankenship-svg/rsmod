@@ -50,6 +50,8 @@ final class ObjectTransports
 		final boolean spell;
 		/** A fairy ring: {@link #destinationText} is the three-letter code, {@link #origin} the ring. */
 		final boolean fairyRing;
+		/** A canoe station: {@link #destinationText} is the destination, {@link #objectId} the station. */
+		final boolean canoe;
 
 		Step(WorldPoint origin, WorldPoint arrival, int objectId, String action, String target)
 		{
@@ -88,6 +90,13 @@ final class ObjectTransports
 		Step(WorldPoint origin, WorldPoint arrival, int objectId, String action, String target, int arrivalRadius,
 			boolean travel, String destinationText, boolean item, Set<Integer> itemIds, boolean spell, boolean fairyRing)
 		{
+			this(origin, arrival, objectId, action, target, arrivalRadius, travel, destinationText, item, itemIds, spell, fairyRing, false);
+		}
+
+		Step(WorldPoint origin, WorldPoint arrival, int objectId, String action, String target, int arrivalRadius,
+			boolean travel, String destinationText, boolean item, Set<Integer> itemIds, boolean spell, boolean fairyRing, boolean canoe)
+		{
+			this.canoe = canoe;
 			this.fairyRing = fairyRing;
 			this.spell = spell;
 			this.item = item;

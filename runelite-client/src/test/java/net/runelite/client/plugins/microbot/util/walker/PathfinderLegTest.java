@@ -375,4 +375,33 @@ public class PathfinderLegTest
 		assertEquals("no shortcut key for the dot form", 0, Rs2Walker.menuShortcut(mushtree.stairs.destinationText));
 		assertEquals("a destination name is unchanged", "Port Sarim", Rs2Walker.menuDestinationName("Port Sarim"));
 	}
+
+	@Test
+	public void aCanoeIsAStationStepThatGoesThroughItsStages()
+	{
+		Rs2Walker.WalkLeg leg = legFor(result(PathResult.Status.FOUND, TILES,
+			Map.of(1, transport(B, GOAL, TransportType.CANOE, "Paddle Canoe", "Barbarian Village", 12166))));
+		assertNotNull(leg);
+		assertTrue(leg.stairs.canoe);
+		assertFalse(leg.stairs.travel);
+		assertEquals(B, leg.destination);
+		assertEquals("Barbarian Village", leg.stairs.destinationText);
+		assertEquals(12166, leg.stairs.objectId);
+		assertNull("no destination, no canoe leg", legFor(result(PathResult.Status.FOUND, TILES,
+			Map.of(1, transport(B, GOAL, TransportType.CANOE, "Paddle Canoe", "", 12166)))));
+
+		assertEquals("Chop-down", Rs2Walker.canoeStage(new String[]{"Chop-down", null, null, null, "Examine"}));
+		assertEquals("the first stage on offer wins", "Shape-Canoe",
+			Rs2Walker.canoeStage(new String[]{"Examine", "Shape-Canoe"}));
+		assertEquals("matched case-insensitively, returned as the station spells it", "paddle canoe",
+			Rs2Walker.canoeStage(new String[]{"paddle canoe"}));
+		assertNull(Rs2Walker.canoeStage(new String[]{"Examine"}));
+		assertNull(Rs2Walker.canoeStage(null));
+
+		assertNull(Rs2Walker.canoeFor(11));
+		assertEquals("Log canoe", Rs2Walker.canoeFor(12));
+		assertEquals("Dugout canoe", Rs2Walker.canoeFor(41));
+		assertEquals("Stable dugout canoe", Rs2Walker.canoeFor(42));
+		assertEquals("Waka canoe", Rs2Walker.canoeFor(99));
+	}
 }

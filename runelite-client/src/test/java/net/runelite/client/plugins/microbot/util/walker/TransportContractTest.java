@@ -31,7 +31,7 @@ public class TransportContractTest
 		TransportType.SPIRIT_TREE, TransportType.GNOME_GLIDER, TransportType.HOT_AIR_BALLOON, TransportType.MINECART,
 		TransportType.MAGIC_CARPET, TransportType.TELEPORTATION_PORTAL, TransportType.TELEPORTATION_LEVER,
 		TransportType.TELEPORTATION_ITEM, TransportType.TELEPORTATION_SPELL, TransportType.QUETZAL,
-		TransportType.MAGIC_MUSHTREE);
+		TransportType.MAGIC_MUSHTREE, TransportType.CANOE);
 
 	private static List<Transport> catalogue(TransportType type)
 	{

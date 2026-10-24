@@ -123,7 +123,7 @@ and executor).** Hub use counts are calls across the Hub sources.
 | # | Work | Notes |
 | --- | --- | --- |
 | C1-1 | **Done** — **Missing walker actions**: `walkMiniMap` (12 Hub uses), `walkFastLocal` (12), `walkCanvas` (9), `walkWithState` (7), `walkWithStateUntil` (3), `clearWalkingRoute` (6), `getCurrentTarget` (1) | First, as it unblocks the most plugins |
-| C1-2 | **Executors** for quetzals (Renu's map) and magic mushtrees (destination menu): **done**, both answered by map text like the charter map; canoes (the station steps and destination map): next | After C2-4 |
+| C1-2 | **Executors** for quetzals (Renu's map) and magic mushtrees (destination menu): **done**, both answered by map text like the charter map; canoes (the station steps and destination map): **done** | After C2-4 |
 | C1-3 | The `Rs2Walker` statics for C2-2's reads | Right after C2-2 lands |
 | C1-4 | **POH execution**: house teleport, then the portal, nexus, jewellery box, fairy ring or spirit tree inside | After C2-1 |
 | C1-5 | **Retire `ObjectTransports`** and the same-plane planner fallback once a phone walk confirms the pathfinder route; keep a phone checklist per transport | Needs phone results from the user |

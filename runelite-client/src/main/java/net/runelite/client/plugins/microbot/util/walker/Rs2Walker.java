@@ -294,7 +294,8 @@ public final class Rs2Walker
 				}
 				if (arrived(scene.player, leg.destination, leg.radius) && leg.stairs != null)
 				{
-					if (!(leg.stairs.fairyRing ? useFairyRing(leg.stairs, generation, deadline)
+					if (!(leg.stairs.canoe ? useCanoe(leg.stairs, generation, deadline)
+						: leg.stairs.fairyRing ? useFairyRing(leg.stairs, generation, deadline)
 						: leg.stairs.spell ? useTeleportSpell(leg.stairs, generation, deadline)
 						: leg.stairs.item ? useTeleportItem(leg.stairs, generation, deadline)
 						: leg.stairs.travel ? useTravel(leg.stairs, generation, deadline)
@@ -692,7 +693,8 @@ public final class Rs2Walker
 		TransportType.BOAT, TransportType.SHIP, TransportType.NPC, TransportType.CHARTER_SHIP, TransportType.TELEPORTATION_ITEM,
 		TransportType.TELEPORTATION_SPELL, TransportType.SPIRIT_TREE, TransportType.FAIRY_RING, TransportType.MINECART,
 		TransportType.MAGIC_CARPET, TransportType.TELEPORTATION_LEVER, TransportType.TELEPORTATION_PORTAL,
-		TransportType.GNOME_GLIDER, TransportType.HOT_AIR_BALLOON, TransportType.QUETZAL, TransportType.MAGIC_MUSHTREE);
+		TransportType.GNOME_GLIDER, TransportType.HOT_AIR_BALLOON, TransportType.QUETZAL, TransportType.MAGIC_MUSHTREE,
+		TransportType.CANOE);
 
 	/**
 	 * Destination lists as {group, child}: the spirit tree menu (upstream {@code ADVENTURE_LOG_CONTAINER},
@@ -710,6 +712,13 @@ public final class Rs2Walker
 		{InterfaceID.Fairyrings.ROOT_MODEL5, InterfaceID.Fairyrings._3_CLOCKWISE, InterfaceID.Fairyrings._3_ANTICLOCKWISE}};
 	/** A fairy ring lands on the destination ring. */
 	private static final int FAIRY_RING_ARRIVAL_TILES = 2;
+
+	/** The station's options in the order a canoe trip goes through them, as upstream's {@code handleCanoe}. */
+	static final List<String> CANOE_STAGES = List.of("Chop-down", "Shape-Canoe", "Float Canoe", "Paddle Canoe");
+	/** A canoe lands at the destination station's jetty (upstream allows twice its usual offset). */
+	private static final int CANOE_ARRIVAL_TILES = 10;
+	/** Chopping, shaping, floating and the paddle (with its cutscene) together. */
+	private static final long CANOE_MILLIS = 90_000;
 
 	/** A home teleport channels for about ten seconds before the landing. */
 	private static final long SPELL_TELEPORT_MILLIS = 30_000;
@@ -817,6 +826,18 @@ public final class Rs2Walker
 				ObjectTransports.Step step = new ObjectTransports.Step(from, transport.getDestination(), -1, "",
 					transport.getName(), TELEPORT_ARRIVAL_TILES, false, transport.getDisplayInfo(), true, transport.getItemIds());
 				return new WalkLeg(from, 1, step, new ArrayList<>(tiles.subList(0, i + 1)), true);
+			}
+			if (transport.getType() == TransportType.CANOE)
+			{
+				if (transport.getDisplayInfo() == null || transport.getDisplayInfo().isBlank() || transport.getOrigin() == null)
+				{
+					LOG.info("Mobile walk: route needs canoe {} without a destination; using the same-plane planner", transport);
+					return null;
+				}
+				ObjectTransports.Step step = new ObjectTransports.Step(transport.getOrigin(), transport.getDestination(),
+					transport.getObjectId(), transport.getAction(), transport.getName(), CANOE_ARRIVAL_TILES, false,
+					transport.getDisplayInfo().trim(), false, Set.of(), false, false, true);
+				return new WalkLeg(transport.getOrigin(), 1, step, new ArrayList<>(tiles.subList(0, i + 1)), true);
 			}
 			if (transport.getType() == TransportType.FAIRY_RING)
 			{
@@ -1302,6 +1323,131 @@ public final class Rs2Walker
 		lastStatus = !MobileActions.active() || GENERATION.get() != generation
 			? "fairy ring cancelled" : dispatched ? "fairy ring landing was not observed" : "fairy ring was not used";
 		return false;
+	}
+
+	/**
+	 * Takes a canoe as upstream does, one stage per visit to the station: its live option is
+	 * Chop-down, then Shape-Canoe (the best canoe the Woodcutting level allows, on the shaping
+	 * interface), then Float Canoe, then Paddle Canoe (the destination on the river map). Requires an
+	 * observed landing.
+	 */
+	private static boolean useCanoe(ObjectTransports.Step step, long generation, long walkDeadline) throws InterruptedException
+	{
+		long deadline = Math.min(walkDeadline, System.currentTimeMillis() + CANOE_MILLIS);
+		long lastAttempt = 0;
+		boolean paddled = false;
+		lastStatus = "Canoe to " + step.destinationText;
+		while (System.currentTimeMillis() < deadline && GENERATION.get() == generation
+			&& MobileActions.active() && !Thread.currentThread().isInterrupted())
+		{
+			MobileRoutePlanner.Scene scene = awaitSnapshot(generation, deadline);
+			if (scene == null)
+			{
+				lastStatus = "no collision snapshot, loading timed out or game state changed";
+				return false;
+			}
+			if (paddled && step.observedArrival(scene.player))
+			{
+				return true;
+			}
+			int map = visibleCanoeMap();
+			if (map >= 0)
+			{
+				if (!chooseTextMapDestination(map, "Travel to " + step.destinationText))
+				{
+					lastStatus = "canoe map does not offer " + step.destinationText;
+					return false;
+				}
+				paddled = true;
+				Thread.sleep(600);
+				continue;
+			}
+			if (widgetVisible(InterfaceID.Canoeing.QUESTION))
+			{
+				String canoe = canoeFor(Rs2Player.getRealSkillLevel(net.runelite.api.Skill.WOODCUTTING));
+				if (canoe == null || !chooseTextMapDestination(InterfaceID.Canoeing.UNIVERSE, "Make " + canoe))
+				{
+					lastStatus = "cannot shape a canoe at this Woodcutting level";
+					return false;
+				}
+				Thread.sleep(600);
+				continue;
+			}
+			if (!paddled && !Rs2Player.isAnimating() && !Rs2Player.isMoving()
+				&& scene.player.getPlane() == step.origin.getPlane() && scene.player.distanceTo(step.origin) <= 3
+				&& System.currentTimeMillis() - lastAttempt >= 2_000)
+			{
+				lastAttempt = System.currentTimeMillis();
+				Object[] station = MobileActions.read(() ->
+				{
+					Rs2TileObjectModel model = MicrobotReadServices.require().getRs2TileObjectCache().query()
+						.where(candidate -> candidate.getWorldLocation().getPlane() == step.origin.getPlane()
+							&& candidate.getWorldLocation().distanceTo(step.origin) <= 6
+							&& (candidate.getId() == step.objectId || "Canoe Station".equalsIgnoreCase(candidate.getName()))
+							&& candidate.getObjectComposition() != null)
+						.nearest();
+					String stage = model == null ? null : canoeStage(model.getObjectComposition().getActions());
+					return stage == null ? null : new Object[]{model.getId(), model.getWorldLocation(), stage};
+				}, null);
+				if (station == null)
+				{
+					lastStatus = "no canoe station with a canoe option near " + step.origin;
+					return false;
+				}
+				Global.sleepUntil(() -> MobileActions.objectAt((int) station[0], (WorldPoint) station[1], (String) station[2]), 2_000);
+			}
+			long remaining = deadline - System.currentTimeMillis();
+			if (remaining > 0) { Thread.sleep(Math.min(300, remaining)); }
+		}
+		lastStatus = !MobileActions.active() || GENERATION.get() != generation
+			? "canoe cancelled" : paddled ? "canoe landing was not observed" : "canoe was not reached";
+		return false;
+	}
+
+	/** The station's current canoe option, the first of {@link #CANOE_STAGES} it offers; null when none. */
+	static String canoeStage(String[] actions)
+	{
+		if (actions == null)
+		{
+			return null;
+		}
+		for (String stage : CANOE_STAGES)
+		{
+			for (String action : actions)
+			{
+				if (stage.equalsIgnoreCase(action))
+				{
+					return action;
+				}
+			}
+		}
+		return null;
+	}
+
+	/** As upstream: the best canoe for a Woodcutting level (waka 57, stable dugout 42, dugout 27, log 12), or null. */
+	static String canoeFor(int woodcuttingLevel)
+	{
+		return woodcuttingLevel >= 57 ? "Waka canoe" : woodcuttingLevel >= 42 ? "Stable dugout canoe"
+			: woodcuttingLevel >= 27 ? "Dugout canoe" : woodcuttingLevel >= 12 ? "Log canoe" : null;
+	}
+
+	/** The destination list of whichever river's canoe map is showing, or -1. */
+	private static int visibleCanoeMap()
+	{
+		if (widgetVisible(InterfaceID.CanoeMapLum.MAIN_MAP))
+		{
+			return InterfaceID.CanoeMapLum.DESTINATIONS;
+		}
+		return widgetVisible(InterfaceID.CanoeMapDougne.MAIN_MAP) ? InterfaceID.CanoeMapDougne.DESTINATIONS : -1;
+	}
+
+	private static boolean widgetVisible(int widgetId)
+	{
+		return MobileActions.read(() ->
+		{
+			net.runelite.api.widgets.Widget widget = Microbot.getClient().getWidget(widgetId);
+			return widget != null && !widget.isHidden();
+		}, false);
 	}
 
 	/** "AIQ" from the catalogue's display info ("AIQ", or several codes, the first used); null when it has none. */
