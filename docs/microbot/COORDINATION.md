@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | `Microbot.java` (getInjector), `util/walker/Rs2Walker.java` (canReach(WorldPoint, boolean)), `util/shop/models/Rs2ShopSource.java` (canAccess, offered by Claude 2 in the 16g handoff), new `inventorysetups/InventorySetupsVariationMapping.java`; new `UtilActionBatchAITest` | **Task: util action batch AI**: answers Claude 2's 16g/16j handoffs | this commit |
 
 ## Requests
 
