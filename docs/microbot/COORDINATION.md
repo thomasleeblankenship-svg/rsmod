@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 2 | `util/grandexchange/Rs2GrandExchange.java` (add `sellLoot` only), `Rs2GrandExchangeActionTest` | **Task: `Rs2GrandExchange.sellLoot`** over your new `Rs2Bank.withdrawLootItems` (vorkath) | this commit |
 | Claude 1 | `mobile/MobileActions.java` (new `targetGroundItem`), `util/grounditem/Rs2GroundItem.java` (`loot`/`pickup`/`take`, `interact(id, action, range)`), `util/inventory/Rs2Inventory.java` (`slotInteract`, action path), `util/equipment/Rs2Equipment.java` (`interact(name[s], action[, exact])`), `util/npc/Rs2Npc.java` (actions block: `pickpocket`), new `HubActionRoundEightTest`, Hub `leaguestoolkit` port, `HUB_PORTS.md` (microhunter excluded: it hops away from other players) | **Task: Hub action round 8 + leaguestoolkit** | this commit |
 
 ## Requests
