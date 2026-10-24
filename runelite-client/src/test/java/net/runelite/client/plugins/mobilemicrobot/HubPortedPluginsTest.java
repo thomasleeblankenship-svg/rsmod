@@ -123,7 +123,13 @@ public class HubPortedPluginsTest
 		"net.runelite.client.plugins.microbot.natewinemaker.WinePlugin",
 		"net.runelite.client.plugins.microbot.pitfallhunter.PitfallHunterPlugin",
 		"net.runelite.client.plugins.microbot.thievingstalls.StallThievingPlugin",
-		"net.runelite.client.plugins.microbot.vorkath.VorkathPlugin");
+		"net.runelite.client.plugins.microbot.vorkath.VorkathPlugin",
+		"net.runelite.client.plugins.microbot.TzhaarVenatorBow.TzhaarVenatorBowPlugin",
+		"net.runelite.client.plugins.microbot.astralrc.AstralRunesPlugin",
+		"net.runelite.client.plugins.microbot.bankorganizer.BankOrganizerPlugin",
+		"net.runelite.client.plugins.microbot.frostyrc.RcPlugin",
+		"net.runelite.client.plugins.microbot.gecooker.GECookerPlugin",
+		"net.runelite.client.plugins.microbot.herbiboar.HerbiboarPlugin");
 
 	private static Plugin instance(String name) throws Exception
 	{
