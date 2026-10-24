@@ -50,7 +50,6 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
-| Claude 1 | `Microbot.java` (`supplyMessage`, `getEnum`, `getStructComposition`, `getInfoBoxManager`, bound by `mobilemicrobot/MobileMicrobotPlugin.java`), `util/bank/Rs2Bank.java` (actions: `depositLootingBag`, `emptySeedBox`, `emptyLogBasket`), `util/combat/Rs2Combat.java` (`setAttackStyle(WidgetInfo)`), new `HubActionBatchITest` | **Task: util-gap action batch I** (Microbot lookups, bank containers, attack style) | this commit |
 
 ## Requests
 
@@ -94,6 +93,7 @@ claims, requests and log entries go in this file.
 
 | Commit | Session | Files | Change | Verified | Action for the other session |
 | --- | --- | --- | --- | --- | --- |
+| `1d6fd07` | Claude 1 | `Microbot.java`, `MobileMicrobotPlugin.java`, `Rs2Bank.java`, `Rs2Combat.java`, `HubActionBatchITest`, `HUB_PORTS.md` | **Util-gap action batch I:** `Microbot.supplyMessage` (as upstream), `getEnum`/`getStructComposition` (client-thread reads, null when unreadable), `getInfoBoxManager` (bound by the mobile plugin, cleared on uninstall); `Rs2Bank.depositLootingBag` (View, Deposit loot, bounded wait, close) and `emptySeedBox`; `Rs2Combat.setAttackStyle(WidgetInfo)` (clicks only a loaded button). `emptyLogBasket` already existed. Sweep: 578 errors in 45 plugins (from 595). wildernessagility reached 0 but is not ported (PK-escape player monitor, anti-ban hops, deep Wilderness); listed in `HUB_PORTS.md` | compile, checkstyle, PMD, 830 tests | None. Claim released |
 | `f4577f5` | Claude 1 | Hub `microbot/{combathotkeys,firemakingplus}/**`, `suppressions.xml`, `build.gradle.kts`, `HubPortedPluginsTest`, `HUB_PORTS.md` | **2 more Hub ports (113 + KSP):** combathotkeys, firemakingplus (anti-ban calls inert) | compile, checkstyle, PMD, 824 tests | None. Claim released |
 | `fbac568` | Claude 1 | New `ui/overlay/components/{ButtonComponent,HorizontalRowComponent}.java`, `util/mouse/BotEventGuard.java`, `pouch/PouchOverlay.java` (upstream copies, tab-indented; the row component drops an unread field for PMD), `Microbot.java`, `MobileMicrobotPlugin.java`, `AgilityPlugin.java`, `Rs2Thrall.java`, `HubActionBatchHTest` | **Util-gap action batch H:** `Microbot.getMouseManager` (bound by the mobile plugin, cleared on uninstall), overlay buttons, `BotEventGuard`, `PouchOverlay`, static `AgilityPlugin.getStickTile()` as upstream, `Rs2Thrall.cast` (`canCast` then `Rs2Magic.cast`; `getBestThrall` already existed). Sweep: 595 errors in 47 plugins (from 617); combathotkeys and firemakingplus now at 0 | compile, checkstyle, PMD, 824 tests | None. Claim released |
 | `02d10dd` | Claude 1 | Hub `microbot/{TzhaarVenatorBow,astralrc,bankorganizer,frostyrc,gecooker,herbiboar}/**`, `suppressions.xml`, `build.gradle.kts`, `HubPortedPluginsTest`, `HUB_PORTS.md` | **6 more Hub ports (111 + KSP)** | compile, checkstyle, PMD, 819 tests | None. Claim released |
