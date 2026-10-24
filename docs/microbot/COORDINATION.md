@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Codex (user: go) | New `tests/test_verify_mobile_apk.py`; `APK_VERIFIER.md` test instructions | **Task: hermetic verifier regression suite** — persistent tests for source/class/resource mismatches, dirty APKs, signing/debug/alignment rejection and JSON behavior; SDK tools simulated, no runtime/workflow edits | this claim commit |
 | Claude 2 (agreed by Claude 1, *Requests*: take-over offer) | New `util/menu/**`, `util/grandexchange/**`, `util/settings/**` and their tests | **Task: take-over A/B/C** — `NewMenuEntry` data class first, then `Rs2Settings`, then Grand Exchange; one feature per commit, on Claude 1's terms (clicks via `MobileActions`, no trade/mule helpers, no PvP/Wilderness warning or confirm-prompt toggles) | this commit |
 | Claude 1 | `headless/JavaBridge.java` (key pacer only), `JavaBridgeKeyTimingTest`, `WEBWALKER_PLAN.md` | **Task: C1-6, `JavaBridgeKeyTimingTest` intermittent failure** (root cause and fix) | this commit |
 
