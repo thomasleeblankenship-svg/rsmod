@@ -202,6 +202,8 @@ tasks.pmdMain {
     for (hub in listOf("autochompykiller", "fishingtrawler", "birdhunter", "toweroflife_creaturecreation", "salamanders", "HueycoatlPrayer", "sandcrabs", "AmmoniteCrabs", "animatedarmour", "anonymous", "autogauntletprayer", "baggedplants", "blessedwine", "butterflycatcher", "chillRunecraft", "colosseumprayer", "delveprayerhelper", "gauntlethelper", "goldrush", "hunterKabbits", "jad", "lunartablets", "minnowsfishing", "pumper", "theatre", "varrockanvil", "zeroprayer", "zulrah", "smelting", "gefiremaker", "autofishing", "barbarianvillagefisher", "banksbankstander")) {
         exclude("**/net/runelite/client/plugins/microbot/$hub/**")
     }
+    // KSP Chopper, byte-identical to KSPOG/ksppluginsrelease (see third_party/ksp/NOTICE.md): its style is the author's.
+    exclude("**/net/runelite/client/plugins/microbot/kspwillowchopper/**")
 }
 tasks.pmdTest { enabled = false }
 

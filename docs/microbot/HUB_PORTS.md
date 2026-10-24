@@ -125,6 +125,27 @@ banksbankstander's quick mode (one action on every inventory slot, as when clean
 action per game tick on mobile, so it is slower than on desktop.
 `autoessencemining` needs the API's `ObjectID1` public and slot-to-slot item moves.
 
+## KSP Chopper (2026-10-24)
+
+KSP's **Chopper** (`kspwillowchopper`, v0.1.3, from `KSPOG/ksppluginsrelease@65c0e59`, ported
+with the permission the repository owner reported) is in the client, unchanged, under
+`plugins/microbot/kspwillowchopper/`, with KSP's `KspBreakAwareScript`. It chops trees with
+banking, deposit boxes, dropping or firemaking, and handles Forestry events. The unmodified
+original is kept in `third_party/ksp/` (see its `NOTICE.md`). Like the Hub plugins it is hosted
+by `HubPluginHost` and disabled by default.
+
+On mobile:
+
+- **No breaks and no mule.** `KspBreakService`, `KspBreakConfig` and `kspmule/**` are inert
+  RuneMobile stand-ins: KSP's randomized logout breaks with automatic re-login are scheduled-break
+  anti-detection behaviour, and its mule hands items to another account, so neither is ported.
+  The plugin's "Break Handler" and "Local Mule" config sections are therefore empty.
+- **Mouse clicks are taps.** The Forestry leprechaun step taps the target's minimap point
+  directly (`Microbot.getMouse().click`), without the walker's safe-disc check, so a point near
+  the minimap edge could hit an orb.
+- **Prompts** (the firemaking and beehive amount prompts) are answered with the space key.
+- Not run on a phone yet.
+
 ## How "mobile" the ported plugins are (2026-10-23)
 
 Compiling unchanged is not the same as working on a phone. Every ported plugin runs under the mobile
@@ -172,7 +193,7 @@ unchanged.
 | Plugin | Status |
 | --- | --- |
 | Hub base | Done (`PluginDescriptor` metadata, `PluginConstants`, `Overlay.setNaughty`) |
-| **Ported (33)** | banksbankstander, smelting, gefiremaker, autofishing, barbarianvillagefisher, autochompykiller, fishingtrawler, birdhunter, toweroflife_creaturecreation, salamanders, HueycoatlPrayer, sandcrabs, AmmoniteCrabs, animatedarmour, anonymous, autogauntletprayer, baggedplants, blessedwine, butterflycatcher, chillRunecraft, colosseumprayer, delveprayerhelper, gauntlethelper, goldrush, hunterKabbits, jad, lunartablets, minnowsfishing, pumper, theatre, varrockanvil, zeroprayer, zulrah. Hub sources copied byte-identical (Hub `ee6e066`) into `plugins/microbot/<name>/` with their resources; hosted by `HubPluginHost`, disabled by default (`HubPortedPluginsTest`). Style-only checkstyle/PMD exemptions are scoped to these directories. None run on a phone yet |
+| **Ported (33 + KSP Chopper)** | banksbankstander, smelting, gefiremaker, autofishing, barbarianvillagefisher, autochompykiller, fishingtrawler, birdhunter, toweroflife_creaturecreation, salamanders, HueycoatlPrayer, sandcrabs, AmmoniteCrabs, animatedarmour, anonymous, autogauntletprayer, baggedplants, blessedwine, butterflycatcher, chillRunecraft, colosseumprayer, delveprayerhelper, gauntlethelper, goldrush, hunterKabbits, jad, lunartablets, minnowsfishing, pumper, theatre, varrockanvil, zeroprayer, zulrah. Hub sources copied byte-identical (Hub `ee6e066`) into `plugins/microbot/<name>/` with their resources; hosted by `HubPluginHost`, disabled by default (`HubPortedPluginsTest`). Style-only checkstyle/PMD exemptions are scoped to these directories. None run on a phone yet |
 | Compile but not ported | `chatbot` (AI-written replies to other players in chat: presents the bot as a person to them), `microbotdashboardplus` (desktop Swing window and Discord webhooks; no phone equivalent), `actions` (library, no plugin), `playermonitor` (anti-detection policy) |
 | woodcutting (Hub) | Compiles unchanged, **not copied**: `plugins/microbot/woodcutting` is our mobile-adapted AutoWoodcutting (phone-tested), which a copy would overwrite. Batch 3's tenth slot passes to the next eligible plugin |
 | shared Hub APIs | Done: `@ConfigInformation`, break-handler lock state, camera, `Rs2Random`, plugin control, `interact`/`isWearing`, `waitForWalking`, inert anti-ban types, `dropAll`, `Rs2Inventory.interact`/`wield`/`wear`, `waitForXpDrop`, `IEntity.click`/queryable `interact`, public `HunterTrap`, `Rs2Bank` withdraw/deposit/walk overloads, `Rs2Keyboard.typeString`, `Rs2Tab`, `InterfaceTab`, walker location enums, `isInArea`, prayer toggles, auto retaliate, `eatAt`/`useFood`, `toggleRunEnergy` |
