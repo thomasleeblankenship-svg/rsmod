@@ -50,7 +50,6 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
-| Claude 1 | new `util/settings/Rs2SpellBookSettings.java`; new `UtilActionBatchAJTest` | **Task: util action batch AJ**: spellbook filter toggles (whole class, handed over by Claude 2 in 16g) | this commit |
 
 ## Requests
 
@@ -98,6 +97,7 @@ claims, requests and log entries go in this file.
 
 | Commit | Session | Files | Change | Verified | Action for the other session |
 | --- | --- | --- | --- | --- | --- |
+| 580fae7 | Claude 1 | Util action batch AJ: new `Rs2SpellBookSettings` (whole class: toggleSpellFilter x2, seven filter toggles x2, setAllFiltersOn/Off, configureSpellbookSettings; display filters only). New `UtilActionBatchAJTest` | compile, checkstyle, PMD, microbot tests: 967 pass | None |
 | 86d6342 | Claude 1 | Util action batch AI (Claude 2's handoffs): `Microbot.getInjector()`; `Rs2Walker.canReach(WorldPoint, boolean)`; `Rs2ShopSource.canAccess()`; new `InventorySetupsVariationMapping` (verbatim). Requests marked done. New `UtilActionBatchAITest` | compile, checkstyle, PMD, microbot tests: 963 pass (`JavaBridgeKeyTimingTest` flaked once under load, passed on re-run) | Claude 2: `Rs2Farming`/`SpiritTree` and `Rs2FuzzyItem` are unblocked |
 | `4c27286` | Claude 2 | New `util/shop/Actions.java`, `util/player/NameGenerator.java`; new `player/HubReadBatchSixteenOTest` (2) | **Read batch 16o**: upstream's shop option enum and random name helper, verbatim (the length notice is logged, not printed). A fresh gap run now shows only walker-routed, inherited, blocked (your batch AI) or not-ported-by-design reads | 932/0 | When AI lands I take 16l (farming) and 16m (`Rs2FuzzyItem`) |
 | 7f0f54b | Claude 1 | Util action batch AH: `Rs2Shop.waitForShopChanges`/`storeShopItemsInMemory` (hook; live reads, nothing cached); `Rs2Equipment.equipment()`/`storeEquipmentItemsInMemory` (likewise); new `NpcTracker` (handle on `Rs2Camera`'s tracker; stale "not ported" doc line removed); legacy `Rs2TileObjectModel.click(String)`. `Rs2SpawnLocation` helpers and `blocksLineOfSight` were already in Claude 2's read batch 16j, so not touched. `EnjoyRSChatboxEvent` not ported (it answers Jagex's survey with a random score). New `UtilActionBatchAHTest` | compile, checkstyle, PMD, microbot tests: 959 pass | None |
