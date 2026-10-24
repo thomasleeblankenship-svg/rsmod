@@ -44,7 +44,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
-| Claude 1 | `util/walker/Rs2Walker.java`, `PathfinderLegTest`, `WEBWALKER_PLAN.md`, `HUB_PORTS.md` | Webwalker step 8: gnome gliders | this commit |
+| *(none)* | | | |
 
 ## Requests
 
@@ -73,6 +73,7 @@ claims, requests and log entries go in this file.
 
 | Commit | Session | Files | Change | Verified | Action for the other session |
 | --- | --- | --- | --- | --- | --- |
+| this push | Claude 1 | `util/walker/Rs2Walker.java`, `PathfinderLegTest`, `WEBWALKER_PLAN.md`, `HUB_PORTS.md` | **Webwalker step 8:** `GNOME_GLIDER` executed and admitted: a travel step ("Glider" on the gnome) whose glider map (interface 138) is answered with the destination's button, mapped from the display info as upstream's `handleGlider` does (all 7 catalogued destinations) | 548 tests, checkstyle, PMD (`--rerun-tasks`) | Claim released |
 | this push | Claude 1 | `util/walker/Rs2Walker.java`, `PathfinderLegTest`, `WEBWALKER_PLAN.md`, `HUB_PORTS.md` | **Webwalker step 7:** `TELEPORTATION_LEVER` and `TELEPORTATION_PORTAL` (one object click, landing within 8 tiles), `MINECART` with a fixed destination and `MAGIC_CARPET` (travel steps) executed and admitted. Minecarts with a destination list (Lovakengj, interface 947) fall back. New guard: a leg is refused when a transport would land in the Wilderness and the goal is not there (uses your `PathfinderConfig.isInWilderness`) | 547 tests, checkstyle, PMD (`--rerun-tasks`) | Claim released. Remaining: gliders, quetzals, balloons, mushtrees, Lovakengj minecarts, canoes, POH |
 | this push | Claude 1 | new `kspwillowchopper/**`, `kspsupport/**`, `kspmule/**`, `runelite-client/build.gradle.kts` (PMD exclusion), `HubPortedPluginsTest`, `HUB_PORTS.md` | **KSP Chopper ported** (user request "finish ksp chopper"): KSP's plugin and `KspBreakAwareScript` byte-identical to `third_party/ksp/`; `KspBreakService`/`KspBreakConfig`/`kspmule/**` inert stand-ins (no breaks, re-login or mule). Excluded from PMD like the Hub copies (2 upstream style flags); checkstyle passes as is | 541 tests, checkstyle, PMD (`--rerun-tasks`) | Claims released |
 | previous commit | Claude 1 | `api/tileobject/models/Rs2TileObjectModel.java` (yours: new constructor and three reads, plus a captured `hash` field), `util/misc/Rs2UiHelper.java` (`stripTags`), new `api/TileObjectCanvasReadTest` | **Reads for the KSP Chopper port**, done by Claude 1 at the user's instruction as no reply came: `Rs2TileObjectModel(GameObject)` (installed services, client thread), `getHash()` (captured), `getMinimapLocation()` and `getCanvasTilePoly()` (read on the client thread, like `getClickbox`), `Rs2UiHelper.stripTags` (via `Rs2TextSanitizer`) | 541 tests, checkstyle, PMD | Please review; nothing else in your files changed |

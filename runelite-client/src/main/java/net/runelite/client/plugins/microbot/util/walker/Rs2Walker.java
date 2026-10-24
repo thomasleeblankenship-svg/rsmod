@@ -492,11 +492,22 @@ public final class Rs2Walker
 
 	/** Rides on an NPC or vehicle: interact, answer the destination dialogue, wait for the landing. */
 	static final Set<TransportType> TRAVEL_TRANSPORTS = EnumSet.of(TransportType.BOAT, TransportType.SHIP, TransportType.NPC,
-		TransportType.CHARTER_SHIP, TransportType.SPIRIT_TREE, TransportType.MINECART, TransportType.MAGIC_CARPET);
+		TransportType.CHARTER_SHIP, TransportType.SPIRIT_TREE, TransportType.MINECART, TransportType.MAGIC_CARPET,
+		TransportType.GNOME_GLIDER);
 
 	/** One object click that teleports: arrival is anywhere near the catalogued landing. */
 	static final Set<TransportType> TELEPORT_OBJECTS = EnumSet.of(TransportType.TELEPORTATION_LEVER,
 		TransportType.TELEPORTATION_PORTAL);
+
+	/** Each gnome glider destination's button on the glider map (interface 138), as upstream's {@code handleGlider}. */
+	static final java.util.Map<String, Integer> GLIDER_BUTTONS = java.util.Map.of(
+		"ta quir priw", InterfaceID.Glidermap.GRANDTREE_BUTTON,
+		"sindarpos", InterfaceID.Glidermap.WHITEWOLFMOUNTAIN_BUTTON,
+		"lemanto andra", InterfaceID.Glidermap.VARROCK_BUTTON,
+		"kar-hewo", InterfaceID.Glidermap.ALKHARID_BUTTON,
+		"gandius", InterfaceID.Glidermap.KARAMJA_BUTTON,
+		"lemantolly undri", InterfaceID.Glidermap.OGREAREA_BUTTON,
+		"ookookolly undri", InterfaceID.Glidermap.APEATOLL_BUTTON);
 
 	/** The charter-ship destination map (upstream: widget 885, child 4). */
 	private static final int CHARTER_GROUP = 885;
@@ -506,7 +517,8 @@ public final class Rs2Walker
 	static final Set<TransportType> EXECUTABLE_TRANSPORTS = EnumSet.of(TransportType.TRANSPORT, TransportType.AGILITY_SHORTCUT,
 		TransportType.BOAT, TransportType.SHIP, TransportType.NPC, TransportType.CHARTER_SHIP, TransportType.TELEPORTATION_ITEM,
 		TransportType.TELEPORTATION_SPELL, TransportType.SPIRIT_TREE, TransportType.FAIRY_RING, TransportType.MINECART,
-		TransportType.MAGIC_CARPET, TransportType.TELEPORTATION_LEVER, TransportType.TELEPORTATION_PORTAL);
+		TransportType.MAGIC_CARPET, TransportType.TELEPORTATION_LEVER, TransportType.TELEPORTATION_PORTAL,
+		TransportType.GNOME_GLIDER);
 
 	/** The spirit tree destination menu (upstream {@code ADVENTURE_LOG_CONTAINER}, 187) and its option list (187:3). */
 	private static final int DESTINATION_MENU_GROUP = 187;
@@ -790,6 +802,17 @@ public final class Rs2Walker
 			if (dispatched && step.observedArrival(scene.player))
 			{
 				return true;
+			}
+			if (gliderMapVisible())
+			{
+				Integer button = gliderButton(step.destinationText);
+				if (button == null || !Global.sleepUntil(() -> MobileActions.widget(button, -1, ""), 2_000))
+				{
+					lastStatus = "glider map does not offer " + step.destinationText;
+					return false;
+				}
+				Thread.sleep(600);
+				continue;
 			}
 			if (destinationMenuVisible())
 			{
@@ -1264,6 +1287,21 @@ public final class Rs2Walker
 		String text = displayInfo.trim();
 		return text.length() > 1 && text.charAt(1) == ':' && Character.isLetterOrDigit(text.charAt(0))
 			? Character.toLowerCase(text.charAt(0)) : 0;
+	}
+
+	/** The glider map's button for a destination name (case-insensitive), or null. */
+	static Integer gliderButton(String destination)
+	{
+		return destination == null ? null : GLIDER_BUTTONS.get(destination.trim().toLowerCase(java.util.Locale.ROOT));
+	}
+
+	private static boolean gliderMapVisible()
+	{
+		return MobileActions.read(() ->
+		{
+			net.runelite.api.widgets.Widget map = Microbot.getClient().getWidget(InterfaceID.Glidermap.UNIVERSE);
+			return map != null && !map.isHidden();
+		}, false);
 	}
 
 	private static boolean charterMapVisible()

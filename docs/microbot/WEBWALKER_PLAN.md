@@ -91,7 +91,9 @@ Claude 1 acts (every click, tap, key and transport interaction).**
   fixed destination (Keldagrim trapdoor and the like) and magic carpets as travel steps. No
   transport may land in the Wilderness unless the walk's goal is there, whatever the pathfinder
   returns.
-- Next: gnome gliders, quetzals, hot air balloons, magic mushtrees and the Lovakengj minecarts
+- Done (step 8): gnome gliders ("Glider" on the gnome, then the destination's button on the
+  glider map, as upstream).
+- Next: quetzals, hot air balloons, magic mushtrees and the Lovakengj minecarts
   (each needs its destination interface), canoes, then POH (routing is off on Claude 2's side
   until then). Wilderness obelisks are not planned: their destinations are random and in the
   Wilderness.
