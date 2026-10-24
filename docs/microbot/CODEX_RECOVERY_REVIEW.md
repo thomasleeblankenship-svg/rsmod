@@ -33,6 +33,30 @@ compilation, Checkstyle and PMD. Local log:
 `/workspace/tooling/codex-recovery-full-checks.log`. This closes the combined automated acceptance gap described in
 finding 3 below; that finding describes the earlier reviewed revision.
 
+## Follow-up: interrupted-trip lifecycle coverage
+
+Two more cases in `MobileBankRecoveryIntegrationTest` cover lifecycle changes
+while the real-adapter bank approach is active:
+
+- Background/foreground through `JavaBridge.setScriptInputSuspended`: the old
+  session becomes inactive, the trip ends, no bank opens or deposits occur,
+  inventory remains intact, and foregrounding cannot send input under that
+  old permission.
+- Logout/reconnect through the real `MobileMicrobotPlugin` event handler: the
+  session closes, Run script is cleared through the configuration manager,
+  the trip ends without banking and reconnecting does not renew the permission
+  or turn Run script back on. Logout invalidates read caches, so the test also
+  inspects the simulated engine inventory instead of assuming cached counts.
+
+These tests use an injected owning session and the real plugin's logout hook;
+its startup/scheduler is not launched. They exercise the Java lifecycle bridge
+and event handler, not an Android process being backgrounded or killed.
+
+The four combined-trip cases passed. Full shared focused verification against
+base `61100b9d` plus these tests passed: **552 tests, zero failures/errors/skips**,
+client compilation, Checkstyle and PMD. Local log:
+`/workspace/tooling/codex-lifecycle-full-checks.log`.
+
 ## Result
 
 All 63 selected tests passed, with zero failures, errors or skips. Compilation

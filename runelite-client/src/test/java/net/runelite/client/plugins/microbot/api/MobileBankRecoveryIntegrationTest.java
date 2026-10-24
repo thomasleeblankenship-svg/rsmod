@@ -1,5 +1,6 @@
 package net.runelite.client.plugins.microbot.api;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -16,6 +17,9 @@ import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetInfo;
+import net.runelite.client.config.ConfigManager;
+import net.runelite.client.plugins.mobilemicrobot.MobileMicrobotConfig;
+import net.runelite.client.plugins.mobilemicrobot.MobileMicrobotPlugin;
 import net.runelite.client.headless.JavaBridge;
 import net.runelite.client.headless.ScriptInputSession;
 import net.runelite.client.plugins.microbot.MicrobotRuntime;
@@ -262,4 +266,75 @@ public class MobileBankRecoveryIntegrationTest
 		assertEquals(1, Rs2Inventory.count(1351));
 		assertNull(Rs2Walker.getTarget());
 	}
+
+	@Test
+	public void backgroundingEndsTheApproachAndForegroundDoesNotRenewIt() throws Exception
+	{
+		Future<Boolean> trip = worker.submit(this::roundTrip);
+		assertTrue("walking must start", firstWalk.await(10, TimeUnit.SECONDS));
+		JavaBridge.setScriptInputSuspended(true);
+		assertFalse("backgrounding must close the old input permission", owner.isActive());
+		assertFalse("the approach must end without banking", trip.get(3, TimeUnit.SECONDS));
+		JavaBridge.setScriptInputSuspended(false);
+		frozen = false;
+		assertFalse("foregrounding must not reactivate the old session", owner.isActive());
+		int dispatched = actions.size();
+		assertFalse(MobileActions.walk(BankLocation.LUMBRIDGE_TOP.getWorldPoint()));
+		renderer.settle();
+		assertEquals("no queued input may run after foregrounding", dispatched, actions.size());
+		assertFalse(actions.contains("bank:open"));
+		assertFalse(actions.contains("bank:deposit"));
+		assertEquals(27, Rs2Inventory.count(1511));
+		assertEquals(1, Rs2Inventory.count(1351));
+		assertNull(Rs2Walker.getTarget());
+	}
+
+	@Test
+	public void logoutHookEndsTheApproachAndReconnectDoesNotRestartIt() throws Exception
+	{
+		// Exercise the real plugin's logout handler with this trip's owning session.
+		// The host scheduler is not started; the trip runs on its actual script worker.
+		MobileMicrobotPlugin plugin = new MobileMicrobotPlugin();
+		AtomicBoolean run = new AtomicBoolean(true);
+		MobileMicrobotConfig config = mock(MobileMicrobotConfig.class);
+		when(config.runScript()).thenAnswer(call -> run.get());
+		ConfigManager manager = mock(ConfigManager.class);
+		doAnswer(call -> { run.set(call.getArgument(2)); return null; })
+			.when(manager).setConfiguration(eq("mobilemicrobot"), eq("runScript"), any(Object.class));
+		inject(plugin, "inputSession", owner);
+		inject(plugin, "config", config);
+		inject(plugin, "configManager", manager);
+		fixture.eventBus.register(plugin);
+		try
+		{
+			Future<Boolean> trip = worker.submit(this::roundTrip);
+			assertTrue("walking must start", firstWalk.await(10, TimeUnit.SECONDS));
+			fixture.clientExecutor.submit(() -> fixture.gameState(GameState.LOGIN_SCREEN)).get();
+			assertFalse("logout must end the owning session", owner.isActive());
+			assertFalse("logout must disable Run script", run.get());
+			assertFalse(trip.get(3, TimeUnit.SECONDS));
+			fixture.clientExecutor.submit(() -> fixture.gameState(GameState.LOGGED_IN)).get();
+			frozen = false;
+			assertFalse("reconnect must not renew the old permission", owner.isActive());
+			assertFalse("reconnect must leave Run script disabled", run.get());
+			int dispatched = actions.size();
+			assertFalse(MobileActions.walk(TREES));
+			renderer.settle();
+			assertEquals(dispatched, actions.size());
+			assertFalse(actions.contains("bank:open"));
+			assertFalse(actions.contains("bank:deposit"));
+			// Logout clears read caches; inspect the simulated engine inventory, not stale snapshots.
+			assertEquals(28, (int) fixture.clientExecutor.submit(items::size).get());
+			assertNull(Rs2Walker.getTarget());
+		}
+		finally { fixture.eventBus.unregister(plugin); }
+	}
+
+	private static void inject(MobileMicrobotPlugin plugin, String name, Object value) throws Exception
+	{
+		Field field = MobileMicrobotPlugin.class.getDeclaredField(name);
+		field.setAccessible(true);
+		field.set(plugin, value);
+	}
+
 }
