@@ -9,16 +9,54 @@ import net.runelite.client.plugins.microbot.api.tileitem.models.Rs2TileItemModel
 import net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory;
 import net.runelite.client.plugins.microbot.util.player.Rs2Player;
 
-/** Named ground-item pickup through the live scene, confirmed by an inventory delta. */
+/**
+ * Ground-item pickup through the live scene (by name, by untradeability or by value), each
+ * confirmed by an inventory delta. One stack per call, as scripts call these in their loop.
+ */
 public final class Rs2GroundItem
 {
 	private Rs2GroundItem() { }
 	public static boolean lootItemsBasedOnNames(LootingParameters parameters)
 	{
-		if (parameters == null || !MobileActions.active() || Microbot.getRs2TileItemCache() == null
+		return parameters != null && lootMatching(parameters, item -> matchesName(item, parameters));
+	}
+
+	/** As upstream: untradeable stacks other than coins, within the parameters' range and ownership rule. */
+	public static boolean lootUntradables(LootingParameters parameters)
+	{
+		return parameters != null && lootMatching(parameters, item -> item.getId() != net.runelite.api.ItemID.COINS_995
+			&& !isTradeable(item.getId()));
+	}
+
+	/**
+	 * As upstream: the first stack within {@code range} tiles whose GE price times quantity is at
+	 * least {@code value}. Without an item manager nothing is worth looting.
+	 */
+	public static boolean lootItemBasedOnValue(int value, int range)
+	{
+		net.runelite.client.game.ItemManager prices = Microbot.getItemManager();
+		return prices != null && lootMatching(new LootingParameters(range, 1, 1, 0, false, false),
+			item -> prices.getItemPrice(item.getId()) * item.getQuantity() >= value);
+	}
+
+	/** As upstream: {@link #lootItemBasedOnValue(int, int)} within 14 tiles. */
+	public static boolean lootAtGePrice(int minGePrice)
+	{
+		return lootItemBasedOnValue(minGePrice, 14);
+	}
+
+	/**
+	 * Picks up the first stack that passes the parameters' quantity, lootability and ownership rules
+	 * and {@code filter}, which runs on the client thread (it may read item definitions or prices).
+	 */
+	private static boolean lootMatching(LootingParameters parameters, java.util.function.Predicate<Rs2TileItemModel> filter)
+	{
+		if (!MobileActions.active() || Microbot.getRs2TileItemCache() == null
 			|| 28 - Rs2Inventory.count() < parameters.getMinInvSlots()) { return false; }
-		List<Rs2TileItemModel> candidates = Microbot.getRs2TileItemCache().query().within(parameters.getRange())
-			.where(item -> accepts(item, parameters)).toList();
+		List<Rs2TileItemModel> nearby = Microbot.getRs2TileItemCache().query().within(parameters.getRange())
+			.where(item -> lootable(item, parameters)).toList();
+		List<Rs2TileItemModel> candidates = MobileActions.read(() -> nearby.stream().filter(filter)
+			.collect(java.util.stream.Collectors.toList()), java.util.Collections.emptyList());
 		if (candidates.size() < parameters.getMinItems()) { return false; }
 		for (Rs2TileItemModel item : candidates)
 		{
@@ -66,11 +104,28 @@ public final class Rs2GroundItem
 	}
 	static boolean accepts(Rs2TileItemModel item, LootingParameters parameters)
 	{
-		if (item.getQuantity() < parameters.getMinQuantity() || !item.isLootAble()
-			|| (parameters.isAntiLureProtection() && !item.isOwned()) || item.getName() == null) { return false; }
+		return lootable(item, parameters) && matchesName(item, parameters);
+	}
+
+	private static boolean lootable(Rs2TileItemModel item, LootingParameters parameters)
+	{
+		return item.getQuantity() >= parameters.getMinQuantity() && item.isLootAble()
+			&& (!parameters.isAntiLureProtection() || item.isOwned());
+	}
+
+	private static boolean matchesName(Rs2TileItemModel item, LootingParameters parameters)
+	{
+		if (item.getName() == null) { return false; }
 		String name = item.getName().toLowerCase(Locale.ROOT);
 		return Arrays.stream(parameters.getNames()).filter(java.util.Objects::nonNull)
 			.anyMatch(part -> name.contains(part.toLowerCase(Locale.ROOT)));
+	}
+
+	/** Client thread only (called inside {@link #lootMatching}'s read). */
+	private static boolean isTradeable(int itemId)
+	{
+		net.runelite.api.ItemComposition definition = Microbot.getClient().getItemDefinition(itemId);
+		return definition == null || definition.isTradeable();
 	}
 	private static int inventoryQuantity(int itemId)
 	{
