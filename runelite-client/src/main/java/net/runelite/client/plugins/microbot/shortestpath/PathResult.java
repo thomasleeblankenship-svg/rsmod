@@ -50,6 +50,9 @@ public final class PathResult
 		private final List<Set<Integer>> itemRequirements;
 		private final Set<Integer> itemIds;
 		private final int[] skillLevels;
+		private final boolean intoHouse;
+		private final PohDevice pohDevice;
+		private final String pohOption;
 
 		TransportStep(Transport transport)
 		{
@@ -74,6 +77,39 @@ public final class PathResult
 			this.itemRequirements = Collections.unmodifiableList(requirements);
 			this.itemIds = Collections.unmodifiableSet(ids);
 			this.skillLevels = transport.getSkillLevels() == null ? new int[0] : transport.getSkillLevels().clone();
+			HouseTransport house = transport instanceof HouseTransport ? (HouseTransport) transport : null;
+			this.intoHouse = house != null && house.isIntoHouse();
+			this.pohDevice = house == null ? null : house.getPohDevice();
+			this.pohOption = house == null ? null : house.getPohOption();
+		}
+
+		/**
+		 * Whether this step lands in the player-owned house (house teleport spell, tablet, cape or the
+		 * outside portal): arrival is being in the house, and the landing tile is synthetic.
+		 */
+		public boolean isIntoHouse()
+		{
+			return intoHouse;
+		}
+
+		/**
+		 * For a {@link TransportType#POH} step out of the house, the device it uses; {@code null}
+		 * otherwise. Its {@link #getObjectId()} and {@link #getName()} are the device as detected, and
+		 * its origin (the house tile) is never walked to.
+		 */
+		public PohDevice getPohDevice()
+		{
+			return pohDevice;
+		}
+
+		/**
+		 * For a POH step, what the device shows for the destination: the destination name for the
+		 * nexus and jewellery box, the code for the fairy ring, the "N: Name" entry for the spirit
+		 * tree, and the exact menu option (also {@link #getAction()}) for portals and mounted items.
+		 */
+		public String getPohOption()
+		{
+			return pohOption;
 		}
 
 		/**
