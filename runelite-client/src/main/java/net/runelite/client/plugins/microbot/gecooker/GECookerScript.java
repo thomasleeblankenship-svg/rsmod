@@ -1,5 +1,6 @@
 package net.runelite.client.plugins.microbot.gecooker;
 
+import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Skill;
 import net.runelite.api.TileObject;
 import net.runelite.api.coords.WorldPoint;
@@ -31,8 +32,16 @@ enum State {
     BUILDING_FIRE,
 }
 
+/**
+ * Grand Exchange cooker: lights a fire at a chosen Grand Exchange worksite (or uses one already burning) and
+ * cooks the selected raw food on it, banking between inventories. Adapted for Microbot Mobile; see
+ * MOBILE_PORT.md in this package.
+ */
+@Slf4j
 public class GECookerScript extends Script {
     public State state = State.BANKING;
+    // Mobile: enableAutoRunOn is global; the value before start is put back on stop.
+    private boolean autoRunBefore = true;
     public String debug = "";
     private boolean expectingXPDrop = false;
     private WorldPoint lastFireLocation;
@@ -50,6 +59,7 @@ public class GECookerScript extends Script {
         LogType logType = config.sLogType();
         GEWorkLocation desiredLocation = config.sLocation();
 
+        autoRunBefore = Microbot.enableAutoRunOn;
         Microbot.enableAutoRunOn = false;
 
         Rs2Antiban.resetAntibanSettings();
@@ -62,6 +72,19 @@ public class GECookerScript extends Script {
         Rs2AntibanSettings.microBreakDurationHigh = 3;
 
         mainScheduledFuture = scheduledExecutorService.scheduleWithFixedDelay(() -> {
+            try {
+                loop(cookingItem, logType, desiredLocation);
+            } catch (Exception ex) {
+                // Mobile: an uncaught exception would silently end the schedule while the plugin still looked
+                // running; turn the plugin off so the Microbot Mobile screen shows it stopped.
+                Microbot.log("GE Cooker stopped after an error: " + ex);
+                stopPlugin();
+            }
+        }, 0, 1000, TimeUnit.MILLISECONDS);
+        return true;
+    }
+
+    private void loop(CookingItem cookingItem, LogType logType, GEWorkLocation desiredLocation) {
             if (!super.run() || !Microbot.isLoggedIn()) {
                 debug("Not running");
                 return;
@@ -114,10 +137,13 @@ public class GECookerScript extends Script {
                     } else {
                         debug("Using object on fire");
                         Rs2Inventory.useItemOnObject(cookingItem.getRawItemID(), fireObject.getId());
-                        sleepUntil(() -> !Rs2Player.isMoving() && Rs2Widget.findWidget("How many would you like to cook?", null, false) != null, 5000);
-                        sleep(180, 540);
-                        Rs2Keyboard.keyPress(KeyEvent.VK_SPACE);
-                        expectingXPDrop = true; // Subsequent iterations can be expecting an XP drop until the state changes
+                        // Mobile: press Space only once the cook menu is up, and retry it, since a key can be refused
+                        // under the one-action-per-tick rule.
+                        if (sleepUntil(() -> !Rs2Player.isMoving() && Rs2Widget.findWidget("How many would you like to cook?", null, false) != null, 5000)) {
+                            sleep(180, 540);
+                            sleepUntil(() -> Rs2Keyboard.keyPress(KeyEvent.VK_SPACE), 3000);
+                            expectingXPDrop = true; // Subsequent iterations can be expecting an XP drop until the state changes
+                        }
                     }
                 }
                 break;
@@ -158,9 +184,6 @@ public class GECookerScript extends Script {
             Rs2Antiban.actionCooldown();
             Rs2Antiban.takeMicroBreakByChance();
             sleep(256, 789);
-            return;
-        }, 0, 1000, TimeUnit.MILLISECONDS);
-        return true;
     }
 
     // Determine the state of the script
@@ -232,7 +255,8 @@ public class GECookerScript extends Script {
             if (!Rs2Inventory.hasItem(cookingItem.getRawItemID())) {
                 debug("Could not find cooking item in bank.");
                 Microbot.showMessage("Could not find cooking item in bank.");
-                shutdown();
+                stopPlugin();
+                return;
             }
             sleep(180, 540);
             Rs2Bank.closeBank();
@@ -256,7 +280,8 @@ public class GECookerScript extends Script {
             if (!Rs2Inventory.hasItem("Tinderbox")) {
                 debug("Could not find Tinderbox in bank.");
                 Microbot.showMessage("Could not find Tinderbox in bank.");
-                shutdown();
+                stopPlugin();
+                return;
             }
 
             sleep(180, 540);
@@ -269,7 +294,8 @@ public class GECookerScript extends Script {
             if (!Rs2Inventory.hasItem(logType.getLogID())) {
                 debug("Could not find logs in bank.");
                 Microbot.showMessage("Could not find logs in bank.");
-                shutdown();
+                stopPlugin();
+                return;
             }
             sleep(180, 540);
             Rs2Bank.closeBank();
@@ -278,12 +304,20 @@ public class GECookerScript extends Script {
 
     private void debug(String msg) {
         debug = msg;
-        System.out.println(msg);
+        // Mobile: debug level, not stdout, so a 1 s loop does not flood the device log.
+        log.debug(msg);
+    }
+
+    /** Turns the plugin off (not just this loop) so the Microbot Mobile screen and plugin list show it stopped. */
+    private void stopPlugin() {
+        shutdown();
+        Microbot.stopPlugin(GECookerPlugin.class);
     }
 
     @Override
     public void shutdown() {
         super.shutdown();
         Rs2Antiban.resetAntibanSettings();
+        Microbot.enableAutoRunOn = autoRunBefore;
     }
 }
