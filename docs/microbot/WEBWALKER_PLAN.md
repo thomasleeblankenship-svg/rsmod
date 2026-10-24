@@ -125,7 +125,7 @@ and executor).** Hub use counts are calls across the Hub sources.
 | C1-1 | **Done** — **Missing walker actions**: `walkMiniMap` (12 Hub uses), `walkFastLocal` (12), `walkCanvas` (9), `walkWithState` (7), `walkWithStateUntil` (3), `clearWalkingRoute` (6), `getCurrentTarget` (1) | First, as it unblocks the most plugins |
 | C1-2 | **Executors** for quetzals (Renu's map) and magic mushtrees (destination menu): **done**, both answered by map text like the charter map; canoes (the station steps and destination map): **done** | After C2-4 |
 | C1-3 | The `Rs2Walker` statics for C2-2's reads | Right after C2-2 lands |
-| C1-4 | **POH execution**: house teleport, then the portal, nexus, jewellery box, fairy ring or spirit tree inside | After C2-1 |
+| C1-4 | **Done** — **POH execution**: ways in (house teleport spell, tablet, construction cape, the outside portal, a ring or tree to the house) land when the player is in the house; ways out run from wherever the player stands: portals and mounted items by their option, the nexus by the entry's shortcut key (else a tap), the jewellery box by its entry (struck-through entries refused), Xeric's and the digsite by their menu, the spirit tree by "Travel" and its menu, the house fairy ring dialled like any ring. The pathfinder plans from inside the house; a house exit into the Wilderness is refused like any other transport | After C2-1 |
 | C1-5 | **Retire `ObjectTransports`** and the same-plane planner fallback once a phone walk confirms the pathfinder route; keep a phone checklist per transport | Needs phone results from the user |
 | C1-6 | `JavaBridgeKeyTimingTest` intermittent failure (not walker): spans of 1, 3, 41 and 55 ms in full-suite runs suggest concurrent key-pump chains | Own change |
 

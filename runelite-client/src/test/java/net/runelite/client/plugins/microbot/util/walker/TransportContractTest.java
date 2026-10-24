@@ -11,6 +11,8 @@ import net.runelite.client.plugins.microbot.shortestpath.MobilePathfinder;
 import net.runelite.client.plugins.microbot.shortestpath.MobileRouteTestAccess;
 import net.runelite.client.plugins.microbot.shortestpath.MobileTransportPolicy;
 import net.runelite.client.plugins.microbot.shortestpath.PathResult;
+import net.runelite.client.plugins.microbot.shortestpath.PohDevice;
+import net.runelite.client.plugins.microbot.shortestpath.PohPanel;
 import net.runelite.client.plugins.microbot.shortestpath.Transport;
 import net.runelite.client.plugins.microbot.shortestpath.TransportType;
 import org.junit.Test;
@@ -177,5 +179,63 @@ public class TransportContractTest
 		assertTrue(Rs2Walker.entersWilderness(lever.getDestination(), LUMBRIDGE));
 		assertFalse(Rs2Walker.entersWilderness(lever.getDestination(), lever.getDestination()));
 		assertTrue(Objects.nonNull(lever.getOrigin()));
+	}
+
+	/** A detected house with every portal, nexus entry and device, so each house transport is built. */
+	private static net.runelite.client.plugins.microbot.util.poh.PohLayout fullHouse()
+	{
+		java.util.Map<net.runelite.client.plugins.microbot.util.poh.data.PohPortal, net.runelite.client.plugins.microbot.util.poh.PohLayout.Device> portals =
+			new java.util.EnumMap<>(net.runelite.client.plugins.microbot.util.poh.data.PohPortal.class);
+		for (net.runelite.client.plugins.microbot.util.poh.data.PohPortal portal : net.runelite.client.plugins.microbot.util.poh.data.PohPortal.values())
+		{
+			portals.put(portal, new net.runelite.client.plugins.microbot.util.poh.PohLayout.Device(13615, portal.name() + " Portal"));
+		}
+		java.util.Map<PohDevice, net.runelite.client.plugins.microbot.util.poh.PohLayout.Device> devices = new java.util.EnumMap<>(PohDevice.class);
+		for (PohDevice device : PohDevice.values())
+		{
+			devices.put(device, new net.runelite.client.plugins.microbot.util.poh.PohLayout.Device(13523, device.name()));
+		}
+		return new net.runelite.client.plugins.microbot.util.poh.PohLayout(net.runelite.client.plugins.microbot.util.poh.data.HouseLocation.RIMMINGTON,
+			portals, EnumSet.allOf(net.runelite.client.plugins.microbot.util.poh.data.NexusPortal.class),
+			net.runelite.client.plugins.microbot.util.poh.data.JewelleryBoxType.ORNATE, devices);
+	}
+
+	@Test
+	public void everyHouseTransportCarriesWhatItsExecutorReads()
+	{
+		try (org.mockito.MockedStatic<net.runelite.client.plugins.microbot.util.poh.PohLayoutStore> store =
+			org.mockito.Mockito.mockStatic(net.runelite.client.plugins.microbot.util.poh.PohLayoutStore.class))
+		{
+			store.when(net.runelite.client.plugins.microbot.util.poh.PohLayoutStore::get).thenReturn(fullHouse());
+			List<PathResult.TransportStep> in = PohPanel.getTransportsToPoh().values().stream().flatMap(Set::stream)
+				.map(MobileRouteTestAccess::step).collect(Collectors.toList());
+			List<PathResult.TransportStep> out = PohPanel.getAvailableTransports(MobileRouteTestAccess.catalogue()).values().stream()
+				.flatMap(Set::stream).map(MobileRouteTestAccess::step).collect(Collectors.toList());
+			assertFalse(in.isEmpty());
+			assertTrue("every device builds ways out", out.stream().map(PathResult.TransportStep::getPohDevice)
+				.filter(Objects::nonNull).collect(Collectors.toSet()).containsAll(EnumSet.allOf(PohDevice.class)));
+			for (PathResult.TransportStep step : in)
+			{
+				assertTrue(step.toString(), step.isIntoHouse());
+				assertNull(step.toString(), violation(step));
+			}
+			for (PathResult.TransportStep step : out)
+			{
+				if (step.getType() != TransportType.POH)
+				{
+					// A catalogue ring or tree into the house: executed as its own type, landing in the house.
+					assertTrue(step.toString(), step.isIntoHouse());
+					assertNull(step.toString(), violation(step));
+					continue;
+				}
+				assertNotNull(step.toString(), step.getPohDevice());
+				assertFalse("no option: " + step, step.getPohOption() == null || step.getPohOption().isBlank());
+				assertTrue("nothing to find: " + step, step.getObjectId() > 0 || (step.getName() != null && !step.getName().isBlank()));
+				if (step.getPohDevice() == PohDevice.FAIRY_RING)
+				{
+					assertNotNull("house ring without a code: " + step, Rs2Walker.fairyRingCode(step.getPohOption()));
+				}
+			}
+		}
 	}
 }
