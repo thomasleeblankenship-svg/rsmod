@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | Actions in `util/dialogues/Rs2Dialogue.java` (`acceptQuestStartDialogue`, `sleepUntilHasCombinationOption` ×2, `sleepUntilHasDialogueText` ×2, `sleepUntilHasQuestion` ×2, `waitForCutScene` ×2, and `isInCutScene` for them), `util/player/Rs2Player.java` (`follow`, `challenge`, `cast`, `use` on a player; `handleTeleblockTimer`), `util/equipment/Rs2Equipment.java` (`unEquip(String, boolean)`, `unEquip(String[], boolean)`, `unEquip(String...)`), `util/inventory/Rs2Inventory.java` (`useUnNoted`, `dropEmptyVials`), new `UtilActionBatchSTest` | **Task: util action batch S** (dialogue waits, player and equipment actions) | this commit |
 | Claude 2 (user request; util-gap plan) | Read blocks in `util/npc/Rs2Npc.java` (reads only; your actions block untouched) and `util/npc/Rs2NpcModel.java`; new `HubReadBatchSixteenBTest` | **Task: read batch 16b, `Rs2Npc`/`Rs2NpcModel` reads**: `getAttackableNpcs` (3), `getAvailableAction`, `getHealth`, `getNpcInLineOfSight` (2), `getNpcsInLineOfSight` (2), `getNpcWithAction`, `getNpcsAttackingPlayer`, `getNpcsForPlayer` (3), `getPestControlPortals`, `getWorldLocation(npc)`, `hasLineOfSight`, `isInAttackRange` (2), `isMoving(npc)`; model `getDistanceFromPlayer`, `getHeadIcon`, `getHealthPercentage`, `isInteractingWithPlayer`, `isMoving`, `isWithinDistance`, `isWithinDistanceFromPlayer` | this commit |
 
 ## Requests
