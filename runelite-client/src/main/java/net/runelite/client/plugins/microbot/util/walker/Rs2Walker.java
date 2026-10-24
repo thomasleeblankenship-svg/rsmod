@@ -1896,6 +1896,19 @@ public final class Rs2Walker
 		return chooseTextMapDestination(InterfaceID.TelenexusTeleport.UNIVERSE, destination);
 	}
 
+	/** Picks {@code destination} in the open portal nexus (its shortcut key, else its entry); for {@code PohTeleports}. */
+	public static boolean selectNexusDestination(String destination)
+	{
+		return destination != null && chooseNexusDestination(destination);
+	}
+
+	/** Picks an unlocked (not struck-through) jewellery box entry in the open box; for {@code PohTeleports}. */
+	public static boolean selectJewelleryBoxDestination(String destination)
+	{
+		return destination != null && "open".equals(jewelleryBoxEntryState(destination))
+			&& chooseTextMapDestination(InterfaceID.PohJewelleryBox.UNIVERSE, destination);
+	}
+
 	/** The shortcut key a nexus entry shows ("<col=ffffff>K</col> : Lumbridge" gives "K"), or null. */
 	static String nexusKey(String entryText)
 	{
