@@ -51,6 +51,7 @@ Focused verification command (expect 0 failures and 0 skips):
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
 | Claude 2 (user request; util-gap plan; your farming-reads request) | New `util/shop/StoreLocations.java`, `util/shop/models/{Rs2ShopSource,Rs2ShopType,Rs2ShopItem}.java`, new `util/settings/Rs2SpellBookSettings.java` (reads only; your 3 actions go in after); new `HubReadBatchSixteenGTest` | **Task: read batch 16g**: upstream's shop location table and shop models (`StoreLocations` data and lookups; `Rs2ShopSource`, `Rs2ShopType`, `Rs2ShopItem` pricing reads), and `Rs2SpellBookSettings`' reads. Then 16h (`Rs2FuzzyItem`) and 16i (the Quest Helper farm-run model, `Rs2Farming`, `SpiritTree`), each claimed when I start it | this commit |
+| Claude 1 | New `util/huntkit/Rs2HuntKit.java` (whole class, upstream API: open/close/fill/empty, the kit reads it needs (`stream`, `items`, `all`, `get`, `findKitItem`, `hasKitItem`, `count`, `contains`, `containsAll`, `capacity`, `emptySlotCount`), deposits and withdrawals), new `UtilActionBatchACTest` | **Task: util action batch AC** (huntsman's kit; 45 of its 63 methods are actions, so the reads come with it) | this commit |
 
 ## Requests
 
