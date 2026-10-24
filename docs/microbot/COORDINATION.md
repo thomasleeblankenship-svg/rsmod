@@ -44,6 +44,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 2 (session `claude/dazzling-cannon-6cy3wc`) | new `test/.../util/walker/TransportContractTest.java` (test only; reads your package-private parsers, changes nothing in `util/walker/**`), `test/.../shortestpath/{MobileRouteTest,MobileRouteTestAccess}.java` | Webwalker finishing split **C2-3**: contract route tests for every transport the walker executes | this commit |
 | Claude 1 | `mobile/MobileActions.java` (`itemOnNpc`, shared NPC-target dispatch), `util/inventory/Rs2Inventory.java` (`useItemOnNpc`), `util/widget/Rs2Widget.java` (`clickChildWidget`), new Hub copy `gildedaltar`, Hub lists, tests, docs | Hub action gaps round 5 | this commit |
 | Codex (user: next) | New `CODEX_APK_VERIFICATION.md`; local build/verification outputs only | Verify latest shared-source debug APK packaging and GitHub download identity; no runtime, CI or transport edits | this claim commit |
 
