@@ -206,6 +206,219 @@ public final class Rs2Npc
 		}).findFirst().orElse(null);
 	}
 
+	/** As upstream: living NPCs with a combat level that are free to attack (or anything in multi-combat). */
+	public static java.util.stream.Stream<Rs2NpcModel> getAttackableNpcs()
+	{
+		boolean multi = Microbot.getVarbitValue(net.runelite.api.gameval.VarbitID.MULTIWAY_INDICATOR) == 1;
+		return getNpcs(npc -> npc.getCombatLevel() > 0 && !npc.isDead() && (multi || !npc.isInteracting()));
+	}
+
+	/**
+	 * As upstream: living NPCs with a combat level that are free or fighting the player; with
+	 * {@code reachable}, only those the player can walk to (here: within the reachable scene tiles).
+	 */
+	public static java.util.stream.Stream<Rs2NpcModel> getAttackableNpcs(boolean reachable)
+	{
+		net.runelite.api.Player local = MobileActions.read(() -> Microbot.getClient().getLocalPlayer(), null);
+		java.util.stream.Stream<Rs2NpcModel> npcs = getNpcs(npc -> npc.getCombatLevel() > 0 && !npc.isDead()
+			&& (!npc.isInteracting() || java.util.Objects.equals(npc.getInteracting(), local)));
+		if (!reachable)
+		{
+			return npcs;
+		}
+		net.runelite.client.plugins.microbot.util.reachable.Rs2Reachable.PackedTiles tiles =
+			net.runelite.client.plugins.microbot.util.reachable.Rs2Reachable.getReachableTiles(
+				net.runelite.client.plugins.microbot.util.player.Rs2Player.getWorldLocation());
+		return npcs.filter(npc -> tiles.contains(npc.getWorldLocation()));
+	}
+
+	/** As upstream: {@link #getAttackableNpcs()} whose name contains {@code name}, ignoring case. */
+	public static java.util.stream.Stream<Rs2NpcModel> getAttackableNpcs(String name)
+	{
+		return getAttackableNpcs(name, false);
+	}
+
+	public static java.util.stream.Stream<Rs2NpcModel> getAttackableNpcs(String name, boolean exact)
+	{
+		if (name == null || name.isEmpty())
+		{
+			return java.util.stream.Stream.empty();
+		}
+		String lower = name.toLowerCase();
+		return getAttackableNpcs().filter(npc -> npc.getName() != null
+			&& (exact ? npc.getName().equalsIgnoreCase(name) : npc.getName().toLowerCase().contains(lower)));
+	}
+
+	/** As upstream: the first of the NPC definition's actions that is one of {@code possibleActions}, or "". */
+	public static String getAvailableAction(Rs2NpcModel npc, java.util.List<String> possibleActions)
+	{
+		if (npc == null || possibleActions == null || possibleActions.isEmpty())
+		{
+			return "";
+		}
+		return MobileActions.read(() ->
+		{
+			NPCComposition composition = Microbot.getClient().getNpcDefinition(npc.getId());
+			String[] actions = composition == null ? null : composition.getActions();
+			return actions == null ? "" : java.util.Arrays.stream(actions).filter(java.util.Objects::nonNull)
+				.filter(a -> possibleActions.stream().anyMatch(a::equalsIgnoreCase)).findFirst().orElse("");
+		}, "");
+	}
+
+	/** As upstream: health bar ratio over scale, as a percentage (NaN or infinite without a bar, as upstream). */
+	public static double getHealth(net.runelite.client.plugins.microbot.util.ActorModel npc)
+	{
+		return (double) npc.getHealthRatio() / npc.getHealthScale() * 100;
+	}
+
+	/** As upstream: the nearest NPC named {@code name} in line of sight. */
+	public static Rs2NpcModel getNpcInLineOfSight(String name)
+	{
+		return getNpcInLineOfSight(name, false);
+	}
+
+	public static Rs2NpcModel getNpcInLineOfSight(String name, boolean exact)
+	{
+		java.util.List<Rs2NpcModel> seen = getNpcsInLineOfSight(name, exact);
+		return seen.isEmpty() ? null : seen.get(0);
+	}
+
+	/** As upstream: NPCs named {@code name} in line of sight of the player, nearest first. */
+	public static java.util.List<Rs2NpcModel> getNpcsInLineOfSight(String name)
+	{
+		return getNpcsInLineOfSight(name, false);
+	}
+
+	public static java.util.List<Rs2NpcModel> getNpcsInLineOfSight(String name, boolean exact)
+	{
+		return getNpcs(name, exact).filter(Rs2Npc::hasLineOfSight).collect(java.util.stream.Collectors.toList());
+	}
+
+	/** As upstream: the nearest NPC whose base or transformed definition offers {@code action} (exact). */
+	public static Rs2NpcModel getNpcWithAction(String action)
+	{
+		return getNpcs(npc -> offers(npc.getComposition(), action) || offers(npc.getTransformedComposition(), action))
+			.findFirst().orElse(null);
+	}
+
+	private static boolean offers(NPCComposition composition, String action)
+	{
+		return composition != null && composition.getActions() != null && java.util.Arrays.asList(composition.getActions()).contains(action);
+	}
+
+	/** As upstream: living NPCs interacting with {@code player}. */
+	public static java.util.List<Rs2NpcModel> getNpcsAttackingPlayer(net.runelite.api.Player player)
+	{
+		return getNpcs(npc -> npc.getInteracting() != null && java.util.Objects.equals(npc.getInteracting(), player) && !npc.isDead())
+			.collect(java.util.stream.Collectors.toList());
+	}
+
+	/** As upstream: NPCs interacting with the local player, nearest first. */
+	public static java.util.stream.Stream<Rs2NpcModel> getNpcsForPlayer()
+	{
+		return getNpcsForPlayer(npc -> true);
+	}
+
+	/** As upstream: NPCs interacting with the local player and matching {@code predicate}, nearest first. */
+	public static java.util.stream.Stream<Rs2NpcModel> getNpcsForPlayer(java.util.function.Predicate<Rs2NpcModel> predicate)
+	{
+		net.runelite.api.Player local = MobileActions.read(() -> Microbot.getClient().getLocalPlayer(), null);
+		if (local == null)
+		{
+			return java.util.stream.Stream.empty();
+		}
+		return getNpcs(npc -> java.util.Objects.equals(npc.getInteracting(), local)).filter(predicate);
+	}
+
+	public static java.util.List<Rs2NpcModel> getNpcsForPlayer(String name)
+	{
+		return getNpcsForPlayer(name, false);
+	}
+
+	/** As upstream: NPCs interacting with the local player whose name matches {@code name}. */
+	public static java.util.List<Rs2NpcModel> getNpcsForPlayer(String name, boolean exact)
+	{
+		if (name == null || name.isEmpty())
+		{
+			return java.util.Collections.emptyList();
+		}
+		String lower = name.toLowerCase();
+		return getNpcsForPlayer(npc -> npc.getName() != null
+			&& (exact ? npc.getName().equalsIgnoreCase(name) : npc.getName().toLowerCase().contains(lower)))
+			.collect(java.util.stream.Collectors.toList());
+	}
+
+	/** As upstream: living Pest Control portals (name contains "portal", health above 0), nearest first. */
+	public static Rs2NpcModel[] getPestControlPortals()
+	{
+		return getNpcs("portal", false).filter(npc -> !npc.isDead() && npc.getHealthRatio() > 0).toArray(Rs2NpcModel[]::new);
+	}
+
+	/** As upstream: the NPC's world location. */
+	public static WorldPoint getWorldLocation(NPC npc)
+	{
+		return npc == null ? null : getWorldLocation(new Rs2NpcModel(npc));
+	}
+
+	public static WorldPoint getWorldLocation(Rs2NpcModel npc)
+	{
+		return npc == null ? null : npc.getWorldLocation();
+	}
+
+	public static boolean hasLineOfSight(NPC npc)
+	{
+		return npc != null && hasLineOfSight(new Rs2NpcModel(npc));
+	}
+
+	/** As upstream: the NPC's tile has line of sight to the player's (or is the same tile). */
+	public static boolean hasLineOfSight(Rs2NpcModel npc)
+	{
+		if (npc == null)
+		{
+			return false;
+		}
+		return MobileActions.read(() ->
+		{
+			WorldPoint npcLocation = npc.getWorldLocation();
+			net.runelite.api.Player local = Microbot.getClient().getLocalPlayer();
+			WorldPoint mine = local == null ? null : local.getWorldLocation();
+			net.runelite.api.WorldView view = Microbot.getClient().getTopLevelWorldView();
+			if (npcLocation == null || mine == null)
+			{
+				return false;
+			}
+			return npcLocation.equals(mine) || (view != null && npcLocation.toWorldArea().hasLineOfSightTo(view, mine));
+		}, false);
+	}
+
+	/** As upstream: the NPC is within the equipped weapon's attack range (tiles, local distance). */
+	public static boolean isInAttackRange(Rs2NpcModel npc)
+	{
+		return isInAttackRange(npc, false, false);
+	}
+
+	public static boolean isInAttackRange(Rs2NpcModel npc, boolean includeManualCast, boolean includeSpecialAttack)
+	{
+		if (npc == null)
+		{
+			return false;
+		}
+		Integer tiles = MobileActions.read(() ->
+		{
+			net.runelite.api.Player local = Microbot.getClient().getLocalPlayer();
+			net.runelite.api.coords.LocalPoint mine = local == null ? null : local.getLocalLocation();
+			net.runelite.api.coords.LocalPoint theirs = npc.getLocalLocation();
+			return mine == null || theirs == null ? null : mine.distanceTo(theirs) / net.runelite.api.Perspective.LOCAL_TILE_SIZE;
+		}, null);
+		return tiles != null && tiles <= net.runelite.client.plugins.microbot.util.combat.Rs2Combat.getAttackRange(includeManualCast, includeSpecialAttack);
+	}
+
+	/** As upstream: the NPC's pose is not its idle pose. */
+	public static boolean isMoving(NPC npc)
+	{
+		return npc != null && MobileActions.read(() -> npc.getPoseAnimation() != npc.getIdlePoseAnimation(), false);
+	}
+
 	/**
 	 * As upstream: the nearest NPC offering "Bank" (base or transformed definition); the Hunter
 	 * Guild banker counts only with 46 Hunter.
