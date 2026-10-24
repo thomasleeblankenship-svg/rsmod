@@ -11,6 +11,7 @@ import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.plugins.microbot.Microbot;
+import net.runelite.client.plugins.microbot.shortestpath.pathfinder.CollisionMap;
 import net.runelite.client.plugins.microbot.shortestpath.pathfinder.PathEdge;
 import net.runelite.client.plugins.microbot.shortestpath.pathfinder.PathTerminationReason;
 import net.runelite.client.plugins.microbot.shortestpath.pathfinder.Pathfinder;
@@ -35,6 +36,10 @@ public final class MobilePathfinder
 	private static final Object LOCK = new Object();
 	private static volatile PathfinderConfig sharedConfig;
 	private static volatile TransportPlanningPolicy policy = MobileTransportPolicy.DEFAULT;
+	/** How long a found route may be reused for a walk to the same goal. */
+	static final long ROUTE_REUSE_MILLIS = 60_000;
+	private static volatile CachedRoute lastRoute;
+	private static final java.util.concurrent.atomic.AtomicBoolean WARMING = new java.util.concurrent.atomic.AtomicBoolean();
 
 	private MobilePathfinder()
 	{
@@ -50,8 +55,139 @@ public final class MobilePathfinder
 	{
 		Objects.requireNonNull(start, "start");
 		Objects.requireNonNull(goal, "goal");
+		Client client = Microbot.getClient();
+		if (client != null && client.isClientThread())
+		{
+			throw new IllegalStateException("MobilePathfinder.find must not run on the client thread");
+		}
+		PathfinderConfig shared = client == null ? null : sharedConfig(client);
+		PathResult reused = shared == null ? null
+			: reuse(lastRoute, start, goal, shared.getMap(), policy, System.currentTimeMillis());
+		if (reused != null)
+		{
+			log.debug("Pathfinder route reused for {} -> {}", start, goal);
+			return reused;
+		}
 		PathfinderConfig config = refreshedConfig(start, goal);
-		return config == null ? PathResult.failed(start, goal) : search(config, start, goal);
+		if (config == null)
+		{
+			return PathResult.failed(start, goal);
+		}
+		PathResult result = search(config, start, goal);
+		lastRoute = result.isFound() ? new CachedRoute(result, policy, System.currentTimeMillis()) : null;
+		return result;
+	}
+
+	/**
+	 * Loads the shared pathfinder data (collision map, transports, restrictions) on a background
+	 * thread if it is not loaded yet, so the first walk does not wait for it. Idempotent.
+	 */
+	public static void warmUp()
+	{
+		Client client = Microbot.getClient();
+		if (client == null || sharedConfig != null || !WARMING.compareAndSet(false, true))
+		{
+			return;
+		}
+		Thread loader = new Thread(() ->
+		{
+			try
+			{
+				sharedConfig(client);
+			}
+			catch (RuntimeException e)
+			{
+				log.warn("Pathfinder warm-up failed", e);
+			}
+			finally
+			{
+				WARMING.set(false);
+			}
+		}, "pathfinder-warmup");
+		loader.setDaemon(true);
+		loader.start();
+	}
+
+	/** Forgets the reusable route (logout, hop, or a caller that knows the world changed). */
+	public static void clearRouteCache()
+	{
+		lastRoute = null;
+	}
+
+	/** A found route, the policy it was planned under, and when. */
+	static final class CachedRoute
+	{
+		final PathResult result;
+		final TransportPlanningPolicy policy;
+		final long createdAt;
+
+		CachedRoute(PathResult result, TransportPlanningPolicy policy, long createdAt)
+		{
+			this.result = result;
+			this.policy = policy;
+			this.createdAt = createdAt;
+		}
+	}
+
+	/**
+	 * The rest of {@code cached}'s route from {@code start}, when it was found for {@code goal} under
+	 * {@code currentPolicy} less than {@link #ROUTE_REUSE_MILLIS} ago and {@code start} is one of its
+	 * tiles or one step (on {@code map}) from one; the furthest such tile is used. {@code null} when
+	 * the route cannot be reused, including when the rest of it holds an item or spell teleport,
+	 * whose runes or charges may since have been spent.
+	 */
+	static PathResult reuse(CachedRoute cached, WorldPoint start, WorldPoint goal, CollisionMap map,
+		TransportPlanningPolicy currentPolicy, long now)
+	{
+		if (cached == null || cached.policy != currentPolicy || now - cached.createdAt > ROUTE_REUSE_MILLIS
+			|| !goal.equals(cached.result.getGoal()))
+		{
+			return null;
+		}
+		List<WorldPoint> tiles = cached.result.getTiles();
+		int from = -1;
+		boolean onRoute = false;
+		for (int i = tiles.size() - 1; i >= 0 && from < 0; i--)
+		{
+			WorldPoint tile = tiles.get(i);
+			if (tile.equals(start))
+			{
+				from = i;
+				onRoute = true;
+			}
+			else if (map != null && tile.getPlane() == start.getPlane()
+				&& Math.abs(tile.getX() - start.getX()) <= 1 && Math.abs(tile.getY() - start.getY()) <= 1
+				&& map.canStep(start.getX(), start.getY(), start.getPlane(), tile.getX() - start.getX(), tile.getY() - start.getY()))
+			{
+				from = i;
+			}
+		}
+		if (from < 0)
+		{
+			return null;
+		}
+		int shift = onRoute ? from : from - 1;
+		List<WorldPoint> rest = new java.util.ArrayList<>();
+		if (!onRoute)
+		{
+			rest.add(start);
+		}
+		rest.addAll(tiles.subList(from, tiles.size()));
+		Map<Integer, PathResult.TransportStep> transports = new HashMap<>();
+		for (Map.Entry<Integer, PathResult.TransportStep> entry : cached.result.getTransports().entrySet())
+		{
+			if (entry.getKey() < from)
+			{
+				continue;
+			}
+			TransportType type = entry.getValue().getType();
+			if (type == TransportType.TELEPORTATION_ITEM || type == TransportType.TELEPORTATION_SPELL)
+			{
+				return null;
+			}
+			transports.put(entry.getKey() - shift, entry.getValue());
+		}
+		return new PathResult(PathResult.Status.FOUND, start, goal, rest, transports);
 	}
 
 	/**
@@ -121,6 +257,7 @@ public final class MobilePathfinder
 		{
 			policy = Objects.requireNonNull(newPolicy, "policy");
 			sharedConfig = null;
+			lastRoute = null;
 		}
 	}
 

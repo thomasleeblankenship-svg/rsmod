@@ -264,8 +264,14 @@ public final class MicrobotReadServices implements MicrobotReadApi, MicrobotRunt
 		GameState state = event.getGameState();
 		// LOADING is a region load while still logged in: snapshots are invalidated
 		// above, but inventory, animation history and loaded sub-world-views remain.
+		if (state == GameState.LOGGED_IN)
+		{
+			// Load the pathfinder's data now, in the background, so the first walk does not wait for it.
+			net.runelite.client.plugins.microbot.shortestpath.MobilePathfinder.warmUp();
+		}
 		if (state != GameState.LOGGED_IN && state != GameState.LOADING)
 		{
+			net.runelite.client.plugins.microbot.shortestpath.MobilePathfinder.clearRouteCache();
 			worldViewIds.clear();
 			Rs2Inventory.clear();
 			Rs2Player.clear();
