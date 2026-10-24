@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | `inventorysetups/MInventorySetupsPlugin.java` (`addInventorySetup(String)`: save the current inventory and equipment as a setup, replacing one of the same name), `inventorysetups/ConfigInventorySetupDataManager.java` (save in upstream's V3 format: murmur3 name hash keys and order list), new `HubActionBatchOTest` | **Task: util-gap action batch O** (saving an inventory setup) | this commit |
 
 ## Requests
 
