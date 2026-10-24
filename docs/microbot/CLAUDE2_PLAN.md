@@ -4,7 +4,7 @@ Working plan for Claude 2 (read APIs). It is kept next to
 [COORDINATION.md](COORDINATION.md), which stays the source of truth for claims and the
 change log. Each step is claimed there before any edit and logged when it lands.
 
-Status as of 2026-10-24: read batches 10 to 16k are in (930 tests in the standard
+Status as of 2026-10-24: read batches 10 to 16k and 16o are in (932 tests in the standard
 verify, Checkstyle and PMD clean). Details are in
 [claude2-api-report.md](claude2-api-report.md).
 
@@ -15,7 +15,7 @@ verify, Checkstyle and PMD clean). Details are in
 | 16l | `util/farming/Rs2Farming`, `util/farming/SpiritTree` (upstream verbatim, client reads on `MobileActions`) | Claude 1's batch AI: `Microbot.getInjector()` | Farm-patch prediction and spirit-tree availability tested with mocked config and varbits |
 | 16m | `util/inventory/Rs2FuzzyItem` (variation-aware counts across inventory, bank and equipment; charged items by name) | Claude 1's batch AI: `inventorysetups/InventorySetupsVariationMapping` | Counts tested for id variations and charged names |
 | 16n | `util/world/**` read half (world lists, population, access checks), only if Claude 1 hands it over | Claude 1's answer to the `util/world` question | Agreed split recorded in COORDINATION, reads tested |
-| 16o | Re-run `missing.py` against upstream; port any read gap left that is not blocked or owned by Claude 1 | Steps above | Gap list contains only the "not ported" items below |
+| 16o | **Done (`4c27286`).** Gap re-run; ported the last unblocked gaps (`util/shop/Actions`, `util/player/NameGenerator`). What remains is walker-routed, inherited, blocked on batch AI, or listed below | — | Done |
 | 16p | Final report update: coverage numbers, deviations, what is left | 16o | Report and COORDINATION agree |
 
 ## Rules for every step
