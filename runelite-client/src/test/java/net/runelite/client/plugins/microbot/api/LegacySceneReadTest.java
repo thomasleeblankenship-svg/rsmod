@@ -252,6 +252,24 @@ public class LegacySceneReadTest
 	}
 
 	@Test
+	public void theBankerIsTheNearestNpcOfferingBank()
+	{
+		NPC guard = f.npc(1, "Guard", world(6, 5));
+		NPC banker = f.npc(2, "Banker", world(9, 5));
+		when(guard.getLocalLocation()).thenAnswer(i -> f.onClientThread(local(6, 5)));
+		when(banker.getLocalLocation()).thenAnswer(i -> f.onClientThread(local(9, 5)));
+		net.runelite.api.NPCComposition guardDefinition = mock(net.runelite.api.NPCComposition.class);
+		when(guardDefinition.getActions()).thenReturn(new String[]{"Attack", null});
+		net.runelite.api.NPCComposition bankerDefinition = mock(net.runelite.api.NPCComposition.class);
+		when(bankerDefinition.getActions()).thenReturn(new String[]{"Talk-to", "Bank", "Collect"});
+		when(guard.getComposition()).thenAnswer(i -> f.onClientThread(guardDefinition));
+		when(banker.getComposition()).thenAnswer(i -> f.onClientThread(bankerDefinition));
+		assertEquals("Banker", Rs2Npc.getBankerNPC().getName());
+		doAnswer(i -> f.onClientThread(guardDefinition)).when(banker).getComposition();
+		assertNull(Rs2Npc.getBankerNPC());
+	}
+
+	@Test
 	public void wildernessAttackRangeNeedsBothSidesInRange()
 	{
 		WorldPoint level10 = new WorldPoint(3100, 3600, 0);
