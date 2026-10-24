@@ -81,6 +81,56 @@ public final class Rs2Widget
 	}
 
 	public static Widget findWidget(String text) { return findWidget(text, null, false); }
+
+	/**
+	 * As upstream: the visible children (all four child lists) of widget {@code widgetGroupId}:{@code widgetSubGroupId}
+	 * whose text, name or an action contains {@code actionText}, mapped to the lower-cased text; each
+	 * is clicked through {@link #clickWidget(Widget)} when {@code clickWidget}. Read on the client thread.
+	 */
+	public static Map<Widget, String> findWidgetsWithAction(String actionText, int widgetGroupId, int widgetSubGroupId, boolean clickWidget)
+	{
+		Map<Widget, String> found = MobileActions.read(() ->
+		{
+			Map<Widget, String> matches = new java.util.LinkedHashMap<>();
+			Widget parent = Microbot.getClient().getWidget(widgetGroupId, widgetSubGroupId);
+			if (parent == null || actionText == null)
+			{
+				return matches;
+			}
+			for (Widget[] group : new Widget[][]{parent.getChildren(), parent.getNestedChildren(), parent.getDynamicChildren(), parent.getStaticChildren()})
+			{
+				for (Widget child : group == null ? new Widget[0] : group)
+				{
+					if (child != null && !child.isHidden() && hasTextNameOrAction(child, actionText))
+					{
+						matches.put(child, actionText.toLowerCase(Locale.ROOT));
+					}
+				}
+			}
+			return matches;
+		}, new java.util.LinkedHashMap<>());
+		if (clickWidget)
+		{
+			found.keySet().forEach(Rs2Widget::clickWidget);
+		}
+		return found;
+	}
+
+	/** As upstream: {@link #findWidgetsWithAction(String, int, int, boolean)} on child 0. */
+	public static Map<Widget, String> findWidgetsWithAction(String actionText, int widgetGroupId, boolean clickWidget)
+	{
+		return findWidgetsWithAction(actionText, widgetGroupId, 0, clickWidget);
+	}
+
+	private static boolean hasTextNameOrAction(Widget widget, String text)
+	{
+		if (matches(widget.getText(), text, false) || matches(widget.getName(), text, false))
+		{
+			return true;
+		}
+		String[] actions = widget.getActions();
+		return actions != null && Arrays.stream(actions).anyMatch(action -> matches(action, text, false));
+	}
 	public static Widget findWidget(String text, boolean exact) { return findWidget(text, null, exact); }
 	public static boolean clickWidget(String text)
 	{

@@ -368,4 +368,73 @@ public class LegacySceneReadTest
 		assertEquals("nearest first", List.of(526, 995), java.util.Arrays.stream(all).map(item -> item.getTileItem().getId()).collect(Collectors.toList()));
 		assertEquals(0, net.runelite.client.plugins.microbot.util.grounditem.Rs2GroundItem.getAllFromWorldPoint(3, null).length);
 	}
+
+	@Test
+	public void batchTwelveReachableTilesRespectWallsAndDistance()
+	{
+		flags[6][5] = CollisionDataFlag.BLOCK_MOVEMENT_FULL;
+		java.util.Map<WorldPoint, Integer> reach = net.runelite.client.plugins.microbot.util.tile.Rs2Tile.getReachableTilesFromTile(world(5, 5), 2);
+		assertEquals(Integer.valueOf(0), reach.get(world(5, 5)));
+		assertEquals(Integer.valueOf(1), reach.get(world(5, 6)));
+		assertEquals("a diagonal needs both sides open", Integer.valueOf(2), reach.get(world(6, 6)));
+		assertEquals("open diagonal", Integer.valueOf(1), reach.get(world(4, 6)));
+		assertFalse("blocked tile", reach.containsKey(world(6, 5)));
+		assertFalse("around the block takes 4 steps", reach.containsKey(world(7, 5)));
+		assertEquals(Integer.valueOf(4), net.runelite.client.plugins.microbot.util.tile.Rs2Tile.getReachableTilesFromTile(world(5, 5), 4).get(world(7, 5)));
+		assertTrue(net.runelite.client.plugins.microbot.util.tile.Rs2Tile.getReachableTilesFromTile(world(5, 5), 2, true).containsKey(world(6, 5)));
+		assertTrue(net.runelite.client.plugins.microbot.util.tile.Rs2Tile.getReachableTilesFromTile(null, 2).isEmpty());
+	}
+
+	@Test
+	public void batchTwelveNearestWalkableTileSkipsBlockedNeighboursAndThePlayer()
+	{
+		f.placePlayer(world(5, 6));
+		flags[5][4] = CollisionDataFlag.BLOCK_MOVEMENT_FULL;
+		WorldPoint nearest = net.runelite.client.plugins.microbot.util.tile.Rs2Tile.getNearestWalkableTile(world(5, 5));
+		assertNotNull(nearest);
+		assertNotEquals("not the player's tile", world(5, 6), nearest);
+		assertNotEquals("not the blocked tile", world(5, 4), nearest);
+		assertEquals(5, net.runelite.client.plugins.microbot.util.player.Rs2Player.getRs2WorldPoint().getY() - ReadApiFixture.BASE_Y - 1);
+	}
+
+	@Test
+	public void batchTwelveTileObjectIsAWallDecorativeOrGroundObjectNearestFirst()
+	{
+		net.runelite.api.WallObject near = mock(net.runelite.api.WallObject.class);
+		when(near.getId()).thenReturn(10857);
+		when(near.getLocalLocation()).thenAnswer(i -> f.onClientThread(local(6, 5)));
+		when(near.getWorldLocation()).thenAnswer(i -> f.onClientThread(world(6, 5)));
+		when(tile(6, 5).getWallObject()).thenReturn(near);
+		net.runelite.api.WallObject far = mock(net.runelite.api.WallObject.class);
+		when(far.getId()).thenReturn(10857);
+		when(far.getLocalLocation()).thenAnswer(i -> f.onClientThread(local(9, 5)));
+		when(far.getWorldLocation()).thenAnswer(i -> f.onClientThread(world(9, 5)));
+		when(tile(9, 5).getWallObject()).thenReturn(far);
+		gameObject(10857, 7, 5);
+		assertSame(near, net.runelite.client.plugins.microbot.util.gameobject.Rs2GameObject.getTileObject(10857));
+		assertSame("game objects are not tile objects here", far,
+			net.runelite.client.plugins.microbot.util.gameobject.Rs2GameObject.getTileObject(10857, world(9, 5), 1));
+		assertNull(net.runelite.client.plugins.microbot.util.gameobject.Rs2GameObject.getTileObject(1));
+	}
+
+	@Test
+	public void batchTwelveWidgetsWithActionAreFoundInAllChildLists()
+	{
+		net.runelite.api.widgets.Widget close = mock(net.runelite.api.widgets.Widget.class);
+		when(close.getActions()).thenAnswer(i -> f.onClientThread(new String[]{"Close"}));
+		net.runelite.api.widgets.Widget label = mock(net.runelite.api.widgets.Widget.class);
+		when(label.getText()).thenReturn("<col=ff0000>Abort offer</col>");
+		net.runelite.api.widgets.Widget hidden = mock(net.runelite.api.widgets.Widget.class);
+		when(hidden.isHidden()).thenReturn(true);
+		when(hidden.getActions()).thenReturn(new String[]{"Close"});
+		net.runelite.api.widgets.Widget parent = mock(net.runelite.api.widgets.Widget.class);
+		when(parent.getDynamicChildren()).thenReturn(new net.runelite.api.widgets.Widget[]{close, hidden});
+		when(parent.getStaticChildren()).thenReturn(new net.runelite.api.widgets.Widget[]{label});
+		when(f.client.getWidget(602, 0)).thenReturn(parent);
+		java.util.Map<net.runelite.api.widgets.Widget, String> closes = net.runelite.client.plugins.microbot.util.widget.Rs2Widget.findWidgetsWithAction("close", 602, false);
+		assertEquals(1, closes.size());
+		assertEquals("close", closes.get(close));
+		assertTrue(net.runelite.client.plugins.microbot.util.widget.Rs2Widget.findWidgetsWithAction("Abort", 602, false).containsKey(label));
+		assertTrue(net.runelite.client.plugins.microbot.util.widget.Rs2Widget.findWidgetsWithAction("Abort", 1, false).isEmpty());
+	}
 }

@@ -39,6 +39,37 @@ public final class Rs2UiHelper
 		return Rs2TextSanitizer.stripTags(text);
 	}
 
+	/** As upstream: the whole canvas, from (1, 1). */
+	public static Rectangle getDefaultRectangle()
+	{
+		int[] canvas = MobileActions.read(() -> new int[]{
+			net.runelite.client.plugins.microbot.Microbot.getClient().getCanvasWidth(),
+			net.runelite.client.plugins.microbot.Microbot.getClient().getCanvasHeight()}, new int[]{0, 0});
+		return new Rectangle(1, 1, canvas[0], canvas[1]);
+	}
+
+	/** As upstream: {@link #getClickingPoint(Rectangle, boolean, boolean)} resolving the fallback rectangle. */
+	public static net.runelite.api.Point getClickingPoint(Rectangle rectangle, boolean randomize)
+	{
+		return getClickingPoint(rectangle, randomize, true);
+	}
+
+	/**
+	 * The point to click in {@code rectangle}: its centre. RuneMobile adaptation: humanised input
+	 * stays inert by policy, so {@code randomize} does not jitter the point; a {@code null}
+	 * rectangle (or, with {@code resolveFallback}, the default canvas rectangle) gives {@code null}
+	 * instead of upstream's mouse resting point.
+	 */
+	public static net.runelite.api.Point getClickingPoint(Rectangle rectangle, boolean randomize, boolean resolveFallback)
+	{
+		if (rectangle == null || (resolveFallback && rectangle.x == 1 && rectangle.y == 1
+			&& rectangle.width == getDefaultRectangle().width && rectangle.height == getDefaultRectangle().height))
+		{
+			return null;
+		}
+		return new net.runelite.api.Point((int) rectangle.getCenterX(), (int) rectangle.getCenterY());
+	}
+
 	/** As upstream: whether {@code rectangle} lies wholly on the canvas. */
 	public static boolean isRectangleWithinCanvas(Rectangle rectangle)
 	{
