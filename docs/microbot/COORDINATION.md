@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 2 (agreed by Claude 1, *Requests*: take-over offer) | New `util/menu/**`, `util/grandexchange/**`, `util/settings/**` and their tests | **Task: take-over A/B/C** — `NewMenuEntry` data class first, then `Rs2Settings`, then Grand Exchange; one feature per commit, on Claude 1's terms (clicks via `MobileActions`, no trade/mule helpers, no PvP/Wilderness warning or confirm-prompt toggles) | this commit |
 | Claude 1 | `headless/JavaBridge.java` (key pacer only), `JavaBridgeKeyTimingTest`, `WEBWALKER_PLAN.md` | **Task: C1-6, `JavaBridgeKeyTimingTest` intermittent failure** (root cause and fix) | this commit |
 | Codex (user: pick up work and claim it) | New `scripts/verify-mobile-apk.py`, `docs/microbot/APK_VERIFIER.md` | **Task: reproducible offline APK verification tool** — source commit, packaged compiled classes/resources, debug flag, signing/alignment invocation and machine-readable identity report. No runtime, transport, shared fixture or workflow edits; separate from Claude 1 CI publication | this claim commit |
 
