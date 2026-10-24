@@ -280,6 +280,45 @@ public final class Rs2GroundItem
 			: MobileActions.groundItem(itemId, item.getWorldLocation(), action);
 	}
 
+	/** As upstream: picks up the stacks of {@code itemId} lying exactly on {@code location}. */
+	public static boolean lootItemsBasedOnLocation(net.runelite.api.coords.WorldPoint location, int itemId)
+	{
+		return location != null && lootMatching(new LootingParameters(30, 1, 1, 0, false, false),
+			item -> item.getId() == itemId && location.equals(item.getWorldLocation()));
+	}
+
+	/** As upstream: the first stack within {@code range} tiles worth at least {@code value} in total. */
+	public static boolean lootAllItemBasedOnValue(int value, int range)
+	{
+		return lootItemBasedOnValue(value, range);
+	}
+
+	/** As upstream: "Take" on this ground item. */
+	public static boolean interact(net.runelite.client.plugins.microbot.util.models.RS2Item item)
+	{
+		return interact(item, "Take");
+	}
+
+	/**
+	 * As upstream: {@code action} on this ground item; with a spell or item selected (Telekinetic
+	 * Grab) it targets the stack. One script action.
+	 */
+	public static boolean interact(net.runelite.client.plugins.microbot.util.models.RS2Item item, String action)
+	{
+		if (item == null || item.getTileItem() == null || item.getTile() == null)
+		{
+			return false;
+		}
+		int id = item.getTileItem().getId();
+		net.runelite.api.coords.WorldPoint at = MobileActions.read(() -> item.getTile().getWorldLocation(), null);
+		if (at == null)
+		{
+			return false;
+		}
+		boolean selected = MobileActions.read(() -> Microbot.getClient().isWidgetSelected(), false);
+		return selected ? MobileActions.targetGroundItem(id, at, "Cast") : MobileActions.groundItem(id, at, action);
+	}
+
 	/** As upstream: an item with {@code id} lies within {@code range} tiles of the player. */
 	public static boolean exists(int id, int range)
 	{

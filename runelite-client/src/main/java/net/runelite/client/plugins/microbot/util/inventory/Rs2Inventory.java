@@ -692,6 +692,13 @@ public final class Rs2Inventory
 		return false;
 	}
 
+	/** As upstream: the inventory's fast food (priority 1 in {@code Rs2Food}, for example karambwans). */
+	public static List<Rs2ItemModel> getInventoryFastFood()
+	{
+		java.util.Set<Integer> fast = net.runelite.client.plugins.microbot.util.misc.Rs2Food.getFastFoodIds();
+		return getInventoryFood().stream().filter(item -> fast.contains(item.getId())).collect(Collectors.toList());
+	}
+
 	/** As upstream: fills every essence pouch the Runecrafting level allows, in size order. */
 	public static boolean fillPouches()
 	{

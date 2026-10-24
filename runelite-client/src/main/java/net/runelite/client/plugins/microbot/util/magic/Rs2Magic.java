@@ -454,4 +454,54 @@ public class Rs2Magic {
     public static boolean oneTimeSpellBookCheck() {
         return true;
     }
+
+    // ---- Actions (Claude 1): util-gap batch G2 ----
+
+    /** As upstream: the NPC Contact "choose character" interface (75:0). */
+    private static final int CHOOSE_CHARACTER_WIDGET_ID = 4915200;
+
+    /**
+     * As upstream: casts NPC Contact (Lunar spellbook) and picks {@code npcName} in its interface.
+     * Mobile: the pick is a menu action on that entry, so it works without scrolling it into view.
+     */
+    public static boolean npcContact(String npcName) {
+        if (npcName == null || !isSpellbook(Rs2Spellbook.LUNAR) || !cast(MagicAction.NPC_CONTACT)) {
+            return false;
+        }
+        if (!Global.sleepUntil(
+                () -> net.runelite.client.plugins.microbot.util.widget.Rs2Widget.isWidgetVisible(CHOOSE_CHARACTER_WIDGET_ID), 5_000)) {
+            return false;
+        }
+        return net.runelite.client.plugins.microbot.util.widget.Rs2Widget.clickWidget(npcName, java.util.Optional.of(75), 0, false);
+    }
+
+    /**
+     * As upstream: with a degraded essence pouch, NPC Contact on the Dark Mage and "Can you repair
+     * my pouches?", continuing his dialogue until the pouches are repaired (at most 20 s). True when
+     * no pouch is degraded afterwards.
+     */
+    public static boolean repairPouchesWithLunar() {
+        if (!Rs2Inventory.hasDegradedPouch() || !npcContact("dark mage")) {
+            return false;
+        }
+        long deadline = System.currentTimeMillis() + 20_000;
+        while (System.currentTimeMillis() < deadline
+                && Rs2Inventory.hasDegradedPouch()) {
+            if (net.runelite.client.plugins.microbot.util.dialogues.Rs2Dialogue.hasSelectAnOption()) {
+                net.runelite.client.plugins.microbot.util.dialogues.Rs2Dialogue.keyPressForDialogueOption("Can you repair my pouches?");
+            } else if (net.runelite.client.plugins.microbot.util.dialogues.Rs2Dialogue.hasContinue()) {
+                net.runelite.client.plugins.microbot.util.dialogues.Rs2Dialogue.clickContinue();
+            }
+            if (!net.runelite.client.plugins.microbot.mobile.MobileActions.active()) {
+                return false;
+            }
+            Global.sleep(600); // one dialogue step per tick
+        }
+        while (net.runelite.client.plugins.microbot.util.dialogues.Rs2Dialogue.hasContinue()
+                && System.currentTimeMillis() < deadline) {
+            net.runelite.client.plugins.microbot.util.dialogues.Rs2Dialogue.clickContinue();
+            Global.sleep(600);
+        }
+        return !Rs2Inventory.hasDegradedPouch();
+    }
 }

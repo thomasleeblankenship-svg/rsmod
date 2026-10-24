@@ -288,6 +288,28 @@ public final class Rs2Player
 		return getHealthPercentage() <= percentage && useFood();
 	}
 
+	/** As upstream: at or below {@code percentage}, fast food (karambwan and the like) first when {@code fastFood}. */
+	public static boolean eatAt(int percentage, boolean fastFood)
+	{
+		if (getHealthPercentage() > percentage)
+		{
+			return false;
+		}
+		if (fastFood && !net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory.getInventoryFastFood().isEmpty())
+		{
+			return useFastFood();
+		}
+		return useFood();
+	}
+
+	/** As upstream: eats the first fast food (priority 1 in {@code Rs2Food}); false when there is none. */
+	public static boolean useFastFood()
+	{
+		java.util.List<net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel> foods =
+			net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory.getInventoryFastFood();
+		return !foods.isEmpty() && net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory.interact(foods.get(0), "Eat");
+	}
+
 	/**
 	 * As upstream: eats the first unnoted inventory food, preferring blighted food in the
 	 * Wilderness; jugs of wine are drunk. {@code true} means dispatched.

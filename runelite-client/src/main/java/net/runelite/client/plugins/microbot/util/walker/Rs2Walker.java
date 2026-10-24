@@ -523,6 +523,15 @@ public final class Rs2Walker
 		}
 	}
 
+	/**
+	 * As upstream: the walker's settings scripts read (for example {@code config.reachedDistance()}).
+	 * Mobile: upstream's defaults; the pathfinder's own settings are Claude 2's {@code PathfinderConfig}.
+	 */
+	public static final net.runelite.client.plugins.microbot.shortestpath.ShortestPathConfig config =
+		new net.runelite.client.plugins.microbot.shortestpath.ShortestPathConfig()
+		{
+		};
+
 	/** At most one dodge in flight; a tile added while dodging is answered by that dodge. */
 	private static final java.util.concurrent.atomic.AtomicBoolean DODGING = new java.util.concurrent.atomic.AtomicBoolean();
 	private static volatile java.util.concurrent.ExecutorService dodgeExecutor;
