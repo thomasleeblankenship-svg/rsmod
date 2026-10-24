@@ -330,6 +330,25 @@ public final class Rs2Fletching
 		return Rs2Inventory.waitFor(Rs2Widget::isProductionWidgetOpen, 5_000);
 	}
 
+	/** As upstream: a status line for overlays (while moving, animating in the make menu, or idle). */
+	public static String getFletchingStatus()
+	{
+		if (isFletchingWhileMoving())
+		{
+			return "Fletching: Active (while moving)";
+		}
+		if (net.runelite.client.plugins.microbot.util.player.Rs2Player.isAnimating() && isFletchingInterfaceOpen())
+		{
+			return "Fletching: Animating";
+		}
+		return "Fletching: Idle";
+	}
+
+	private static synchronized boolean isFletchingWhileMoving()
+	{
+		return whileMovingTask != null;
+	}
+
 	/** As upstream: the make interface is open. */
 	public static boolean isFletchingInterfaceOpen()
 	{

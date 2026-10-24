@@ -306,6 +306,19 @@ public final class Rs2DepositBox
 			.orElse(null);
 	}
 
+	/** As upstream: {@link #getNearestDepositBox(WorldPoint, int)} with a 15-tile object search. */
+	public static DepositBoxLocation getNearestDepositBox(WorldPoint worldPoint)
+	{
+		return getNearestDepositBox(worldPoint, 15);
+	}
+
+	/** As upstream: the on-screen bounds of {@code rs2Item}'s slot in the deposit box, or null. */
+	public static java.awt.Rectangle itemBounds(Rs2ItemModel rs2Item)
+	{
+		Widget widget = rs2Item == null ? null : getItemWidget(rs2Item.getSlot());
+		return widget == null ? null : MobileActions.read(widget::getBounds, null);
+	}
+
 	/** As upstream: {@link #getNearestDepositBox(WorldPoint, int)} from the player. */
 	public static DepositBoxLocation getNearestDepositBox()
 	{

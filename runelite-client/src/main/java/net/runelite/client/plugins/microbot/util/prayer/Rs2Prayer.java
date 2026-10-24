@@ -193,6 +193,16 @@ public final class Rs2Prayer
 			&& net.runelite.client.plugins.microbot.util.Global.sleepUntil(() -> isQuickPrayerEnabled() == on, 10_000);
 	}
 
+	/** As upstream: flips quick prayers, unless out of prayer or none are selected. */
+	public static void toggleQuickPrayer()
+	{
+		if (isOutOfPrayer() || !hasAnyQuickPrayers())
+		{
+			return;
+		}
+		toggleQuickPrayer(!isQuickPrayerEnabled());
+	}
+
 	public static boolean toggleQuickPrayer(boolean on, boolean withMouse)
 	{
 		return toggleQuickPrayer(on);

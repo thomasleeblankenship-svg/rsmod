@@ -19,6 +19,12 @@ public final class Rs2Tab
 {
 	private Rs2Tab() { }
 
+	/** As upstream's event hook. Mobile reads the open tab each time, so nothing is cached: this does nothing. */
+	public static void onVarClientIntChanged(net.runelite.api.events.VarClientIntChanged event)
+	{
+		// The current tab is read live from the client; nothing is cached.
+	}
+
 	public static InterfaceTab getCurrentTab()
 	{
 		int panel = MobileActions.read(() -> Microbot.getClient().getVarcIntValue(VarClientID.TOPLEVEL_PANEL), -1);

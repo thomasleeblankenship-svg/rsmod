@@ -1297,6 +1297,12 @@ public final class Rs2Inventory
 		return items().anyMatch(predicate);
 	}
 
+	/** As upstream: the inventory's 28 slots. */
+	public static int size()
+	{
+		return capacity();
+	}
+
 	/** As upstream: inventory size, 28 slots. */
 	public static int capacity()
 	{

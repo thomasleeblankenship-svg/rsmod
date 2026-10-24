@@ -130,6 +130,34 @@ public final class Rs2HuntKit
 
 	// ---- contents (read live on the client thread) ----
 
+	/** As upstream: the kit grid's slot widgets, read on the client thread; empty when the kit is not open. */
+	public static List<Widget> getItemWidgets()
+	{
+		return MobileActions.read(() ->
+		{
+			Widget grid = Microbot.getClient().getWidget(ITEM_CONTAINER_PACKED_ID);
+			Widget[] children = grid == null ? null : grid.getDynamicChildren();
+			return children == null || children.length == 0 ? Collections.<Widget>emptyList() : Arrays.asList(children);
+		}, Collections.<Widget>emptyList());
+	}
+
+	/** As upstream: the kit grid widget for {@code slot} (0 to 31), or null. */
+	public static Widget getItemWidget(int slot)
+	{
+		if (slot < 0 || slot >= CAPACITY)
+		{
+			return null;
+		}
+		return getItemWidgets().stream().filter(widget -> widget != null && widget.getIndex() == slot).findFirst().orElse(null);
+	}
+
+	/** As upstream: the on-screen bounds of {@code rs2Item}'s kit slot (clamped to the grid), or null. */
+	public static java.awt.Rectangle itemBounds(Rs2ItemModel rs2Item)
+	{
+		Widget widget = rs2Item == null ? null : getItemWidget(Math.max(0, Math.min(rs2Item.getSlot(), CAPACITY - 1)));
+		return widget == null ? null : MobileActions.read(widget::getBounds, null);
+	}
+
 	/** As upstream: the kit's item container, or null. */
 	public static ItemContainer kitItemContainer()
 	{

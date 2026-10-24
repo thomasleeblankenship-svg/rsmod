@@ -102,6 +102,96 @@ public final class Rs2LogBasket
 
 	public static boolean hasLogBasket() { return basket() != null; }
 
+	// ---- Batch AP (Claude 1): upstream's basket reads ----
+
+	/** As upstream: the open basket's id when carried, else the closed basket's. */
+	public static int getLogBasketId()
+	{
+		return Rs2Inventory.hasItem(net.runelite.api.gameval.ItemID.LOG_BASKET_OPEN)
+			? net.runelite.api.gameval.ItemID.LOG_BASKET_OPEN : net.runelite.api.gameval.ItemID.LOG_BASKET_CLOSED;
+	}
+
+	/**
+	 * As upstream: fill when the basket (checked with "Check") has room and there are at least
+	 * {@code minLogsToFill} of {@code logId}, or at most 3 free slots.
+	 */
+	public static boolean shouldFillBasket(int logId, int minLogsToFill)
+	{
+		if (!hasLogBasket())
+		{
+			return false;
+		}
+		BasketContents contents = checkBasketContents();
+		if (contents.quantity >= LOG_BASKET_CAPACITY)
+		{
+			return false;
+		}
+		return Rs2Inventory.count(logId) >= minLogsToFill || Rs2Inventory.emptySlotCount() <= 3;
+	}
+
+	/** As upstream: {@link #shouldFillBasket(int, int)} with at least 15 logs. */
+	public static boolean shouldFillBasket(int logId)
+	{
+		return shouldFillBasket(logId, 15);
+	}
+
+	/** As upstream's estimate: 53 logs with a basket (28 + about 25 in the inventory), else 25. */
+	public static int getEffectiveLogCapacity()
+	{
+		return hasLogBasket() ? 53 : 25;
+	}
+
+	/** As upstream: at least 15 of {@code logId} and at most 3 free slots. */
+	public static boolean isInventoryNearFull(int logId)
+	{
+		return Rs2Inventory.count(logId) >= 15 && Rs2Inventory.emptySlotCount() <= 3;
+	}
+
+	/** As upstream: how many of {@code logId} the inventory holds. */
+	public static int getLogCount(int logId)
+	{
+		return Rs2Inventory.count(logId);
+	}
+
+	/** As upstream: a basket is carried and the workflow banks. */
+	public static boolean shouldUseLogBasket(boolean willBank)
+	{
+		return hasLogBasket() && willBank;
+	}
+
+	/** As upstream: an open basket counts as holding logs; a closed one is checked. */
+	public static boolean hasLogs()
+	{
+		if (!hasLogBasket())
+		{
+			return false;
+		}
+		return Rs2Inventory.hasItem(net.runelite.api.gameval.ItemID.LOG_BASKET_OPEN) || checkBasketContents().quantity > 0;
+	}
+
+	/** As upstream: a status suffix for overlays, empty without a basket. */
+	public static String getLogBasketStatus(int logId)
+	{
+		if (!hasLogBasket())
+		{
+			return "";
+		}
+		boolean open = Rs2Inventory.hasItem(net.runelite.api.gameval.ItemID.LOG_BASKET_OPEN);
+		return String.format(" | Basket: %s (%d logs)", open ? "Open" : "Available", Rs2Inventory.count(logId));
+	}
+
+	/** As upstream: the checked basket holds 28 logs. */
+	public static boolean isBasketFull()
+	{
+		return checkBasketContents().quantity >= LOG_BASKET_CAPACITY;
+	}
+
+	/** As upstream: the checked basket is empty (also when the check could not be read). */
+	public static boolean isBasketEmpty()
+	{
+		return checkBasketContents().isEmpty;
+	}
+
 	public static boolean fillLogBasket()
 	{
 		Rs2ItemModel basket = basket();
