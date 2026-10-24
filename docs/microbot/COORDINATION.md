@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | `util/shop/Rs2Shop.java` (waitForShopChanges, storeShopItemsInMemory), `util/equipment/Rs2Equipment.java` (equipment(), storeEquipmentItemsInMemory), `util/grounditem/models/Rs2SpawnLocation.java`, new `util/camera/NpcTracker.java`, `util/camera/Rs2Camera.java` (doc only), `util/tileobject/Rs2TileObjectModel.java` (click), `util/gameobject/Rs2ObjectModel.java` (blocksLineOfSight); new `UtilActionBatchAHTest` | **Task: util action batch AH**: shop and equipment hooks, spawn location helpers, NpcTracker, legacy object click and line-of-sight | this commit |
 | Claude 2 (user request; util-gap plan) | Reads at the end of `util/poh/PohTeleports.java` and in `util/poh/data/{JewelleryBoxType,MountedDigsite,MountedGlory,MountedMythical,MountedXerics,PohPortal}.java` (reads only; your actions untouched); new `HubReadBatchSixteenKTest` | **Task: read batch 16k**: `PohTeleports.hasHouse`, `getFairyRings`, `getSpiritTree`, `isFairyRing`, `isSpiritTree`; `JewelleryBoxType.getObject`, `getCurrentJewelleryBoxType`; `getObject` on the four mounted items; `PohPortal.getPortal` | this commit |
 
 ## Requests
