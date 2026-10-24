@@ -81,6 +81,15 @@ public final class Rs2Keyboard
 	/** Keys this script holds through {@link #keyHold(int)} (the bridge also releases them when the script stops). */
 	private static final java.util.Set<Integer> HELD_KEYS = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
+	/**
+	 * As upstream: makes sure Enter is not left held down. Mobile adaptation: a key release through
+	 * the bridge, in place of upstream's typed-newline AWT event.
+	 */
+	public static void resetEnter()
+	{
+		keyRelease(KeyEvent.VK_ENTER);
+	}
+
 	public static boolean enter()
 	{
 		return Global.sleepUntil(() -> MobileActions.key(KeyEvent.VK_ENTER), KEY_TIMEOUT_MILLIS);

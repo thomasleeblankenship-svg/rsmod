@@ -305,6 +305,29 @@ public class Rs2Magic {
         }, false);
     }
 
+    /** As upstream: {@link #quickCanCast(MagicAction)} for {@code spell}'s action. */
+    public static boolean quickCanCast(Spell spell) {
+        return spell != null && quickCanCast(spell.getMagicAction());
+    }
+
+    /**
+     * As upstream: the spell's icon in the open spellbook shows it castable (its enabled sprite),
+     * without upstream canCast's settings check. Opens the magic tab first.
+     */
+    public static boolean quickCanCast(MagicAction magicSpell) {
+        if (magicSpell == null) return false;
+        if (!net.runelite.client.plugins.microbot.util.tabs.Rs2Tab.switchTo(net.runelite.client.plugins.microbot.globval.enums.InterfaceTab.MAGIC)) return false;
+        net.runelite.api.widgets.Widget spellbook = net.runelite.client.plugins.microbot.util.widget.Rs2Widget.getWidget(218, 3);
+        if (spellbook == null) return false;
+        net.runelite.api.widgets.Widget widget = net.runelite.client.plugins.microbot.util.widget.Rs2Widget.findWidget(magicSpell.getName(), List.of(spellbook));
+        return widget != null && net.runelite.client.plugins.microbot.mobile.MobileActions.read(widget::getSpriteId, -1) == magicSpell.getSprite();
+    }
+
+    /** As upstream: {@link #quickCanCast(MagicAction)} by spell name; false for an unknown name. */
+    public static boolean quickCanCast(String spellName) {
+        return spellName != null && quickCanCast(MagicAction.fromString(spellName));
+    }
+
     public static boolean cast(Spell spell) {
         return spell != null && cast(spell.getMagicAction());
     }
