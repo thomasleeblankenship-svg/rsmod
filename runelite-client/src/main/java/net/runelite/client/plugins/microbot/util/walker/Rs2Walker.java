@@ -390,6 +390,12 @@ public final class Rs2Walker
 					lastStatus = "Waiting: manual input";
 					lastProgress = System.currentTimeMillis();
 				}
+				if (REPLAN.getAndSet(false))
+				{
+					// A script asked for a fresh route (recalculatePath); plan it from where the player stands.
+					List<WorldPoint> replanned = plan(scene, leg.destination, leg.radius);
+					if (!replanned.isEmpty()) { global = replanned; progress = 0; }
+				}
 				if (System.currentTimeMillis() - lastProgress >= stallMillis)
 				{
 					// Retry rather than stop: replan from the observed position, use short steps
@@ -668,6 +674,165 @@ public final class Rs2Walker
 		}
 		boolean cancelled = !MobileActions.active() || Thread.currentThread().isInterrupted() || GENERATION.get() != before + 1;
 		return cancelled ? WalkerState.EXIT : WalkerState.UNREACHABLE;
+	}
+
+	// ---- Util action batch X (Claude 1): walker public API ----
+
+	/** Set by {@link #recalculatePath()}; the running walk replans on its next pass. */
+	private static final java.util.concurrent.atomic.AtomicBoolean REPLAN = new java.util.concurrent.atomic.AtomicBoolean();
+
+	/** As upstream: the running walk plans its route again from where the player stands, on its next pass. */
+	public static void recalculatePath()
+	{
+		if (target != null)
+		{
+			REPLAN.set(true);
+		}
+	}
+
+	/** As upstream: whether a route from {@code start} to {@code end} can be planned (mobile plans on demand). */
+	public static boolean restartPathfinding(WorldPoint start, WorldPoint end)
+	{
+		return start != null && end != null && getWalkPath(start, end).size() > 0;
+	}
+
+	/** As upstream: whether a route from {@code start} to any of {@code ends} can be planned. */
+	public static boolean restartPathfinding(WorldPoint start, Set<WorldPoint> ends)
+	{
+		return ends != null && ends.stream().anyMatch(end -> restartPathfinding(start, end));
+	}
+
+	/** As upstream: walks until within {@code distance} or {@code completionCondition} holds. */
+	public static boolean walkUntil(WorldPoint target, int distance, java.util.function.BooleanSupplier completionCondition)
+	{
+		return walkWithStateUntil(target, distance, completionCondition) == WalkerState.ARRIVED;
+	}
+
+	/** The walkable tiles around this object, else the ring just outside it (as upstream). */
+	private static List<WorldPoint> besideObject(GameObject object)
+	{
+		net.runelite.api.coords.WorldArea area = net.runelite.client.plugins.microbot.util.gameobject.Rs2GameObject.getWorldArea(object);
+		if (area == null)
+		{
+			return Collections.emptyList();
+		}
+		net.runelite.client.plugins.microbot.util.coords.Rs2WorldArea objectArea = new net.runelite.client.plugins.microbot.util.coords.Rs2WorldArea(area);
+		List<WorldPoint> points = new ArrayList<>(objectArea.getInteractable());
+		if (points.isEmpty())
+		{
+			points.addAll(objectArea.offset(1).toWorldPointList());
+			points.removeIf(objectArea::contains);
+		}
+		return points;
+	}
+
+	/** As upstream: walks to a walkable tile beside {@code target} (true when already on one). */
+	public static boolean walkNextTo(GameObject target)
+	{
+		List<WorldPoint> beside = besideObject(target);
+		if (beside.isEmpty())
+		{
+			return false;
+		}
+		WorldPoint here = Rs2Player.getWorldLocation();
+		WorldPoint walkable = beside.stream().filter(net.runelite.client.plugins.microbot.util.tile.Rs2Tile::isWalkable).findFirst().orElse(null);
+		if (walkable != null && walkable.equals(here))
+		{
+			return true;
+		}
+		return walkTo(walkable != null ? walkable : beside.get(0));
+	}
+
+	/** As upstream: one short step to the nearest tile beside {@code target}, for instances (no route planning). */
+	public static void walkNextToInstance(GameObject target)
+	{
+		WorldPoint here = Rs2Player.getWorldLocation();
+		List<WorldPoint> beside = besideObject(target);
+		if (here == null || beside.isEmpty())
+		{
+			return;
+		}
+		WorldPoint nearest = beside.stream().filter(net.runelite.client.plugins.microbot.util.tile.Rs2Tile::isWalkable)
+			.min(java.util.Comparator.comparingInt(here::distanceTo))
+			.orElseGet(() -> beside.stream().min(java.util.Comparator.comparingInt(here::distanceTo)).orElse(null));
+		if (nearest != null && !nearest.equals(here))
+		{
+			walkFastCanvas(nearest);
+		}
+	}
+
+	/** As upstream: closes the world map when it is open; true once the close was dispatched. */
+	public static boolean closeWorldMap()
+	{
+		return net.runelite.client.plugins.microbot.util.widget.Rs2Widget.isWidgetVisible(InterfaceID.Worldmap.CLOSE)
+			&& MobileActions.widget(InterfaceID.Worldmap.CLOSE, -1, "Close");
+	}
+
+	/** As upstream: {@link #walkWithBankedTransports(WorldPoint, boolean)} without forcing the bank. */
+	public static boolean walkWithBankedTransports(WorldPoint target)
+	{
+		return walkWithBankedTransports(target, false);
+	}
+
+	/** As upstream, with the default arrival distance. */
+	public static boolean walkWithBankedTransports(WorldPoint target, boolean forceBanking)
+	{
+		return walkWithBankedTransportsAndState(target, DEFAULT_ARRIVAL_TILES, forceBanking) == WalkerState.ARRIVED;
+	}
+
+	/** As upstream. */
+	public static boolean walkWithBankedTransports(WorldPoint target, int distance, boolean forceBanking)
+	{
+		return walkWithBankedTransportsAndState(target, distance, forceBanking) == WalkerState.ARRIVED;
+	}
+
+	/**
+	 * As upstream: when a route using banked transport items (teleports and the like) needs items not
+	 * carried, goes to the nearest bank first and withdraws them, then walks. Mobile adaptation, in
+	 * place of upstream's route comparison: the bank is used when {@code forceBanking}, when the target
+	 * cannot be reached with what is carried, or when the bank is under half as far as the direct walk.
+	 * {@link WalkerState#MOVING} while the bank trip is under way (call again).
+	 */
+	public static WalkerState walkWithBankedTransportsAndState(WorldPoint target, int distance, boolean forceBanking)
+	{
+		if (target == null)
+		{
+			return WalkerState.EXIT;
+		}
+		Map<Integer, Integer> missing = getMissingTransportItemIdsWithQuantities(getTransportsForDestination(target, true));
+		if (!missing.isEmpty() && shouldBankFirst(target, forceBanking))
+		{
+			if (!net.runelite.client.plugins.microbot.util.bank.Rs2Bank.isOpen()
+				&& !net.runelite.client.plugins.microbot.util.bank.Rs2Bank.walkToBankAndUseBank())
+			{
+				return MobileActions.active() ? WalkerState.MOVING : WalkerState.EXIT;
+			}
+			for (Map.Entry<Integer, Integer> item : missing.entrySet())
+			{
+				if (net.runelite.client.plugins.microbot.util.bank.Rs2Bank.hasItem(item.getKey()))
+				{
+					net.runelite.client.plugins.microbot.util.bank.Rs2Bank.withdrawX(item.getKey(), Math.max(1, item.getValue()));
+				}
+			}
+			net.runelite.client.plugins.microbot.util.bank.Rs2Bank.closeBank();
+		}
+		return walkWithState(target, distance);
+	}
+
+	private static boolean shouldBankFirst(WorldPoint target, boolean forceBanking)
+	{
+		if (forceBanking)
+		{
+			return true;
+		}
+		int direct = getTotalTiles(target);
+		if (direct == Integer.MAX_VALUE)
+		{
+			return true;
+		}
+		net.runelite.client.plugins.microbot.util.bank.enums.BankLocation bank = net.runelite.client.plugins.microbot.util.bank.Rs2Bank.getNearestBank();
+		int toBank = bank == null ? Integer.MAX_VALUE : getTotalTiles(bank.getWorldPoint());
+		return toBank != Integer.MAX_VALUE && toBank < direct / 2;
 	}
 
 	/** As upstream: {@link #walkWithState(WorldPoint, int)} with the default arrival distance. */
@@ -1729,6 +1894,19 @@ public final class Rs2Walker
 			return Global.sleepUntil(() -> MobileActions.type(Character.toLowerCase(key.charAt(0))), 2_000);
 		}
 		return chooseTextMapDestination(InterfaceID.TelenexusTeleport.UNIVERSE, destination);
+	}
+
+	/** Picks {@code destination} in the open portal nexus (its shortcut key, else its entry); for {@code PohTeleports}. */
+	public static boolean selectNexusDestination(String destination)
+	{
+		return destination != null && chooseNexusDestination(destination);
+	}
+
+	/** Picks an unlocked (not struck-through) jewellery box entry in the open box; for {@code PohTeleports}. */
+	public static boolean selectJewelleryBoxDestination(String destination)
+	{
+		return destination != null && "open".equals(jewelleryBoxEntryState(destination))
+			&& chooseTextMapDestination(InterfaceID.PohJewelleryBox.UNIVERSE, destination);
 	}
 
 	/** The shortcut key a nexus entry shows ("<col=ffffff>K</col> : Lumbridge" gives "K"), or null. */
