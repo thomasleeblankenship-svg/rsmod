@@ -13,6 +13,7 @@ import net.runelite.api.widgets.ComponentID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.plugins.microbot.Microbot;
 import net.runelite.client.plugins.microbot.Script;
+import net.runelite.client.plugins.microbot.mobile.MobileActions;
 import net.runelite.client.plugins.microbot.util.bank.Rs2Bank;
 import net.runelite.client.plugins.microbot.util.grandexchange.GrandExchangeSlots;
 import net.runelite.client.plugins.microbot.util.grandexchange.Rs2GrandExchange;
@@ -44,6 +45,12 @@ import java.util.stream.Collectors;
 
 import static net.runelite.client.plugins.microbot.util.Global.sleepUntil;
 
+/**
+ * KSP's Bank Seller: banks everything, withdraws every sellable item as notes and sells it on the Grand
+ * Exchange at an instant-sell price, protecting the starting inventory, equipment and pre-existing offers.
+ * Adapted for Microbot Mobile (client reads with a timeout, clicks and keys retried under the
+ * one-action-per-tick rule); see MOBILE_PORT.md in this package.
+ */
 public class BankSellerScript extends Script {
 
     /** Coins (995) and platinum tokens (13204) are never sold. */
@@ -139,6 +146,9 @@ public class BankSellerScript extends Script {
     private List<Integer> pendingStartingEquipmentIds;
     private boolean energySettingOverridden;
     private boolean previousEnergyItemSetting;
+    // Mobile: enableAutoRunOn is global; the value before start is put back on stop.
+    private boolean autoRunOverridden;
+    private boolean previousAutoRun;
 
     private BankSellerPlugin plugin;
 
@@ -178,6 +188,10 @@ public class BankSellerScript extends Script {
     private int sessionStacksRefused;
 
     public boolean run(BankSellerPlugin plugin) {
+        if (!autoRunOverridden) {
+            previousAutoRun = Microbot.enableAutoRunOn;
+            autoRunOverridden = true;
+        }
         Microbot.enableAutoRunOn = false;
         if (!energySettingOverridden) {
             previousEnergyItemSetting = Microbot.useStaminaPotsIfNeeded;
@@ -352,7 +366,8 @@ public class BankSellerScript extends Script {
 
                 sellInventory();
             } catch (Exception ex) {
-                Microbot.log(ex.getMessage());
+                // Mobile: stop rather than retry a failing pass every second.
+                stopSafely("Bank Seller stopped after an error: " + ex);
             }
         }, 0, 1000, TimeUnit.MILLISECONDS);
         return true;
@@ -389,6 +404,10 @@ public class BankSellerScript extends Script {
             if (energySettingOverridden) {
                 Microbot.useStaminaPotsIfNeeded = previousEnergyItemSetting;
                 energySettingOverridden = false;
+            }
+            if (autoRunOverridden) {
+                Microbot.enableAutoRunOn = previousAutoRun;
+                autoRunOverridden = false;
             }
         }
     }
@@ -506,10 +525,13 @@ public class BankSellerScript extends Script {
 
     /** Both 2.6.26 modal frames use child 11 for X; never use offer or bank action buttons. */
     private void closeStartingProtectionFrame(int frameId, String name) {
-        boolean clicked = clientValue(() -> {
+        // Mobile: read the close button on the client thread, then click it from the script thread;
+        // clickWidget waits for its click to be accepted, which must not happen on the client thread.
+        Widget close = clientValue(() -> {
             Widget frame = Microbot.getClient().getWidget(frameId);
-            return isVisible(frame) && clickWidget(frame.getChild(11));
-        }, false);
+            return isVisible(frame) ? frame.getChild(11) : null;
+        }, null);
+        boolean clicked = clickWidget(close);
         if (!clicked) {
             protectionSnapshotFailure = "The " + name + " panel is blocking startup slot verification";
         }
@@ -1209,7 +1231,7 @@ public class BankSellerScript extends Script {
             return false;
         }
         sleep(250, 400);
-        Rs2Keyboard.keyPress(KeyEvent.VK_ENTER);
+        pressKey(KeyEvent.VK_ENTER);
         return sleepUntil(() -> !isChatboxInputVisible(), SETUP_WAIT_TIMEOUT_MS);
     }
 
@@ -1234,7 +1256,7 @@ public class BankSellerScript extends Script {
             return false;
         }
         sleep(250, 400);
-        Rs2Keyboard.keyPress(KeyEvent.VK_ENTER);
+        pressKey(KeyEvent.VK_ENTER);
         return sleepUntil(() -> !isChatboxInputVisible(), SETUP_WAIT_TIMEOUT_MS);
     }
 
@@ -1245,16 +1267,21 @@ public class BankSellerScript extends Script {
      */
     private void abortOfferSetup() {
         if (isChatboxInputVisible()) {
-            Rs2Keyboard.keyPress(KeyEvent.VK_ESCAPE);
+            pressKey(KeyEvent.VK_ESCAPE);
             sleep(300, 600);
         }
         if (isSetupVisible()) {
             if (clickWidget(findBackButton()) && sleepUntil(() -> !isSetupVisible(), SETUP_WAIT_TIMEOUT_MS)) {
                 return;
             }
-            Rs2Keyboard.keyPress(KeyEvent.VK_ESCAPE);
+            pressKey(KeyEvent.VK_ESCAPE);
             sleepUntil(() -> !isSetupVisible(), SETUP_WAIT_TIMEOUT_MS);
         }
+    }
+
+    // Mobile: a key can be refused under the one-action-per-tick rule, so it is retried until accepted.
+    private static void pressKey(int keyCode) {
+        sleepUntil(() -> Rs2Keyboard.keyPress(keyCode), 3000);
     }
 
     private Widget findBackButton() {
@@ -1639,12 +1666,14 @@ public class BankSellerScript extends Script {
             return false;
         }
         try {
-            return clientValue(() -> {
+            // Mobile: a click in the same game tick as the previous action is refused, so retry it (up to
+            // 2 s) instead of failing the whole offer attempt.
+            return sleepUntil(() -> clientValue(() -> {
                 if (!isClickable(widget)) {
                     return false;
                 }
                 return Rs2Widget.clickWidget(widget);
-            }, false);
+            }, false), 2000);
         } catch (RuntimeException ex) {
             return false;
         }
@@ -1726,8 +1755,8 @@ public class BankSellerScript extends Script {
             return fallback;
         }
         try {
-            T value = Microbot.getClientThread().invoke(supplier);
-            return value == null ? fallback : value;
+            // Mobile: the client-thread read with a timeout (ClientThread.invoke waits without one).
+            return MobileActions.read(supplier::get, fallback);
         } catch (RuntimeException exception) {
             return fallback;
         }
