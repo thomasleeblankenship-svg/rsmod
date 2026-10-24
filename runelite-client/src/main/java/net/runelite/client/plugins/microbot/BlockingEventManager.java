@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Provenance: adapted from {@code chsami/Microbot} {@code BlockingEventManager.java} at
- * {@code e01e0d77d79b354472a5737b3aaab2449eb034fc} (BSD 2-Clause). The only change is that no
+ * {@code e01e0d77d79b354472a5737b3aaab2449eb034fc} (BSD 2-Clause). The only change is which
  * default events are pre-registered; see the constructor.
  * <p>
  * Orchestrates detection and execution of blocking events that must run before scripts continue.
@@ -54,10 +54,8 @@ public class BlockingEventManager
         // single-threaded executor for running event.execute()
         this.blockingExecutor = Executors.newSingleThreadExecutor(threadFactory);
 
-        // Mobile: upstream pre-registers ten core events here (welcome screen, level-up, bank
-        // tutorial, death, popups, plugin pause, chatbox, membership, world-switcher, roofs).
-        // Each one clicks or types, which this runtime stage does not support, so none are
-        // registered. Scripts and later stages add events explicitly through add().
+        // Mobile: no events are pre-registered here; the mobile plugin adds the default popup
+        // and tutorial events (addDefaultEvents) once the runtime is installed.
     }
 
     public synchronized void start() {
@@ -71,6 +69,22 @@ public class BlockingEventManager
         if (loopFuture != null) loopFuture.cancel(true);
         scheduler.shutdownNow();
         blockingExecutor.shutdownNow();
+    }
+
+    /**
+     * Mobile: the popup and tutorial events upstream pre-registers, added by the mobile plugin.
+     * They act only while a script holds input. Not added: the events that silently change game
+     * settings (level-up interface, hide roofs, world-switcher confirmation), the friend
+     * recommendation survey (answered at random upstream), and plugin pause (mobile pauses through
+     * {@code Microbot.pauseAllScripts}).
+     */
+    public void addDefaultEvents()
+    {
+        add(new net.runelite.client.plugins.microbot.util.events.WelcomeScreenEvent());
+        add(new net.runelite.client.plugins.microbot.util.events.BankTutorialEvent());
+        add(new net.runelite.client.plugins.microbot.util.events.DeathEvent());
+        add(new net.runelite.client.plugins.microbot.util.events.BankJagexPopupEvent());
+        add(new net.runelite.client.plugins.microbot.util.events.MembershipPromptEvent());
     }
 
     public void add(BlockingEvent event)
