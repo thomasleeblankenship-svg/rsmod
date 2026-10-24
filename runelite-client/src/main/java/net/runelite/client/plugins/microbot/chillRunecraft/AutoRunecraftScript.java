@@ -1,5 +1,6 @@
 package net.runelite.client.plugins.microbot.chillRunecraft;
 
+import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Skill;
 import net.runelite.api.gameval.ItemID;
 import net.runelite.client.plugins.microbot.Microbot;
@@ -7,6 +8,7 @@ import net.runelite.client.plugins.microbot.Script;
 import net.runelite.client.plugins.microbot.chillRunecraft.Altars;
 import net.runelite.client.plugins.microbot.chillRunecraft.AutoRunecraftConfig;
 import net.runelite.client.plugins.microbot.chillRunecraft.States;
+import net.runelite.client.plugins.microbot.mobile.MobileActions;
 import net.runelite.client.plugins.microbot.util.antiban.Rs2Antiban;
 import net.runelite.client.plugins.microbot.util.antiban.Rs2AntibanSettings;
 import net.runelite.client.plugins.microbot.util.antiban.enums.Activity;
@@ -19,9 +21,18 @@ import net.runelite.client.plugins.microbot.util.walker.Rs2Walker;
 
 import java.util.concurrent.TimeUnit;
 
-
+/**
+ * ChillX's auto runecrafter: banks for essence and a talisman or tiara, enters the selected altar's ruins,
+ * crafts runes and leaves through the portal. Adapted for Microbot Mobile (rune essence on free worlds,
+ * steps that advance only once their click is accepted); see MOBILE_PORT.md in this package.
+ */
+@Slf4j
 public class AutoRunecraftScript extends Script
 {
+    // Mobile: free-to-play accounts can only use rune essence; pure essence is used on members worlds.
+    static final int RUNE_ESSENCE = ItemID.BLANKRUNE;
+    static final int PURE_ESSENCE = ItemID.BLANKRUNE_HIGH;
+
     private States state;
     private Altars altar;
     private boolean initialise;
@@ -30,9 +41,12 @@ public class AutoRunecraftScript extends Script
     public static int runecraftLevel;
     public static int initialRunecraftXp;
     public static int runecraftXp;
+    // Mobile: enableAutoRunOn is global; the value before start is put back on stop.
+    private boolean autoRunBefore = true;
 
     public boolean run(AutoRunecraftConfig config)
     {
+        autoRunBefore = Microbot.enableAutoRunOn;
         Microbot.enableAutoRunOn = true;
         Rs2Antiban.resetAntibanSettings();
         Rs2Antiban.antibanSetupTemplates.applyRunecraftingSetup();
@@ -53,7 +67,13 @@ public class AutoRunecraftScript extends Script
 
                 if (initialise)
                 {
-                    initialRunecraftXp = Microbot.getClient().getSkillExperience(Skill.RUNECRAFT);
+                    // Mobile: the Nature altar is members-only; stop instead of walking there on a free world.
+                    if (altar == Altars.NATURE_ALTAR && !Rs2Player.isInMemberWorld())
+                    {
+                        stop("The Nature altar needs a members world.");
+                        return;
+                    }
+                    initialRunecraftXp = runecraftExperience();
                     initialRunecraftLevel = Rs2Player.getRealSkillLevel(Skill.RUNECRAFT);
 
                     if (!Rs2Inventory.hasItem(altar.getTalismanName()) && !Rs2Equipment.isWearing(altar.getTiaraName()))
@@ -64,7 +84,7 @@ public class AutoRunecraftScript extends Script
                         return;
                     }
 
-                    if (!Rs2Inventory.hasItem("Pure Essence", false))
+                    if (!Rs2Inventory.hasItem(PURE_ESSENCE, RUNE_ESSENCE))
                     {
                         Microbot.log("No essence in inventory - banking");
                         state = States.BANKING;
@@ -95,8 +115,7 @@ public class AutoRunecraftScript extends Script
                                 Microbot.status = "Withdrawing Talisman";
                                 if (!Rs2Bank.hasBankItem(altar.getTalismanName()))
                                 {
-                                    Microbot.showMessage("No tiara / talisman in bank!");
-                                    shutdown();
+                                    stop("No tiara / talisman in bank!");
                                     return;
                                 }
                                 Rs2Bank.withdrawOne(altar.getTalismanName());
@@ -114,13 +133,15 @@ public class AutoRunecraftScript extends Script
 
                         Microbot.status = "Withdrawing pure essence";
 
-                        if (!Rs2Bank.hasBankItem("Pure essence", false))
+                        // Mobile: pure essence on a members world when banked, otherwise rune essence.
+                        String essence = Rs2Player.isInMemberWorld() && Rs2Bank.hasBankItem("Pure essence", true)
+                                ? "Pure essence" : "Rune essence";
+                        if (!Rs2Bank.hasBankItem(essence, true))
                         {
-                            Microbot.showMessage("No pure essence in bank!");
-                            shutdown();
+                            stop("No essence in bank!");
                             return;
                         }
-                        Rs2Bank.withdrawAll("Pure essence", true);
+                        Rs2Bank.withdrawAll(essence, true);
                         Rs2Random.wait(800, 1600);
                         state = States.WALKING_TO_ALTAR;
                         Rs2Bank.closeBank();
@@ -138,27 +159,48 @@ public class AutoRunecraftScript extends Script
                     case ENTERING_ALTAR:
                         initialise = false;
                         Microbot.status = "Entering altar";
+                        boolean entered;
                         if (!Rs2Equipment.isWearing(altar.getTiaraName()))
                         {
-                            Rs2Inventory.useItemOnObject(altar.getTalismanID(), altar.getAltarRuinsID());
+                            entered = Rs2Inventory.useItemOnObject(altar.getTalismanID(), altar.getAltarRuinsID());
                         }
                         else
                         {
-                            Microbot.getRs2TileObjectCache().query().withId(altar.getAltarRuinsID()).interact("Enter");
+                            entered = Microbot.getRs2TileObjectCache().query().withId(altar.getAltarRuinsID()).interact("Enter");
+                        }
+                        // Mobile: a refused click (one action per game tick) is retried next loop rather than
+                        // moving on to crafting outside the altar.
+                        if (!entered)
+                        {
+                            return;
                         }
                         Rs2Random.wait(800, 1600);
                         sleepUntil(() -> !Rs2Player.isMoving());
                         Rs2Random.wait(2000, 2400);
+                        if (!sleepUntil(() -> isObjectNearby(altar.getAltarID()), 5000))
+                        {
+                            return;
+                        }
                         state = States.CRAFTING_RUNES;
                         break;
 
                     case CRAFTING_RUNES:
                         initialise = false;
                         Microbot.status = "Crafting runes";
-                        Rs2Inventory.useItemOnObject(ItemID.BLANKRUNE_HIGH, altar.getAltarID()); //could just interact with altar, but I'm too lazy to change this now
+                        // Mobile: use whichever essence is carried (rune essence on free worlds).
+                        int essenceId = Rs2Inventory.hasItem(PURE_ESSENCE) ? PURE_ESSENCE : RUNE_ESSENCE;
+                        if (!Rs2Inventory.useItemOnObject(essenceId, altar.getAltarID())) //could just interact with altar, but I'm too lazy to change this now
+                        {
+                            return;
+                        }
                         Rs2Random.wait(800, 1600);
+                        // Mobile: count the run only once the essence is gone; otherwise craft again next loop.
                         sleepUntil(() -> Rs2Player.waitForXpDrop(Skill.RUNECRAFT));
                         Rs2Random.wait(800, 1600);
+                        if (Rs2Inventory.hasItem(PURE_ESSENCE, RUNE_ESSENCE))
+                        {
+                            return;
+                        }
                         runsCompleted++;
                         updateLevelXp();
                         state = States.EXITING_ALTAR;
@@ -166,7 +208,11 @@ public class AutoRunecraftScript extends Script
 
                     case EXITING_ALTAR:
                         Microbot.status = "Exiting altar";
-                        Microbot.getRs2TileObjectCache().query().withId(altar.getPortalID()).interact("Use");
+                        // Mobile: retry a refused portal click next loop instead of banking from inside the altar.
+                        if (!Microbot.getRs2TileObjectCache().query().withId(altar.getPortalID()).interact("Use"))
+                        {
+                            return;
+                        }
                         sleepUntil(() -> !Rs2Player.isMoving());
                         Rs2Random.wait(800, 1600);
                         state = States.BANKING;
@@ -175,11 +221,14 @@ public class AutoRunecraftScript extends Script
 
                 long endTime = System.currentTimeMillis();
                 long totalTime = endTime - startTime;
-                System.out.println("Total time for loop " + totalTime);
+                // Mobile: debug level, not stdout, so a 1 s loop does not flood the device log.
+                log.debug("Total time for loop {}", totalTime);
 
             } catch (Exception ex)
             {
                 Microbot.logStackTrace(this.getClass().getSimpleName(), ex);
+                // Mobile: stop rather than retry a failing step every second.
+                stop("Auto Runecraft stopped after an error: " + ex);
             }
         }, 0, 1000, TimeUnit.MILLISECONDS);
         return true;
@@ -190,11 +239,31 @@ public class AutoRunecraftScript extends Script
     {
         super.shutdown();
         Rs2Antiban.resetAntibanSettings();
+        Microbot.enableAutoRunOn = autoRunBefore;
+    }
+
+    /** Stops with {@code message}, turning the plugin off (not just this loop) so the Microbot Mobile screen shows it. */
+    private void stop(String message)
+    {
+        Microbot.showMessage(message);
+        shutdown();
+        Microbot.stopPlugin(AutoRunecraftPlugin.class);
     }
 
     public void updateLevelXp()
     {
         runecraftLevel = Rs2Player.getRealSkillLevel(Skill.RUNECRAFT);
-        runecraftXp = Microbot.getClient().getSkillExperience(Skill.RUNECRAFT);
+        runecraftXp = runecraftExperience();
+    }
+
+    // Mobile: client reads run on the client thread.
+    private static int runecraftExperience()
+    {
+        return MobileActions.read(() -> Microbot.getClient().getSkillExperience(Skill.RUNECRAFT), 0);
+    }
+
+    private static boolean isObjectNearby(int objectId)
+    {
+        return MobileActions.read(() -> Microbot.getRs2TileObjectCache().query().withId(objectId).first() != null, false);
     }
 }

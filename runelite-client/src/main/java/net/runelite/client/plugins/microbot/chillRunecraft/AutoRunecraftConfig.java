@@ -10,7 +10,7 @@ import net.runelite.client.plugins.microbot.chillRunecraft.Altars;
 @ConfigInformation(
         "<h2 style='color: #05e1f5;'>ChillX's Auto Runecrafter</h2> <br />" +
         "• This plugin automatically crafts runes at the selected altar <br />" +
-        "• Ensure you have pure essence and the correct tiara / talisman in the bank <br />" +
+        "• Ensure you have rune or pure essence and the correct tiara / talisman in the bank <br />" +
         "• Will continue until out of essence or stopped manually <br />"
 )
 public interface AutoRunecraftConfig extends Config

@@ -59,7 +59,11 @@ public class AutoRunecraftPlugin extends Plugin {
     protected void shutDown()
     {
         autoRunecraftScript.shutdown();
-        overlayManager.remove(autoRunecraftOverlay);
+        // Mobile: startUp tolerates a missing overlay manager, so stopping must too.
+        if (overlayManager != null)
+        {
+            overlayManager.remove(autoRunecraftOverlay);
+        }
     }
     int ticks = 10;
     @Subscribe
