@@ -1,9 +1,11 @@
 package net.runelite.client.plugins.microbot.cooking.scripts;
 
+import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.AnimationID;
 import net.runelite.client.plugins.microbot.Microbot;
 import net.runelite.client.plugins.microbot.Script;
 import net.runelite.client.plugins.microbot.cooking.AutoCookingConfig;
+import net.runelite.client.plugins.microbot.cooking.AutoCookingPlugin;
 import net.runelite.client.plugins.microbot.cooking.enums.CookingAreaType;
 import net.runelite.client.plugins.microbot.cooking.enums.CookingItem;
 import net.runelite.client.plugins.microbot.cooking.enums.CookingLocation;
@@ -15,6 +17,7 @@ import net.runelite.client.plugins.microbot.util.camera.Rs2Camera;
 import net.runelite.client.plugins.microbot.util.dialogues.Rs2Dialogue;
 import net.runelite.client.plugins.microbot.util.gameobject.Rs2GameObject;
 import net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory;
+import net.runelite.client.plugins.microbot.mobile.MobileActions;
 import net.runelite.client.plugins.microbot.util.keyboard.Rs2Keyboard;
 import net.runelite.client.plugins.microbot.util.player.Rs2Player;
 import net.runelite.client.plugins.microbot.util.walker.Rs2Walker;
@@ -34,13 +37,21 @@ enum CookingState {
     DROPPING,
 }
 
+/**
+ * Auto Cooking's "Cooking" activity: banks for the selected raw food and cooks it at a chosen or the nearest
+ * range or fire. Adapted for Microbot Mobile; see MOBILE_PORT.md in the cooking package.
+ */
+@Slf4j
 public class AutoCookingScript extends Script {
 
     private CookingState state;
+    // Mobile: enableAutoRunOn is global; the value before start is put back on stop.
+    private boolean autoRunBefore = true;
     private boolean init;
     private CookingLocation location;
 
     public boolean run(AutoCookingConfig config) {
+        autoRunBefore = Microbot.enableAutoRunOn;
         Microbot.enableAutoRunOn = false;
         CookingItem cookingItem = config.cookingItem();
         Rs2Antiban.resetAntibanSettings();
@@ -64,16 +75,14 @@ public class AutoCookingScript extends Script {
                         location = config.cookingLocation();
                         if (cookingItem.getCookingAreaType() != CookingAreaType.BOTH) {
                             if (location.getCookingAreaType() != cookingItem.getCookingAreaType()) {
-                                Microbot.showMessage("Cooking Area does not match item's cooking area");
-                                shutdown();
+                                stopPlugin("Cooking Area does not match item's cooking area");
                                 return;
                             }
                         }
                     }
 
                     if (location == null) {
-                        Microbot.showMessage("No suitable cooking location found");
-                        shutdown();
+                        stopPlugin("No suitable cooking location found");
                         return;
                     }
 
@@ -89,24 +98,30 @@ public class AutoCookingScript extends Script {
                             return;
                         }
                         if (!cookingItem.hasRequirements()) {
-                            Microbot.showMessage("You do not meet the requirements to cook this item");
-                            shutdown();
+                            stopPlugin("You do not meet the requirements to cook this item");
                             return;
                         }
 
-                        Rs2TileObjectModel cookingObject = Microbot.getRs2TileObjectCache().query().withId(location.getCookingObjectID()).nearest();
-                        if (cookingObject == null) {
-                            cookingObject = Microbot.getRs2TileObjectCache().query()
-                                    .where(o -> o.getWorldLocation().equals(location.getCookingObjectWorldPoint()))
-                                    .nearest();
-                        }
+                        // Mobile: query on the client thread.
+                        Rs2TileObjectModel cookingObject = MobileActions.read(() -> {
+                            Rs2TileObjectModel found = Microbot.getRs2TileObjectCache().query().withId(location.getCookingObjectID()).nearest();
+                            if (found == null) {
+                                found = Microbot.getRs2TileObjectCache().query()
+                                        .where(o -> o.getWorldLocation().equals(location.getCookingObjectWorldPoint()))
+                                        .nearest();
+                            }
+                            return found;
+                        }, null);
 
                         if (cookingObject != null) {
                             if (!Rs2Camera.isTileOnScreen(cookingObject.getLocalLocation())) {
                                 Rs2Camera.turnTo(cookingObject.getLocalLocation());
                                 return;
                             }
-                            Rs2Inventory.useItemOnObject(cookingItem.getRawItemID(), cookingObject.getId());
+                            // Mobile: a refused click (one action per game tick) is retried next loop.
+                            if (!Rs2Inventory.useItemOnObject(cookingItem.getRawItemID(), cookingObject.getId())) {
+                                return;
+                            }
 
                             boolean productionWidgetOpen = Rs2Widget.isProductionWidgetOpen();
                             if (!productionWidgetOpen) {
@@ -119,7 +134,8 @@ public class AutoCookingScript extends Script {
 
                             sleepUntilTrue(() -> !Rs2Player.isMoving(), 200, 8000);
 
-                            Rs2Keyboard.keyPress(KeyEvent.VK_SPACE);
+                            // Mobile: retry the key until accepted.
+                            sleepUntil(() -> Rs2Keyboard.keyPress(KeyEvent.VK_SPACE), 3000);
                             Microbot.status = "Cooking " + cookingItem.getRawItemName();
                             
                             Rs2Antiban.actionCooldown();
@@ -151,11 +167,12 @@ public class AutoCookingScript extends Script {
                         break;
                     case BANKING:
                         if (location == CookingLocation.ROUGES_DEN) {
-                            Rs2NpcModel npc = Microbot.getRs2NpcCache().query()
+                            // Mobile: the NPC composition reads run on the client thread.
+                            Rs2NpcModel npc = MobileActions.read(() -> Microbot.getRs2NpcCache().query()
                                     .where(n -> n.getName() != null && n.getNpc() != null && n.getNpc().getComposition() != null
                                             && n.getNpc().getComposition().getActions() != null
                                             && java.util.Arrays.asList(n.getNpc().getComposition().getActions()).contains("Bank"))
-                                    .nearest();
+                                    .nearest(), null);
                             if (npc == null) return;
                             boolean isNPCBankOpen = Rs2Bank.openBank(npc.getNpc());
                             if (!isNPCBankOpen) return;
@@ -177,8 +194,7 @@ public class AutoCookingScript extends Script {
                         Rs2Inventory.waitForInventoryChanges(1800);
                         
                         if (!hasRawItemInBank(cookingItem)) {
-                            Microbot.showMessage("No Raw Food Item found in Bank");
-                            shutdown();
+                            stopPlugin("No Raw Food Item found in Bank");
                             return;
                         }
                         if (Objects.equals(config.cookingItem().getRawItemName(), "giant seaweed")) {
@@ -218,7 +234,8 @@ public class AutoCookingScript extends Script {
                         break;
                 }
             } catch (Exception ex) {
-                Microbot.log(ex.getMessage());
+                // Mobile: stop rather than retry a failing step every second.
+                stopPlugin("Auto Cooking stopped after an error: " + ex);
             }
         }, 0, 1000, TimeUnit.MILLISECONDS);
         return true;
@@ -228,6 +245,14 @@ public class AutoCookingScript extends Script {
     public void shutdown(){
         super.shutdown();
         Rs2Antiban.resetAntibanSettings();
+        Microbot.enableAutoRunOn = autoRunBefore;
+    }
+
+    /** Stops with {@code message}, turning the plugin off (not just this loop) so the Microbot Mobile screen shows it. */
+    private void stopPlugin(String message) {
+        Microbot.showMessage(message);
+        shutdown();
+        Microbot.stopPlugin(AutoCookingPlugin.class);
     }
 
     private void getState(AutoCookingConfig config, CookingLocation location) {

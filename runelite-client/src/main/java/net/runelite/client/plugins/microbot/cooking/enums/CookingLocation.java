@@ -12,9 +12,11 @@ import net.runelite.client.plugins.microbot.Microbot;
 import net.runelite.client.plugins.microbot.util.equipment.Rs2Equipment;
 import net.runelite.client.plugins.microbot.util.player.Rs2Player;
 
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 
+/** Cooking ranges and fires the Auto Cooking script can use, grouped as upstream into free-to-play and pay-to-play. */
 @Getter
 @RequiredArgsConstructor
 public enum CookingLocation
@@ -57,6 +59,15 @@ public enum CookingLocation
 	private final CookingAreaType cookingAreaType;
 	private final int cookingObjectID;
 
+	/** Whether upstream lists this location under "Pay-to-play" (every entry from {@link #MYTHS_GUILD} on). */
+	public boolean isMembersOnly()
+	{
+		return PAY_TO_PLAY.contains(this);
+	}
+
+	// Mobile: upstream's "Pay-to-play" section above, so the nearest-location search skips them on a free world.
+	private static final EnumSet<CookingLocation> PAY_TO_PLAY = EnumSet.range(MYTHS_GUILD, NARDAH);
+
 	public static CookingLocation findNearestCookingLocation(CookingItem item)
 	{
 		Map<Integer, CookingLocation> distanceMap = new HashMap<>();
@@ -64,6 +75,12 @@ public enum CookingLocation
 		for (CookingLocation location : values())
 		{
 			if (!location.hasRequirements())
+			{
+				continue;
+			}
+
+			// Mobile: on a free world only free-to-play locations are reachable.
+			if (location.isMembersOnly() && !Rs2Player.isInMemberWorld())
 			{
 				continue;
 			}

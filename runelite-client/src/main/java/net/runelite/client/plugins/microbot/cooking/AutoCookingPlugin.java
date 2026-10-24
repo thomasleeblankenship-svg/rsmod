@@ -67,6 +67,9 @@ public class AutoCookingPlugin extends Plugin {
     protected void shutDown() {
         autoCookingScript.shutdown();
         burnBakingScript.shutdown();
-        overlayManager.remove(overlay);
+        // Mobile: startUp tolerates a missing overlay manager, so stopping must too.
+        if (overlayManager != null) {
+            overlayManager.remove(overlay);
+        }
     }
 }
