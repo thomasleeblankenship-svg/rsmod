@@ -392,4 +392,103 @@ public final class Rs2GroundItem
 			return quantity;
 		}, 0);
 	}
+
+	// ---- loot-engine actions (Claude 1) ----------------------------------------------------
+
+	/** How long one pick-up waits for its item to leave the ground. */
+	private static final int PICKUP_WAIT_MILLIS = 3_000;
+
+	/**
+	 * As upstream: runs {@code action} with every script's loop paused (so another script's loop
+	 * cannot act between the pick-ups), restoring the previous pause state after.
+	 */
+	public static boolean runWhilePaused(java.util.function.BooleanSupplier action)
+	{
+		boolean wasPaused = Microbot.pauseAllScripts.getAndSet(true);
+		try
+		{
+			return action.getAsBoolean();
+		}
+		finally
+		{
+			if (!wasPaused)
+			{
+				Microbot.pauseAllScripts.compareAndSet(true, false);
+			}
+		}
+	}
+
+	/** As upstream: "Take" on this ground item, as one script action. */
+	public static boolean interact(net.runelite.client.plugins.grounditems.GroundItem groundItem)
+	{
+		return groundItem != null && groundItem.getLocation() != null
+			&& MobileActions.groundItem(groundItem.getId(), groundItem.getLocation(), "Take");
+	}
+
+	/** As upstream: game ticks until this item despawns (0 when unknown or already due). */
+	public static int calculateDespawnTime(net.runelite.client.plugins.grounditems.GroundItem groundItem)
+	{
+		java.time.Instant spawnTime = groundItem.getSpawnTime();
+		if (spawnTime == null || groundItem.getDespawnTime() == null)
+		{
+			return 0;
+		}
+		long millis = spawnTime.plus(groundItem.getDespawnTime()).toEpochMilli() - System.currentTimeMillis();
+		return millis <= 0 ? 0 : (int) (millis / 600);
+	}
+
+	/** As upstream: whether the inventory has room for (or already stacks) this item. */
+	public static boolean canTakeGroundItem(net.runelite.client.plugins.grounditems.GroundItem groundItem)
+	{
+		int quantity = Math.min(groundItem.isStackable() ? 1 : groundItem.getQuantity(), Rs2Inventory.emptySlotCount());
+		if (quantity == 0 && groundItem.isStackable())
+		{
+			return Rs2Inventory.hasItem(groundItem.getId());
+		}
+		return quantity > 0;
+	}
+
+	/**
+	 * As upstream: runs {@code action} (a pick-up) and waits, bounded, for this item to leave its
+	 * tile. Mobile adaptation: one dispatch, not upstream's repeated clicking. True when it is gone.
+	 */
+	public static boolean waitForGroundItemDespawn(Runnable action, net.runelite.client.plugins.grounditems.GroundItem groundItem)
+	{
+		action.run();
+		net.runelite.client.plugins.microbot.util.Global.sleepUntil(() -> isGone(groundItem), PICKUP_WAIT_MILLIS);
+		return isGone(groundItem);
+	}
+
+	private static boolean isGone(net.runelite.client.plugins.grounditems.GroundItem groundItem)
+	{
+		com.google.common.collect.Table<net.runelite.api.coords.WorldPoint, Integer, net.runelite.client.plugins.grounditems.GroundItem> items = getGroundItems();
+		net.runelite.client.plugins.grounditems.GroundItem now = items == null ? null : items.get(groundItem.getLocation(), groundItem.getId());
+		return now == null || now.getQuantity() < groundItem.getQuantity();
+	}
+
+	/**
+	 * As upstream: picks up this item (once for a stack, once per item for a pile of unstackables,
+	 * as far as free slots allow) with the other scripts paused. False when there is no room.
+	 */
+	public static boolean coreLoot(net.runelite.client.plugins.grounditems.GroundItem groundItem)
+	{
+		int quantity = Math.min(groundItem.isStackable() ? 1 : groundItem.getQuantity(), Rs2Inventory.emptySlotCount());
+		if (quantity == 0 && groundItem.isStackable())
+		{
+			if (!Rs2Inventory.hasItem(groundItem.getId()))
+			{
+				return false;
+			}
+			quantity = 1;
+		}
+		final int times = quantity;
+		return runWhilePaused(() ->
+		{
+			for (int i = 0; i < times && MobileActions.active(); i++)
+			{
+				waitForGroundItemDespawn(() -> interact(groundItem), groundItem);
+			}
+			return true;
+		});
+	}
 }

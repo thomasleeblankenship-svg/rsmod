@@ -73,7 +73,8 @@ public class GroundItem
 		return haPrice * quantity;
 	}
 
-	long getGePrice()
+	// Public as in upstream Microbot (the loot engine filters by value).
+	public long getGePrice()
 	{
 		return gePrice * quantity;
 	}
