@@ -62,7 +62,10 @@ public class AutoFiremakingPlusPlugin extends Plugin {
         if (overlay != null) {
             overlay.pauseButton.unhookMouseListener();
         }
-        overlayManager.remove(overlay);
+        // Mobile: startUp tolerates a missing overlay manager, so stopping must too.
+        if (overlayManager != null) {
+            overlayManager.remove(overlay);
+        }
     }
 
     public AutoFiremakingPlusScript getScript() {

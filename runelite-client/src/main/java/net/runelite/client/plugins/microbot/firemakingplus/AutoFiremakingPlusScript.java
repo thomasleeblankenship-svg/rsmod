@@ -8,6 +8,7 @@ import net.runelite.api.gameval.ObjectID;
 import net.runelite.client.plugins.microbot.Microbot;
 import net.runelite.client.plugins.microbot.Script;
 import net.runelite.client.plugins.microbot.api.tileobject.models.Rs2TileObjectModel;
+import net.runelite.client.plugins.microbot.mobile.MobileActions;
 import net.runelite.client.plugins.microbot.util.antiban.Rs2Antiban;
 import net.runelite.client.plugins.microbot.util.antiban.Rs2AntibanSettings;
 import net.runelite.client.plugins.microbot.util.bank.Rs2Bank;
@@ -32,6 +33,8 @@ import java.util.concurrent.TimeUnit;
  * <p>The LINE method does tinderbox-on-log, auto-steps west, and uses TileScanner line finding with
  * a blocked-line guard. The CAMPFIRE method stands at a bank, finds or lights a fire, then uses logs
  * on it until the inventory is empty.</p>
+ *
+ * <p>Adapted for Microbot Mobile; see MOBILE_PORT.md in this package.</p>
  */
 @Slf4j
 public class AutoFiremakingPlusScript extends Script {
@@ -60,6 +63,8 @@ public class AutoFiremakingPlusScript extends Script {
     private int actionsCompleted = 0;
 
     private boolean shutdownAfterCleanup = false;
+    // Mobile: enableAutoRunOn is global; the value before start is put back on stop.
+    private boolean autoRunBefore = true;
 
     // Campfire burn tracking (tick-driven).
     // lastLogCount = active-log count observed last tick (-1 = reset/unknown);
@@ -83,13 +88,14 @@ public class AutoFiremakingPlusScript extends Script {
         lastBurnProgressMs = 0;
 
         startTimeMillis = System.currentTimeMillis();
-        startSkillXp = Microbot.getClientThread().runOnClientThreadOptional(() ->
-                Microbot.getClient().getSkillExperience(Skill.FIREMAKING)).orElse(0);
-        startSkillLevel = Microbot.getClientThread().runOnClientThreadOptional(() ->
-                Microbot.getClient().getRealSkillLevel(Skill.FIREMAKING)).orElse(1);
+        startSkillXp = MobileActions.read(() ->
+                Microbot.getClient().getSkillExperience(Skill.FIREMAKING), 0);
+        startSkillLevel = MobileActions.read(() ->
+                Microbot.getClient().getRealSkillLevel(Skill.FIREMAKING), 1);
         actionsCompleted = 0;
         shutdownAfterCleanup = false;
 
+        autoRunBefore = Microbot.enableAutoRunOn;
         Microbot.enableAutoRunOn = true;
         Rs2Walker.disableTeleports = true; // keep banking on foot
         Rs2Antiban.resetAntibanSettings();
@@ -115,8 +121,8 @@ public class AutoFiremakingPlusScript extends Script {
                     state = State.BANKING;
                 }
                 if (config.stopAfterXp() > 0 && !shutdownAfterCleanup) {
-                    int currentXp = Microbot.getClientThread().runOnClientThreadOptional(() ->
-                            Microbot.getClient().getSkillExperience(Skill.FIREMAKING)).orElse(startSkillXp);
+                    int currentXp = MobileActions.read(() ->
+                            Microbot.getClient().getSkillExperience(Skill.FIREMAKING), startSkillXp);
                     if (currentXp - startSkillXp >= config.stopAfterXp()) {
                         Microbot.log("AutoFiremakingPlus: reached stopAfterXp. Banking then shutting down.");
                         shutdownAfterCleanup = true;
@@ -124,8 +130,8 @@ public class AutoFiremakingPlusScript extends Script {
                     }
                 }
                 if (config.targetLevel() > 0 && !shutdownAfterCleanup) {
-                    int currentLevel = Microbot.getClientThread().runOnClientThreadOptional(() ->
-                            Microbot.getClient().getRealSkillLevel(Skill.FIREMAKING)).orElse(startSkillLevel);
+                    int currentLevel = MobileActions.read(() ->
+                            Microbot.getClient().getRealSkillLevel(Skill.FIREMAKING), startSkillLevel);
                     if (currentLevel >= config.targetLevel()) {
                         Microbot.log("AutoFiremakingPlus: reached targetLevel (" + currentLevel
                                 + "). Banking then shutting down.");
@@ -165,6 +171,8 @@ public class AutoFiremakingPlusScript extends Script {
                 }
             } catch (Exception ex) {
                 Microbot.logStackTrace("AutoFiremakingPlusScript", ex);
+                // Mobile: stop rather than retry a failing step every tick.
+                stopPlugin("Auto Firemaking Plus stopped after an error: " + ex);
             }
         }, 0, 600, TimeUnit.MILLISECONDS);
         return true;
@@ -199,7 +207,11 @@ public class AutoFiremakingPlusScript extends Script {
             }
             Microbot.status = "Lighting own fire";
             WorldPoint here = Rs2Player.getWorldLocation();
-            Rs2Inventory.combine(TINDERBOX_NAME, activeLog.getLogName());
+            // Mobile: a refused combine (one action per game tick) is retried next tick, not treated as
+            // "can't light here".
+            if (!Rs2Inventory.combine(TINDERBOX_NAME, activeLog.getLogName())) {
+                return;
+            }
             if (Rs2Player.waitForXpDrop(Skill.FIREMAKING, 5000)) {
                 // Fire lit (one log burned); the player auto-steps back. Next tick findCampfire
                 // finds the new fire and the burn logic adds the rest of the inventory to it.
@@ -247,9 +259,14 @@ public class AutoFiremakingPlusScript extends Script {
             Microbot.log("[Firemaking] log did not select; retrying next tick");
             return;
         }
-        Rs2GameObject.interact(target);
+        // Mobile: the fire click comes a tick after the log select and can be refused under the
+        // one-action-per-tick rule; retry it, and press SPACE until the key is accepted.
+        if (!sleepUntil(() -> Rs2GameObject.interact(target), 2000)) {
+            Microbot.log("[Firemaking] campfire click not accepted; retrying next tick");
+            return;
+        }
         if (sleepUntil(() -> Rs2Widget.getWidget(BURN_INTERFACE_WIDGET) != null, 5000)) {
-            Rs2Keyboard.keyPress(KeyEvent.VK_SPACE);
+            sleepUntil(() -> Rs2Keyboard.keyPress(KeyEvent.VK_SPACE), 3000);
             lastLogCount = count;
             lastBurnProgressMs = System.currentTimeMillis();
             sleep(600, 900);
@@ -405,7 +422,10 @@ public class AutoFiremakingPlusScript extends Script {
 
         Microbot.status = "Lighting " + activeLog.getLogName();
         WorldPoint before = Rs2Player.getWorldLocation();
-        Rs2Inventory.combine(TINDERBOX_NAME, activeLog.getLogName());
+        // Mobile: a refused combine is retried next tick instead of waiting 10 s for XP.
+        if (!Rs2Inventory.combine(TINDERBOX_NAME, activeLog.getLogName())) {
+            return;
+        }
         if (Rs2Player.waitForXpDrop(Skill.FIREMAKING, 10000)) {
             actionsCompleted++;
             sleepUntil(() -> !Rs2Player.getWorldLocation().equals(before), 3000);
@@ -453,15 +473,13 @@ public class AutoFiremakingPlusScript extends Script {
 
         if (shutdownAfterCleanup) {
             Rs2Bank.closeBank();
-            Microbot.log("AutoFiremakingPlus: target reached, banked, shutting down.");
-            super.shutdown();
+            stopPlugin("AutoFiremakingPlus: target reached, banked, shutting down.");
             return;
         }
 
         if (needTinderbox && !Rs2Inventory.hasItem(TINDERBOX_NAME)) {
             if (!Rs2Bank.hasItem(TINDERBOX_ID)) {
-                Microbot.showMessage("No tinderbox in the bank!");
-                super.shutdown();
+                stopPlugin("No tinderbox in the bank!");
                 return;
             }
             Rs2Bank.withdrawOne(TINDERBOX_ID);
@@ -469,8 +487,7 @@ public class AutoFiremakingPlusScript extends Script {
         }
 
         if (!Rs2Bank.hasItem(activeLog.getItemId())) {
-            Microbot.showMessage("No " + activeLog.getLogName() + " in the bank!");
-            super.shutdown();
+            stopPlugin("No " + activeLog.getLogName() + " in the bank!");
             return;
         }
         Microbot.status = "Withdrawing logs";
@@ -483,9 +500,21 @@ public class AutoFiremakingPlusScript extends Script {
         state = (config.method() == FiremakingMethod.CAMPFIRE) ? State.BURNING : State.WALKING_BACK;
     }
 
+    /**
+     * Stops with {@code message}. Mobile: runs this class's {@link #shutdown()} (upstream called
+     * {@code super.shutdown()} here, which left {@code Rs2Walker.disableTeleports} on for every later
+     * script) and turns the plugin off so the Microbot Mobile screen shows it stopped.
+     */
+    private void stopPlugin(String message) {
+        Microbot.showMessage(message);
+        shutdown();
+        Microbot.stopPlugin(AutoFiremakingPlusPlugin.class);
+    }
+
     @Override
     public void shutdown() {
         super.shutdown();
+        Microbot.enableAutoRunOn = autoRunBefore;
         Rs2Walker.disableTeleports = false;
         Rs2Antiban.resetAntibanSettings();
         startPosition = null;
