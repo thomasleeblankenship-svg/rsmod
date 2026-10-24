@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | `util/bank/Rs2Bank.java` (actions: `setWithdrawAs`, `withdrawItems`, `withdrawAllAndEquip` ×2, `depositRunePouch`, `emptyContainers`, `depositEquippedItem` ×4, `depositEquippedItems` ×3, collection box: `openCollectionBox`, `closeCollectionBox`, `collectionBoxIsOpen`, `isCollectionBoxVisible`, `bankAllCollectionBoxItems`, `inventoryAllCollectionBoxItems`), new `UtilActionBatchQTest` | **Task: util action batch Q** (user asked to port much more of `util/**`, past the Hub-used set; `Rs2Bank` first) | this commit |
 
 ## Requests
 
