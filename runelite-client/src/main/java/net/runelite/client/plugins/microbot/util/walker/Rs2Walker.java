@@ -797,7 +797,8 @@ public final class Rs2Walker
 			}
 			if (transport.getType() == TransportType.TELEPORTATION_ITEM)
 			{
-				if (disableTeleports || transport.getDisplayInfo() == null || !transport.getDisplayInfo().contains(":"))
+				// "Item: destination", or only the item ("Varrock tablet"): a tablet or scroll used with its own option.
+				if (disableTeleports || transport.getDisplayInfo() == null || transport.getDisplayInfo().isBlank())
 				{
 					LOG.info("Mobile walk: route needs teleport item {}; using the same-plane planner", transport);
 					return null;
@@ -1163,7 +1164,8 @@ public final class Rs2Walker
 	/** One use of the item: worn first (its destination option), then carried. */
 	private static boolean dispatchTeleportItem(java.util.function.Predicate<Rs2ItemModel> isItem, String place)
 	{
-		Rs2ItemModel worn = Rs2Equipment.get(isItem);
+		// Worn items are used by their destination option, so only when there is a destination.
+		Rs2ItemModel worn = place.isEmpty() ? null : Rs2Equipment.get(isItem);
 		Integer widget = worn == null ? null : Rs2Equipment.wornSlotWidget(worn.getSlot());
 		if (widget != null)
 		{

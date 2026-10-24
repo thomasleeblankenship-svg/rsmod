@@ -342,4 +342,18 @@ public class PathfinderLegTest
 			Rs2Walker.destinationButton(Rs2Walker.BALLOON_BUTTONS, "Crafting Guild"));
 		assertEquals("one button per catalogued balloon destination", 6, Rs2Walker.BALLOON_BUTTONS.size());
 	}
+
+	@Test
+	public void aTabletIsATeleportItemWithoutADestination()
+	{
+		Rs2Walker.WalkLeg leg = legFor(result(PathResult.Status.FOUND, TILES,
+			Map.of(0, transport(null, GOAL, TransportType.TELEPORTATION_ITEM, null, "Varrock tablet", -1))));
+		assertNotNull("a single-name item is executable", leg);
+		assertTrue(leg.stairs.item);
+		assertEquals("Varrock tablet", Rs2Walker.teleportItemName(leg.stairs));
+		assertEquals("no destination: the item's own Break/Read/Teleport option is used", "",
+			Rs2Walker.teleportDestination(leg.stairs));
+		assertNull("a blank label is still refused", legFor(result(PathResult.Status.FOUND, TILES,
+			Map.of(0, transport(null, GOAL, TransportType.TELEPORTATION_ITEM, null, " ", -1)))));
+	}
 }

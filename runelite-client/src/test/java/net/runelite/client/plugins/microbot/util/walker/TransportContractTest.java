@@ -37,17 +37,7 @@ public class TransportContractTest
 		return MobileRouteTestAccess.catalogue().values().stream()
 			.flatMap(Set::stream)
 			.filter(t -> t.getType() == type)
-			.filter(t -> type != TransportType.TELEPORTATION_ITEM || labelled(t))
 			.collect(Collectors.toList());
-	}
-
-	/**
-	 * Teleport items the executor can use: "Item: destination". Single-name items (tablets, scrolls:
-	 * "Varrock tablet") are a known gap, pinned by {@link #singleNameTeleportItemsAreNotYetExecutable()}.
-	 */
-	private static boolean labelled(Transport transport)
-	{
-		return transport.getDisplayInfo() != null && transport.getDisplayInfo().contains(":");
 	}
 
 	/** What {@code Rs2Walker.pathfinderLeg} needs from a step of this type before it builds a leg. */
@@ -63,9 +53,9 @@ public class TransportContractTest
 			case TELEPORTATION_SPELL:
 				return step.getDisplayInfo() == null || step.getDisplayInfo().isBlank() ? "spell without a name" : null;
 			case TELEPORTATION_ITEM:
-				if (step.getDisplayInfo() == null || !step.getDisplayInfo().contains(":"))
+				if (step.getDisplayInfo() == null || step.getDisplayInfo().isBlank())
 				{
-					return "item without \"Item: destination\"";
+					return "item without a label";
 				}
 				return step.getItemIds().isEmpty() ? "item without item ids" : null;
 			case FAIRY_RING:
@@ -141,8 +131,7 @@ public class TransportContractTest
 			MobileTransportPolicy policy = MobileTransportPolicy.admitting(
 				EnumSet.of(TransportType.TRANSPORT, TransportType.AGILITY_SHORTCUT, type));
 			PathResult result = MobilePathfinder.search(
-				MobileRouteTestAccess.offlineConfig(policy, t -> (t.getType() == type
-					&& (type != TransportType.TELEPORTATION_ITEM || labelled(t)))
+				MobileRouteTestAccess.offlineConfig(policy, t -> t.getType() == type
 					|| t.getType() == TransportType.TRANSPORT || t.getType() == TransportType.AGILITY_SHORTCUT),
 				start, transport.getDestination());
 
@@ -159,23 +148,22 @@ public class TransportContractTest
 	}
 
 	/**
-	 * Known gap (reported to Claude 1 in COORDINATION.md): tablets and scrolls carry only their item
-	 * name, so the executor refuses them and the walker drops a pathfinder route that uses one. When
-	 * the executor learns them, this test fails: fold them back into the contract above.
+	 * Tablets and scrolls carry only their item name ("Varrock tablet"): the walker uses the item's
+	 * own option with no destination, so the item name is the whole label.
 	 */
 	@Test
-	public void singleNameTeleportItemsAreNotYetExecutable()
+	public void singleNameTeleportItemsAreExecutable()
 	{
 		List<Transport> singleName = MobileRouteTestAccess.catalogue().values().stream()
 			.flatMap(Set::stream)
-			.filter(t -> t.getType() == TransportType.TELEPORTATION_ITEM && !labelled(t))
+			.filter(t -> t.getType() == TransportType.TELEPORTATION_ITEM && t.getDisplayInfo() != null
+				&& !t.getDisplayInfo().contains(":"))
 			.collect(Collectors.toList());
 		assertFalse(singleName.isEmpty());
 		assertTrue(singleName.stream().anyMatch(t -> "Varrock tablet".equals(t.getDisplayInfo())));
 		for (Transport transport : singleName)
 		{
-			assertEquals(transport.getDisplayInfo(), "item without \"Item: destination\"",
-				violation(MobileRouteTestAccess.step(transport)));
+			assertNull(transport.getDisplayInfo(), violation(MobileRouteTestAccess.step(transport)));
 		}
 	}
 
