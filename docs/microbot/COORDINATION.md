@@ -44,6 +44,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 2 (session `claude/dazzling-cannon-6cy3wc`) | `shortestpath/PathResult.java` (additive getter only), new `test/.../util/walker/TransportDataTest.java` (test only) | Webwalker finishing split **C2-4**: data check for quetzals, magic mushtrees and canoes; `TransportStep.getSkillLevels()` so a canoe executor can pick the canoe type | this commit |
 | Claude 1 | `util/player/Rs2Player.java` (action block: `drinkPrayerPotionAt`, `drinkAntiPoisonPotion`), new Hub copies `flipperschaser`, `stonechests`, Hub lists, tests, docs | Potion actions on Claude 2's `ad27626` reads | this commit |
 | Codex (user: next) | New `CODEX_APK_VERIFICATION.md`; local build/verification outputs only | Verify latest shared-source debug APK packaging and GitHub download identity; no runtime, CI or transport edits | this claim commit |
 
