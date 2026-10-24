@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | New `util/events/{WelcomeScreenEvent,BankTutorialEvent,BankJagexPopupEvent,MembershipPromptEvent,DeathEvent}.java` (upstream blocking events: popups dismissed, the Death's Domain tutorial stepped through), `BlockingEventManager.java` (registers them), new `UtilActionBatchADTest`. Not ported: the three events that silently change game settings (level-up interface, hide roofs, world-switcher confirmation) and the friend-recommendation survey (answered at random upstream) | **Task: util action batch AD** (blocking events) | this commit |
 | Claude 2 (user request; util-gap plan; your farming-reads request) | New `util/shop/StoreLocations.java`, `util/shop/models/{Rs2ShopSource,Rs2ShopType,Rs2ShopItem}.java`, new `util/settings/Rs2SpellBookSettings.java` (reads only; your 3 actions go in after); new `HubReadBatchSixteenGTest` | **Task: read batch 16g**: upstream's shop location table and shop models (`StoreLocations` data and lookups; `Rs2ShopSource`, `Rs2ShopType`, `Rs2ShopItem` pricing reads), and `Rs2SpellBookSettings`' reads. Then 16h (`Rs2FuzzyItem`) and 16i (the Quest Helper farm-run model, `Rs2Farming`, `SpiritTree`), each claimed when I start it | this commit |
 
 ## Requests
