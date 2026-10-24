@@ -62,6 +62,34 @@ public class ConfigInventorySetupDataManager {
         return loadedSetups;
     }
 
+    /** As upstream: setups are stored under the murmur3 hash of their name. */
+    private static final com.google.common.hash.HashFunction HASH_FUNCTION = com.google.common.hash.Hashing.murmur3_128();
+
+    /**
+     * As upstream's {@code updateConfig}: writes every setup under {@code setupsV3_<name hash>},
+     * removes stored setups no longer in the list, and writes the order list.
+     */
+    public void saveV3Setups(ConfigManager configManager, List<InventorySetup> setups)
+    {
+        final String wholePrefix = ConfigManager.getWholeKey(CONFIG_GROUP, null, CONFIG_KEY_SETUPS_V3_PREFIX);
+        Set<String> oldHashes = configManager.getConfigurationKeys(wholePrefix).stream()
+                .map(key -> key.substring(wholePrefix.length())).collect(Collectors.toSet());
+        final List<String> order = new ArrayList<>();
+        for (final InventorySetup setup : setups)
+        {
+            final String hash = HASH_FUNCTION.hashUnencodedChars(setup.getName()).toString();
+            order.add(hash);
+            oldHashes.remove(hash);
+            configManager.setConfiguration(CONFIG_GROUP, CONFIG_KEY_SETUPS_V3_PREFIX + hash,
+                    gson.toJson(InventorySetupSerializable.convertFromInventorySetup(setup)));
+        }
+        for (final String removed : oldHashes)
+        {
+            configManager.unsetConfiguration(CONFIG_GROUP, CONFIG_KEY_SETUPS_V3_PREFIX + removed);
+        }
+        configManager.setConfiguration(CONFIG_GROUP, CONFIG_KEY_SETUPS_ORDER_V3, gson.toJson(order));
+    }
+
     private InventorySetup loadV3Setup(ConfigManager configManager, String configKey)
     {
         final String storedData = configManager.getConfiguration(CONFIG_GROUP, configKey);
