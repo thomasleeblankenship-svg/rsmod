@@ -54,6 +54,9 @@ public class BarbarianVillageFisherPlugin extends Plugin {
 
     protected void shutDown() {
         script.shutdown();
-        overlayManager.remove(overlay);
+        // Mobile: startUp tolerates a missing overlay manager, so stopping must too.
+        if (overlayManager != null) {
+            overlayManager.remove(overlay);
+        }
     }
 }

@@ -1,5 +1,6 @@
 package net.runelite.client.plugins.microbot.barbarianvillagefisher;
 
+import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Skill;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.game.FishingSpot;
@@ -7,6 +8,7 @@ import net.runelite.client.plugins.microbot.Microbot;
 import net.runelite.client.plugins.microbot.Script;
 import net.runelite.client.plugins.microbot.barbarianvillagefisher.enums.BarbarianFishingFunctions;
 import net.runelite.client.plugins.microbot.barbarianvillagefisher.enums.BarbarianFishingType;
+import net.runelite.client.plugins.microbot.mobile.MobileActions;
 import net.runelite.client.plugins.microbot.util.antiban.Rs2Antiban;
 import net.runelite.client.plugins.microbot.util.antiban.Rs2AntibanSettings;
 import net.runelite.client.plugins.microbot.util.bank.Rs2Bank;
@@ -35,7 +37,11 @@ enum State {
     COOKING,
 }
 
-
+/**
+ * Barbarian Village fisher: bait or fly fishes at the Barbarian Village river and drops, banks at Edgeville,
+ * or cooks on the village fire first. Adapted for Microbot Mobile; see MOBILE_PORT.md in this package.
+ */
+@Slf4j
 public class BarbarianVillageFisherScript extends Script {
 
     public static String version = "1.0.0";
@@ -43,6 +49,8 @@ public class BarbarianVillageFisherScript extends Script {
     public String debug = "";
     private boolean expectingXPDrop = false;
     private int currentlyCookingID = 0;
+    // Mobile: enableAutoRunOn is global; the value before start is put back on stop.
+    private boolean autoRunBefore = true;
 
     private static int[] RawFish = {335, 331, 349};
     private static int BarbarianVillageFireID = 43475;
@@ -57,6 +65,7 @@ public class BarbarianVillageFisherScript extends Script {
         String rodName = fishingType == BarbarianFishingType.BAIT_FISHING ? "Fishing rod" : "Fly fishing rod";
         String baitName = fishingType == BarbarianFishingType.BAIT_FISHING ? "Fishing bait" : "Feather";
 
+        autoRunBefore = Microbot.enableAutoRunOn;
         Microbot.enableAutoRunOn = false;
 
         Rs2Antiban.resetAntibanSettings();
@@ -69,6 +78,20 @@ public class BarbarianVillageFisherScript extends Script {
         Rs2AntibanSettings.microBreakDurationHigh = 3;
 
         mainScheduledFuture = scheduledExecutorService.scheduleWithFixedDelay(() -> {
+            try {
+                loop(config, fishingFunction, fishingAction, rodName, baitName);
+            } catch (Exception ex) {
+                // Mobile: an uncaught exception would silently end the schedule while the plugin still looked
+                // running; turn the plugin off so the Microbot Mobile screen shows it stopped.
+                Microbot.log("Barbarian Village Fisher stopped after an error: " + ex);
+                stopPlugin();
+            }
+        }, 0, 1000, TimeUnit.MILLISECONDS);
+        return true;
+    }
+
+    private void loop(BarbarianVillageFisherConfig config, BarbarianFishingFunctions fishingFunction, String fishingAction,
+            String rodName, String baitName) {
             if (!super.run() || !Microbot.isLoggedIn()) {
                 return;
             }
@@ -175,10 +198,11 @@ public class BarbarianVillageFisherScript extends Script {
                    currentlyCookingID = RawFish[2];
                }
 
-               if (interacted) {
-                   sleepUntil(() -> !Rs2Player.isMoving() && Rs2Widget.findWidget("How many would you like to cook?", null, false) != null, 5000);
+               // Mobile: press Space only once the cook menu is up, and retry it, since a key can be refused under
+               // the one-action-per-tick rule.
+               if (interacted && sleepUntil(() -> !Rs2Player.isMoving() && Rs2Widget.findWidget("How many would you like to cook?", null, false) != null, 5000)) {
                    sleep(180, 540);
-                   Rs2Keyboard.keyPress(KeyEvent.VK_SPACE);
+                   sleepUntil(() -> Rs2Keyboard.keyPress(KeyEvent.VK_SPACE), 3000);
                    expectingXPDrop = true;
                }
 
@@ -191,9 +215,6 @@ public class BarbarianVillageFisherScript extends Script {
             Rs2Antiban.actionCooldown();
             Rs2Antiban.takeMicroBreakByChance();
             sleep(235, 798);
-            return;
-        }, 0, 1000, TimeUnit.MILLISECONDS);
-        return true;
     }
 
     // Determine the state of the script
@@ -253,9 +274,10 @@ public class BarbarianVillageFisherScript extends Script {
 
     // Locate the fishing spot and return the NPC
     private Rs2NpcModel findFishingSpot() {
-        return Microbot.getRs2NpcCache().query()
+        // Mobile: query on the client thread, as the other mobile ports do.
+        return MobileActions.read(() -> Microbot.getRs2NpcCache().query()
                 .withIds(FishingSpot.SALMON.getIds())
-                .nearest();
+                .nearest(), null);
     }
 
     // Process for walking to the bank
@@ -307,7 +329,8 @@ public class BarbarianVillageFisherScript extends Script {
                 if (!Rs2Inventory.hasItem(rodName)) {
                     debug("Could not find fishing rod in bank.");
                     Microbot.showMessage("Could not find fishing rod in bank.");
-                    shutdown();
+                    stopPlugin();
+                    return;
                 }
 
             }
@@ -322,7 +345,8 @@ public class BarbarianVillageFisherScript extends Script {
                 if (!Rs2Inventory.hasItem(baitName)) {
                     debug("Could not find bait in bank.");
                     Microbot.showMessage("Could not find bait in bank.");
-                    shutdown();
+                    stopPlugin();
+                    return;
                 }
             }
         }
@@ -330,7 +354,14 @@ public class BarbarianVillageFisherScript extends Script {
 
     private void debug(String msg) {
         debug = msg;
-        System.out.println(msg);
+        // Mobile: debug level, not stdout, so a 1 s loop does not flood the device log.
+        log.debug(msg);
+    }
+
+    /** Turns the plugin off (not just this loop) so the Microbot Mobile screen and plugin list show it stopped. */
+    private void stopPlugin() {
+        shutdown();
+        Microbot.stopPlugin(BarbarianVillageFisherPlugin.class);
     }
 
     private boolean closeToLocation(WorldPoint location) {
@@ -338,16 +369,16 @@ public class BarbarianVillageFisherScript extends Script {
     }
 
     private boolean isGameObjectOnTile(WorldPoint location, int id) {
-        var result = Microbot.getRs2TileObjectCache().query()
+        return MobileActions.read(() -> Microbot.getRs2TileObjectCache().query()
                 .withId(id)
                 .within(location, 0)
-                .first();
-        return result != null;
+                .first() != null, false);
     }
 
     @Override
     public void shutdown() {
         super.shutdown();
         Rs2Antiban.resetAntibanSettings();
+        Microbot.enableAutoRunOn = autoRunBefore;
     }
 }
