@@ -174,10 +174,12 @@ public class WoodcuttingTreeLocations {
     private static List<ResourceLocationOption> getOakTreeLocations() {
         List<ResourceLocationOption> locations = new ArrayList<>();
         
-        // Lumbridge area - best for low levels
+        // Lumbridge area - best for low levels. The pair of oaks north of the castle, at
+        // (3203, 3246) and (3204, 3239) in the cache's object spawns; the old point (3190, 3247)
+        // sat next to the lone oak at (3188, 3247), which the script then picked as nearest.
         locations.add(new ResourceLocationOption(
-                new WorldPoint(3190, 3247, 0), 
-                "Lumbridge Oak Trees", false, 1
+                new WorldPoint(3204, 3243, 0),
+                "Lumbridge Oak Trees", false, 2
         ));
         
         // Varrock West Bank area
