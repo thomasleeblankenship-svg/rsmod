@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 (reads included: Claude 2 is out of usage, user said proceed) | `util/inventory/Rs2LogBasket.java`, `util/huntkit/Rs2HuntKit.java`, `util/prayer/Rs2Prayer.java` (toggleQuickPrayer(), hasAnyQuickPrayers), `util/inventory/Rs2Inventory.java` (size), `util/skills/fletching/Rs2Fletching.java` (getFletchingStatus), `util/depositbox/Rs2DepositBox.java` (getNearestDepositBox(WorldPoint), itemBounds), `util/tabs/Rs2Tab.java` (onVarClientIntChanged); new `UtilActionBatchAPTest` | **Task: batch AP**: small leftovers in my files, reads included | this commit |
 
 ## Requests
 
