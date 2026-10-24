@@ -24,9 +24,11 @@ import net.runelite.client.plugins.microbot.shortestpath.WalkerPathReads;
 import net.runelite.client.plugins.microbot.util.bank.Rs2Bank;
 import net.runelite.client.plugins.microbot.util.equipment.Rs2Equipment;
 import net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory;
+import net.runelite.client.plugins.microbot.util.walker.Rs2Walker;
 import net.runelite.client.plugins.microbot.util.npc.MonsterLocation;
 import net.runelite.client.plugins.microbot.util.npc.Rs2NpcManager;
 import net.runelite.client.plugins.microbot.util.skills.slayer.enums.ProtectiveEquipment;
+import net.runelite.client.plugins.microbot.util.skills.slayer.enums.SlayerMaster;
 import net.runelite.client.plugins.slayer.Task;
 
 /**
@@ -37,7 +39,7 @@ import net.runelite.client.plugins.slayer.Task;
  * Adaptations: the DB table reads run on the client thread here (upstream goes through
  * {@code Microbot.getDBRowsByValue}/{@code getDBTableField}); {@code prepareItemTransports} plans on
  * {@link WalkerPathReads} and handles the fairy ring staff without upstream's mutation of the shared
- * catalogue entry; {@code walkToSlayerMaster} (an action) is not here.
+ * catalogue entry; master travel delegates to the existing mobile walker.
  */
 @Slf4j
 public final class Rs2Slayer
@@ -52,6 +54,12 @@ public final class Rs2Slayer
 
 	private Rs2Slayer()
 	{
+	}
+
+	/** Walks to the master's catalogue location; true only when the walker reports arrival. */
+	public static boolean walkToSlayerMaster(SlayerMaster master)
+	{
+		return master != null && Rs2Walker.walkTo(master.getWorldPoint());
 	}
 
 	public static boolean hasSlayerTask()
