@@ -5,6 +5,7 @@ import java.util.Map;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.plugins.microbot.shortestpath.MobilePathfinder;
 import net.runelite.client.plugins.microbot.shortestpath.PathResult;
+import net.runelite.client.plugins.microbot.shortestpath.PohDevice;
 import net.runelite.client.plugins.microbot.shortestpath.TransportType;
 import org.junit.Test;
 import org.mockito.MockedStatic;
@@ -403,5 +404,115 @@ public class PathfinderLegTest
 		assertEquals("Dugout canoe", Rs2Walker.canoeFor(41));
 		assertEquals("Stable dugout canoe", Rs2Walker.canoeFor(42));
 		assertEquals("Waka canoe", Rs2Walker.canoeFor(99));
+	}
+
+	private static final WorldPoint HOUSE = net.runelite.client.plugins.microbot.shortestpath.PohPanel.HOUSE_TILE;
+
+	@Test
+	public void aWayOutOfTheHouseIsAHouseStepRunFromWhereverThePlayerStands()
+	{
+		Rs2Walker.WalkLeg leg = legFor(result(PathResult.Status.FOUND, List.of(HOUSE, GOAL), Map.of(0,
+			new net.runelite.client.plugins.microbot.shortestpath.HouseTransport(HOUSE, GOAL, "Varrock", PohDevice.NEXUS,
+				"Varrock", "Teleport Menu", "Portal Nexus", 33410, 4))));
+		assertNotNull(leg);
+		assertEquals(PohDevice.NEXUS, leg.stairs.house);
+		assertEquals("Varrock", leg.stairs.destinationText);
+		assertEquals("Teleport Menu", leg.stairs.action);
+		assertEquals(33410, leg.stairs.objectId);
+		assertEquals(HOUSE, leg.destination);
+		assertFalse(leg.stairs.intoHouse);
+		assertFalse(leg.stairs.fairyRing);
+
+		Rs2Walker.WalkLeg ring = legFor(result(PathResult.Status.FOUND, List.of(HOUSE, GOAL), Map.of(0,
+			new net.runelite.client.plugins.microbot.shortestpath.HouseTransport(HOUSE, GOAL, "AIQ", PohDevice.FAIRY_RING,
+				"AIQ", null, "Fairy ring", 29228, 5))));
+		assertNotNull("a device without an action is executable", ring);
+		assertTrue("the house ring is dialled like any ring", ring.stairs.fairyRing);
+		assertEquals("AIQ", ring.stairs.destinationText);
+
+		assertNull("no option, no house leg", legFor(result(PathResult.Status.FOUND, List.of(HOUSE, GOAL), Map.of(0,
+			new net.runelite.client.plugins.microbot.shortestpath.HouseTransport(HOUSE, GOAL, "", PohDevice.PORTAL,
+				" ", "Enter", "Varrock Portal", 13615, 4)))));
+	}
+
+	@Test
+	public void aHousePortalIntoTheWildernessIsRefused()
+	{
+		WorldPoint carrallangar = new WorldPoint(3156, 3666, 0);
+		assertNull(legFor(result(PathResult.Status.FOUND, List.of(HOUSE, carrallangar), Map.of(0,
+			new net.runelite.client.plugins.microbot.shortestpath.HouseTransport(HOUSE, carrallangar, "Carrallangar",
+				PohDevice.PORTAL, "Enter", "Enter", "Carrallangar Portal", 13623, 4))), GOAL));
+	}
+
+	@Test
+	public void waysIntoTheHouseLandByBeingInIt()
+	{
+		Rs2Walker.WalkLeg spell = legFor(result(PathResult.Status.FOUND, List.of(A, HOUSE), Map.of(0,
+			new net.runelite.client.plugins.microbot.shortestpath.HouseTransport(null, HOUSE, "Teleport to House",
+				TransportType.TELEPORTATION_SPELL, null, "Teleport to House", -1, 4))), HOUSE);
+		assertNotNull(spell);
+		assertTrue(spell.stairs.spell);
+		assertTrue(spell.stairs.intoHouse);
+		assertNull("a way in uses no house device", spell.stairs.house);
+
+		Rs2Walker.WalkLeg ring = legFor(result(PathResult.Status.FOUND, List.of(A, B, HOUSE),
+			Map.of(1, transport(B, HOUSE, TransportType.FAIRY_RING, null, "DIQ", -1))), HOUSE);
+		assertNotNull(ring);
+		assertTrue("a ring or tree into the house lands there too", ring.stairs.intoHouse);
+
+		try (MockedStatic<net.runelite.client.plugins.microbot.util.poh.PohPresence> presence =
+			mockStatic(net.runelite.client.plugins.microbot.util.poh.PohPresence.class))
+		{
+			presence.when(net.runelite.client.plugins.microbot.util.poh.PohPresence::isInHouse).thenReturn(false);
+			assertFalse("standing on no tile counts until the house is entered", spell.stairs.observedArrival(HOUSE));
+			presence.when(net.runelite.client.plugins.microbot.util.poh.PohPresence::isInHouse).thenReturn(true);
+			assertTrue(spell.stairs.observedArrival(A));
+		}
+	}
+
+	@Test
+	public void houseDevicesUseTheirOwnOptionElseTheirMenu()
+	{
+		ObjectTransports.Step glory = houseStep(PohDevice.MOUNTED_GLORY, "Edgeville", "Edgeville");
+		assertEquals("Edgeville", Rs2Walker.houseDeviceOption(glory, new String[]{"Edgeville", "Karamja", null, "Al Kharid"}));
+		assertNull(Rs2Walker.houseDeviceOption(glory, new String[]{"Examine"}));
+		assertNull(Rs2Walker.houseDeviceOption(glory, null));
+
+		ObjectTransports.Step xerics = houseStep(PohDevice.MOUNTED_XERICS, "Teleport menu", "Xeric's Honour");
+		assertEquals("as the device spells it", "Teleport Menu",
+			Rs2Walker.houseDeviceOption(xerics, new String[]{"Teleport Menu", "Examine"}));
+		assertTrue(Rs2Walker.opensAMenu(PohDevice.MOUNTED_XERICS, "Teleport Menu"));
+		assertFalse(Rs2Walker.opensAMenu(PohDevice.MOUNTED_GLORY, "Edgeville"));
+
+		ObjectTransports.Step tree = houseStep(PohDevice.SPIRIT_TREE, null, "A: Tree Gnome Village");
+		assertEquals("Travel", Rs2Walker.houseDeviceOption(tree, new String[]{"Travel", "Examine"}));
+		assertTrue("a spirit tree's travel opens its menu", Rs2Walker.opensAMenu(PohDevice.SPIRIT_TREE, "Travel"));
+
+		assertEquals("K", Rs2Walker.nexusKey("<col=ffffff>K</col> : Lumbridge"));
+		assertNull(Rs2Walker.nexusKey("Lumbridge"));
+	}
+
+	@Test
+	public void theHouseDeviceIsFoundByItsIdOrName()
+	{
+		ObjectTransports.Step glory = houseStep(PohDevice.MOUNTED_GLORY, "Edgeville", "Edgeville");
+		assertTrue(Rs2Walker.isHouseDevice(glory, device(13523, "Amulet of Glory")));
+		assertTrue(Rs2Walker.isHouseDevice(glory, device(1, "amulet of glory")));
+		assertFalse(Rs2Walker.isHouseDevice(glory, device(1, "Portal")));
+	}
+
+	private static ObjectTransports.Step houseStep(PohDevice device, String action, String option)
+	{
+		return new ObjectTransports.Step(HOUSE, GOAL, 13523, action, "Amulet of Glory", 4, false, option, false, java.util.Set.of(),
+			false, false, false, false, device);
+	}
+
+	private static net.runelite.client.plugins.microbot.api.tileobject.models.Rs2TileObjectModel device(int id, String name)
+	{
+		net.runelite.client.plugins.microbot.api.tileobject.models.Rs2TileObjectModel model =
+			org.mockito.Mockito.mock(net.runelite.client.plugins.microbot.api.tileobject.models.Rs2TileObjectModel.class);
+		org.mockito.Mockito.when(model.getId()).thenReturn(id);
+		org.mockito.Mockito.when(model.getName()).thenReturn(name);
+		return model;
 	}
 }

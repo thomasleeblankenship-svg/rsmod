@@ -278,7 +278,8 @@ public final class Rs2Walker
 				{
 					return fail("Walking stopped: no collision snapshot or game state changed");
 				}
-				if (scene.player.getPlane() != leg.destination.getPlane())
+				boolean houseStep = leg.stairs != null && leg.stairs.house != null;
+				if (!houseStep && scene.player.getPlane() != leg.destination.getPlane())
 				{
 					return fail("Walking stopped: unexpected plane change");
 				}
@@ -292,9 +293,13 @@ public final class Rs2Walker
 					lastStatus = "Walk condition met";
 					return true;
 				}
-				if (arrived(scene.player, leg.destination, leg.radius) && leg.stairs != null)
+				// A way out of the house runs from wherever the player stands in it (its origin is synthetic).
+				if (leg.stairs != null && (arrived(scene.player, leg.destination, leg.radius)
+					|| (houseStep && net.runelite.client.plugins.microbot.util.poh.PohPresence.isInHouse())))
 				{
-					if (!(leg.stairs.canoe ? useCanoe(leg.stairs, generation, deadline)
+					if (!(leg.stairs.house != null && leg.stairs.house != net.runelite.client.plugins.microbot.shortestpath.PohDevice.FAIRY_RING
+						? useHouseDevice(leg.stairs, generation, deadline)
+						: leg.stairs.canoe ? useCanoe(leg.stairs, generation, deadline)
 						: leg.stairs.fairyRing ? useFairyRing(leg.stairs, generation, deadline)
 						: leg.stairs.spell ? useTeleportSpell(leg.stairs, generation, deadline)
 						: leg.stairs.item ? useTeleportItem(leg.stairs, generation, deadline)
@@ -701,7 +706,7 @@ public final class Rs2Walker
 		TransportType.TELEPORTATION_SPELL, TransportType.SPIRIT_TREE, TransportType.FAIRY_RING, TransportType.MINECART,
 		TransportType.MAGIC_CARPET, TransportType.TELEPORTATION_LEVER, TransportType.TELEPORTATION_PORTAL,
 		TransportType.GNOME_GLIDER, TransportType.HOT_AIR_BALLOON, TransportType.QUETZAL, TransportType.MAGIC_MUSHTREE,
-		TransportType.CANOE);
+		TransportType.CANOE, TransportType.POH);
 
 	/**
 	 * Destination lists as {group, child}: the spirit tree menu (upstream {@code ADVENTURE_LOG_CONTAINER},
@@ -755,7 +760,8 @@ public final class Rs2Walker
 	private static WalkLeg nextLeg(MobileRoutePlanner.Scene scene, WorldPoint destination, int radius,
 		Set<ObjectTransports.Step> excluded, boolean pathfinder)
 	{
-		if (pathfinder && !scene.instance)
+		// The house is an instance, but the pathfinder knows it (it starts a search inside it at the house tile).
+		if (pathfinder && (!scene.instance || net.runelite.client.plugins.microbot.util.poh.PohPresence.isInHouse()))
 		{
 			WalkLeg leg = pathfinderLeg(scene.player, destination, radius);
 			if (leg != null)
@@ -801,9 +807,25 @@ public final class Rs2Walker
 				LOG.info("Mobile walk: route takes {} into the Wilderness; using the same-plane planner", transport);
 				return null;
 			}
+			boolean intoHouse = transport.isIntoHouse();
+			if (transport.getType() == TransportType.POH)
+			{
+				if (transport.getPohDevice() == null || transport.getPohOption() == null || transport.getPohOption().isBlank())
+				{
+					LOG.info("Mobile walk: route needs house step {} without a device or option; using the same-plane planner", transport);
+					return null;
+				}
+				ObjectTransports.Step step = new ObjectTransports.Step(transport.getOrigin(), transport.getDestination(),
+					transport.getObjectId(), transport.getAction(), transport.getName(), TELEPORT_ARRIVAL_TILES, false,
+					transport.getPohOption().trim(), false, Set.of(), false,
+					transport.getPohDevice() == net.runelite.client.plugins.microbot.shortestpath.PohDevice.FAIRY_RING, false, intoHouse,
+					transport.getPohDevice());
+				return new WalkLeg(transport.getOrigin(), 1, step, new ArrayList<>(tiles.subList(0, i + 1)), true);
+			}
 			if (!EXECUTABLE_TRANSPORTS.contains(transport.getType())
 				|| (transport.getAction() == null && transport.getType() != TransportType.TELEPORTATION_ITEM
-					&& transport.getType() != TransportType.TELEPORTATION_SPELL && transport.getType() != TransportType.FAIRY_RING))
+					&& transport.getType() != TransportType.TELEPORTATION_SPELL && transport.getType() != TransportType.FAIRY_RING
+					&& transport.getType() != TransportType.POH))
 			{
 				LOG.info("Mobile walk: route needs {} ({}); using the same-plane planner", transport.getType(), transport);
 				return null;
@@ -818,7 +840,7 @@ public final class Rs2Walker
 				WorldPoint from = tiles.get(i);
 				ObjectTransports.Step step = new ObjectTransports.Step(from, transport.getDestination(), -1, "",
 					transport.getName(), TELEPORT_ARRIVAL_TILES, false, transport.getDisplayInfo().trim(), false, Set.of(), true);
-				return new WalkLeg(from, 1, step, new ArrayList<>(tiles.subList(0, i + 1)), true);
+				return new WalkLeg(from, 1, intoHouse ? step.toHouse() : step, new ArrayList<>(tiles.subList(0, i + 1)), true);
 			}
 			if (transport.getType() == TransportType.TELEPORTATION_ITEM)
 			{
@@ -832,7 +854,7 @@ public final class Rs2Walker
 				WorldPoint from = tiles.get(i);
 				ObjectTransports.Step step = new ObjectTransports.Step(from, transport.getDestination(), -1, "",
 					transport.getName(), TELEPORT_ARRIVAL_TILES, false, transport.getDisplayInfo(), true, transport.getItemIds());
-				return new WalkLeg(from, 1, step, new ArrayList<>(tiles.subList(0, i + 1)), true);
+				return new WalkLeg(from, 1, intoHouse ? step.toHouse() : step, new ArrayList<>(tiles.subList(0, i + 1)), true);
 			}
 			if (transport.getType() == TransportType.CANOE)
 			{
@@ -844,7 +866,7 @@ public final class Rs2Walker
 				ObjectTransports.Step step = new ObjectTransports.Step(transport.getOrigin(), transport.getDestination(),
 					transport.getObjectId(), transport.getAction(), transport.getName(), CANOE_ARRIVAL_TILES, false,
 					transport.getDisplayInfo().trim(), false, Set.of(), false, false, true);
-				return new WalkLeg(transport.getOrigin(), 1, step, new ArrayList<>(tiles.subList(0, i + 1)), true);
+				return new WalkLeg(transport.getOrigin(), 1, intoHouse ? step.toHouse() : step, new ArrayList<>(tiles.subList(0, i + 1)), true);
 			}
 			if (transport.getType() == TransportType.FAIRY_RING)
 			{
@@ -856,13 +878,13 @@ public final class Rs2Walker
 				}
 				ObjectTransports.Step step = new ObjectTransports.Step(transport.getOrigin(), transport.getDestination(), -1, "",
 					"Fairy ring", FAIRY_RING_ARRIVAL_TILES, false, code, false, Set.of(), false, true);
-				return new WalkLeg(transport.getOrigin(), 1, step, new ArrayList<>(tiles.subList(0, i + 1)), true);
+				return new WalkLeg(transport.getOrigin(), 1, intoHouse ? step.toHouse() : step, new ArrayList<>(tiles.subList(0, i + 1)), true);
 			}
 			boolean travel = TRAVEL_TRANSPORTS.contains(transport.getType());
 			int arrival = travel ? TRAVEL_ARRIVAL_TILES : TELEPORT_OBJECTS.contains(transport.getType()) ? TELEPORT_ARRIVAL_TILES : 1;
 			ObjectTransports.Step step = new ObjectTransports.Step(transport.getOrigin(), transport.getDestination(),
 				transport.getObjectId(), transport.getAction(), transport.getName(), arrival, travel, transport.getDisplayInfo());
-			return new WalkLeg(transport.getOrigin(), 1, step, new ArrayList<>(tiles.subList(0, i + 1)), true);
+			return new WalkLeg(transport.getOrigin(), 1, intoHouse ? step.toHouse() : step, new ArrayList<>(tiles.subList(0, i + 1)), true);
 		}
 		return new WalkLeg(destination, radius, null, new ArrayList<>(tiles), true);
 	}
@@ -1300,14 +1322,17 @@ public final class Rs2Walker
 				Thread.sleep(600);
 				continue;
 			}
-			if (!dispatched && scene.player.getPlane() == step.origin.getPlane() && scene.player.distanceTo(step.origin) <= 3
+			boolean inHouse = step.house != null;
+			if (!dispatched && (inHouse || (scene.player.getPlane() == step.origin.getPlane() && scene.player.distanceTo(step.origin) <= 3))
 				&& System.currentTimeMillis() - lastAttempt >= 6_000)
 			{
 				lastAttempt = System.currentTimeMillis();
 				Object[] ring = MobileActions.read(() ->
 				{
+					// The house ring is found as detected (id or name); an outside ring stands on its catalogue tile.
 					Rs2TileObjectModel model = MicrobotReadServices.require().getRs2TileObjectCache().query()
-						.where(candidate -> step.origin.equals(candidate.getWorldLocation()) && candidate.getObjectComposition() != null)
+						.where(candidate -> (inHouse ? isHouseDevice(step, candidate) : step.origin.equals(candidate.getWorldLocation()))
+							&& candidate.getObjectComposition() != null)
 						.nearest();
 					String option = model == null ? null : fairyRingOption(model.getObjectComposition().getActions(), code);
 					return option == null ? null : new Object[]{model.getId(), model.getWorldLocation(), option};
@@ -1330,6 +1355,213 @@ public final class Rs2Walker
 		lastStatus = !MobileActions.active() || GENERATION.get() != generation
 			? "fairy ring cancelled" : dispatched ? "fairy ring landing was not observed" : "fairy ring was not used";
 		return false;
+	}
+
+	/** How long a way out of the house may take, menus and the teleport included. */
+	private static final long HOUSE_DEVICE_MILLIS = 30_000;
+	/** Portal nexus entries show their shortcut key as {@code <col=ffffff>K</col>}; upstream types it. */
+	private static final java.util.regex.Pattern NEXUS_KEY = java.util.regex.Pattern.compile("<col=ffffff>(.*?)</col>");
+
+	/**
+	 * Leaves the house through a detected device, as upstream's {@code PohTeleports}: portals and
+	 * mounted items by their own option; the portal nexus by the destination entry's shortcut key
+	 * (entries can be scrolled out of view); the jewellery box by its entry (refusing one that is
+	 * struck through, not unlocked); Xeric's talisman and the digsite pendant by their menu; the
+	 * spirit tree by "Travel" and its menu. Never confirms a Wilderness warning. Requires an observed
+	 * landing. The house fairy ring goes through {@link #useFairyRing}.
+	 */
+	private static boolean useHouseDevice(ObjectTransports.Step step, long generation, long walkDeadline) throws InterruptedException
+	{
+		long deadline = Math.min(walkDeadline, System.currentTimeMillis() + HOUSE_DEVICE_MILLIS);
+		long lastAttempt = 0;
+		boolean dispatched = false;
+		String option = step.destinationText;
+		lastStatus = "House " + step.house + ": " + option;
+		while (System.currentTimeMillis() < deadline && GENERATION.get() == generation
+			&& MobileActions.active() && !Thread.currentThread().isInterrupted())
+		{
+			MobileRoutePlanner.Scene scene = awaitSnapshot(generation, deadline);
+			if (scene == null)
+			{
+				lastStatus = "no collision snapshot, loading timed out or game state changed";
+				return false;
+			}
+			if (dispatched && step.observedArrival(scene.player))
+			{
+				return true;
+			}
+			if (net.runelite.client.plugins.microbot.util.widget.Rs2Widget.isWildernessInterfaceOpen())
+			{
+				lastStatus = "house teleport leads into the Wilderness; not confirmed";
+				return false;
+			}
+			if (widgetVisible(InterfaceID.TelenexusTeleport.UNIVERSE))
+			{
+				if (!chooseNexusDestination(option))
+				{
+					lastStatus = "portal nexus does not offer " + option;
+					return false;
+				}
+				dispatched = true;
+				Thread.sleep(600);
+				continue;
+			}
+			if (widgetVisible(InterfaceID.PohJewelleryBox.UNIVERSE))
+			{
+				String locked = jewelleryBoxEntryState(option);
+				if (!"open".equals(locked))
+				{
+					lastStatus = "jewellery box: " + option + (locked == null ? " is not listed" : " is not unlocked");
+					return false;
+				}
+				if (!chooseTextMapDestination(InterfaceID.PohJewelleryBox.UNIVERSE, option))
+				{
+					lastStatus = "jewellery box does not offer " + option;
+					return false;
+				}
+				dispatched = true;
+				Thread.sleep(600);
+				continue;
+			}
+			if (destinationMenuVisible())
+			{
+				if (!chooseMenuDestination(option))
+				{
+					lastStatus = "destination menu does not offer " + option;
+					return false;
+				}
+				dispatched = true;
+				Thread.sleep(600);
+				continue;
+			}
+			if (Rs2Dialogue.hasSelectAnOption())
+			{
+				if (!Rs2Dialogue.clickOption(menuDestinationName(option)))
+				{
+					lastStatus = "house teleport menu does not offer " + option;
+					return false;
+				}
+				dispatched = true;
+				Thread.sleep(600);
+				continue;
+			}
+			if (!dispatched && System.currentTimeMillis() - lastAttempt >= 6_000)
+			{
+				lastAttempt = System.currentTimeMillis();
+				Object[] device = MobileActions.read(() ->
+				{
+					Rs2TileObjectModel model = MicrobotReadServices.require().getRs2TileObjectCache().query()
+						.where(candidate -> isHouseDevice(step, candidate) && candidate.getObjectComposition() != null)
+						.nearest();
+					String use = model == null ? null : houseDeviceOption(step, model.getObjectComposition().getActions());
+					return use == null ? null : new Object[]{model.getId(), model.getWorldLocation(), use};
+				}, null);
+				if (device == null)
+				{
+					lastStatus = "no house " + step.house + " with a usable option";
+					return false;
+				}
+				String use = (String) device[2];
+				if (Global.sleepUntil(() -> MobileActions.objectAt((int) device[0], (WorldPoint) device[1], use), 2_000)
+					&& !opensAMenu(step.house, use))
+				{
+					dispatched = true;
+				}
+			}
+			long remaining = deadline - System.currentTimeMillis();
+			if (remaining > 0) { Thread.sleep(Math.min(300, remaining)); }
+		}
+		lastStatus = !MobileActions.active() || GENERATION.get() != generation
+			? "house teleport cancelled" : dispatched ? "house teleport landing was not observed" : "house device was not used";
+		return false;
+	}
+
+	/** A live object is this step's house device: its detected id, else its detected name. */
+	static boolean isHouseDevice(ObjectTransports.Step step, Rs2TileObjectModel candidate)
+	{
+		return candidate.getId() == step.objectId
+			|| (!step.target.isEmpty() && step.target.equalsIgnoreCase(candidate.getName()));
+	}
+
+	/**
+	 * The device option to use: the step's own action when the device offers it; for the spirit
+	 * tree "Travel"; for the nexus and jewellery box their menu option; for Xeric's and the digsite
+	 * their menu when the direct option is missing. Null when the device offers none of these.
+	 */
+	static String houseDeviceOption(ObjectTransports.Step step, String[] actions)
+	{
+		if (actions == null)
+		{
+			return null;
+		}
+		List<String> wanted = new ArrayList<>();
+		if (step.action != null && !step.action.isBlank())
+		{
+			wanted.add(step.action);
+		}
+		if (step.house == net.runelite.client.plugins.microbot.shortestpath.PohDevice.SPIRIT_TREE)
+		{
+			wanted.add("Travel");
+		}
+		wanted.add("Teleport Menu");
+		wanted.add("Teleport menu");
+		for (String candidate : wanted)
+		{
+			for (String action : actions)
+			{
+				if (action != null && action.equalsIgnoreCase(candidate))
+				{
+					return action;
+				}
+			}
+		}
+		return null;
+	}
+
+	/** Whether this device option opens a menu or interface (the teleport follows a later choice). */
+	static boolean opensAMenu(net.runelite.client.plugins.microbot.shortestpath.PohDevice device, String action)
+	{
+		return action.equalsIgnoreCase("Teleport Menu") || device == net.runelite.client.plugins.microbot.shortestpath.PohDevice.SPIRIT_TREE;
+	}
+
+	/** As upstream: types the nexus entry's shortcut key, or taps the entry when it shows none. */
+	private static boolean chooseNexusDestination(String destination)
+	{
+		String needle = Text.removeTags(destination).trim().toLowerCase(java.util.Locale.ROOT);
+		String key = MobileActions.read(() ->
+		{
+			net.runelite.api.widgets.Widget root = Microbot.getClient().getWidget(InterfaceID.TelenexusTeleport.UNIVERSE);
+			net.runelite.api.widgets.Widget entry = root == null || needle.isEmpty() ? null : findCharterEntry(root, needle);
+			return entry == null || entry.getText() == null ? null : nexusKey(entry.getText());
+		}, null);
+		if (key != null && key.length() == 1)
+		{
+			return Global.sleepUntil(() -> MobileActions.type(Character.toLowerCase(key.charAt(0))), 2_000);
+		}
+		return chooseTextMapDestination(InterfaceID.TelenexusTeleport.UNIVERSE, destination);
+	}
+
+	/** The shortcut key a nexus entry shows ("<col=ffffff>K</col> : Lumbridge" gives "K"), or null. */
+	static String nexusKey(String entryText)
+	{
+		java.util.regex.Matcher matcher = NEXUS_KEY.matcher(entryText);
+		return matcher.find() ? matcher.group(1).trim() : null;
+	}
+
+	/** "open", "locked" (struck through, as upstream checks) or null when the box does not list it. */
+	private static String jewelleryBoxEntryState(String destination)
+	{
+		String needle = Text.removeTags(destination).trim().toLowerCase(java.util.Locale.ROOT);
+		return MobileActions.read(() ->
+		{
+			net.runelite.api.widgets.Widget root = Microbot.getClient().getWidget(InterfaceID.PohJewelleryBox.UNIVERSE);
+			net.runelite.api.widgets.Widget entry = root == null || needle.isEmpty() ? null : findCharterEntry(root, needle);
+			if (entry == null)
+			{
+				return null;
+			}
+			return entry.getText() != null && entry.getText().contains("<str>") ? "locked" : "open";
+		}, null);
 	}
 
 	/**
