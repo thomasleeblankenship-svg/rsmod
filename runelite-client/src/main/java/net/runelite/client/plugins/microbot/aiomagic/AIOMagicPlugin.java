@@ -1,0 +1,174 @@
+package net.runelite.client.plugins.microbot.aiomagic;
+
+import com.google.inject.Provides;
+import net.runelite.api.Skill;
+import net.runelite.client.config.ConfigManager;
+import net.runelite.client.plugins.Plugin;
+import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.microbot.PluginConstants;
+import net.runelite.client.plugins.microbot.aiomagic.AIOMagicConfig;
+import net.runelite.client.plugins.microbot.aiomagic.AIOMagicOverlay;
+import net.runelite.client.plugins.microbot.aiomagic.enums.StunSpell;
+import net.runelite.client.plugins.microbot.aiomagic.enums.SuperHeatItem;
+import net.runelite.client.plugins.microbot.aiomagic.enums.TeleportSpell;
+import net.runelite.client.plugins.microbot.aiomagic.scripts.*;
+import net.runelite.client.plugins.microbot.util.magic.Rs2CombatSpells;
+import net.runelite.client.plugins.microbot.util.magic.Rs2Spells;
+import net.runelite.client.plugins.microbot.util.player.Rs2Player;
+import net.runelite.client.ui.overlay.OverlayManager;
+
+import javax.inject.Inject;
+import java.awt.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.stream.Collectors;
+
+@PluginDescriptor(
+        name = PluginDescriptor.GMason + "AIO Magic",
+        description = "Microbot Magic plugin",
+        tags = {"magic", "microbot", "skilling", "training"},
+        version = AIOMagicPlugin.version,
+        minClientVersion = "2.0.7",
+        cardUrl = "https://chsami.github.io/Microbot-Hub/AIOMagicPlugin/assets/card.png",
+        iconUrl = "https://chsami.github.io/Microbot-Hub/AIOMagicPlugin/assets/icon.png",
+        enabledByDefault = PluginConstants.DEFAULT_ENABLED,
+        isExternal = PluginConstants.IS_EXTERNAL
+)
+public class AIOMagicPlugin extends Plugin {
+    @Inject
+    private AIOMagicConfig config;
+
+    @Provides
+    AIOMagicConfig provideConfig(ConfigManager configManager) {
+        return configManager.getConfig(AIOMagicConfig.class);
+    }
+
+    @Inject
+    private OverlayManager overlayManager;
+
+    @Inject
+    private AIOMagicOverlay aioMagicOverlay;
+
+    @Inject
+    private SplashScript splashScript;
+
+    @Inject
+    private AlchScript alchScript;
+
+    @Inject
+    private SuperHeatScript superHeatScript;
+
+    @Inject
+    private TeleportScript teleportScript;
+
+    @Inject
+    private TeleAlchScript teleAlchScript;
+
+    @Inject
+    private StunAlchScript stunAlchScript;
+
+    @Inject
+    private StunScript stunScript;
+
+    @Inject
+    private StunTeleAlchScript stunTeleAlchScript; // NEW
+
+    @Inject
+    private SpinFlaxScript spinFlaxScript;
+
+    public final static String version = "1.2.8";
+
+    @Override
+    protected void startUp() throws AWTException {
+        if (overlayManager != null) {
+            overlayManager.add(aioMagicOverlay);
+        }
+
+        switch (config.magicActivity()) {
+            case SPLASHING:
+                splashScript.run();
+                break;
+            case STUN:
+                stunScript.run();
+                break;
+            case ALCHING:
+                alchScript.run();
+                break;
+            case SUPERHEAT:
+                superHeatScript.run();
+                break;
+            case TELEPORT:
+                teleportScript.run();
+                break;
+            case TELEALCH:
+                teleAlchScript.run();
+                break;
+            case STUNALCH:
+                stunAlchScript.run();
+                break;
+            case STUNTELEALCH: // NEW
+                stunTeleAlchScript.run();
+                break;
+            case SPINFLAX:
+                spinFlaxScript.run();
+                break;
+        }
+    }
+
+    protected void shutDown() {
+        splashScript.shutdown();
+        alchScript.shutdown();
+        superHeatScript.shutdown();
+        teleportScript.shutdown();
+        teleAlchScript.shutdown();
+        stunScript.shutdown();
+        stunAlchScript.shutdown();
+        if (stunTeleAlchScript != null) stunTeleAlchScript.shutdown(); // NEW
+        if (spinFlaxScript != null) spinFlaxScript.shutdown();
+        overlayManager.remove(aioMagicOverlay);
+    }
+
+    public Rs2CombatSpells getCombatSpell() {
+        return config.combatSpell();
+    }
+
+    public List<String> getAlchItemNames() {
+        return updateItemList(config.alchItems());
+    }
+
+    public SuperHeatItem getSuperHeatItem() {
+        return config.superHeatItem();
+    }
+
+    public String getNpcName() {
+        return config.npcName();
+    }
+
+    public TeleportSpell getTeleportSpell() {
+        return config.teleportSpell();
+    }
+
+    public StunSpell getStunSpell() {
+        return config.stunSpell();
+    }
+
+    public String getStunNpcName() {
+        return config.stunNpcName();
+    }
+
+    private List<String> updateItemList(String items) {
+        if (items == null || items.isBlank()) {
+            return Collections.emptyList();
+        }
+        return Arrays.stream(items.split(","))
+                .map(String::trim)
+                .filter(item -> !item.isEmpty())
+                .map(String::toLowerCase)
+                .collect(Collectors.toList());
+    }
+
+    public Rs2Spells getAlchSpell() {
+        return Rs2Player.getSkillRequirement(Skill.MAGIC, 55) ? Rs2Spells.HIGH_LEVEL_ALCHEMY : Rs2Spells.LOW_LEVEL_ALCHEMY;
+    }
+}
