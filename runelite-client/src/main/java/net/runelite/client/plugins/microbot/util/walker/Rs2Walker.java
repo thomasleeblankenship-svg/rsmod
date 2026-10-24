@@ -523,6 +523,88 @@ public final class Rs2Walker
 		}
 	}
 
+	/** At most one dodge in flight; a tile added while dodging is answered by that dodge. */
+	private static final java.util.concurrent.atomic.AtomicBoolean DODGING = new java.util.concurrent.atomic.AtomicBoolean();
+	private static volatile java.util.concurrent.ExecutorService dodgeExecutor;
+
+	/**
+	 * As upstream's dangerous-tile handling: when a script marks the tile the player stands on as
+	 * dangerous ({@link net.runelite.client.plugins.microbot.util.tile.Rs2Tile}), one scene walk to
+	 * {@code Rs2Tile.getSafeTile()}, off the adding thread. Only while a script session is active,
+	 * so the player is never moved without a running script. Registered by the runtime on install.
+	 */
+	public static void registerDangerDodge()
+	{
+		net.runelite.client.plugins.microbot.util.tile.Rs2Tile.onPlayerOnDangerousTile = tile -> dodgeDangerousTile();
+	}
+
+	/** Removes the dodge (runtime uninstall). */
+	public static void clearDangerDodge()
+	{
+		net.runelite.client.plugins.microbot.util.tile.Rs2Tile.onPlayerOnDangerousTile = null;
+	}
+
+	/**
+	 * Starts one dodge unless one is running or no script is active; never blocks the caller.
+	 * Returns whether a dodge was started.
+	 */
+	static boolean dodgeDangerousTile()
+	{
+		if (!MobileActions.active() || !DODGING.compareAndSet(false, true))
+		{
+			return false;
+		}
+		try
+		{
+			dodgeExecutor().execute(() ->
+			{
+				try
+				{
+					dodgeToSafeTile();
+				}
+				finally
+				{
+					DODGING.set(false);
+				}
+			});
+			return true;
+		}
+		catch (java.util.concurrent.RejectedExecutionException e)
+		{
+			DODGING.set(false);
+			return false;
+		}
+	}
+
+	/** The dodge itself: one scene walk to the nearest safe tile; the tile walked to, else null. */
+	static WorldPoint dodgeToSafeTile()
+	{
+		WorldPoint safe = net.runelite.client.plugins.microbot.util.tile.Rs2Tile.getSafeTile();
+		return safe == null ? null : walkCanvas(safe);
+	}
+
+	private static java.util.concurrent.ExecutorService dodgeExecutor()
+	{
+		java.util.concurrent.ExecutorService executor = dodgeExecutor;
+		if (executor != null)
+		{
+			return executor;
+		}
+		synchronized (DODGING)
+		{
+			if (dodgeExecutor == null)
+			{
+				dodgeExecutor = java.util.concurrent.Executors.newSingleThreadExecutor(r ->
+				{
+					Thread thread = new Thread(r, "rs2walker-dodge");
+					thread.setDaemon(true);
+					return thread;
+				});
+			}
+			return dodgeExecutor;
+		}
+	}
+
 	/** As upstream: one scene walk to {@code worldPoint}; the point when it was dispatched, else null. */
 	public static WorldPoint walkCanvas(WorldPoint worldPoint)
 	{
