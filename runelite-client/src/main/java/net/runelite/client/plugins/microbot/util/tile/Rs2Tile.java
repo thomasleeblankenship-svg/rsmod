@@ -35,6 +35,35 @@ public final class Rs2Tile
 		return Rs2Walker.getWalkableTilesAroundPlayer(distance);
 	}
 
+	/**
+	 * As upstream: the scene tile at world ({@code x}, {@code y}) on the current floor (instance
+	 * coordinates converted), or {@code null} outside the loaded scene.
+	 */
+	public static Tile getTile(int x, int y)
+	{
+		return MobileActions.read(() ->
+		{
+			WorldView view = Microbot.getClient().getTopLevelWorldView();
+			if (view == null || view.getScene() == null)
+			{
+				return null;
+			}
+			WorldPoint point = new WorldPoint(x, y, view.getPlane());
+			LocalPoint local = view.getScene().isInstance()
+				? net.runelite.client.plugins.microbot.util.coords.Rs2LocalPoint.fromWorldInstance(point)
+				: LocalPoint.fromWorld(view, point);
+			Tile[][][] tiles = view.getScene().getTiles();
+			if (local == null || tiles == null || point.getPlane() < 0 || point.getPlane() >= tiles.length)
+			{
+				return null;
+			}
+			Tile[][] plane = tiles[point.getPlane()];
+			int sx = local.getSceneX();
+			int sy = local.getSceneY();
+			return sx < 0 || sy < 0 || sx >= plane.length || sy >= plane[sx].length ? null : plane[sx][sy];
+		}, null);
+	}
+
 	/** Whether nothing fills {@code worldPoint} in the loaded scene. */
 	public static boolean isWalkable(WorldPoint worldPoint)
 	{

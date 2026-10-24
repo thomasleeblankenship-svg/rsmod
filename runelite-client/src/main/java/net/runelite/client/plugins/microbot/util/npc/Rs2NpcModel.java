@@ -27,6 +27,12 @@ public class Rs2NpcModel extends ActorModel implements NPC
 		return npc;
 	}
 
+	/** As upstream: the wrapped live NPC (same as {@link #getNpc}); read it on the client thread. */
+	public NPC getRuneliteNpc()
+	{
+		return npc;
+	}
+
 	@Override
 	public net.runelite.api.NpcOverrides getChatheadOverrides()
 	{

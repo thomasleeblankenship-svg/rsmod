@@ -167,6 +167,12 @@ public final class Rs2Dialogue
 		return net.runelite.client.plugins.microbot.util.Global.sleepUntilTrue(Rs2Dialogue::isInDialogue);
 	}
 
+	/** As upstream: waits until no dialogue is showing. */
+	public static boolean sleepUntilNotInDialogue()
+	{
+		return net.runelite.client.plugins.microbot.util.Global.sleepUntilTrue(() -> !isInDialogue());
+	}
+
 	public static boolean sleepUntilHasDialogueOption(String text)
 	{
 		return sleepUntilHasDialogueOption(text, false);

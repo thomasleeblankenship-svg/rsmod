@@ -36,7 +36,7 @@ import net.runelite.api.gameval.NpcID;
 import net.runelite.client.util.RSTimeUnit;
 
 @Getter
-enum Boss
+public enum Boss
 {
 	GENERAL_GRAARDOR(NpcID.GODWARS_BANDOS_AVATAR, 90, ChronoUnit.SECONDS, ItemID.BANDOSPET),
 	KRIL_TSUTSAROTH(NpcID.GODWARS_ZAMORAK_AVATAR, 90, ChronoUnit.SECONDS, ItemID.ZAMORAKPET),

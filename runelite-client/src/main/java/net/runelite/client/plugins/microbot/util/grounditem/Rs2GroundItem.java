@@ -16,6 +16,65 @@ import net.runelite.client.plugins.microbot.util.player.Rs2Player;
 public final class Rs2GroundItem
 {
 	private Rs2GroundItem() { }
+
+	private static final net.runelite.client.plugins.microbot.util.models.RS2Item[] NONE = new net.runelite.client.plugins.microbot.util.models.RS2Item[0];
+
+	/** As upstream: every ground item within {@code range} tiles of the player, nearest first. */
+	@Deprecated
+	public static net.runelite.client.plugins.microbot.util.models.RS2Item[] getAll(int range)
+	{
+		return getAllFromWorldPoint(range, Rs2Player.getWorldLocation());
+	}
+
+	/**
+	 * As upstream: every ground item in the square of {@code range} tiles around {@code worldPoint},
+	 * nearest to the player first; one client-thread read.
+	 */
+	@Deprecated
+	public static net.runelite.client.plugins.microbot.util.models.RS2Item[] getAllFromWorldPoint(int range, net.runelite.api.coords.WorldPoint worldPoint)
+	{
+		if (worldPoint == null)
+		{
+			return NONE;
+		}
+		return MobileActions.read(() ->
+		{
+			net.runelite.api.Player player = Microbot.getClient().getLocalPlayer();
+			net.runelite.api.coords.LocalPoint from = player == null ? null : player.getLocalLocation();
+			if (from == null)
+			{
+				return NONE;
+			}
+			List<net.runelite.client.plugins.microbot.util.models.RS2Item> found = new java.util.ArrayList<>();
+			for (int x = worldPoint.getX() - range; x <= worldPoint.getX() + range; x++)
+			{
+				for (int y = worldPoint.getY() - range; y <= worldPoint.getY() + range; y++)
+				{
+					found.addAll(Arrays.asList(getAllAt(x, y)));
+				}
+			}
+			found.sort(java.util.Comparator.comparingInt(item -> item.getTile().getLocalLocation().distanceTo(from)));
+			return found.toArray(NONE);
+		}, NONE);
+	}
+
+	/** As upstream: the ground items on the tile at world ({@code x}, {@code y}) on the current floor. */
+	@Deprecated
+	public static net.runelite.client.plugins.microbot.util.models.RS2Item[] getAllAt(int x, int y)
+	{
+		return MobileActions.read(() ->
+		{
+			net.runelite.api.Tile tile = net.runelite.client.plugins.microbot.util.tile.Rs2Tile.getTile(x, y);
+			List<net.runelite.api.TileItem> items = tile == null ? null : tile.getGroundItems();
+			if (items == null)
+			{
+				return NONE;
+			}
+			return items.stream().filter(java.util.Objects::nonNull)
+				.map(item -> new net.runelite.client.plugins.microbot.util.models.RS2Item(Microbot.getClient().getItemDefinition(item.getId()), tile, item))
+				.toArray(net.runelite.client.plugins.microbot.util.models.RS2Item[]::new);
+		}, NONE);
+	}
 	public static boolean lootItemsBasedOnNames(LootingParameters parameters)
 	{
 		return parameters != null && lootMatching(parameters, item -> matchesName(item, parameters));

@@ -39,7 +39,7 @@ import org.intellij.lang.annotations.MagicConstant;
 
 @Data
 @Builder
-class GroundItem
+public class GroundItem
 {
 	private int id;
 	private int itemId;

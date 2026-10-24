@@ -29,7 +29,7 @@ import java.time.temporal.ChronoUnit;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.ui.overlay.infobox.Timer;
 
-class RespawnTimer extends Timer
+public class RespawnTimer extends Timer
 {
 	private final Boss boss;
 

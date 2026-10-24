@@ -112,6 +112,36 @@ public class Rs2ItemModel
 		return isTradeable;
 	}
 
+	/** As upstream: GE price times quantity from the item manager, 0 when it cannot be read. */
+	public long getPrice()
+	{
+		return net.runelite.client.plugins.microbot.mobile.MobileActions.read(() ->
+		{
+			net.runelite.client.game.ItemManager items = net.runelite.client.plugins.microbot.Microbot.getItemManager();
+			return items == null ? 0L : items.getItemPrice(id) * quantity;
+		}, 0L);
+	}
+
+	/** As upstream: items whose name equals ({@code exact}) or contains one of {@code names}, ignoring case. */
+	public static java.util.function.Predicate<Rs2ItemModel> matches(boolean exact, String... names)
+	{
+		return item -> names != null && java.util.Arrays.stream(names).filter(java.util.Objects::nonNull).anyMatch(name -> exact
+			? item.getName().equalsIgnoreCase(name) : item.getName().toLowerCase().contains(name.toLowerCase()));
+	}
+
+	/** As upstream: items with one of {@code ids}. */
+	public static java.util.function.Predicate<Rs2ItemModel> matches(int... ids)
+	{
+		return item -> ids != null && java.util.Arrays.stream(ids).anyMatch(id -> id == item.getId());
+	}
+
+	/** As upstream: items in one of the equipment {@code slots} (by slot index). */
+	public static java.util.function.Predicate<Rs2ItemModel> matches(net.runelite.api.EquipmentInventorySlot... slots)
+	{
+		return item -> slots != null && java.util.Arrays.stream(slots).filter(java.util.Objects::nonNull)
+			.anyMatch(slot -> slot.getSlotIdx() == item.getSlot());
+	}
+
 	/** The unnoted variant's id (see the constructor), read when the model was built. */
 	public int getUnNotedId()
 	{

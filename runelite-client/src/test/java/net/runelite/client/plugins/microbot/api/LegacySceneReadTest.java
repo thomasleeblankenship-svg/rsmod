@@ -341,4 +341,31 @@ public class LegacySceneReadTest
 		assertEquals(world(7, 5), onClientThread(() -> Rs2GameObject.findObjectByImposter(8550, "chop", false).getWorldLocation()));
 		assertNull("exact needs the whole action", Rs2GameObject.findObjectByImposter(8550, "Chop"));
 	}
+
+	@Test
+	public void batchElevenTileAndGroundItemReads()
+	{
+		Tile here = tile(6, 5);
+		Tile there = tile(9, 5);
+		TileItem bones = mock(TileItem.class);
+		when(bones.getId()).thenReturn(526);
+		TileItem coins = mock(TileItem.class);
+		when(coins.getId()).thenReturn(995);
+		here.getGroundItems().add(bones);
+		there.getGroundItems().add(coins);
+		net.runelite.api.ItemComposition bonesDefinition = mock(net.runelite.api.ItemComposition.class);
+		when(bonesDefinition.getName()).thenReturn("Bones");
+		when(f.client.getItemDefinition(526)).thenAnswer(i -> f.onClientThread(bonesDefinition));
+
+		assertSame(here, net.runelite.client.plugins.microbot.util.tile.Rs2Tile.getTile(world(6, 5).getX(), world(6, 5).getY()));
+		assertNull("outside the scene", net.runelite.client.plugins.microbot.util.tile.Rs2Tile.getTile(1, 1));
+
+		net.runelite.client.plugins.microbot.util.models.RS2Item[] near = net.runelite.client.plugins.microbot.util.grounditem.Rs2GroundItem.getAll(2);
+		assertEquals(1, near.length);
+		assertEquals("Bones", near[0].getItem().getName());
+		assertSame(bones, near[0].getTileItem());
+		net.runelite.client.plugins.microbot.util.models.RS2Item[] all = net.runelite.client.plugins.microbot.util.grounditem.Rs2GroundItem.getAll(5);
+		assertEquals("nearest first", List.of(526, 995), java.util.Arrays.stream(all).map(item -> item.getTileItem().getId()).collect(Collectors.toList()));
+		assertEquals(0, net.runelite.client.plugins.microbot.util.grounditem.Rs2GroundItem.getAllFromWorldPoint(3, null).length);
+	}
 }
