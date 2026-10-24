@@ -1,11 +1,13 @@
 package net.runelite.client.plugins.microbot.gefiremaker;
 
+import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Skill;
 import net.runelite.client.plugins.microbot.Microbot;
 import net.runelite.client.plugins.microbot.Script;
 import net.runelite.client.plugins.microbot.api.tileobject.models.Rs2TileObjectModel;
 import net.runelite.client.plugins.microbot.gefiremaker.enums.GEWorkLocation;
 import net.runelite.client.plugins.microbot.gefiremaker.enums.LogType;
+import net.runelite.client.plugins.microbot.mobile.MobileActions;
 import net.runelite.client.plugins.microbot.util.antiban.Rs2Antiban;
 import net.runelite.client.plugins.microbot.util.antiban.Rs2AntibanSettings;
 import net.runelite.client.plugins.microbot.util.bank.Rs2Bank;
@@ -27,8 +29,16 @@ enum State {
     BUILDING_FIRE
 }
 
+/**
+ * Grand Exchange firemaker: lights a fire at a chosen Grand Exchange worksite (or uses one already burning)
+ * and burns the selected logs on it, banking between inventories. Adapted for Microbot Mobile; see
+ * MOBILE_PORT.md in this package.
+ */
+@Slf4j
 public class GEFiremakerScript extends Script {
     public State state = State.BANKING;
+    // Mobile: enableAutoRunOn is global; the value before start is put back on stop.
+    private boolean autoRunBefore = true;
     public String debug = "";
 
     // After using logs on the fire, the player burns the whole inventory on the
@@ -53,6 +63,7 @@ public class GEFiremakerScript extends Script {
         LogType logType = config.sLogType();
         GEWorkLocation desiredLocation = config.sLocation();
 
+        autoRunBefore = Microbot.enableAutoRunOn;
         Microbot.enableAutoRunOn = false;
 
         Rs2Antiban.resetAntibanSettings();
@@ -65,6 +76,19 @@ public class GEFiremakerScript extends Script {
         Rs2AntibanSettings.microBreakDurationHigh = 3;
 
         mainScheduledFuture = scheduledExecutorService.scheduleWithFixedDelay(() -> {
+            try {
+                loop(logType, desiredLocation);
+            } catch (Exception ex) {
+                // Mobile: an uncaught exception would silently end the schedule while the plugin still looked
+                // running; turn the plugin off so the Microbot Mobile screen shows it stopped.
+                Microbot.log("GE Firemaker stopped after an error: " + ex);
+                stopPlugin();
+            }
+        }, 0, 1000, TimeUnit.MILLISECONDS);
+        return true;
+    }
+
+    private void loop(LogType logType, GEWorkLocation desiredLocation) {
             if (!super.run() || !Microbot.isLoggedIn()) {
                 debug("Not running");
                 return;
@@ -112,6 +136,8 @@ public class GEFiremakerScript extends Script {
 
                         if (Rs2Dialogue.hasContinue()) {
                             Rs2Dialogue.clickContinue();
+                            // Mobile: pause between attempts; a refused click would otherwise spin this loop.
+                            sleep(300);
                             continue;
                         }
 
@@ -151,12 +177,18 @@ public class GEFiremakerScript extends Script {
                     debug("Log did not select; retrying next tick");
                     break;
                 }
-                Rs2GameObject.interact(fire);
+                // Mobile: the fire click comes a tick after the log select and can be refused under the
+                // one-action-per-tick rule; retry it, and only count as burning once it was accepted.
+                if (!sleepUntil(() -> Rs2GameObject.interact(fire), 2000)) {
+                    debug("Fire click not accepted; retrying next loop");
+                    break;
+                }
 
                 // Newer game versions start burning immediately; older ones show the
                 // burn make-X dialog, which we confirm with space.
                 if (sleepUntil(() -> Rs2Widget.getWidget(BURN_DIALOG_WIDGET) != null, 5000)) {
-                    Rs2Keyboard.keyPress(KeyEvent.VK_SPACE);
+                    // Mobile: retry the key until accepted.
+                    sleepUntil(() -> Rs2Keyboard.keyPress(KeyEvent.VK_SPACE), 3000);
                 }
 
                 burning = true;
@@ -200,9 +232,6 @@ public class GEFiremakerScript extends Script {
             Rs2Antiban.actionCooldown();
             Rs2Antiban.takeMicroBreakByChance();
             sleep(256, 789);
-            return;
-        }, 0, 1000, TimeUnit.MILLISECONDS);
-        return true;
     }
 
     // Determine the state of the script
@@ -247,7 +276,8 @@ public class GEFiremakerScript extends Script {
             if (!Rs2Inventory.hasItem(logType.getLogID())) {
                 debug("Could not find log type in bank.");
                 Microbot.showMessage("Could not find log type in bank.");
-                shutdown();
+                stopPlugin();
+                return;
             }
             sleep(180, 540);
             Rs2Bank.closeBank();
@@ -271,7 +301,8 @@ public class GEFiremakerScript extends Script {
             if (!Rs2Inventory.hasItem("Tinderbox")) {
                 debug("Could not find Tinderbox in bank.");
                 Microbot.showMessage("Could not find Tinderbox in bank.");
-                shutdown();
+                stopPlugin();
+                return;
             }
 
             sleep(180, 540);
@@ -284,7 +315,8 @@ public class GEFiremakerScript extends Script {
             if (!Rs2Inventory.hasItem(logType.getLogID())) {
                 debug("Could not find logs in bank.");
                 Microbot.showMessage("Could not find logs in bank.");
-                shutdown();
+                stopPlugin();
+                return;
             }
             sleep(180, 540);
             Rs2Bank.closeBank();
@@ -296,7 +328,7 @@ public class GEFiremakerScript extends Script {
     // (off-thread reads of the tile-object cache can be stale) and search by
     // name around the player, falling back to known fire object IDs.
     private Rs2TileObjectModel findActiveFire() {
-        return Microbot.getClientThread().runOnClientThreadOptional(() -> {
+        return MobileActions.read(() -> {
             Rs2TileObjectModel fire = Microbot.getRs2TileObjectCache().query()
                     .withNameContains("ampfire")
                     .nearest(Rs2Player.getWorldLocation(), 12);
@@ -306,17 +338,25 @@ public class GEFiremakerScript extends Script {
                         .nearest(Rs2Player.getWorldLocation(), 12);
             }
             return fire;
-        }).orElse(null);
+        }, null);
     }
 
     private void debug(String msg) {
         debug = msg;
-        System.out.println(msg);
+        // Mobile: debug level, not stdout, so a 1 s loop does not flood the device log.
+        log.debug(msg);
+    }
+
+    /** Turns the plugin off (not just this loop) so the Microbot Mobile screen and plugin list show it stopped. */
+    private void stopPlugin() {
+        shutdown();
+        Microbot.stopPlugin(GEFiremakerPlugin.class);
     }
 
     @Override
     public void shutdown() {
         super.shutdown();
         Rs2Antiban.resetAntibanSettings();
+        Microbot.enableAutoRunOn = autoRunBefore;
     }
 }
