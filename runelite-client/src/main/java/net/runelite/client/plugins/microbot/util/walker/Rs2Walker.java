@@ -456,6 +456,13 @@ public final class Rs2Walker
 		return walkTo(destination, 0);
 	}
 
+	/** As upstream: sets run to {@code toggleRun}, then {@link #walkFastCanvas(WorldPoint)}. */
+	public static boolean walkFastCanvas(WorldPoint destination, boolean toggleRun)
+	{
+		Rs2Player.toggleRunEnergy(toggleRun);
+		return walkFastCanvas(destination);
+	}
+
 	/** {@link #walkWithStateUntil}'s condition for the walk running on this thread. */
 	private static final ThreadLocal<java.util.function.BooleanSupplier> COMPLETION = new ThreadLocal<>();
 

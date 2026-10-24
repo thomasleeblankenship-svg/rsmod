@@ -93,6 +93,17 @@ public final class Rs2Widget
 		return target != null && MobileActions.widget(target[0], target[1], "");
 	}
 
+	/** As upstream: the first visible widget whose text matches {@code text} exactly (ignoring case) or contains it. */
+	public static boolean clickWidget(String text, boolean exact)
+	{
+		int[] target = MobileActions.read(() ->
+		{
+			Widget widget = findOnClientThread(text, null, exact);
+			return widget == null ? null : new int[]{widget.getId(), widget.getIndex()};
+		}, null);
+		return target != null && MobileActions.widget(target[0], target[1], "");
+	}
+
 	public static boolean clickWidget(Widget widget)
 	{
 		int[] target = MobileActions.read(() -> widget == null ? null : new int[]{widget.getId(), widget.getIndex()}, null);
