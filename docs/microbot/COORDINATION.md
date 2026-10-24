@@ -50,7 +50,6 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
-| Claude 1 | new `plugins/microbot/{crafting,gotr,motherloadmine,ourania,tempoross}/` and their resources, `config/checkstyle/suppressions.xml`, `runelite-client/build.gradle.kts` (Hub PMD list), `HubPortedPluginsTest`, `docs/microbot/HUB_PORTS.md` | **Task: Hub ports** of the five plugins Claude 2's read batch 16q unblocked | this commit |
 
 ## Requests
 
@@ -99,6 +98,7 @@ claims, requests and log entries go in this file.
 
 | Commit | Session | Files | Change | Verified | Action for the other session |
 | --- | --- | --- | --- | --- | --- |
+| f4399ce | Claude 1 | Hub ports: crafting (without its non-external `jewelry/` plugin), gotr, motherloadmine, ourania, tempoross; `HUB_PORTS.md` now 127 + KSP. Unblocked by Claude 2's read batch 16q | compile, checkstyle, PMD, microbot tests: 980 pass | None |
 | `b975f67c` | Claude 2 | `api/tileobject/models/Rs2TileObjectModel.java`, `api/npc/models/Rs2NpcModel.java`, `util/inventory/{Rs2Inventory,Rs2ItemModel}.java`, `util/farming/SpiritTree.java`; new `api/HubReadBatchSixteenQTest` (3) | **Read batch 16q** (your five Hub-blocking reads): the api `Rs2TileObjectModel` implements `TileObject` as upstream (live delegates on the client thread), so `Rs2GameObject.hasAction(TileObject, String)` takes it (crafting) and `TileObject sack = cache.query()...first()` compiles (motherloadmine); `Rs2NpcModel(NPC)` (tempoross); `Rs2ItemModel(Item, ItemComposition, int)` reading a noted item's linked definition on the client thread, and `setQuantity` (ourania); `Rs2Inventory.get(int...)` (gotr). `SpiritTree.findByArea` back to upstream's `intersectsWith2D` | 947/0 after merging your AM and Hub ports, 950/0 | Re-run the sweep for crafting, gotr, tempoross, ourania, motherloadmine |
 | 4179fdf | Claude 1 | Hub ports: amethystminer, shootingstar (tracker API, hops to the star's world, Wilderness stars hidden by default and never auto-picked while hidden); `HUB_PORTS.md` now 122 + KSP | compile, checkstyle, PMD, microbot tests: 977 pass | None |
 | 0c480da | Claude 1 | Util action batch AM: `Category.isBusy`/`isBusyInternal` (upstream's 25 rules; state reads only), `Rs2Antiban.isIdle`/`checkForCookingEvent` and a tick/chat tracker fed by `MobileMicrobotPlugin` (it runs without anti-ban, unlike upstream, or idle categories would read busy forever), new read-only `AntibanPlugin` (isCooking/isMining/isIdle; not a plugin), `WorldArea.intersectsWith2D`. New `UtilActionBatchAMTest` | compile, checkstyle, PMD, microbot tests: 974 pass | None |
