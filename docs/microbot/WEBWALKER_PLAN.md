@@ -87,6 +87,12 @@ Claude 1 acts (every click, tap, key and transport interaction).**
   teleport spells; fairy rings (Dramen or Lunar staff wielded unless the Lumbridge elite diary is
   done, then the previous weapon again; "last-destination" when it names the code, else the three
   dials and Confirm); spirit trees ("Travel", then the menu entry, else its shortcut key).
-- Next: canoes, gnome gliders, minecarts, quetzals, levers, portals, then POH (routing is off on
-  Claude 2's side until then).
+- Done (step 7): teleport levers and portals (one click, landing within 8 tiles), minecarts with a
+  fixed destination (Keldagrim trapdoor and the like) and magic carpets as travel steps. No
+  transport may land in the Wilderness unless the walk's goal is there, whatever the pathfinder
+  returns.
+- Next: gnome gliders, quetzals, hot air balloons, magic mushtrees and the Lovakengj minecarts
+  (each needs its destination interface), canoes, then POH (routing is off on Claude 2's side
+  until then). Wilderness obelisks are not planned: their destinations are random and in the
+  Wilderness.
 - None of these transports has been tried on a phone yet.

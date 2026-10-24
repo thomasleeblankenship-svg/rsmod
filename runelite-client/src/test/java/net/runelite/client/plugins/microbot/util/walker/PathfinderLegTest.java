@@ -26,10 +26,15 @@ public class PathfinderLegTest
 
 	private static Rs2Walker.WalkLeg legFor(PathResult route)
 	{
+		return legFor(route, GOAL);
+	}
+
+	private static Rs2Walker.WalkLeg legFor(PathResult route, WorldPoint goal)
+	{
 		try (MockedStatic<MobilePathfinder> pathfinder = mockStatic(MobilePathfinder.class))
 		{
 			pathfinder.when(() -> MobilePathfinder.find(any(), any())).thenReturn(route);
-			return Rs2Walker.pathfinderLeg(A, GOAL, 0);
+			return Rs2Walker.pathfinderLeg(A, goal, 0);
 		}
 	}
 
@@ -245,5 +250,61 @@ public class PathfinderLegTest
 		assertEquals('4', Rs2Walker.menuShortcut(leg.stairs.destinationText));
 		assertEquals('a', Rs2Walker.menuShortcut("A: Port Piscarilius"));
 		assertEquals(0, Rs2Walker.menuShortcut("Grand Exchange"));
+	}
+
+	/** Edgeville Wilderness ditch side, level 1, and the Deserted Keep, level 51. */
+	private static final WorldPoint WILDERNESS_EDGE = new WorldPoint(3087, 3530, 0);
+	private static final WorldPoint DESERTED_KEEP = new WorldPoint(3154, 3924, 0);
+
+	@Test
+	public void leversAndPortalsAreOneClickTeleportsThatLandLoosely()
+	{
+		Rs2Walker.WalkLeg portal = legFor(result(PathResult.Status.FOUND, TILES,
+			Map.of(1, transport(B, GOAL, TransportType.TELEPORTATION_PORTAL, "Enter", "Portal", 30386))));
+		assertNotNull(portal);
+		assertFalse(portal.stairs.travel);
+		assertFalse(portal.stairs.fairyRing);
+		assertEquals("Enter", portal.stairs.action);
+		assertEquals(8, portal.stairs.arrivalRadius);
+		Rs2Walker.WalkLeg lever = legFor(result(PathResult.Status.FOUND, TILES,
+			Map.of(1, transport(B, GOAL, TransportType.TELEPORTATION_LEVER, "Pull", "Lever", 1814))));
+		assertNotNull(lever);
+		assertEquals("Pull", lever.stairs.action);
+	}
+
+	@Test
+	public void minecartsWithAFixedDestinationRideAndMenuMinecartsFallBack()
+	{
+		Rs2Walker.WalkLeg trapdoor = legFor(result(PathResult.Status.FOUND, TILES,
+			Map.of(1, transport(B, GOAL, TransportType.MINECART, "Travel", "", 16168))));
+		assertNotNull(trapdoor);
+		assertTrue(trapdoor.stairs.travel);
+		assertEquals(5, trapdoor.stairs.arrivalRadius);
+		assertNull("the Lovakengj destination list is not handled yet", legFor(result(PathResult.Status.FOUND, TILES,
+			Map.of(1, transport(B, GOAL, TransportType.MINECART, "Travel", "1: Arceuus", 33107)))));
+	}
+
+	@Test
+	public void aMagicCarpetIsATravelStepThatAnswersItsDestination()
+	{
+		Rs2Walker.WalkLeg leg = legFor(result(PathResult.Status.FOUND, TILES,
+			Map.of(1, transport(B, GOAL, TransportType.MAGIC_CARPET, "Travel", "Uzer", 17))));
+		assertNotNull(leg);
+		assertTrue(leg.stairs.travel);
+		assertTrue(List.of(Rs2Walker.travelOptions(leg.stairs)).contains("Uzer"));
+	}
+
+	@Test
+	public void noTransportTakesThePlayerIntoTheWildernessUnlessTheGoalIsThere()
+	{
+		PathResult toKeep = result(PathResult.Status.FOUND, TILES,
+			Map.of(1, transport(B, DESERTED_KEEP, TransportType.TELEPORTATION_LEVER, "Pull", "Lever", 1814)));
+		assertNull(legFor(toKeep));
+		assertNotNull("a walk to the Wilderness may use it", legFor(toKeep, WILDERNESS_EDGE));
+		assertNull("teleports too", legFor(result(PathResult.Status.FOUND, TILES,
+			Map.of(0, transport(null, DESERTED_KEEP, TransportType.TELEPORTATION_ITEM, null, "Burning amulet: Lava Maze", -1)))));
+		assertTrue(Rs2Walker.entersWilderness(DESERTED_KEEP, GOAL));
+		assertFalse(Rs2Walker.entersWilderness(GOAL, DESERTED_KEEP));
+		assertFalse(Rs2Walker.entersWilderness(null, GOAL));
 	}
 }

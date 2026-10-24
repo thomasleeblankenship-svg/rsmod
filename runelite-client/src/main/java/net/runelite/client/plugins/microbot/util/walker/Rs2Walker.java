@@ -32,6 +32,7 @@ import net.runelite.client.plugins.microbot.shortestpath.MobilePathfinder;
 import net.runelite.client.plugins.microbot.shortestpath.MobileTransportPolicy;
 import net.runelite.client.plugins.microbot.shortestpath.PathResult;
 import net.runelite.client.plugins.microbot.shortestpath.TransportType;
+import net.runelite.client.plugins.microbot.shortestpath.pathfinder.PathfinderConfig;
 import net.runelite.client.plugins.microbot.util.Global;
 import net.runelite.client.plugins.microbot.util.dialogues.Rs2Dialogue;
 import net.runelite.client.plugins.microbot.util.equipment.Rs2Equipment;
@@ -491,7 +492,11 @@ public final class Rs2Walker
 
 	/** Rides on an NPC or vehicle: interact, answer the destination dialogue, wait for the landing. */
 	static final Set<TransportType> TRAVEL_TRANSPORTS = EnumSet.of(TransportType.BOAT, TransportType.SHIP, TransportType.NPC,
-		TransportType.CHARTER_SHIP, TransportType.SPIRIT_TREE);
+		TransportType.CHARTER_SHIP, TransportType.SPIRIT_TREE, TransportType.MINECART, TransportType.MAGIC_CARPET);
+
+	/** One object click that teleports: arrival is anywhere near the catalogued landing. */
+	static final Set<TransportType> TELEPORT_OBJECTS = EnumSet.of(TransportType.TELEPORTATION_LEVER,
+		TransportType.TELEPORTATION_PORTAL);
 
 	/** The charter-ship destination map (upstream: widget 885, child 4). */
 	private static final int CHARTER_GROUP = 885;
@@ -500,7 +505,8 @@ public final class Rs2Walker
 	/** Transport types the walker can execute; the pathfinder is told to admit only these. */
 	static final Set<TransportType> EXECUTABLE_TRANSPORTS = EnumSet.of(TransportType.TRANSPORT, TransportType.AGILITY_SHORTCUT,
 		TransportType.BOAT, TransportType.SHIP, TransportType.NPC, TransportType.CHARTER_SHIP, TransportType.TELEPORTATION_ITEM,
-		TransportType.TELEPORTATION_SPELL, TransportType.SPIRIT_TREE, TransportType.FAIRY_RING);
+		TransportType.TELEPORTATION_SPELL, TransportType.SPIRIT_TREE, TransportType.FAIRY_RING, TransportType.MINECART,
+		TransportType.MAGIC_CARPET, TransportType.TELEPORTATION_LEVER, TransportType.TELEPORTATION_PORTAL);
 
 	/** The spirit tree destination menu (upstream {@code ADVENTURE_LOG_CONTAINER}, 187) and its option list (187:3). */
 	private static final int DESTINATION_MENU_GROUP = 187;
@@ -594,6 +600,18 @@ public final class Rs2Walker
 			{
 				continue;
 			}
+			if (entersWilderness(transport.getDestination(), destination))
+			{
+				LOG.info("Mobile walk: route takes {} into the Wilderness; using the same-plane planner", transport);
+				return null;
+			}
+			if (transport.getType() == TransportType.MINECART && transport.getDisplayInfo() != null
+				&& !transport.getDisplayInfo().isBlank())
+			{
+				// A minecart with a destination list (Lovakengj, interface 947) is not handled yet.
+				LOG.info("Mobile walk: route needs minecart menu {}; using the same-plane planner", transport);
+				return null;
+			}
 			if (!EXECUTABLE_TRANSPORTS.contains(transport.getType())
 				|| (transport.getAction() == null && transport.getType() != TransportType.TELEPORTATION_ITEM
 					&& transport.getType() != TransportType.TELEPORTATION_SPELL && transport.getType() != TransportType.FAIRY_RING))
@@ -639,12 +657,22 @@ public final class Rs2Walker
 				return new WalkLeg(transport.getOrigin(), 1, step, new ArrayList<>(tiles.subList(0, i + 1)), true);
 			}
 			boolean travel = TRAVEL_TRANSPORTS.contains(transport.getType());
+			int arrival = travel ? TRAVEL_ARRIVAL_TILES : TELEPORT_OBJECTS.contains(transport.getType()) ? TELEPORT_ARRIVAL_TILES : 1;
 			ObjectTransports.Step step = new ObjectTransports.Step(transport.getOrigin(), transport.getDestination(),
-				transport.getObjectId(), transport.getAction(), transport.getName(), travel ? TRAVEL_ARRIVAL_TILES : 1,
-				travel, transport.getDisplayInfo());
+				transport.getObjectId(), transport.getAction(), transport.getName(), arrival, travel, transport.getDisplayInfo());
 			return new WalkLeg(transport.getOrigin(), 1, step, new ArrayList<>(tiles.subList(0, i + 1)), true);
 		}
 		return new WalkLeg(destination, radius, null, new ArrayList<>(tiles), true);
+	}
+
+	/**
+	 * A transport landing in the Wilderness when the walk's goal is not there. The pathfinder avoids
+	 * the Wilderness only where it can; the walker never takes the player into it unasked.
+	 */
+	static boolean entersWilderness(WorldPoint landing, WorldPoint goal)
+	{
+		return landing != null && PathfinderConfig.isInWilderness(landing)
+			&& (goal == null || !PathfinderConfig.isInWilderness(goal));
 	}
 
 	private static WalkLeg selectLeg(MobileRoutePlanner.Scene scene, WorldPoint destination, int radius)
