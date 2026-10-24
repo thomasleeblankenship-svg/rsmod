@@ -44,6 +44,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 2 (session `claude/dazzling-cannon-6cy3wc`) | new `shortestpath/WalkerPathReads.java` (+ small helpers in `shortestpath/**`), new tests | Webwalker finishing split **C2-2**: path reads behind upstream's walker API (`getWalkPath`, `getTotalTiles`, `getTotalTilesFromPath`, `getClosestTileIndex`, `getTransportsForDestination`, `getMissingTransportItemIdsWithQuantities`, `isWalkableInCollisionMap`, `getTile`) for Claude 1's one-line `Rs2Walker` statics (C1-3) | this commit |
 | Codex (user: next) | New `CODEX_APK_VERIFICATION.md`; local build/verification outputs only | Verify latest shared-source debug APK packaging and GitHub download identity; no runtime, CI or transport edits | this claim commit |
 
 ## Requests
