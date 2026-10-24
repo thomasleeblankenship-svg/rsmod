@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | `util/Rs2InventorySetup.java` (actions: `prePot()`, `prePot(List)`), `util/player/Rs2Player.java` (actions: `attack(Rs2PlayerModel)`, `walkUnder(Rs2PlayerModel)`), `mobile/MobileActions.java` (new `player(id, option)` primitive), new `HubActionBatchJTest` | **Task: util-gap action batch J** (pre-potting, player attack and walk-under; no trade or follow) | this commit |
 
 ## Requests
 
