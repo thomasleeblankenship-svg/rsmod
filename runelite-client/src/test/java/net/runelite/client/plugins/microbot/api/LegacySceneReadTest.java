@@ -437,4 +437,38 @@ public class LegacySceneReadTest
 		assertTrue(net.runelite.client.plugins.microbot.util.widget.Rs2Widget.findWidgetsWithAction("Abort", 602, false).containsKey(label));
 		assertTrue(net.runelite.client.plugins.microbot.util.widget.Rs2Widget.findWidgetsWithAction("Abort", 1, false).isEmpty());
 	}
+
+	@Test
+	public void batchThirteenGameObjectWallAndReachReads()
+	{
+		gameObject(1276, 8, 5);
+		gameObject(1276, 6, 5);
+		definition(1276, "Tree", "Chop down");
+		assertEquals(world(6, 5), onClientThread(() -> Rs2GameObject.getGameObject(1276).getWorldLocation()));
+		assertEquals(world(8, 5), onClientThread(() -> Rs2GameObject.getGameObject(1276, world(9, 5), 1).getWorldLocation()));
+		assertEquals(world(6, 5), onClientThread(() -> Rs2GameObject.getGameObject("tree").getWorldLocation()));
+		assertNull(Rs2GameObject.getGameObject(1));
+		assertNotNull(Rs2GameObject.getObjectComposition(1276));
+
+		net.runelite.api.WallObject wall = mock(net.runelite.api.WallObject.class);
+		when(wall.getId()).thenReturn(1530);
+		when(wall.getLocalLocation()).thenAnswer(i -> f.onClientThread(local(7, 7)));
+		when(wall.getWorldLocation()).thenAnswer(i -> f.onClientThread(world(7, 7)));
+		when(tile(7, 7).getWallObject()).thenReturn(wall);
+		assertEquals(List.of(wall), Rs2GameObject.getWallObjects());
+
+		assertTrue("open ground next to the player", Rs2GameObject.canReach(world(7, 5)));
+		wallIn(20, 20);
+		assertFalse("walled in far away", Rs2GameObject.canReach(world(20, 20), 1, 1, 1, 1));
+	}
+
+	@Test
+	public void batchThirteenLineOfSightTileIsTheSourceWhenFree()
+	{
+		tile(9, 9);
+		assertEquals(world(9, 9), net.runelite.client.plugins.microbot.util.tile.Rs2Tile.getNearestWalkableTileWithLineOfSight(world(9, 9)));
+		flags[9][9] = CollisionDataFlag.BLOCK_MOVEMENT_FULL;
+		tile(9, 10);
+		assertEquals(world(9, 10), net.runelite.client.plugins.microbot.util.tile.Rs2Tile.getNearestWalkableTileWithLineOfSight(world(9, 9)));
+	}
 }

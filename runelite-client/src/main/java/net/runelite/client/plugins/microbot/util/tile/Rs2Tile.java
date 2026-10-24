@@ -155,6 +155,53 @@ public final class Rs2Tile
 		}
 	}
 
+	/**
+	 * As upstream: {@code source} itself when it is a free tile (no wall, no movement flag, or a bank
+	 * booth), else the first such neighbour that is not the player's tile.
+	 */
+	public static WorldPoint getNearestWalkableTileWithLineOfSight(WorldPoint source)
+	{
+		if (source == null)
+		{
+			return null;
+		}
+		if (freeOrBooth(source))
+		{
+			return source;
+		}
+		WorldPoint player = net.runelite.client.plugins.microbot.util.player.Rs2Player.getWorldLocation();
+		for (net.runelite.api.coords.Direction direction : net.runelite.api.coords.Direction.values())
+		{
+			WorldPoint neighbour = neighbour(direction, source);
+			if (!neighbour.equals(player) && freeOrBooth(neighbour))
+			{
+				return neighbour;
+			}
+		}
+		return null;
+	}
+
+	/** Upstream's line-of-sight tile test: no wall object, no movement flags, and walkable or a bank booth. */
+	private static boolean freeOrBooth(WorldPoint point)
+	{
+		boolean free = MobileActions.read(() ->
+		{
+			WorldView view = Microbot.getClient().getTopLevelWorldView();
+			Tile tile = getTile(point.getX(), point.getY());
+			int[][] flags = view == null ? null : flags(view, view.getPlane());
+			LocalPoint local = view == null ? null : LocalPoint.fromWorld(view, point);
+			return tile != null && tile.getWallObject() == null && flags != null && local != null
+				&& inBounds(flags, local.getSceneX(), local.getSceneY()) && flags[local.getSceneX()][local.getSceneY()] == 0;
+		}, false);
+		if (free)
+		{
+			return true;
+		}
+		net.runelite.api.GameObject booth = net.runelite.client.plugins.microbot.util.gameobject.Rs2GameObject.getGameObject(o -> point.equals(o.getWorldLocation()), point, 1);
+		net.runelite.api.ObjectComposition composition = booth == null ? null : net.runelite.client.plugins.microbot.util.gameobject.Rs2GameObject.convertToObjectComposition(booth);
+		return composition != null && "bank booth".equalsIgnoreCase(MobileActions.read(composition::getName, ""));
+	}
+
 	/** As upstream: tiles reachable from {@code tile} with their step distance (no distance limit). */
 	public static java.util.HashMap<WorldPoint, Integer> getReachableTilesFromTile(WorldPoint tile)
 	{

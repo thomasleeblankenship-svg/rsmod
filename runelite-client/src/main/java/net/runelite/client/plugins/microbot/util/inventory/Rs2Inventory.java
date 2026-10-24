@@ -185,6 +185,14 @@ public final class Rs2Inventory
 	public static Rs2ItemModel getRandom(int... ids) { return getRandom(item -> Arrays.stream(ids).anyMatch(id -> id == item.getId())); }
 	public static Rs2ItemModel getRandom(String... names) { return getRandom(item -> Arrays.stream(names).anyMatch(name -> item.getName().equalsIgnoreCase(name))); }
 	public static List<Rs2ItemModel> getList(Predicate<Rs2ItemModel> predicate) { return items(predicate).collect(Collectors.toList()); }
+	/** As upstream: the last slot holding {@code id}. */
+	public static Rs2ItemModel getLast(int id) { return items(i -> i.getId() == id).reduce((a, b) -> b).orElse(null); }
+	/** As upstream: items with a "Scatter" option. */
+	public static List<Rs2ItemModel> getAshes()
+	{
+		return items(i -> i.getInventoryActions() != null && Arrays.stream(i.getInventoryActions()).anyMatch("scatter"::equalsIgnoreCase))
+			.collect(Collectors.toList());
+	}
 	/** As upstream: every item matching {@code filter}. */
 	public static List<Rs2ItemModel> all(Predicate<Rs2ItemModel> filter) { return items(filter).collect(Collectors.toList()); }
 	public static Rs2ItemModel get(int id) { return items(i -> i.getId() == id).findFirst().orElse(null); }
