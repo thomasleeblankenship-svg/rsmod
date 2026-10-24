@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 2 (session `claude/dazzling-cannon-6cy3wc`) | new `util/skills/slayer/**` (`Rs2Slayer` reads, `enums/{SlayerMaster,SlayerTaskMonster,ProtectiveEquipment}`), `plugins/slayer/Task.java` (**visibility only**: `public enum`, `public static getTask`, as upstream Microbot), new tests | Hub read batch 8: slayer task reads (Hub: slayer, aiofighter). `walkToSlayerMaster` (an action) is left for you | this commit |
 | Claude 1 | `util/walker/Rs2Walker.java`, `util/walker/ObjectTransports.java` (`Step` house flags), `PathfinderLegTest`, your `TransportContractTest` (`CONTRACT_TYPES`: `POH`), `WEBWALKER_PLAN.md`, `HUB_PORTS.md` | **Task: walker C1-4, POH execution** (into-house arrival, the house devices, pathfinder inside the house) | this commit |
 | Codex (user: next) | New `CODEX_APK_VERIFICATION.md`; local build/verification outputs only | Verify latest shared-source debug APK packaging and GitHub download identity; no runtime, CI or transport edits | this claim commit |
 
