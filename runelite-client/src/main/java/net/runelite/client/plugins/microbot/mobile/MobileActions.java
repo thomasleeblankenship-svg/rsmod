@@ -475,6 +475,28 @@ public final class MobileActions
 		});
 	}
 
+	/** Holds a key down for the script (released by {@link #keyRelease} or when the session ends); one script action. */
+	public static boolean keyHold(int keyCode)
+	{
+		return perform(() -> JavaBridge.onScriptKeyHold(keyCode, permission));
+	}
+
+	/**
+	 * Releases a key the script holds. Not one of the per-tick actions: a release only ends a hold,
+	 * so it goes out even in a busy tick. False when the script holds no such key.
+	 */
+	public static boolean keyRelease(int keyCode)
+	{
+		ScriptInputSession owner = permission;
+		return owner != null && read(() -> JavaBridge.onScriptKeyRelease(keyCode, owner), false);
+	}
+
+	/** A script drag between two canvas points (upstream {@code Microbot.drag}); one script action. */
+	public static boolean drag(int x1, int y1, int x2, int y2)
+	{
+		return perform(() -> JavaBridge.onScriptDrag(x1, y1, x2, y2, permission));
+	}
+
 	/** One script tap at a canvas point (upstream mouse clicks); one script action. */
 	public static boolean tap(int x, int y)
 	{

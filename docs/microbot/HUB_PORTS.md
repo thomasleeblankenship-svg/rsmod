@@ -161,7 +161,11 @@ Known differences from desktop:
   game tick; tight switches may land late. Needs a phone test before relying on it.
 - **Script-built menu entries** (`Microbot.doInvoke`, 24 Hub calls in 13 plugins) are sent exactly as built, one
   per game tick. The rectangle is ignored (there is no cursor), a WALK entry taps the canvas point it
-  carries, and nothing is sent while the Wilderness warning is open. `Microbot.drag` is not ported.
+  carries, and nothing is sent while the Wilderness warning is open.
+- **Held keys and drags** (`Rs2Keyboard.keyHold`/`keyRelease`, `Microbot.drag`, `Rs2Inventory.moveItemToSlot`):
+  a held key stays down until released and is released by itself when the script stops or the player
+  touches the screen; a drag holds past the engine's drag dead time, moves in four steps and releases
+  at the end point. Neither has been tried on a phone.
 - **Dangerous tiles** (`Rs2Tile.addDangerous*`, used by boss helpers): when a script marks the player's own
   tile, the walker makes one scene walk to the nearest safe tile, as upstream does. It only does this while a
   script session is active, at most one dodge at a time, and never on the client thread.

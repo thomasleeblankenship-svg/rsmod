@@ -214,6 +214,39 @@ public final class Rs2Inventory
 	}
 
 	public static boolean interact(Rs2ItemModel item) { return interact(item, ""); }
+	/**
+	 * As upstream: drags {@code item} onto inventory {@code slot}. False for a missing item, a slot
+	 * out of range or the slot it is already in, or when the inventory is not showing (it is opened
+	 * first, as upstream). True once the drag has run; the caller observes the swap.
+	 */
+	public static boolean moveItemToSlot(Rs2ItemModel item, int slot)
+	{
+		if (item == null || slot < 0 || slot >= 28 || item.getSlot() == slot)
+		{
+			return false;
+		}
+		if (!MobileActions.ensureInventoryVisible() && !waitFor(MobileActions::ensureInventoryVisible, 2_000))
+		{
+			return false;
+		}
+		java.awt.Rectangle[] bounds = MobileActions.read(() ->
+		{
+			net.runelite.api.widgets.Widget inventory = Microbot.getClient().getWidget(net.runelite.api.widgets.WidgetInfo.INVENTORY);
+			net.runelite.api.widgets.Widget[] slots = inventory == null ? null : inventory.getDynamicChildren();
+			if (slots == null || slots.length <= Math.max(slot, item.getSlot()) || slots[item.getSlot()] == null || slots[slot] == null)
+			{
+				return null;
+			}
+			return new java.awt.Rectangle[]{slots[item.getSlot()].getBounds(), slots[slot].getBounds()};
+		}, null);
+		if (bounds == null)
+		{
+			return false;
+		}
+		Microbot.drag(bounds[0], bounds[1]);
+		return true;
+	}
+
 	/** As upstream: the first inventory action of the item in {@code slot}. */
 	public static boolean slotInteract(int slot) { return slotInteract(slot, ""); }
 	/** As upstream: {@code action} (or, blank, the first action) on the item in {@code slot}. */
