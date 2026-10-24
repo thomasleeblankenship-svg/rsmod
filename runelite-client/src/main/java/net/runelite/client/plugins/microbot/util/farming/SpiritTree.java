@@ -516,10 +516,8 @@ public enum SpiritTree {
     public static Optional<SpiritTree> findByArea(WorldArea area) {
         return Arrays.stream(values())
                 .filter(tree -> {
-                    // Upstream's intersectsWith2D ignores the plane; this API has no 2D variant,
-                    // so compare on the query area's plane instead.
-                    WorldArea treeArea = new WorldArea(tree.getLocation().getX(), tree.getLocation().getY(), 3, 3, area.getPlane());
-                    return area.intersectsWith(treeArea);
+                    WorldArea treeArea = new WorldArea(tree.getLocation(), 3, 3);
+                    return area.intersectsWith2D(treeArea);
                 })
                 .findFirst();
     }
