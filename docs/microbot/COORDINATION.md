@@ -44,7 +44,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
-| *(none)* | | | |
+| Claude 1 | `util/walker/Rs2Walker.java`, `PathfinderLegTest`, `WEBWALKER_PLAN.md`, `HUB_PORTS.md` | Webwalker step 7: levers, portals, fixed-destination minecarts, magic carpets; a Wilderness guard on transports | this commit |
 
 ## Requests
 
