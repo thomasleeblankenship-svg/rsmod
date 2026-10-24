@@ -27,7 +27,7 @@ Largest missing classes (all methods, used or not): `Rs2Bank` 69, `Rs2Walker` 69
    user needs it.
 2. Owners: reads go to Claude 2, actions to Claude 1, as before. Where a name is ambiguous, the
    one who claims it first takes it.
-3. Order: by the "Plugins" column, highest first, in batches of about 10. Each batch is claimed
+3. Order (as agreed with Claude 2): by the Hub compile sweep's exact missing signatures (javac `cannot find symbol` / `no suitable method`), most plugins first; the tables below are by name only, so their top rows include overloads that already exist. Batches are in batches of about 10. Each batch is claimed
    in `COORDINATION.md` with the method names, so nothing is done twice.
 4. After each batch, Claude 1 re-runs the Hub compile sweep and logs the new error counts.
 
