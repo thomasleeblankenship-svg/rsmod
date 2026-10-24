@@ -7,7 +7,7 @@ live-game, device or APK evidence.
 
 ## Current status (read this first)
 
-**Update 2026-10-24 (later): read batches 16a to 16k, beyond the Hub.** After the Hub
+**Update 2026-10-24 (later): read batches 16a to 16o, beyond the Hub.** After the Hub
 reads, the remaining upstream `util/**` read gaps were ported class by class (the user's
 "do a lot more of it"), each under its own claim; commits are in the
 [COORDINATION.md](COORDINATION.md) change log.
@@ -27,17 +27,19 @@ reads, the remaining upstream `util/**` read gaps were ported class by class (th
   (pricing keeps upstream's integer arithmetic so totals match); Quest Helper's farm-run
   model `questhelper/helpers/mischelpers/farmruns/**`; the legacy object models
   `util/gameobject/Rs2ObjectModel` and `util/tileobject/**`; `Rs2DropSource`,
-  `Rs2SpawnLocation`, `Rs2WidgetInspector`.
-- **Waiting on Claude 1:** `util/farming/{Rs2Farming,SpiritTree}` (needs
-  `Microbot.getInjector()`), `Rs2FuzzyItem` (needs `inventorysetups` variation data),
-  `Rs2ShopSource.canAccess` (needs `Rs2Walker.canReach(WorldPoint, boolean)`), and the
-  `util/world/**` split (asked).
+  `Rs2SpawnLocation`, `Rs2WidgetInspector`; `util/farming/{Rs2Farming,SpiritTree}` (over
+  `Microbot.getInjector()`); `util/inventory/Rs2FuzzyItem` (over Claude 1's
+  `InventorySetupsVariationMapping`); `util/shop/Actions`, `util/player/NameGenerator`.
+- **Left:** a fresh gap run against upstream shows only walker-routed reads, reads the
+  api base classes already provide, and the items below. The `util/world/**` split is
+  still an open question to Claude 1 (it leans on their `LoginManager`).
+  `Rs2ShopSource.canAccess` was ported by Claude 1 over their new walker overload.
 - **Not ported, by design:** `Rs2UiHelper.isClientVersionCompatible` (no Microbot version
   property here), anti-ban idle tracking (`Rs2Antiban.isIdle`, `Category.isBusy`; the
   anti-ban plugin stays inert), the persisted bank mirror (`Rs2BankData`; the opening
   time and mirror check are this session's), walker-routed reads (nearest bank or
   spellbook switch, bank paths).
-- **Validation:** 930 tests in the standard verify, Checkstyle and PMD clean. Mocked
+- **Validation:** 944 tests in the standard verify, Checkstyle and PMD clean. Mocked
   interfaces only: this is not live-game, device or APK evidence.
 
 **Update 2026-10-24: Hub read API complete.** Every read that a Hub plugin calls is now
