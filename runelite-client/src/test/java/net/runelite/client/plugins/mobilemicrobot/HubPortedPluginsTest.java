@@ -88,7 +88,13 @@ public class HubPortedPluginsTest
 		"net.runelite.client.plugins.microbot.driftnet.DriftNetPlugin",
 		"net.runelite.client.plugins.microbot.dailytasks.DailyTasksPlugin",
 		"net.runelite.client.plugins.microbot.EnsouledHeadSlayer.EnsouledHeadSlayerPlugin",
-		"net.runelite.client.plugins.microbot.DeadFallTrapHunter.DeadFallTrapHunterPlugin");
+		"net.runelite.client.plugins.microbot.DeadFallTrapHunter.DeadFallTrapHunterPlugin",
+		"net.runelite.client.plugins.microbot.GemCrabKiller.GemCrabKillerPlugin",
+		"net.runelite.client.plugins.microbot.aiomagic.AIOMagicPlugin",
+		"net.runelite.client.plugins.microbot.autoessencemining.AutoEssenceMiningPlugin",
+		"net.runelite.client.plugins.microbot.cannonballsmelter.CannonballSmelterPlugin",
+		"net.runelite.client.plugins.microbot.eventdismiss.EventDismissPlugin",
+		"net.runelite.client.plugins.microbot.housethieving.HouseThievingPlugin");
 
 	private static Plugin instance(String name) throws Exception
 	{

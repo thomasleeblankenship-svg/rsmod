@@ -1,0 +1,247 @@
+package net.runelite.client.plugins.microbot.aiomagic.scripts;
+
+import net.runelite.api.Skill;
+import net.runelite.api.gameval.ItemID;
+import net.runelite.client.plugins.microbot.Microbot;
+import net.runelite.client.plugins.microbot.Script;
+import net.runelite.client.plugins.microbot.aiomagic.AIOMagicPlugin;
+import net.runelite.client.plugins.microbot.aiomagic.enums.MagicState;
+import net.runelite.client.plugins.microbot.aiomagic.enums.SuperHeatItem;
+import net.runelite.client.plugins.microbot.util.antiban.Rs2Antiban;
+import net.runelite.client.plugins.microbot.util.antiban.Rs2AntibanSettings;
+import net.runelite.client.plugins.microbot.util.antiban.enums.Activity;
+import net.runelite.client.plugins.microbot.util.bank.Rs2Bank;
+import net.runelite.client.plugins.microbot.util.equipment.Rs2Equipment;
+import net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory;
+import net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel;
+import net.runelite.client.plugins.microbot.util.magic.Rs2Magic;
+import net.runelite.client.plugins.microbot.util.magic.Rs2Staff;
+import net.runelite.client.plugins.microbot.util.magic.Runes;
+import net.runelite.client.plugins.microbot.util.player.Rs2Player;
+
+import javax.inject.Inject;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+
+public class SuperHeatScript extends Script {
+
+    private MagicState state;
+    private final AIOMagicPlugin plugin;
+
+    @Inject
+    public SuperHeatScript(AIOMagicPlugin plugin) {
+        this.plugin = plugin;
+    }
+
+    public boolean run() {
+        Microbot.enableAutoRunOn = false;
+        Rs2Antiban.resetAntibanSettings();
+        Rs2Antiban.antibanSetupTemplates.applyGeneralBasicSetup();
+        Rs2AntibanSettings.simulateAttentionSpan = true;
+        Rs2AntibanSettings.nonLinearIntervals = true;
+        Rs2AntibanSettings.contextualVariability = true;
+        Rs2AntibanSettings.usePlayStyle = true;
+        Rs2Antiban.setActivity(Activity.SUPERHEATING);
+        mainScheduledFuture = scheduledExecutorService.scheduleWithFixedDelay(() -> {
+            try {
+                if (!Microbot.isLoggedIn()) return;
+                if (!super.run()) return;
+                long startTime = System.currentTimeMillis();
+
+                if (hasStateChanged()) {
+                    state = updateState();
+                }
+
+                if (state == null) {
+                    Microbot.showMessage("Unable to evaluate state");
+                    shutdown();
+                    return;
+                }
+
+                if (!plugin.getSuperHeatItem().hasRequiredLevel()) {
+                    Microbot.showMessage("You do not have the required level for this item");
+                    shutdown();
+                    return;
+                }
+
+                switch (state) {
+                    case BANKING:
+                        boolean isBankOpen = Rs2Bank.isNearBank(15) ? Rs2Bank.openBank() : Rs2Bank.walkToBankAndUseBank();
+                        if (!isBankOpen || !Rs2Bank.isOpen()) return;
+
+                        Rs2Bank.depositAllExcept(ItemID.NATURERUNE);
+                        Rs2Inventory.waitForInventoryChanges(1200);
+
+                        List<Rs2Staff> staffList = Rs2Magic.findStavesByRunes(List.of(Runes.FIRE));
+
+                        boolean hasFireStaffEquipped = staffList.stream()
+                                .map(Rs2Staff::getItemID)
+                                .anyMatch(Rs2Equipment::isWearing);
+
+                        if (!hasFireStaffEquipped) {
+                            Rs2ItemModel staffItem = Rs2Bank.bankItems().stream()
+                                    .filter(rs2Item -> staffList.stream()
+                                            .map(Rs2Staff::getItemID)
+                                            .anyMatch(id -> id == rs2Item.getId()))
+                                    .findFirst()
+                                    .orElse(null);
+
+                            if (staffItem == null) {
+                                Microbot.showMessage("Unable to find staff");
+                                shutdown();
+                                return;
+                            }
+
+                            Rs2Bank.withdrawAndEquip(staffItem.getId());
+                        }
+
+                        if (!Rs2Inventory.hasItem(ItemID.NATURERUNE)) {
+                            if (!Rs2Bank.hasItem(ItemID.NATURERUNE)) {
+                                Microbot.showMessage("Nature Runes not found");
+                                shutdown();
+                                return;
+                            }
+
+                            Rs2Bank.withdrawAll(ItemID.NATURERUNE);
+                            Rs2Inventory.waitForInventoryChanges(1200);
+                        }
+
+                        int[] requiredMaterials = calculateRequiredMaterials(plugin.getSuperHeatItem(), Rs2Inventory.emptySlotCount());
+                        int requiredPrimary = requiredMaterials[0];
+                        int requiredSecondary = requiredMaterials[1];
+
+                        if (!Rs2Bank.hasBankItem(plugin.getSuperHeatItem().getItemID(), requiredPrimary)) {
+                            Microbot.showMessage("Missing Ore Requirement!");
+                            shutdown();
+                            return;
+                        }
+
+                        if (!withdrawExactAmount(plugin.getSuperHeatItem().getItemID(), requiredPrimary)) {
+                            return;
+                        }
+
+                        if (requiredSecondary > 0) {
+                            if (!Rs2Bank.hasBankItem(plugin.getSuperHeatItem().getSecondaryItemID(), requiredSecondary)) {
+                                Microbot.showMessage("Missing Secondary Material Requirement!");
+                                shutdown();
+                                return;
+                            }
+
+                            if (!withdrawExactAmount(plugin.getSuperHeatItem().getSecondaryItemID(), requiredSecondary)) {
+                                return;
+                            }
+                        }
+
+                        if (!hasBankedMaterialsForCycle(requiredPrimary, requiredSecondary)) {
+                            return;
+                        }
+
+                        Rs2Bank.closeBank();
+                        sleepUntil(() -> !Rs2Bank.isOpen());
+                        break;
+                    case CASTING:
+                        if (!Rs2Inventory.hasItem(ItemID.NATURERUNE)) {
+                            Microbot.showMessage("Nature Runes not found");
+                            shutdown();
+                            return;
+                        }
+                        Rs2Magic.superHeat(plugin.getSuperHeatItem().getItemID());
+                        Rs2Player.waitForXpDrop(Skill.MAGIC, 10000, false);
+                        break;
+                }
+
+                long endTime = System.currentTimeMillis();
+                long totalTime = endTime - startTime;
+                System.out.println("Total time for loop " + totalTime);
+
+            } catch (Exception ex) {
+                System.out.println(ex.getMessage());
+            }
+        }, 0, 1000, TimeUnit.MILLISECONDS);
+        return true;
+    }
+
+    @Override
+    public void shutdown() {
+        Rs2Antiban.resetAntibanSettings();
+        super.shutdown();
+    }
+
+    private boolean hasStateChanged() {
+        if (state == null) return true;
+        if (state == MagicState.BANKING && hasRequiredItems()) return true;
+        if (state == MagicState.CASTING && !hasRequiredItems()) return true;
+        return false;
+    }
+
+    private MagicState updateState() {
+        if (state == null) return hasRequiredItems() ? MagicState.CASTING : MagicState.BANKING;
+        if (state == MagicState.BANKING && hasRequiredItems()) return MagicState.CASTING;
+        if (state == MagicState.CASTING && !hasRequiredItems()) return MagicState.BANKING;
+        return null;
+    }
+
+    private boolean hasRequiredItems() {
+        if (plugin.getSuperHeatItem().getSecondaryAmount() > 0) {
+            return Rs2Inventory.hasItemAmount(plugin.getSuperHeatItem().getItemID(), plugin.getSuperHeatItem().getPrimaryAmount())
+                    && Rs2Inventory.hasItemAmount(
+                    plugin.getSuperHeatItem().getSecondaryItemID(),
+                    plugin.getSuperHeatItem().getSecondaryAmount());
+        }
+        return Rs2Inventory.hasItemAmount(plugin.getSuperHeatItem().getItemID(), plugin.getSuperHeatItem().getPrimaryAmount());
+    }
+
+    /**
+     * Determines the amount of primary and secondary materials to withdraw based on available empty slots.
+     *
+     * @param superHeatItem The SuperHeatItem for which to calculate the withdrawal amounts.
+     * @param emptySlots    The number of empty slots available in the inventory.
+     * @return An array where the first element is primary amount and second element is secondary amount.
+     */
+    public static int[] calculateRequiredMaterials(SuperHeatItem superHeatItem, int emptySlots) {
+        int primaryAmount = superHeatItem.getPrimaryAmount();
+        int secondaryAmount = superHeatItem.getSecondaryAmount();
+
+        // If no secondary material is required, all slots are for the primary ore.
+        if (secondaryAmount == 0) {
+            int cycles = emptySlots / primaryAmount;
+            return new int[]{cycles * primaryAmount, 0};
+        }
+
+        // Calculate max number of bars based on inventory and per-bar material counts.
+        int slotsPerCycle = primaryAmount + secondaryAmount;
+        int cycles = emptySlots / slotsPerCycle;
+
+        int primaryToWithdraw = cycles * primaryAmount;
+        int secondaryToWithdraw = cycles * secondaryAmount;
+
+        return new int[]{primaryToWithdraw, secondaryToWithdraw};
+    }
+    private boolean withdrawExactAmount(int itemId, int amount) {
+        if (amount <= 0) {
+            return true;
+        }
+
+        if (!Rs2Bank.withdrawX(true, itemId, amount)) {
+            return false;
+        }
+
+        Rs2Inventory.waitForInventoryChanges(1200);
+        sleepUntil(() -> Rs2Inventory.hasItemAmount(itemId, amount), 2500);
+        return Rs2Inventory.hasItemAmount(itemId, amount);
+    }
+
+    private boolean hasBankedMaterialsForCycle(int requiredPrimary, int requiredSecondary) {
+        boolean hasRequiredPrimary = Rs2Inventory.hasItemAmount(plugin.getSuperHeatItem().getItemID(), requiredPrimary)
+                && requiredPrimary >= plugin.getSuperHeatItem().getPrimaryAmount();
+        if (!hasRequiredPrimary) {
+            return false;
+        }
+
+        if (requiredSecondary <= 0) {
+            return true;
+        }
+
+        return Rs2Inventory.hasItemAmount(plugin.getSuperHeatItem().getSecondaryItemID(), requiredSecondary);
+    }
+}
