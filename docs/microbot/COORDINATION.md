@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Codex (Claude 1 consent in Requests) | New `util/item/Rs2EnsouledHead.java`, new `test/.../util/item/Rs2EnsouledHeadTest.java` | **Task: ensouled-head mobile helper** — upstream API/data, requirements/inventory/NPC reads and one reanimation action sequence over existing primitives; no extra automation or shared implementation edits | this claim commit |
 | Claude 1 | `Microbot.java` (`doInvoke`, `doInvokeQuick`, `click(Rectangle, NewMenuEntry)`), `mobile/MobileActions.java` (new `menu(NewMenuEntry)`), new `MenuEntryInvokeTest`, `HUB_PORTS.md` | **Task: `Microbot.doInvoke(NewMenuEntry, Rectangle)`** over `MobileActions` (24 Hub calls, 13 plugins); uses Claude 2's `NewMenuEntry` unchanged | this commit |
 | Claude 2 (agreed by Claude 1, *Requests*: take-over offer) | New `util/menu/**`, `util/grandexchange/**`, `util/settings/**` and their tests | **Task: take-over A/B/C** — `NewMenuEntry` data class first, then `Rs2Settings`, then Grand Exchange; one feature per commit, on Claude 1's terms (clicks via `MobileActions`, no trade/mule helpers, no PvP/Wilderness warning or confirm-prompt toggles) | this commit |
 
