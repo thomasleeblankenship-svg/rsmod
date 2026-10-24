@@ -534,9 +534,11 @@ public final class Rs2Walker
 		TransportType.MAGIC_CARPET, TransportType.TELEPORTATION_LEVER, TransportType.TELEPORTATION_PORTAL,
 		TransportType.GNOME_GLIDER, TransportType.HOT_AIR_BALLOON);
 
-	/** The spirit tree destination menu (upstream {@code ADVENTURE_LOG_CONTAINER}, 187) and its option list (187:3). */
-	private static final int DESTINATION_MENU_GROUP = 187;
-	private static final int DESTINATION_MENU_OPTIONS = 3;
+	/**
+	 * Destination lists as {group, child}: the spirit tree menu (upstream {@code ADVENTURE_LOG_CONTAINER},
+	 * 187:3) and the Lovakengj minecart list (947:9, "Minecart rides").
+	 */
+	private static final int[][] DESTINATION_MENUS = {{187, 3}, {947, 9}};
 
 	/** Staves that open fairy rings until the Lumbridge elite diary is done. */
 	private static final int[] FAIRY_RING_STAVES = {net.runelite.api.gameval.ItemID.DRAMEN_STAFF,
@@ -629,13 +631,6 @@ public final class Rs2Walker
 			if (entersWilderness(transport.getDestination(), destination))
 			{
 				LOG.info("Mobile walk: route takes {} into the Wilderness; using the same-plane planner", transport);
-				return null;
-			}
-			if (transport.getType() == TransportType.MINECART && transport.getDisplayInfo() != null
-				&& !transport.getDisplayInfo().isBlank())
-			{
-				// A minecart with a destination list (Lovakengj, interface 947) is not handled yet.
-				LOG.info("Mobile walk: route needs minecart menu {}; using the same-plane planner", transport);
 				return null;
 			}
 			if (!EXECUTABLE_TRANSPORTS.contains(transport.getType())
@@ -1258,15 +1253,25 @@ public final class Rs2Walker
 
 	private static boolean destinationMenuVisible()
 	{
-		return MobileActions.read(() ->
+		return MobileActions.read(() -> visibleDestinationMenu() != null, false);
+	}
+
+	/** The option list of whichever destination menu is showing, or null; client thread only. */
+	private static net.runelite.api.widgets.Widget visibleDestinationMenu()
+	{
+		for (int[] menu : DESTINATION_MENUS)
 		{
-			net.runelite.api.widgets.Widget menu = Microbot.getClient().getWidget(DESTINATION_MENU_GROUP, DESTINATION_MENU_OPTIONS);
-			return menu != null && !menu.isHidden();
-		}, false);
+			net.runelite.api.widgets.Widget list = Microbot.getClient().getWidget(menu[0], menu[1]);
+			if (list != null && !list.isHidden())
+			{
+				return list;
+			}
+		}
+		return null;
 	}
 
 	/**
-	 * As upstream: the spirit tree menu's entry naming the destination ("4: Grand Exchange" names
+	 * As upstream: the destination menu's entry naming the destination ("4: Grand Exchange" names
 	 * "Grand Exchange"), else the entry's shortcut key (the character before the colon).
 	 */
 	private static boolean chooseMenuDestination(String displayInfo)
@@ -1278,7 +1283,7 @@ public final class Rs2Walker
 		String needle = menuDestinationName(displayInfo).toLowerCase(java.util.Locale.ROOT);
 		int[] entry = MobileActions.read(() ->
 		{
-			net.runelite.api.widgets.Widget root = Microbot.getClient().getWidget(DESTINATION_MENU_GROUP, DESTINATION_MENU_OPTIONS);
+			net.runelite.api.widgets.Widget root = visibleDestinationMenu();
 			net.runelite.api.widgets.Widget match = root == null || needle.isEmpty() ? null : findCharterEntry(root, needle);
 			return match == null ? null : new int[]{match.getId(), match.getIndex()};
 		}, null);

@@ -273,15 +273,19 @@ public class PathfinderLegTest
 	}
 
 	@Test
-	public void minecartsWithAFixedDestinationRideAndMenuMinecartsFallBack()
+	public void minecartsRideWithAFixedDestinationOrADestinationList()
 	{
 		Rs2Walker.WalkLeg trapdoor = legFor(result(PathResult.Status.FOUND, TILES,
 			Map.of(1, transport(B, GOAL, TransportType.MINECART, "Travel", "", 16168))));
 		assertNotNull(trapdoor);
 		assertTrue(trapdoor.stairs.travel);
 		assertEquals(5, trapdoor.stairs.arrivalRadius);
-		assertNull("the Lovakengj destination list is not handled yet", legFor(result(PathResult.Status.FOUND, TILES,
-			Map.of(1, transport(B, GOAL, TransportType.MINECART, "Travel", "1: Arceuus", 33107)))));
+		Rs2Walker.WalkLeg lovakengj = legFor(result(PathResult.Status.FOUND, TILES,
+			Map.of(1, transport(B, GOAL, TransportType.MINECART, "Travel", "1: Arceuus", 33107))));
+		assertNotNull("a minecart with a destination list rides and picks its entry", lovakengj);
+		assertTrue(lovakengj.stairs.travel);
+		assertEquals("Arceuus", Rs2Walker.menuDestinationName(lovakengj.stairs.destinationText));
+		assertEquals('1', Rs2Walker.menuShortcut(lovakengj.stairs.destinationText));
 	}
 
 	@Test

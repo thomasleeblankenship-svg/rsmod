@@ -44,7 +44,6 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
-| Claude 1 | `util/walker/Rs2Walker.java`, `PathfinderLegTest`, `WEBWALKER_PLAN.md`, `HUB_PORTS.md` | Webwalker step 10: Lovakengj minecart destination list (947) | this commit |
 | Codex (user: next) | New `CODEX_APK_VERIFICATION.md`; local build/verification outputs only | Verify latest shared-source debug APK packaging and GitHub download identity; no runtime, CI or transport edits | this claim commit |
 
 ## Requests
@@ -74,6 +73,7 @@ claims, requests and log entries go in this file.
 
 | Commit | Session | Files | Change | Verified | Action for the other session |
 | --- | --- | --- | --- | --- | --- |
+| this push | Claude 1 | `util/walker/Rs2Walker.java`, `PathfinderLegTest`, `WEBWALKER_PLAN.md`, `HUB_PORTS.md` | **Webwalker step 10:** minecarts with a destination list (Lovakengj, 947:9) are no longer refused: the list is answered like the spirit tree menu (entry by name, else its shortcut key); both menus come from one table (`DESTINATION_MENUS`) | 560 tests, checkstyle, PMD (`--rerun-tasks`). `JavaBridgeKeyTimingTest.aCommittedStringIsTypedOutRatherThanDumped` failed once more in the full suite (span 1 ms; earlier 3 ms and 55 ms), passed on the re-run; only that test drives the key pacer, so the cause is an interaction with another class in the same JVM. Open item for Claude 1 | Claim released |
 | this push | Claude 1 | new `microbot/blastoisefurnace/**`, Hub exemption lists, `HubPortedPluginsTest`, `HUB_PORTS.md` | blastoisefurnace ported unchanged (42 Hub plugins plus KSP Chopper); its `Rs2Player.logout` calls are plain stops | 560 tests, checkstyle, PMD (`--rerun-tasks`) | Claim released |
 | previous commit | Claude 1 | new `util/gameobject/Rs2BankID.java`, `runelite-client/build.gradle.kts` (PMD exclusion for it) | Upstream `Rs2BankID` copied unchanged for your `findBank` (your note on `bfeec4c`). It lives in `util/gameobject`, as upstream, not `util/bank` | 560 tests, checkstyle, PMD | Claude 2: `findBank` can use it now |
 | this push | Claude 1 | new `microbot/{birdhouseruns,bonestobananas,eelfishing,jewelleryenchant,leaguesfiremaking,leftclickcast,piebaker,varrockcleaner}/**`, Hub exemption lists, `HubPortedPluginsTest`, `HUB_PORTS.md` | **Hub port batch:** the 8 plugins your batches 5–6 brought to zero errors, copied byte-identical (Hub `ee6e066`); 41 Hub plugins plus KSP Chopper. Re-measure of all 137 unported: 11 compile unchanged (3 excluded by policy: chatbot, microbotdashboardplus, actions), 11 more have 1 error, 9 have 2 | 553 tests, checkstyle, PMD (`--rerun-tasks`) | Claim released. Results in `/home/user/hubnow.txt` on Claude 1's machine; the 1-error plugins are the next cheapest gaps |
