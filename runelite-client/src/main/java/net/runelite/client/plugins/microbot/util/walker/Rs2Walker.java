@@ -211,6 +211,18 @@ public final class Rs2Walker
  * Bounded off-client-thread operation. It follows walking edges across scene loads, rechecking
  * real movement, collision and cancellation before every waypoint. Never waits on the game thread.
  */
+	/** As upstream: walks to {@code (x, y, plane)} with the default arrival distance. */
+	public static boolean walkTo(int x, int y, int plane)
+	{
+		return walkTo(new WorldPoint(x, y, plane));
+	}
+
+	/** As upstream: walks to within {@code distance} tiles of {@code (x, y, plane)}. */
+	public static boolean walkTo(int x, int y, int plane, int distance)
+	{
+		return walkTo(new WorldPoint(x, y, plane), distance);
+	}
+
 	public static boolean walkTo(WorldPoint destination, int distance)
 	{
 		Client client = Microbot.getClient();
@@ -559,14 +571,6 @@ public final class Rs2Walker
 	private static final long TELEPORT_MILLIS = 20_000;
 	/** Inventory options that open a teleport item's destinations or use it, in preference order. */
 	private static final List<String> TELEPORT_ITEM_OPTIONS = List.of("Rub", "Teleport", "Break", "Read", "Commune");
-	/** Worn-equipment widgets by equipment slot index (head 0 ... ammo 13; 6, 8 and 11 are unused). */
-	private static final java.util.Map<Integer, Integer> WORN_SLOT_WIDGETS = java.util.Map.ofEntries(
-		java.util.Map.entry(0, InterfaceID.Wornitems.SLOT0), java.util.Map.entry(1, InterfaceID.Wornitems.SLOT1),
-		java.util.Map.entry(2, InterfaceID.Wornitems.SLOT2), java.util.Map.entry(3, InterfaceID.Wornitems.SLOT3),
-		java.util.Map.entry(4, InterfaceID.Wornitems.SLOT4), java.util.Map.entry(5, InterfaceID.Wornitems.SLOT5),
-		java.util.Map.entry(7, InterfaceID.Wornitems.SLOT7), java.util.Map.entry(9, InterfaceID.Wornitems.SLOT9),
-		java.util.Map.entry(10, InterfaceID.Wornitems.SLOT10), java.util.Map.entry(12, InterfaceID.Wornitems.SLOT12),
-		java.util.Map.entry(13, InterfaceID.Wornitems.SLOT13));
 
 	/** A ride lands roughly where the catalogue says (gangplanks and docks shift by a few tiles). */
 	private static final int TRAVEL_ARRIVAL_TILES = 5;
@@ -1021,7 +1025,7 @@ public final class Rs2Walker
 	private static boolean dispatchTeleportItem(java.util.function.Predicate<Rs2ItemModel> isItem, String place)
 	{
 		Rs2ItemModel worn = Rs2Equipment.get(isItem);
-		Integer widget = worn == null ? null : WORN_SLOT_WIDGETS.get(worn.getSlot());
+		Integer widget = worn == null ? null : Rs2Equipment.wornSlotWidget(worn.getSlot());
 		if (widget != null)
 		{
 			String option = MobileActions.read(() ->

@@ -10,7 +10,10 @@ import net.runelite.api.InventoryID;
 import net.runelite.client.plugins.microbot.Microbot;
 import net.runelite.client.plugins.microbot.mobile.MobileActions;
 
-/** Equipment reads are performed on the client thread, never on the script thread. */
+/**
+ * Equipment reads are performed on the client thread, never on the script thread. Actions (the
+ * block at the end) dispatch one exact option on the worn-equipment tab through {@link MobileActions}.
+ */
 public final class Rs2Equipment
 {
 	private Rs2Equipment() { }
@@ -176,5 +179,114 @@ public final class Rs2Equipment
 	public static java.util.List<net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel> items()
 	{
 		return all().collect(java.util.stream.Collectors.toList());
+	}
+
+	// Actions (Claude 1)
+
+	/** Worn-equipment widgets by equipment slot index (head 0 ... ammo 13; 6, 8 and 11 are unused). */
+	private static final java.util.Map<Integer, Integer> WORN_SLOT_WIDGETS = java.util.Map.ofEntries(
+		java.util.Map.entry(0, net.runelite.api.gameval.InterfaceID.Wornitems.SLOT0),
+		java.util.Map.entry(1, net.runelite.api.gameval.InterfaceID.Wornitems.SLOT1),
+		java.util.Map.entry(2, net.runelite.api.gameval.InterfaceID.Wornitems.SLOT2),
+		java.util.Map.entry(3, net.runelite.api.gameval.InterfaceID.Wornitems.SLOT3),
+		java.util.Map.entry(4, net.runelite.api.gameval.InterfaceID.Wornitems.SLOT4),
+		java.util.Map.entry(5, net.runelite.api.gameval.InterfaceID.Wornitems.SLOT5),
+		java.util.Map.entry(7, net.runelite.api.gameval.InterfaceID.Wornitems.SLOT7),
+		java.util.Map.entry(9, net.runelite.api.gameval.InterfaceID.Wornitems.SLOT9),
+		java.util.Map.entry(10, net.runelite.api.gameval.InterfaceID.Wornitems.SLOT10),
+		java.util.Map.entry(12, net.runelite.api.gameval.InterfaceID.Wornitems.SLOT12),
+		java.util.Map.entry(13, net.runelite.api.gameval.InterfaceID.Wornitems.SLOT13));
+
+	/** The worn-equipment widget for an equipment slot index, or {@code null} for an unused index. */
+	public static Integer wornSlotWidget(int slot)
+	{
+		return WORN_SLOT_WIDGETS.get(slot);
+	}
+
+	/**
+	 * As upstream {@code invokeMenu}: opens the equipment tab and dispatches the worn item's option
+	 * whose text contains {@code action} (case-insensitive), so "remove" picks "Remove". {@code true}
+	 * means dispatched, not that the game acted on it.
+	 */
+	private static boolean interact(net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel item, String action)
+	{
+		if (item == null || action == null || action.isEmpty())
+		{
+			return false;
+		}
+		Integer widget = wornSlotWidget(item.getSlot());
+		if (widget == null)
+		{
+			return false;
+		}
+		String wanted = action.toLowerCase(Locale.ROOT);
+		String option = MobileActions.read(() ->
+		{
+			net.runelite.api.widgets.Widget slot = Microbot.getClient().getWidget(widget);
+			return slot == null || slot.getActions() == null ? null : java.util.Arrays.stream(slot.getActions())
+				.filter(candidate -> candidate != null && candidate.toLowerCase(Locale.ROOT).contains(wanted))
+				.findFirst().orElse(null);
+		}, null);
+		return option != null
+			&& net.runelite.client.plugins.microbot.util.tabs.Rs2Tab.switchTo(net.runelite.client.plugins.microbot.globval.enums.InterfaceTab.EQUIPMENT)
+			&& net.runelite.client.plugins.microbot.util.Global.sleepUntil(() -> MobileActions.widget(widget, -1, option), 2_000);
+	}
+
+	/** As upstream: the first worn item accepted by {@code predicate}. */
+	public static boolean interact(Predicate<net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel> predicate, String action)
+	{
+		return interact(get(predicate), action);
+	}
+
+	/** As upstream: the item in {@code slot}. */
+	public static boolean interact(EquipmentInventorySlot slot, String action)
+	{
+		return interact(get(slot), action);
+	}
+
+	/** As upstream: the first of {@code slots} whose item takes the action. */
+	public static boolean interact(EquipmentInventorySlot[] slots, String action)
+	{
+		if (slots == null) return false;
+		for (EquipmentInventorySlot slot : slots)
+		{
+			if (interact(slot, action)) return true;
+		}
+		return false;
+	}
+
+	/** As upstream: the worn item with this id. */
+	public static boolean interact(int id, String action)
+	{
+		return interact(get(id), action);
+	}
+
+	/** As upstream: the first of {@code ids} that is worn and takes the action. */
+	public static boolean interact(int[] ids, String action)
+	{
+		if (ids == null) return false;
+		for (int id : ids)
+		{
+			if (interact(id, action)) return true;
+		}
+		return false;
+	}
+
+	/** As upstream: "Remove" on the first worn item accepted by {@code predicate}. */
+	public static boolean unEquip(Predicate<net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel> predicate)
+	{
+		return interact(get(predicate), "remove");
+	}
+
+	/** As upstream: "Remove" on the item in the first of {@code slots} that holds one. */
+	public static boolean unEquip(EquipmentInventorySlot... slots)
+	{
+		return interact(get(slots), "remove");
+	}
+
+	/** As upstream: "Remove" on the first worn item with one of {@code ids}. */
+	public static boolean unEquip(int... ids)
+	{
+		return interact(get(ids), "remove");
 	}
 }

@@ -23,6 +23,7 @@ import net.runelite.api.TileObject;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldArea;
 import net.runelite.api.coords.WorldPoint;
+import net.runelite.client.plugins.microbot.api.MicrobotReadServices;
 import net.runelite.client.plugins.microbot.api.tileobject.models.Rs2TileObjectModel;
 import net.runelite.client.plugins.microbot.mobile.MobileActions;
 import net.runelite.client.plugins.microbot.util.walker.Rs2Walker;
@@ -135,6 +136,39 @@ public final class Rs2GameObject
 		if (net.runelite.client.plugins.microbot.Microbot.getRs2TileObjectCache() == null) return null;
 		var query = net.runelite.client.plugins.microbot.Microbot.getRs2TileObjectCache().query().where(filter);
 		return distance >= 0 ? query.within(distance).nearest() : query.nearest();
+	}
+
+	/**
+	 * As upstream: interacts with a live object (a game, wall, decorative or ground object, for
+	 * example from a scene read or a spawn event), through a snapshot taken on the client thread so
+	 * it is located as the object cache locates it. An empty action means its first action.
+	 */
+	public static boolean interact(TileObject object, String action, boolean checkCanReach)
+	{
+		if (object == null)
+		{
+			return false;
+		}
+		Rs2TileObjectModel model = MobileActions.read(() -> new Rs2TileObjectModel(MicrobotReadServices.require(), object), null);
+		return interact(model, action, checkCanReach);
+	}
+
+	/** As upstream: a live object's first action. */
+	public static boolean interact(TileObject object)
+	{
+		return interact(object, "", false);
+	}
+
+	/** As upstream: a live object's {@code action}. */
+	public static boolean interact(TileObject object, String action)
+	{
+		return interact(object, action, false);
+	}
+
+	/** As upstream: a live object's first action, walking to it first when {@code checkCanReach}. */
+	public static boolean interact(TileObject object, boolean checkCanReach)
+	{
+		return interact(object, "", checkCanReach);
 	}
 
 	/** Upstream overload: interacts with the model's first action. */
