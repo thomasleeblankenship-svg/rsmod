@@ -50,7 +50,6 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
-| Claude 1 | `util/inventory/Rs2RunePouch.java` (fullUpdate, onVarbitChanged, onWidgetLoaded); new `UtilActionBatchALTest` | **Task: util action batch AL**: rune pouch refresh hooks (last Hub-called util action) | this commit |
 
 ## Requests
 
@@ -98,8 +97,8 @@ claims, requests and log entries go in this file.
 
 | Commit | Session | Files | Change | Verified | Action for the other session |
 | --- | --- | --- | --- | --- | --- |
-| `e51b2f0` | Claude 2 | New `util/inventory/Rs2FuzzyItem.java`; new `inventory/HubReadBatchSixteenMTest` (2) | **Read batch 16m**: upstream's variation- and charge-aware counts (inventory, bank, equipment; charge filters and totals; best item; name helpers) over your `InventorySetupsVariationMapping`, verbatim | 943/0 | None |
-| `b9894ee` | Claude 2 | New `util/farming/{Rs2Farming,SpiritTree}.java`; new `farming/HubReadBatchSixteenLTest` (1) | **Read batch 16l**: upstream farming reads (patch tables by tab, state prediction and filters, closest patch, distance and level checks) over the farm-run model and your `getInjector`; `SpiritTree` table and availability reads. `findByArea` compares on the query area's plane (no `WorldArea.intersectsWith2D` here); upstream's TODO comments on unverified ids reworded as notes | 940/0 after merging your AI to AK, 941/0 | `SpiritTree` has no actions upstream beyond reads; travel stays with your walker |
+| 5475225 | Claude 1 | Hub ports: housetab, roguesden, zulrahslayer (without its random camera/mouse `RandomAction`), resources copied, PMD/checkstyle lists and `HubPortedPluginsTest` updated; `HUB_PORTS.md` now 120 + KSP. Not ported: giantmole (hops when the tunnel has other players), slayer (auto-picks cannon spots, some only in the Wilderness) | compile, checkstyle, PMD, microbot tests: 971 pass | None |
+| 77b099c | Claude 1 | Util action batch AL: `Rs2RunePouch.fullUpdate`/`onVarbitChanged`/`onWidgetLoaded` (no-ops: reads are live). Last Hub-called util action; what Hub still calls and lacks is excluded (`handleBankPin`, Discord webhooks, `Rs2PathApi`). New `UtilActionBatchALTest` | compile, checkstyle, PMD, microbot tests: 971 pass | None |
 | 8a1352b | Claude 1 | Util action batch AK: `Rs2Fletching` startFletchingWhileMoving, startArrowFletchingWhileMoving, startDartFletchingWhileMoving (one shared task on the script's scheduler; stops with materials, movement or the script), `stopFletchingWhileMoving` cancels it, `autoFletchAvailable`, `fletchItems(String, String, String)`. New `UtilActionBatchAKTest` | compile, checkstyle, PMD, microbot tests: 970 pass | None |
 | 580fae7 | Claude 1 | Util action batch AJ: new `Rs2SpellBookSettings` (whole class: toggleSpellFilter x2, seven filter toggles x2, setAllFiltersOn/Off, configureSpellbookSettings; display filters only). New `UtilActionBatchAJTest` | compile, checkstyle, PMD, microbot tests: 967 pass | None |
 | 86d6342 | Claude 1 | Util action batch AI (Claude 2's handoffs): `Microbot.getInjector()`; `Rs2Walker.canReach(WorldPoint, boolean)`; `Rs2ShopSource.canAccess()`; new `InventorySetupsVariationMapping` (verbatim). Requests marked done. New `UtilActionBatchAITest` | compile, checkstyle, PMD, microbot tests: 963 pass (`JavaBridgeKeyTimingTest` flaked once under load, passed on re-run) | Claude 2: `Rs2Farming`/`SpiritTree` and `Rs2FuzzyItem` are unblocked |

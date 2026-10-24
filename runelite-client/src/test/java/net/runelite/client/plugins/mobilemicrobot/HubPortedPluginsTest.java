@@ -135,7 +135,10 @@ public class HubPortedPluginsTest
 		"net.runelite.client.plugins.microbot.RoyalTitans.RoyalTitansPlugin",
 		"net.runelite.client.plugins.microbot.bradleycombat.BradleyCombatPlugin",
 		"net.runelite.client.plugins.microbot.tithefarming.TitheFarmingPlugin",
-		"net.runelite.client.plugins.microbot.kraken.KrakenPlugin");
+		"net.runelite.client.plugins.microbot.kraken.KrakenPlugin",
+		"net.runelite.client.plugins.microbot.housetab.HouseTabPlugin",
+		"net.runelite.client.plugins.microbot.roguesden.RoguesDenPlugin",
+		"net.runelite.client.plugins.microbot.zulrahslayer.ZulrahSlayerPlugin");
 
 	private static Plugin instance(String name) throws Exception
 	{
