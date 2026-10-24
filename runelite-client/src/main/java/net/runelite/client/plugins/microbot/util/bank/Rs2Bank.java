@@ -1484,4 +1484,158 @@ public final class Rs2Bank
 			return children == null ? java.util.Collections.<Widget>emptyList() : Arrays.asList(children);
 		}, java.util.Collections.emptyList());
 	}
+
+	// ---- Read batch 16f (upstream 2.6.38) ----
+
+	/** Upstream's bank interface group; its load marks a bank opening. */
+	private static final int BANK_GROUP = InterfaceID.BANKMAIN;
+
+	private static volatile long bankLastOpenedAt;
+
+	/** Records a bank opening when the bank interface loads; client thread, from {@code MicrobotReadServices}. */
+	public static void noteBankWidgetLoaded(net.runelite.api.events.WidgetLoaded event)
+	{
+		if (event.getGroupId() == BANK_GROUP)
+		{
+			bankLastOpenedAt = System.currentTimeMillis();
+		}
+	}
+
+	/**
+	 * As upstream: when the bank was last seen opening, in epoch milliseconds; 0 if not this session.
+	 * Upstream also restores it from the RuneScape profile; this port has no persisted bank mirror.
+	 */
+	public static long getBankLastOpenedAt()
+	{
+		return bankLastOpenedAt;
+	}
+
+	/** As upstream: a bank snapshot is available (here only a live one: there is no restored profile mirror). */
+	public static boolean hasBankMirrorSnapshot()
+	{
+		return getBankLiveEpoch() > 0;
+	}
+
+	/** As upstream: the banked item whose name contains {@code name} (ignoring case) with the shortest name. */
+	public static Rs2ItemModel findBankItem(String name)
+	{
+		if (name == null)
+		{
+			return null;
+		}
+		String lower = name.toLowerCase();
+		return getAll().filter(item -> item.getName() != null && item.getName().toLowerCase().contains(lower) && item.getQuantity() >= 1)
+			.min(Comparator.comparingInt(item -> item.getName().length())).orElse(null);
+	}
+
+	/**
+	 * As upstream: the bank row for a saved item id: that id, else its linked note id, else the exact
+	 * (members, then plain) name of its definition, so an id that drifted still finds its stack.
+	 */
+	public static Rs2ItemModel getBankItemForSavedId(int id)
+	{
+		if (id <= 0)
+		{
+			return null;
+		}
+		Rs2ItemModel direct = get(item -> item.getId() == id);
+		if (direct != null)
+		{
+			return direct;
+		}
+		ItemComposition definition = MobileActions.read(() -> Microbot.getClient().getItemDefinition(id), null);
+		if (definition == null)
+		{
+			return null;
+		}
+		int linked = definition.getLinkedNoteId();
+		Rs2ItemModel alternative = linked > 0 && linked != id ? get(item -> item.getId() == linked) : null;
+		if (alternative != null)
+		{
+			return alternative;
+		}
+		String membersName = definition.getMembersName();
+		String lookup = membersName != null && !membersName.isEmpty() ? membersName : definition.getName();
+		return lookup == null || lookup.isEmpty() ? null
+			: getAll().filter(item -> lookup.equalsIgnoreCase(item.getName()) && item.getQuantity() >= 1).findAny().orElse(null);
+	}
+
+	/** As upstream: the withdraw mode is noted ({@code noted}) or as items. */
+	public static boolean isWithdrawAs(boolean noted)
+	{
+		return (Microbot.getVarbitValue(VarbitID.BANK_WITHDRAWNOTES) == 1) == noted;
+	}
+
+	/** As upstream: the bank's item count text (top of the interface), or 0. */
+	public static int getBankItemCount()
+	{
+		Widget count = Rs2Widget.getWidget(InterfaceID.Bankmain.OCCUPIEDSLOTS);
+		String text = count == null ? null : MobileActions.read(count::getText, null);
+		if (text == null)
+		{
+			return 0;
+		}
+		try
+		{
+			return Integer.parseInt(text.trim());
+		}
+		catch (NumberFormatException e)
+		{
+			return 0;
+		}
+	}
+
+	/** As upstream: the main tab (0) is open. */
+	public static boolean isMainTabOpen()
+	{
+		return isTabOpen(0);
+	}
+
+	/** As upstream: tab {@code index}'s widget (tab bar child {@code index + 10}), or {@code null}. */
+	public static Widget getTabWidget(int index)
+	{
+		List<Widget> tabs = getTabs();
+		return index < 0 || index + 10 >= tabs.size() ? null : tabs.get(index + 10);
+	}
+
+	/** As upstream: bank-side inventory slot {@code slot} (0 to 27) is locked. */
+	public static boolean isLockedSlot(int slot)
+	{
+		if (slot < 0 || slot >= 28)
+		{
+			return false;
+		}
+		return MobileActions.read(() ->
+		{
+			Widget container = Microbot.getClient().getWidget(net.runelite.api.widgets.ComponentID.BANK_INVENTORY_ITEM_CONTAINER);
+			Widget[] children = container == null ? null : container.getChildren();
+			return children != null && slot < children.length && isWidgetLocked(children[slot]);
+		}, false);
+	}
+
+	/** As upstream: every locked bank-side inventory slot. */
+	public static List<Integer> findLockedSlots()
+	{
+		return MobileActions.read(() ->
+		{
+			Widget container = Microbot.getClient().getWidget(net.runelite.api.widgets.ComponentID.BANK_INVENTORY_ITEM_CONTAINER);
+			Widget[] children = container == null ? null : container.getChildren();
+			List<Integer> locked = new java.util.ArrayList<>();
+			for (int i = 0; children != null && i < children.length; i++)
+			{
+				if (isWidgetLocked(children[i]))
+				{
+					locked.add(i);
+				}
+			}
+			return locked;
+		}, java.util.Collections.emptyList());
+	}
+
+	/** Upstream's lock test: the slot offers "Unlock-slot". */
+	private static boolean isWidgetLocked(Widget widget)
+	{
+		String[] actions = widget == null ? null : widget.getActions();
+		return actions != null && Arrays.stream(actions).anyMatch("Unlock-slot"::equalsIgnoreCase);
+	}
 }

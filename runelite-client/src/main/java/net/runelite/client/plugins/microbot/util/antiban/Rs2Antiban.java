@@ -91,6 +91,64 @@ public final class Rs2Antiban
 	public static void actionCooldown()
 	{
 	}
+	// ---- Read batch 16f (upstream 2.6.38) ----
+
+	/** As upstream: every pickaxe mining animation (normal, Motherlode and crashed-star variants). */
+	public static final com.google.common.collect.ImmutableSet<Integer> MINING_ANIMATION_IDS = com.google.common.collect.ImmutableSet.of(
+		net.runelite.api.AnimationID.MINING_BRONZE_PICKAXE, net.runelite.api.AnimationID.MINING_MOTHERLODE_BRONZE,
+		net.runelite.api.AnimationID.MINING_CRASHEDSTAR_BRONZE, net.runelite.api.AnimationID.MINING_IRON_PICKAXE,
+		net.runelite.api.AnimationID.MINING_MOTHERLODE_IRON, net.runelite.api.AnimationID.MINING_CRASHEDSTAR_IRON,
+		net.runelite.api.AnimationID.MINING_STEEL_PICKAXE, net.runelite.api.AnimationID.MINING_MOTHERLODE_STEEL,
+		net.runelite.api.AnimationID.MINING_CRASHEDSTAR_STEEL, net.runelite.api.AnimationID.MINING_BLACK_PICKAXE,
+		net.runelite.api.AnimationID.MINING_MOTHERLODE_BLACK, net.runelite.api.AnimationID.MINING_CRASHEDSTAR_BLACK,
+		net.runelite.api.AnimationID.MINING_MITHRIL_PICKAXE, net.runelite.api.AnimationID.MINING_MOTHERLODE_MITHRIL,
+		net.runelite.api.AnimationID.MINING_CRASHEDSTAR_MITHRIL, net.runelite.api.AnimationID.MINING_ADAMANT_PICKAXE,
+		net.runelite.api.AnimationID.MINING_MOTHERLODE_ADAMANT, net.runelite.api.AnimationID.MINING_CRASHEDSTAR_ADAMANT,
+		net.runelite.api.AnimationID.MINING_RUNE_PICKAXE, net.runelite.api.AnimationID.MINING_MOTHERLODE_RUNE,
+		net.runelite.api.AnimationID.MINING_CRASHEDSTAR_RUNE, net.runelite.api.AnimationID.MINING_GILDED_PICKAXE,
+		net.runelite.api.AnimationID.MINING_MOTHERLODE_GILDED, net.runelite.api.AnimationID.MINING_CRASHEDSTAR_GILDED,
+		net.runelite.api.AnimationID.MINING_DRAGON_PICKAXE, net.runelite.api.AnimationID.MINING_MOTHERLODE_DRAGON,
+		net.runelite.api.AnimationID.MINING_CRASHEDSTAR_DRAGON, net.runelite.api.AnimationID.MINING_DRAGON_PICKAXE_OR,
+		net.runelite.api.AnimationID.MINING_MOTHERLODE_DRAGON_OR, net.runelite.api.AnimationID.MINING_CRASHEDSTAR_DRAGON_OR,
+		net.runelite.api.AnimationID.MINING_DRAGON_PICKAXE_OR_TRAILBLAZER, net.runelite.api.AnimationID.MINING_MOTHERLODE_DRAGON_OR_TRAILBLAZER,
+		net.runelite.api.AnimationID.MINING_CRASHEDSTAR_DRAGON_OR_TRAILBLAZER, net.runelite.api.AnimationID.MINING_DRAGON_PICKAXE_UPGRADED,
+		net.runelite.api.AnimationID.MINING_MOTHERLODE_DRAGON_UPGRADED, net.runelite.api.AnimationID.MINING_CRASHEDSTAR_DRAGON_UPGRADED,
+		net.runelite.api.AnimationID.MINING_INFERNAL_PICKAXE, net.runelite.api.AnimationID.MINING_MOTHERLODE_INFERNAL,
+		net.runelite.api.AnimationID.MINING_CRASHEDSTAR_INFERNAL, net.runelite.api.AnimationID.MINING_3A_PICKAXE,
+		net.runelite.api.AnimationID.MINING_MOTHERLODE_3A, net.runelite.api.AnimationID.MINING_CRASHEDSTAR_3A,
+		net.runelite.api.AnimationID.MINING_CRYSTAL_PICKAXE, net.runelite.api.AnimationID.MINING_MOTHERLODE_CRYSTAL,
+		net.runelite.api.AnimationID.MINING_CRASHEDSTAR_CRYSTAL, net.runelite.api.AnimationID.MINING_TRAILBLAZER_PICKAXE,
+		net.runelite.api.AnimationID.MINING_TRAILBLAZER_PICKAXE_2, net.runelite.api.AnimationID.MINING_TRAILBLAZER_PICKAXE_3,
+		net.runelite.api.AnimationID.MINING_MOTHERLODE_TRAILBLAZER
+	);
+
+	/** As upstream: every one- and two-handed axe woodcutting animation. */
+	private static final java.util.Set<Integer> WOODCUTTING_ANIMS = com.google.common.collect.ImmutableSet.of(
+		net.runelite.api.AnimationID.WOODCUTTING_BRONZE, net.runelite.api.AnimationID.WOODCUTTING_IRON, net.runelite.api.AnimationID.WOODCUTTING_STEEL,
+		net.runelite.api.AnimationID.WOODCUTTING_BLACK, net.runelite.api.AnimationID.WOODCUTTING_MITHRIL, net.runelite.api.AnimationID.WOODCUTTING_ADAMANT,
+		net.runelite.api.AnimationID.WOODCUTTING_RUNE, net.runelite.api.AnimationID.WOODCUTTING_GILDED, net.runelite.api.AnimationID.WOODCUTTING_DRAGON,
+		net.runelite.api.AnimationID.WOODCUTTING_DRAGON_OR, net.runelite.api.AnimationID.WOODCUTTING_INFERNAL,
+		net.runelite.api.AnimationID.WOODCUTTING_3A_AXE, net.runelite.api.AnimationID.WOODCUTTING_CRYSTAL,
+		net.runelite.api.AnimationID.WOODCUTTING_TRAILBLAZER, net.runelite.api.AnimationID.WOODCUTTING_2H_BRONZE,
+		net.runelite.api.AnimationID.WOODCUTTING_2H_IRON, net.runelite.api.AnimationID.WOODCUTTING_2H_STEEL,
+		net.runelite.api.AnimationID.WOODCUTTING_2H_BLACK, net.runelite.api.AnimationID.WOODCUTTING_2H_MITHRIL,
+		net.runelite.api.AnimationID.WOODCUTTING_2H_ADAMANT, net.runelite.api.AnimationID.WOODCUTTING_2H_RUNE,
+		net.runelite.api.AnimationID.WOODCUTTING_2H_DRAGON, net.runelite.api.AnimationID.WOODCUTTING_2H_CRYSTAL,
+		net.runelite.api.AnimationID.WOODCUTTING_2H_CRYSTAL_INACTIVE, net.runelite.api.AnimationID.WOODCUTTING_2H_3A
+	);
+
+	/** As upstream: the local player is playing a woodcutting animation. */
+	public static boolean isWoodcutting()
+	{
+		return WOODCUTTING_ANIMS.contains(net.runelite.client.plugins.microbot.util.player.Rs2Player.getAnimation());
+	}
+
+	/** As upstream: the local player is playing a mining animation. */
+	public static boolean isMining()
+	{
+		return MINING_ANIMATION_IDS.contains(net.runelite.client.plugins.microbot.util.player.Rs2Player.getAnimation());
+	}
+
 	public static final class SetupTemplates
 	{
 		// Other upstream templates: accepted and inert on mobile.

@@ -373,6 +373,12 @@ public final class MicrobotReadServices implements MicrobotReadApi, MicrobotRunt
 	}
 
 	@Subscribe
+	public void onWidgetLoaded(net.runelite.api.events.WidgetLoaded event)
+	{
+		net.runelite.client.plugins.microbot.util.bank.Rs2Bank.noteBankWidgetLoaded(event);
+	}
+
+	@Subscribe
 	public void onMenuOptionClicked(MenuOptionClicked event)
 	{
 		pouchTracker.onMenuOptionClicked(event);
