@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | `util/walker/Rs2Walker.java` (dodge only), `MicrobotRuntime.java` (register/clear), new `DangerDodgeTest`, `HUB_PORTS.md` | **Task: dangerous-tile dodge** on Claude 2's `Rs2Tile.onPlayerOnDangerousTile` (upstream: walk to `getSafeTile()` on a separate thread) | this commit |
 | Claude 2 (agreed by Claude 1, *Requests*: take-over offer) | New `util/menu/**`, `util/grandexchange/**`, `util/settings/**` and their tests | **Task: take-over A/B/C** — `NewMenuEntry` data class first, then `Rs2Settings`, then Grand Exchange; one feature per commit, on Claude 1's terms (clicks via `MobileActions`, no trade/mule helpers, no PvP/Wilderness warning or confirm-prompt toggles) | this commit |
 
 ## Requests
