@@ -17,7 +17,7 @@ import net.runelite.client.plugins.microbot.util.Global;
  * scroll are one script action each.
  * <p>
  * Not provided, so that code needing them does not compile rather than silently doing nothing:
- * right clicks, clicks with a prepared menu entry, and upstream's humanised
+ * right clicks and upstream's humanised
  * pointer movement (anti-detection behaviour, not ported).
  */
 public final class Mouse
@@ -74,6 +74,26 @@ public final class Mouse
 			Global.sleepUntil(() -> MobileActions.scroll(point.getX(), point.getY(), wheelRotation, unitsToScroll), TAP_TIMEOUT_MILLIS);
 		}
 		return this;
+	}
+
+	/** As upstream: sends the prepared menu entry (as {@code Microbot.doInvoke}); {@code point} is only remembered. */
+	public Mouse click(Point point, net.runelite.client.plugins.microbot.util.menu.NewMenuEntry entry)
+	{
+		if (point != null)
+		{
+			position = point;
+		}
+		if (entry != null && Global.sleepUntil(() -> MobileActions.menu(entry), TAP_TIMEOUT_MILLIS) && point != null)
+		{
+			lastClick = point;
+		}
+		return this;
+	}
+
+	/** As upstream: {@link #click(Point, net.runelite.client.plugins.microbot.util.menu.NewMenuEntry)}. */
+	public Mouse quickClick(Point point, net.runelite.client.plugins.microbot.util.menu.NewMenuEntry entry)
+	{
+		return click(point, entry);
 	}
 
 	/** As upstream: one script drag between two canvas points (see {@code Microbot.drag}). */
