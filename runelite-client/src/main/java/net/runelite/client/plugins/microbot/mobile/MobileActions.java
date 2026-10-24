@@ -530,6 +530,12 @@ public final class MobileActions
 		return perform(() -> JavaBridge.onScriptDrag(x1, y1, x2, y2, permission));
 	}
 
+	/** A script mouse-wheel turn at a canvas point (upstream {@code Mouse.scrollDown/scrollUp}); one script action. */
+	public static boolean scroll(int x, int y, int wheelRotation, int unitsToScroll)
+	{
+		return perform(() -> JavaBridge.onScriptScroll(x, y, wheelRotation, unitsToScroll, permission));
+	}
+
 	/** One script tap at a canvas point (upstream mouse clicks); one script action. */
 	public static boolean tap(int x, int y)
 	{

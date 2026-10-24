@@ -13,10 +13,11 @@ import net.runelite.client.plugins.microbot.util.Global;
  * A left click is one script tap at that canvas point through {@link MobileActions#tap}: only for
  * the bound script session, at most one per game tick, refused while the user is touching the
  * screen. A click waits up to a second for the tap to be accepted. {@code move} only records the
- * position {@link #click()} uses, as a touchscreen has no pointer to move.
+ * position {@link #click()} uses, as a touchscreen has no pointer to move. A drag and a wheel
+ * scroll are one script action each.
  * <p>
  * Not provided, so that code needing them does not compile rather than silently doing nothing:
- * right clicks, scrolling, dragging, clicks with a prepared menu entry, and upstream's humanised
+ * right clicks, clicks with a prepared menu entry, and upstream's humanised
  * pointer movement (anti-detection behaviour, not ported).
  */
 public final class Mouse
@@ -51,6 +52,28 @@ public final class Mouse
 	public Mouse click(Rectangle rectangle)
 	{
 		return rectangle == null ? this : click((int) rectangle.getCenterX(), (int) rectangle.getCenterY());
+	}
+
+	/** As upstream: two wheel notches down (10 units) at {@code point}, as one script action. */
+	public Mouse scrollDown(Point point)
+	{
+		return scroll(point, 2, 10);
+	}
+
+	/** As upstream: two wheel notches up (10 units) at {@code point}, as one script action. */
+	public Mouse scrollUp(Point point)
+	{
+		return scroll(point, -2, -10);
+	}
+
+	private Mouse scroll(Point point, int wheelRotation, int unitsToScroll)
+	{
+		if (point != null)
+		{
+			position = point;
+			Global.sleepUntil(() -> MobileActions.scroll(point.getX(), point.getY(), wheelRotation, unitsToScroll), TAP_TIMEOUT_MILLIS);
+		}
+		return this;
 	}
 
 	/** As upstream: one script drag between two canvas points (see {@code Microbot.drag}). */

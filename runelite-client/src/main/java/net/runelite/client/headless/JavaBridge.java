@@ -1240,6 +1240,31 @@ public final class JavaBridge
 		return scriptDragging;
 	}
 
+	/**
+	 * A script mouse-wheel turn at canvas point {@code (x,y)}, as upstream's {@code Mouse.scrollDown}
+	 * and {@code scrollUp} (positive {@code wheelRotation} scrolls down): the pointer moves there, then
+	 * one {@link MouseWheelEvent} of {@code unitsToScroll} units. Same guards as {@link #onScriptDrag},
+	 * and refused while a script drag runs. Client thread only; true when posted.
+	 */
+	public static boolean onScriptScroll(int x, int y, int wheelRotation, int unitsToScroll, ScriptInputSession owner)
+	{
+		final Client c = client;
+		final Canvas canvas = liveCanvas();
+		if (wheelRotation == 0 || owner == null || !owner.isActive() || MicrobotRuntime.humanOwnsInput() || c == null
+			|| !c.isClientThread() || canvas == null || c.getGameState() != GameState.LOGGED_IN || c.isMenuOpen()
+			|| scriptDragging || pressed || shiftHeld || ctrlHeld || altHeld || tapState != TapState.IDLE || queuedTap
+			|| !onCanvas(c, x, y))
+		{
+			return false;
+		}
+		final EventQueue q = Toolkit.getDefaultToolkit().getSystemEventQueue();
+		final long t = System.currentTimeMillis();
+		postPointer(q, new MouseEvent(canvas, MouseEvent.MOUSE_MOVED, t, 0, x, y, 0, false));
+		postPointer(q, new MouseWheelEvent(canvas, MouseEvent.MOUSE_WHEEL, t + 1, 0, x, y, 0, false,
+			MouseWheelEvent.WHEEL_UNIT_SCROLL, Math.max(1, Math.abs(unitsToScroll)), wheelRotation));
+		return true;
+	}
+
 	private static boolean onCanvas(Client c, int x, int y)
 	{
 		return x >= 0 && y >= 0 && x < c.getCanvasWidth() && y < c.getCanvasHeight();
