@@ -140,7 +140,12 @@ public class HubPortedPluginsTest
 		"net.runelite.client.plugins.microbot.roguesden.RoguesDenPlugin",
 		"net.runelite.client.plugins.microbot.zulrahslayer.ZulrahSlayerPlugin",
 		"net.runelite.client.plugins.microbot.amethystminer.AmethystMiningPlugin",
-		"net.runelite.client.plugins.microbot.shootingstar.ShootingStarPlugin");
+		"net.runelite.client.plugins.microbot.shootingstar.ShootingStarPlugin",
+		"net.runelite.client.plugins.microbot.crafting.CraftingPlugin",
+		"net.runelite.client.plugins.microbot.gotr.GotrPlugin",
+		"net.runelite.client.plugins.microbot.motherloadmine.MotherloadMinePlugin",
+		"net.runelite.client.plugins.microbot.ourania.OuraniaPlugin",
+		"net.runelite.client.plugins.microbot.tempoross.TemporossPlugin");
 
 	private static Plugin instance(String name) throws Exception
 	{
