@@ -131,6 +131,20 @@ public class Rs2DialogueReadTest
 	}
 
 	@Test
+	public void optionTitleKeepsItsTagsAndTheWaitSeesAShownOption()
+	{
+		assertFalse(Rs2Dialogue.hasDialogueOptionTitle("travel"));
+		Widget menu = widget("", false,
+			widget("<col=800000>Travel to Karamja?</col>", false), widget("Yes.", false));
+		when(client.getWidget(ComponentID.DIALOG_OPTION_OPTIONS)).thenReturn(menu);
+
+		assertTrue(Rs2Dialogue.hasDialogueOptionTitle("TRAVEL to"));
+		assertTrue(Rs2Dialogue.hasDialogueOptionTitle("<col=800000>travel to karamja?</col>", true));
+		assertFalse("compared with its tags, as upstream", Rs2Dialogue.hasDialogueOptionTitle("Travel to Karamja?", true));
+		assertTrue(Rs2Dialogue.sleepUntilHasDialogueOption("yes"));
+	}
+
+	@Test
 	public void questionIsTheUntaggedTitleRow()
 	{
 		assertNull(Rs2Dialogue.getQuestion());

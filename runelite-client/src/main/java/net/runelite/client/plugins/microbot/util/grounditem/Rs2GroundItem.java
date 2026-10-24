@@ -44,6 +44,26 @@ public final class Rs2GroundItem
 			&& Microbot.getRs2TileItemCache().query().within(range)
 			.where(item -> itemName.equalsIgnoreCase(item.getName())).first() != null;
 	}
+	/**
+	 * As upstream: a ground stack within {@code range} tiles of the player whose GE price times
+	 * quantity is at least {@code value}. Prices are read on the client thread; without an item
+	 * manager every stack counts as 0.
+	 */
+	public static boolean isItemBasedOnValueOnGround(int value, int range)
+	{
+		if (Microbot.getRs2TileItemCache() == null)
+		{
+			return false;
+		}
+		List<Rs2TileItemModel> items = Microbot.getRs2TileItemCache().query().within(range).toList();
+		net.runelite.client.game.ItemManager prices = Microbot.getItemManager();
+		if (items.isEmpty() || prices == null)
+		{
+			return false;
+		}
+		return MobileActions.read(() -> items.stream()
+			.anyMatch(item -> (long) prices.getItemPrice(item.getId()) * item.getQuantity() >= value), false);
+	}
 	static boolean accepts(Rs2TileItemModel item, LootingParameters parameters)
 	{
 		if (item.getQuantity() < parameters.getMinQuantity() || !item.isLootAble()
