@@ -66,6 +66,43 @@ public class ClientThread
 		return client.isClientThread();
 	}
 
+	/** One worker for {@link #runOnSeperateThread}, created on first use; never holds the VM open. */
+	private java.util.concurrent.ExecutorService separateThread;
+	private java.util.concurrent.Future<?> separateTask;
+
+	/**
+	 * As Microbot's fork of this class (spelling kept): runs {@code method} off the client thread on
+	 * one shared worker, unless the previous such task is still running, in which case it is
+	 * skipped. Exceptions are logged, not thrown.
+	 */
+	public synchronized void runOnSeperateThread(Callable<?> method)
+	{
+		if (separateTask != null && !separateTask.isDone())
+		{
+			return;
+		}
+		if (separateThread == null)
+		{
+			separateThread = java.util.concurrent.Executors.newSingleThreadExecutor(r ->
+			{
+				Thread thread = new Thread(r, "client-separate");
+				thread.setDaemon(true);
+				return thread;
+			});
+		}
+		separateTask = separateThread.submit(() ->
+		{
+			try
+			{
+				method.call();
+			}
+			catch (Exception e)
+			{
+				log.error("Exception in separate-thread task", e);
+			}
+		});
+	}
+
 	/**
 	 * Runs {@code method} on the client thread and waits for its result, as Microbot's fork of
 	 * this class does. On the client thread it runs inline, so the client thread never waits on

@@ -194,6 +194,15 @@ public class Microbot {
         return 0;
     }
 
+    /**
+     * As upstream, but always {@code null}: humanised mouse movement is not ported (no
+     * anti-detection features), so scripts skip their {@code naturalMouse} branches.
+     */
+    public static final net.runelite.client.plugins.microbot.util.mouse.naturalmouse.NaturalMouse naturalMouse = null;
+
+    /** As upstream: the run energy (0-10000) scripts compare against before toggling run or drinking stamina. */
+    public static int runEnergyThreshold = 1000;
+
     private static volatile net.runelite.client.game.ItemManager itemManager;
 
     /** As upstream: RuneLite's item manager (prices, item compositions); bound by the mobile plugin. */
