@@ -49,6 +49,7 @@ public final class PathResult
 		private final String displayInfo;
 		private final List<Set<Integer>> itemRequirements;
 		private final Set<Integer> itemIds;
+		private final int[] skillLevels;
 
 		TransportStep(Transport transport)
 		{
@@ -72,6 +73,23 @@ public final class PathResult
 			}
 			this.itemRequirements = Collections.unmodifiableList(requirements);
 			this.itemIds = Collections.unmodifiableSet(ids);
+			this.skillLevels = transport.getSkillLevels() == null ? new int[0] : transport.getSkillLevels().clone();
+		}
+
+		/**
+		 * The level this step requires in each skill, indexed by {@link net.runelite.api.Skill#ordinal()}
+		 * (0 when none), as the catalogue states it. A canoe's Woodcutting level names the canoe that
+		 * makes the trip (12 log, 27 dugout, 42 stable dugout, 57 waka). A copy on every call.
+		 */
+		public int[] getSkillLevels()
+		{
+			return skillLevels.clone();
+		}
+
+		/** {@link #getSkillLevels()} for one skill; 0 when the step needs no level in it. */
+		public int getSkillLevel(net.runelite.api.Skill skill)
+		{
+			return skill.ordinal() < skillLevels.length ? skillLevels[skill.ordinal()] : 0;
 		}
 
 		/**
