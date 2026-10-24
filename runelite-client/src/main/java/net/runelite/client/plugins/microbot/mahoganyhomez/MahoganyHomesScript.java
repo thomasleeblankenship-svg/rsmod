@@ -1,0 +1,678 @@
+package net.runelite.client.plugins.microbot.mahoganyhomez;
+
+import com.google.inject.Inject;
+import lombok.extern.slf4j.Slf4j;
+import net.runelite.api.*;
+import net.runelite.api.coords.WorldPoint;
+import net.runelite.api.gameval.InterfaceID;
+import net.runelite.api.widgets.Widget;
+import net.runelite.client.plugins.microbot.Microbot;
+import net.runelite.client.plugins.microbot.Script;
+import net.runelite.client.plugins.microbot.shortestpath.ShortestPathPlugin;
+import net.runelite.client.plugins.microbot.util.Global;
+import net.runelite.client.plugins.microbot.util.bank.Rs2Bank;
+import net.runelite.client.plugins.microbot.util.bank.enums.BankLocation;
+import net.runelite.client.plugins.microbot.util.coords.Rs2WorldPoint;
+import net.runelite.client.plugins.microbot.util.dialogues.Rs2Dialogue;
+import net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory;
+import net.runelite.client.plugins.microbot.util.gameobject.Rs2GameObject;
+import net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel;
+import net.runelite.client.plugins.microbot.util.magic.Rs2Magic;
+import net.runelite.client.plugins.microbot.util.magic.Rs2Spellbook;
+import net.runelite.client.plugins.microbot.util.math.Rs2Random;
+import net.runelite.client.plugins.microbot.util.menu.NewMenuEntry;
+import net.runelite.client.plugins.microbot.util.misc.Rs2UiHelper;
+import net.runelite.client.plugins.microbot.util.player.Rs2Player;
+import net.runelite.client.plugins.microbot.util.tabs.Rs2Tab;
+import net.runelite.client.plugins.microbot.util.tile.Rs2Tile;
+import net.runelite.client.plugins.microbot.util.walker.Rs2Walker;
+import net.runelite.client.plugins.microbot.util.walker.Rs2InteractionApproach;
+import net.runelite.client.plugins.microbot.util.walker.WalkerState;
+import net.runelite.client.plugins.microbot.util.widget.Rs2Widget;
+import net.runelite.client.plugins.skillcalculator.skills.MagicAction;
+
+import java.awt.Rectangle;
+import java.util.*;
+import java.util.Arrays;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+
+@Slf4j
+public class MahoganyHomesScript extends Script {
+
+    @Inject
+    MahoganyHomesPlugin plugin;
+
+    private static final int CHOOSE_CHARACTER_WIDGET_ID = 4915200;
+    private static final long NPC_CONTACT_RETRY_MS = 5000;
+    private static final String[] CONTACT_SPELL_NAMES = {"Astral Contact", "NPC Contact", "Npc Contact"};
+    private long lastNpcContactAttempt;
+
+    public boolean run(MahoganyHomesConfig config) {
+        mainScheduledFuture = scheduledExecutorService.scheduleWithFixedDelay(() -> {
+            try {
+                if (!Microbot.isLoggedIn()) return;
+                if (!super.run()) return;
+                if (Rs2Player.getWorldLocation() == null) return;
+                checkPlankSack();
+                fix();
+                finish();
+                getNewContract();
+                bank();
+                walkToHome();
+
+
+            } catch (Exception ex) {
+                log.error("Mahogany Homes script loop failed", ex);
+            }
+        }, 0, 600, TimeUnit.MILLISECONDS);
+        return true;
+    }
+
+    private List<GameObject> getFixableObjects() {
+        List<GameObject> objects = plugin.getObjectsToMark();
+        List<Hotspot> fixableHotspots = Hotspot.getBrokenHotspots();
+        HotspotObjects hotspotObjects = plugin.getCurrentHome().getHotspotObjects();
+
+        Set<Integer> ids = getFixableObjectIds(fixableHotspots, hotspotObjects);
+
+        // Filter using the precomputed set
+        return objects.stream()
+                .filter(Objects::nonNull)
+                .filter(o -> ids.contains(o.getId()))
+                .collect(Collectors.toList());
+    }
+
+    static Set<Integer> getFixableObjectIds(List<Hotspot> hotspots, HotspotObjects hotspotObjects) {
+        return hotspots.stream()
+                .filter(hotspot -> hotspot.ordinal() < hotspotObjects.objects.length)
+                .map(hotspot -> hotspotObjects.objects[hotspot.ordinal()].getObjectId())
+                .collect(Collectors.toSet());
+    }
+
+    // Custom logging methods
+    private void log(String message) {
+        if (plugin.getConfig().logMessages()) {
+            Microbot.log(message);
+        }
+    }
+
+    private void log(String format, Object... args) {
+        if (plugin.getConfig().logMessages()) {
+            Microbot.log(String.format(format, args));
+        }
+    }
+
+    private void logInfo(String message) {
+        if (plugin.getConfig().logMessages()) {
+            log.info(message);
+        }
+    }
+
+    private void logInfo(String format, Object... args) {
+        if (plugin.getConfig().logMessages()) {
+            log.info(format, args);
+        }
+    }
+
+    // Tasks section
+
+    private void checkPlankSack() {
+        if(plugin.getConfig().usePlankSack() && plugin.getPlankCount() == -1) {
+            if (Rs2Inventory.contains(ItemID.PLANK_SACK)) {
+                Rs2ItemModel plankSack = Rs2Inventory.get(ItemID.PLANK_SACK);
+                if (plankSack != null) {
+                    Rs2Inventory.interact(plankSack, "Check");
+                    sleep(Rs2Random.randomGaussian(800, 200));
+                }
+            }
+        }
+    }
+
+    private int planksInPlankSack() {
+        if (plugin.getPlankCount() == -1) {
+            return 0;
+        }
+        return plugin.getPlankCount();
+    }
+
+    private void fix() {
+        if (plugin.getCurrentHome() == null
+                || (!plugin.getCurrentHome().isInside(Rs2Player.getWorldLocation()) && readyFurniture() == null)
+                || Hotspot.isEverythingFixed()) {
+            return;
+        }
+
+        if (Rs2Widget.isWidgetVisible(InterfaceID.PohFurnitureCreation.FRAME)){
+            Microbot.log("Out of plank and furniture creation widget pop up");
+            Rs2Bank.walkToBank();
+            bank();
+            return;
+        }
+
+        Rs2WorldPoint playerLocation = Rs2Player.getRs2WorldPoint();
+        MahoganyHomesOverlay.setFixableObjects(getFixableObjects());
+
+        // Sort fixable objects by plane and distance
+        List<GameObject> sortedObjects = getFixableObjects().stream()
+                .sorted(Comparator.comparingInt(TileObject::getPlane).thenComparingInt(o -> o.getWorldLocation().distanceTo2D(playerLocation.getWorldPoint())))
+                .collect(Collectors.toList());
+
+
+        GameObject ready = readyFurniture();
+        GameObject object = ready != null ? ready : sortedObjects.stream()
+                .findFirst()
+                .orElse(null);
+
+        if (object == null) {
+            log("No fixable objects found.");
+            return;
+        }
+
+        if (Rs2Player.getWorldLocation().getPlane() != object.getWorldLocation().getPlane()) {
+            log("Object is on a different floor, trying to use ladder/stairs.");
+            tryToUseLadder();
+            return;
+        }
+
+        // Find the closest walkable tile around the object
+        Rs2WorldPoint objectLocation = Rs2Tile.getNearestWalkableTile(object);
+
+
+        int pathDistance = objectLocation != null ? objectLocation.distanceToPath(playerLocation.getWorldPoint()) : Integer.MAX_VALUE;
+        log("Local Path Distance: " + pathDistance);
+
+        if (pathDistance > 20) {
+            if (openDoorToObject(object, objectLocation)) {
+                GameObject accessible = readyFurniture();
+                if (accessible != null) interactWithObject(accessible);
+                return;
+            }
+            if (plugin.getCurrentHome().equals(Home.ROSS)) {
+                log("Ross home, trying to use ladder.");
+                tryToUseLadder();
+                return;
+            }
+            log("Local Path Distance is too far or unreachable, switching to WebWalker.");
+
+            WalkerState state = Rs2Walker.walkWithStateUntil(object.getWorldLocation(), 3,
+                    () -> readyFurniture() != null);
+            if (state == WalkerState.UNREACHABLE) {
+                if (Rs2Player.getWorldLocation().getPlane() != object.getWorldLocation().getPlane()) {
+                    tryToUseLadder();
+                } else {
+                    log("All pathing failed, trying to interact anyways.");
+                    interactWithObject(object);
+                }
+            } else if (state == WalkerState.ARRIVED) {
+                log("Arrived at object, trying to interact.");
+                GameObject accessible = readyFurniture();
+                if (accessible != null) interactWithObject(accessible);
+            }
+
+        } else
+            interactWithObject(object);
+
+    }
+
+    private GameObject readyFurniture() {
+        if (plugin.getCurrentHome() == null) return null;
+        return Microbot.getClientThread().runOnClientThreadOptional(() -> getFixableObjects().stream()
+                .filter(o -> plugin.getCurrentHome().getArea().contains2D(o.getWorldLocation()))
+                .filter(Rs2InteractionApproach::isReady)
+                .findFirst().orElse(null)).orElse(null);
+    }
+
+    private void interactWithObject(GameObject object) {
+        Hotspot hotspot = Hotspot.getByObjectId(object.getId());
+        String action = Objects.requireNonNull(hotspot).getRequiredAction();
+        if (Microbot.getRs2TileObjectCache().query().withId(object.getId())
+                .where(o -> o.getHash() == object.getHash()).interact(action)) {
+            sleepUntil(() -> {
+                String newAction = Objects.requireNonNull(Hotspot.getByObjectId(object.getId())).getRequiredAction();
+                return !newAction.equals(action);
+            }, 5000);
+            sleep(200, 600);
+        }
+
+    }
+
+    private boolean openDoorToObject(GameObject object, Rs2WorldPoint objectLocation) {
+        if (objectLocation == null) return false;
+        if (Rs2Player.getWorldLocation().getPlane() != object.getWorldLocation().getPlane()) {
+            return false;
+        }
+        log("Local Path seems to be blocked, checking for doors to open.");
+        List<WorldPoint> walkerPath = Rs2Walker.getWalkPath(objectLocation.getWorldPoint());
+        List<TileObject> doors = new ArrayList<>();
+        for (WorldPoint wp : walkerPath) {
+            TileObject door = null;
+            var tile = Rs2Walker.getTile(wp);
+
+            if (tile != null)
+                door = tile.getWallObject();
+
+            if (door == null) continue;
+
+            var doorModel = Microbot.getRs2TileObjectCache().query().withId(door.getId()).nearest();
+            if (doorModel == null) continue;
+            var objectComp = doorModel.getObjectComposition();
+            if (objectComp == null) continue;
+
+            String name = objectComp.getName();
+
+            if (Arrays.asList(objectComp.getActions()).contains("Open") && !name.equalsIgnoreCase("Chest")) {
+                doors.add(door);
+            }
+
+        }
+
+        List<String> doorNames = doors.stream()
+                .map(d -> {
+                    var m = Microbot.getRs2TileObjectCache().query().withId(d.getId()).nearest();
+                    return m != null ? m.getObjectComposition().getName() : "unknown";
+                })
+                .collect(Collectors.toList());
+
+        System.out.println("Doors found: " + doorNames + " Size: " + doors.size());
+
+//        logInfo("Found {} doors", doors.size());
+//        log("Doors found: %s", doors.size());
+
+        for (TileObject door : doors) {
+            var doorObj = Microbot.getRs2TileObjectCache().query().withId(door.getId()).nearest();
+            ObjectComposition doorComp = doorObj != null ? doorObj.getObjectComposition() : null;
+            List<String> actions = null;
+            if (doorComp != null) {
+                actions = Arrays.asList(doorComp.getActions());
+            }
+            if (actions != null && actions.contains("Open")) {
+
+                log("Opening door at: %s", door.getWorldLocation());
+                logInfo("Opening door at: {}", door.getWorldLocation());
+                if (Microbot.getRs2TileObjectCache().query().withId(door.getId()).interact("Open")) {
+                    Rs2Player.waitForWalking();
+                    sleep(200, 500);
+                    // if it's the last door in the list return true
+                    if (door.equals(doors.get(doors.size() - 1)))
+                        return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private void tryToUseLadder() {
+        log("Walker missing transport, trying to find ladder manually.");
+        int plane = Rs2Player.getWorldLocation().getPlane();
+        var closestLadder = Microbot.getRs2TileObjectCache().query()
+                .withIds(Arrays.stream(plugin.getCurrentHome().getLadders()).mapToInt(Integer::intValue).toArray())
+                .where(obj -> obj.getWorldLocation().getPlane() == plane).nearest();
+        if (closestLadder == null) return;
+
+        GameObject ladder = Microbot.getClientThread().invoke(() -> Rs2GameObject.getGameObject(
+                obj -> obj.getId() == closestLadder.getId()
+                        && obj.getHash() == closestLadder.getHash()));
+        if (ladder == null) return;
+        Rs2WorldPoint approach = Rs2Tile.getNearestWalkableTile(ladder);
+        if (approach == null) return;
+
+        // Geometric proximity can put us behind the house, across a closed door.
+        if (approach.distanceToPath(Rs2Player.getWorldLocation()) > 2) {
+            log("Reaching ladder entrance before climbing: " + approach.getWorldPoint());
+            if (!openDoorToObject(ladder, approach)) {
+                Rs2Walker.walkWithState(approach.getWorldPoint(), 0);
+            }
+            return;
+        }
+        if (closestLadder.click()) {
+            sleepUntil(() -> Rs2Player.getWorldLocation().getPlane() != plane, 5000);
+            sleep(200, 600);
+        }
+    }
+
+
+    // Finish by talking to the NPC
+    private void finish() {
+        if (plugin.getCurrentHome() != null
+                && plugin.getCurrentHome().isInside(Rs2Player.getWorldLocation())
+                && Hotspot.isEverythingFixed()) {
+            if(plugin.getConfig().usePlankSack() && planksInPlankSack() > 0 && !Rs2Inventory.isFull()){
+                if (Rs2Inventory.contains(ItemID.PLANK_SACK) && Rs2Inventory.contains(ItemID.STEEL_BAR)) {
+                    Rs2ItemModel plankSack = Rs2Inventory.get(ItemID.PLANK_SACK);
+                    if (plankSack != null) {
+                        Rs2Inventory.interact(plankSack, "Empty");
+                        sleep(Rs2Random.randomGaussian(800, 200));
+                    }
+                }
+            }
+            var npc = Microbot.getRs2NpcCache().query().withId(plugin.getCurrentHome().getNpcId()).nearest();
+            if (npc == null && Rs2Player.getWorldLocation().getPlane() > 0) {
+                log("We are on the wrong floor, Trying to find ladder to go down");
+                int playerPlane = Rs2Player.getWorldLocation().getPlane();
+
+                var ladders = Microbot.getRs2TileObjectCache().query()
+                        .withIds(Arrays.stream(plugin.getCurrentHome().getLadders()).mapToInt(Integer::intValue).toArray())
+                        .where(obj -> obj.getWorldLocation().getPlane() == playerPlane)
+                        .toList();
+                var closestLadder2 = ladders.stream()
+                        .min(Comparator.comparingInt(obj ->
+                                obj.getWorldLocation().distanceTo(Rs2Player.getWorldLocation())))
+                        .orElse(null);
+                    if (closestLadder2 != null && closestLadder2.click()) {
+                            sleepUntil(
+                                    () -> Rs2Player.getWorldLocation().getPlane() == 0
+                                    , 5000);
+                            return;
+                    }
+            }
+            if (npc != null) {
+                Rs2WorldPoint npcLocation = new Rs2WorldPoint(npc.getWorldLocation());
+                log("Local NPC path distance: " + npcLocation.distanceToPath(Rs2Player.getWorldLocation()));
+                if (npcLocation.distanceToPath(Rs2Player.getWorldLocation()) < 20) {
+                    if (npc.click("Talk-to")) {
+                        log("Getting reward from NPC");
+                        sleepUntil(Rs2Dialogue::hasContinue, 10000);
+                        if (Rs2Dialogue.hasDialogueText("Please excuse me, I'm rather busy.")) {
+                            plugin.setCurrentHome(null);
+                        }
+                        sleepUntil(() -> !Rs2Dialogue.isInDialogue(), Rs2Dialogue::clickContinue, 6000, 300);
+                        sleep(600, 1200);
+
+                    }
+                } else {
+                    log("Local NPC path distance is too far, switching to WebWalker.");
+                    Rs2Walker.walkTo(npc.getWorldLocation());
+                    sleep(1200, 2200);
+                }
+            }
+        }
+    }
+
+    // Get new contract
+    private void getNewContract() {
+        if (plugin.getCurrentHome() == null) {
+            if(plugin.getConfig().useNpcContact()){
+                if (contactAmy()) {
+                    handleContractDialogue();
+                }
+                return;
+            }
+            WorldPoint playerLocation = Rs2Player.getWorldLocation();
+            WorldPoint contractLocation = getClosestContractLocation(playerLocation);
+            if (contractLocation == null) {
+                return;
+            }
+            if (contractLocation.distanceTo2D(playerLocation) > 10) {
+                log("Walking to contract NPC");
+                Rs2Walker.walkWithState(contractLocation, 5);
+
+            } else {
+                log("Getting new contract");
+
+
+                // Search for Mahogany Homes contract NPCs directly by name
+                var npc = Microbot.getRs2NpcCache().query().withNames("Amy", "Marlo", "Ellie", "Angelo").nearestOnClientThread();
+                
+                if (npc == null) {
+                    log("No contract NPC found, waiting before retry");
+                    sleep(2000, 3000);  // Wait 2-3 seconds to prevent spam
+                    return;
+                }
+                log("NPC found: " + npc.getName());
+                if (npc.click("Contract")) {
+                    handleContractDialogue();
+                }
+
+            }
+
+        }
+
+    }
+
+    private boolean contactAmy() {
+        long now = System.currentTimeMillis();
+        if (now - lastNpcContactAttempt < NPC_CONTACT_RETRY_MS) {
+            return false;
+        }
+        lastNpcContactAttempt = now;
+
+        if (!Rs2Magic.isSpellbook(Rs2Spellbook.LUNAR)) {
+            log("Unable to use Astral Contact; Lunar spellbook is not active.");
+            return false;
+        }
+
+        if (!castContactSpell()) {
+            log("Unable to cast Astral Contact / NPC Contact.");
+            return false;
+        }
+
+        if (!sleepUntil(() -> !Rs2Widget.isHidden(CHOOSE_CHARACTER_WIDGET_ID), 7000)) {
+            log("Astral Contact cast, but contact selection did not open.");
+            return false;
+        }
+
+        if (!selectContactTarget("amy")) {
+            log("Astral Contact opened, but Amy could not be selected.");
+            return false;
+        }
+
+        Rs2Player.waitForAnimation();
+        return true;
+    }
+
+    private boolean castContactSpell() {
+        Rs2Tab.switchToMagicTab();
+        sleep(150, 300);
+        Rs2Magic.canCast(MagicAction.NPC_CONTACT);
+
+        for (String spellName : CONTACT_SPELL_NAMES) {
+            if (clickSpellbookWidget(spellName)) {
+                log("Casting %s.", spellName);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private boolean clickSpellbookWidget(String spellName) {
+        return Rs2Widget.clickWidget(spellName, Optional.of(218), 3, true)
+                || Rs2Widget.clickWidget(spellName, Optional.of(218), 0, true)
+                || Rs2Widget.clickWidget(spellName, true);
+    }
+
+    private boolean selectContactTarget(String npcName) {
+        Rectangle[] bounds = contactTargetBounds(npcName);
+        if (bounds == null) {
+            return false;
+        }
+        if (!Rs2UiHelper.isRectangleWithinRectangle(bounds[0], bounds[1])) {
+            Global.sleepUntil(() -> {
+                Rectangle[] current = contactTargetBounds(npcName);
+                return current == null || Rs2UiHelper.isRectangleWithinRectangle(current[0], current[1]);
+            }, () -> {
+                Rectangle[] current = contactTargetBounds(npcName);
+                if (current == null) {
+                    return;
+                }
+                if (current[1].y > current[0].y) {
+                    Microbot.getMouse().scrollDown(Rs2UiHelper.getClickingPoint(current[0], true));
+                } else {
+                    Microbot.getMouse().scrollUp(Rs2UiHelper.getClickingPoint(current[0], true));
+                }
+            }, 5000, 300);
+        }
+
+        bounds = contactTargetBounds(npcName);
+        if (Thread.currentThread().isInterrupted() || bounds == null
+                || !Rs2UiHelper.isRectangleWithinRectangle(bounds[0], bounds[1])) {
+            return false;
+        }
+        return Rs2Widget.clickWidget(npcName, Optional.of(75), 0, false)
+                || Rs2Widget.clickWidget(npcName, false);
+    }
+
+    private Rectangle[] contactTargetBounds(String npcName) {
+        return Microbot.getClientThread().runOnClientThreadOptional(() -> {
+            Widget chooser = Rs2Widget.getWidget(CHOOSE_CHARACTER_WIDGET_ID);
+            Widget npc = Rs2Widget.findWidget(npcName);
+            if (chooser == null || npc == null || chooser.isHidden()) {
+                return null;
+            }
+            Rectangle chooserBounds = chooser.getBounds();
+            Rectangle npcBounds = npc.getBounds();
+            if (chooserBounds == null || npcBounds == null) {
+                return null;
+            }
+            return new Rectangle[] {new Rectangle(chooserBounds), new Rectangle(npcBounds)};
+        }).orElse(null);
+    }
+
+    public void handleContractDialogue() {
+        // Reduced timeout and early return if dialogue not available
+        if (!sleepUntil(Rs2Dialogue::hasSelectAnOption, Rs2Dialogue::clickContinue, 5000, 300)) {
+            log("No dialogue options available, returning early");
+            return;
+        }
+        Rs2Dialogue.keyPressForDialogueOption(plugin.getConfig().currentTier().getPlankSelection().getChatOption());
+        sleepUntil(Rs2Dialogue::hasContinue, 5000);
+        sleep(400, 800);
+        sleepUntil(() -> !Rs2Dialogue.isInDialogue(), Rs2Dialogue::clickContinue, 6000, 300);
+        sleep(1200, 2200);
+    }
+
+    // Bank if we need to
+    private void bank() {
+        Home currentHome = plugin.getCurrentHome();
+        if (isAwayFromHome(currentHome, Rs2Player.getWorldLocation())
+                && isMissingItems(currentHome)) {
+            ShortestPathPlugin.getPathfinderConfig().setIgnoreTeleportAndItems(true);
+            BankLocation bankLocation = Rs2Bank.getNearestBank(currentHome.getLocation());
+            ShortestPathPlugin.getPathfinderConfig().setIgnoreTeleportAndItems(false);
+            if (Rs2Bank.walkToBank(bankLocation)) {
+                if(Rs2Bank.openBank()) {
+                    sleepUntil(Rs2Bank::isOpen);
+                    if (Rs2Bank.count(plugin.getConfig().currentTier().getPlankSelection().getPlankId()) <= 28 || Rs2Bank.count(ItemID.STEEL_BAR) <= 4 ){
+                        System.out.println("Out of Plank or Steel Bar");
+                        Microbot.stopPlugin(plugin);
+                        return;
+                    }
+                    if (plugin.getConfig().usePlankSack()) {
+                        if (Rs2Inventory.isFull() && !Rs2Inventory.contains(ItemID.STEEL_BAR)) {
+                            Rs2Bank.depositAll(plugin.getConfig().currentTier().getPlankSelection().getPlankId());
+                            Rs2Inventory.waitForInventoryChanges(5000);
+                        }
+                        if (steelBarsInInventory() < 4) {
+                            Rs2Bank.withdrawX(ItemID.STEEL_BAR, 4 - steelBarsInInventory());
+                            Rs2Inventory.waitForInventoryChanges(5000);
+                        }
+
+                        Global.sleepUntil(() -> planksInPlankSack() == 28, () -> {
+                            Rs2Bank.withdrawAll(plugin.getConfig().currentTier().getPlankSelection().getPlankId());
+                            Rs2Inventory.waitForInventoryChanges(1000);
+                            sleep(Rs2Random.randomGaussian(800, 200));
+                            Rs2ItemModel plankSack = Rs2Inventory.get(ItemID.PLANK_SACK);
+                            if (plankSack != null) {
+                                Rs2Inventory.interact(plankSack, "Fill");
+                                Rs2Inventory.waitForInventoryChanges(1000);
+                            }
+                        }, 20000, 1000);
+                        if (Rs2Inventory.emptySlotCount() > 0) {
+                            Rs2Bank.openBank();
+                            Rs2Bank.withdrawAll(plugin.getConfig().currentTier().getPlankSelection().getPlankId());
+                            Rs2Bank.closeBank();
+                        }
+                    } else {
+                        // Withdraw steel bars first if needed
+                        if (steelBarsNeeded(currentHome) > steelBarsInInventory()) {
+                            Rs2Bank.withdrawX(ItemID.STEEL_BAR, steelBarsNeeded(currentHome) - steelBarsInInventory());
+                            Rs2Inventory.waitForInventoryChanges(5000);
+                        }
+                        
+                        // Calculate if we'll have enough space for planks after steel bars
+                        int freeSlots = Rs2Inventory.emptySlotCount();
+                        int currentPlanks = planksInInventory() + planksInPlankSack();
+                        int additionalPlanksNeeded = planksNeeded(currentHome) - currentPlanks;
+                        
+                        if (additionalPlanksNeeded <= 0) {
+                            // We already have enough planks
+                            log("Already have sufficient planks: %d/%d", currentPlanks, planksNeeded(currentHome));
+                        } else if (freeSlots >= additionalPlanksNeeded) {
+                            // Withdraw all planks to fill inventory
+                            Rs2Bank.withdrawAll(plugin.getConfig().currentTier().getPlankSelection().getPlankId());
+                            Rs2Inventory.waitForInventoryChanges(5000);
+                        } else {
+                            // This should never happen - inventory can't fit required materials
+                            log("CRITICAL ERROR: Need %d more planks but only %d slots available!", additionalPlanksNeeded, freeSlots);
+                            Microbot.showMessage("Please free up inventory space! Need " + additionalPlanksNeeded + " more planks but only " + freeSlots + " slots available. Stopping script.");
+                            shutdown();
+                            return;
+                        }
+                    }
+                    Rs2Bank.closeBank();
+                }
+
+            }
+        }
+    }
+
+    // Walk to current home
+    private void walkToHome() {
+        Home currentHome = plugin.getCurrentHome();
+        if (isAwayFromHome(currentHome, Rs2Player.getWorldLocation())
+                && !isMissingItems(currentHome)) {
+            Rs2Walker.walkWithStateUntil(currentHome.getLocation(), 3,
+                    () -> readyFurniture() != null);
+            if (readyFurniture() != null) fix();
+        }
+    }
+
+    boolean isAwayFromHome(Home home, WorldPoint playerLocation) {
+        return home != null
+                && playerLocation != null
+                && plugin.distanceBetween(home.getArea(), playerLocation) > 0;
+    }
+
+    private boolean isMissingItems(Home home) {
+        return (planksInInventory() + planksInPlankSack()) < planksNeeded(home)
+                || steelBarsInInventory() < steelBarsNeeded(home);
+    }
+
+    private int planksNeeded(Home home) {
+        return home.getRequiredPlanks(plugin.getContractTier());
+    }
+
+    private int steelBarsNeeded(Home home) {
+        return home.getRequiredSteelBars(plugin.getContractTier());
+    }
+
+    private int planksInInventory() {
+        return Rs2Inventory.count(plugin.getConfig().currentTier().getPlankSelection().getPlankId());
+    }
+
+    private int steelBarsInInventory() {
+        return Rs2Inventory.count(ItemID.STEEL_BAR);
+    }
+
+    // Get closest contract location
+    static WorldPoint getClosestContractLocation(WorldPoint playerLocation) {
+        if (playerLocation == null) {
+            return null;
+        }
+        List<WorldPoint> contractLocations = new ArrayList<>();
+        contractLocations.add(ContractLocation.MAHOGANY_HOMES_ARDOUGNE.getLocation());
+        contractLocations.add(ContractLocation.MAHOGANY_HOMES_FALADOR.getLocation());
+        contractLocations.add(ContractLocation.MAHOGANY_HOMES_HOSIDIUS.getLocation());
+        contractLocations.add(ContractLocation.MAHOGANY_HOMES_VARROCK.getLocation());
+
+        return contractLocations.stream()
+                .min(Comparator.comparingInt(wp -> wp.distanceTo2D(playerLocation)))
+                .orElse(null);
+    }
+
+    @Override
+    public void shutdown() {
+        super.shutdown();
+    }
+}
