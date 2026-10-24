@@ -172,4 +172,84 @@ public final class Rs2RunePouch
 		}
 		return runes;
 	}
+
+	// ---- Util action batch T (Claude 1): the pouch's bank interface ----
+
+	/** The rune pouch panel in the bank side interface (upstream's validated children of 15). */
+	private static final int BANK_SIDE = net.runelite.api.gameval.InterfaceID.BANKSIDE;
+	private static final int POUCH_ROOT = 19;
+	private static final int POUCH_DEPOSIT_ALL = 20;
+	private static final int POUCH_CLOSE = 22;
+
+	/** As upstream: the rune pouch panel is showing (bank side, 15:19). */
+	public static boolean isRunePouchOpen()
+	{
+		return net.runelite.client.plugins.microbot.util.widget.Rs2Widget.isWidgetVisible(BANK_SIDE, POUCH_ROOT);
+	}
+
+	/** As upstream: "Configure" on the carried pouch, then waits for its panel. */
+	public static boolean openRunePouch()
+	{
+		if (isRunePouchOpen()) return true;
+		return Rs2Inventory.interact(POUCH_IDS, "Configure")
+			&& net.runelite.client.plugins.microbot.util.Global.sleepUntil(Rs2RunePouch::isRunePouchOpen, 3_000);
+	}
+
+	/** As upstream: closes the pouch panel and waits for it to go. */
+	public static boolean closeRunePouch()
+	{
+		if (!isRunePouchOpen()) return true;
+		return net.runelite.client.plugins.microbot.util.widget.Rs2Widget.clickWidget(BANK_SIDE, POUCH_CLOSE)
+			&& net.runelite.client.plugins.microbot.util.Global.sleepUntil(() -> !isRunePouchOpen(), 3_000);
+	}
+
+	/** As upstream: with the bank open, empties the pouch into the bank through its panel. */
+	public static boolean depositAll()
+	{
+		if (getRunes().isEmpty()) return true;
+		if (!net.runelite.client.plugins.microbot.util.bank.Rs2Bank.isOpen() || !Rs2Inventory.hasRunePouch()) return false;
+		return openRunePouch()
+			&& net.runelite.client.plugins.microbot.util.widget.Rs2Widget.clickWidget(BANK_SIDE, POUCH_DEPOSIT_ALL)
+			&& net.runelite.client.plugins.microbot.util.Global.sleepUntil(() -> getRunes().isEmpty(), 3_000);
+	}
+
+	/** As upstream: true when the pouch already holds these runes exactly (no combination runes), else loads them. */
+	public static boolean load(java.util.Map<net.runelite.client.plugins.microbot.util.magic.Runes, Integer> requiredRunes)
+	{
+		return contains(requiredRunes, false) || coreLoad(requiredRunes);
+	}
+
+	/** As upstream: like {@link #load}, each rune's fuzzy flag allowing combination runes. */
+	public static boolean loadFromInventorySetup(
+		java.util.Map<net.runelite.client.plugins.microbot.util.magic.Runes, net.runelite.client.plugins.microbot.inventorysetups.InventorySetupsItem> inventorySetupRunes)
+	{
+		boolean present = inventorySetupRunes.entrySet().stream()
+			.allMatch(e -> contains(e.getKey(), e.getValue().getQuantity(), e.getValue().isFuzzy()));
+		return present || coreLoad(inventorySetupRunes.entrySet().stream()
+			.collect(java.util.stream.Collectors.toMap(java.util.Map.Entry::getKey, e -> e.getValue().getQuantity())));
+	}
+
+	/**
+	 * Upstream's core without the saved loadouts: with the bank open and the pouch panel open,
+	 * empties the pouch, withdraws each rune into it, and closes the panel. Mobile adaptation:
+	 * saved pouch loadouts are not tried first. True when every rune is in the pouch.
+	 */
+	private static boolean coreLoad(java.util.Map<net.runelite.client.plugins.microbot.util.magic.Runes, Integer> requiredRunes)
+	{
+		if (!net.runelite.client.plugins.microbot.util.bank.Rs2Bank.isOpen() || !Rs2Inventory.hasRunePouch()
+			|| !openRunePouch() || !depositAll())
+		{
+			return false;
+		}
+		for (java.util.Map.Entry<net.runelite.client.plugins.microbot.util.magic.Runes, Integer> entry : requiredRunes.entrySet())
+		{
+			if (!net.runelite.client.plugins.microbot.util.bank.Rs2Bank.withdrawX(entry.getKey().getItemId(), entry.getValue()))
+			{
+				return false;
+			}
+			net.runelite.client.plugins.microbot.util.Global.sleepUntil(() -> contains(entry.getKey(), entry.getValue()), 3_000);
+		}
+		boolean loaded = requiredRunes.entrySet().stream().allMatch(e -> contains(e.getKey(), e.getValue()));
+		return closeRunePouch() && loaded;
+	}
 }
