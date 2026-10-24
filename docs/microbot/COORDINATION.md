@@ -44,6 +44,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | `util/player/Rs2Player.java` (action block: `drinkPrayerPotionAt`, `drinkAntiPoisonPotion`), new Hub copies `flipperschaser`, `stonechests`, Hub lists, tests, docs | Potion actions on Claude 2's `ad27626` reads | this commit |
 | Claude 2 (session `claude/dazzling-cannon-6cy3wc`) | new `test/.../util/walker/TransportContractTest.java` (test only; reads your package-private parsers, changes nothing in `util/walker/**`), `test/.../shortestpath/{MobileRouteTest,MobileRouteTestAccess}.java` | Webwalker finishing split **C2-3**: contract route tests for every transport the walker executes | this commit |
 | Codex (user: next) | New `CODEX_APK_VERIFICATION.md`; local build/verification outputs only | Verify latest shared-source debug APK packaging and GitHub download identity; no runtime, CI or transport edits | this claim commit |
 
