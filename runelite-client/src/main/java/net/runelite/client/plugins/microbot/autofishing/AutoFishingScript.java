@@ -12,6 +12,7 @@ import net.runelite.client.plugins.microbot.Script;
 import net.runelite.client.plugins.microbot.autofishing.enums.AutoFishingState;
 import net.runelite.client.plugins.microbot.autofishing.enums.Fish;
 import net.runelite.client.plugins.microbot.autofishing.enums.HarpoonType;
+import net.runelite.client.plugins.microbot.mobile.MobileActions;
 import net.runelite.client.plugins.microbot.util.antiban.Rs2Antiban;
 import net.runelite.client.plugins.microbot.util.bank.Rs2Bank;
 import net.runelite.client.plugins.microbot.util.combat.Rs2Combat;
@@ -33,6 +34,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.awt.event.KeyEvent;
 
+/**
+ * Auto fisher: travels to the nearest spot for the selected fish, fishes it, and then drops, banks, cooks or
+ * processes the catch. Adapted for Microbot Mobile (no logout, stop-aware waits, client-thread reads); see
+ * MOBILE_PORT.md in this package.
+ */
 @Slf4j
 public class AutoFishingScript extends Script {
 
@@ -66,9 +72,8 @@ public class AutoFishingScript extends Script {
             currentState = determineState();
 
             if (currentState == AutoFishingState.FISHING && !hasFishingMaterials()) {
-                log.info("Out of required fishing materials for {}. Logging out and shutting down script.", selectedFish);
-                Rs2Player.logout();
-                shutdown();
+                // Mobile: no logout; stop the plugin so the Microbot Mobile screen shows it stopped.
+                stopPlugin("Out of required fishing materials for " + selectedFish + ".");
                 return;
             }
 
@@ -166,7 +171,8 @@ public class AutoFishingScript extends Script {
             // This gives one click per spot lifetime and catches full inv during the session.
             if (clickedSpotIndex != -1) {
                 while (true) {
-                    if (Rs2Inventory.isFull()) {
+                    // Mobile: leave the wait as soon as the script is stopped.
+                    if (Thread.currentThread().isInterrupted() || !Microbot.isLoggedIn() || Rs2Inventory.isFull()) {
                         break;
                     }
                     Actor current = Rs2Player.getInteracting();
@@ -219,8 +225,7 @@ public class AutoFishingScript extends Script {
         }
         Rs2TileObjectModel fireOrRange = getNearbyFireOrRange();
         if (fireOrRange == null) {
-            log.error("There is no fire nearby, shutdown");
-            shutdown();
+            stopPlugin("There is no fire nearby to cook on.");
             return;
         }
 
@@ -256,7 +261,8 @@ public class AutoFishingScript extends Script {
 
             Rs2Inventory.useUnNotedItemOnObject(fishToCook, fireOrRange.getId());
             if (sleepUntil(() -> Rs2Widget.findWidget("How many would you like to cook?", null) != null, 3000)) {
-                Rs2Keyboard.keyPress(KeyEvent.VK_SPACE);
+                // Mobile: retry the key until accepted (one action per game tick).
+                sleepUntil(() -> Rs2Keyboard.keyPress(KeyEvent.VK_SPACE), 3000);
 
                 Rs2Player.waitForXpDrop(Skill.COOKING, true);
                 sleepUntil(() -> Rs2Player.getAnimation() != AnimationID.IDLE);
@@ -307,9 +313,8 @@ public class AutoFishingScript extends Script {
             }
 
             if (!hasRequiredGear()) {
-                log.info("Could not obtain required gear/materials from bank. Logging out and shutting down script.");
-                Rs2Player.logout();
-                shutdown();
+                // Mobile: no logout; stop the plugin so the Microbot Mobile screen shows it stopped.
+                stopPlugin("Could not obtain the required gear from the bank.");
                 return;
             }
         }
@@ -514,12 +519,23 @@ public class AutoFishingScript extends Script {
 
     private String getAvailableAction(Rs2NpcModel npcModel, List<String> actions) {
         if (npcModel == null || npcModel.getNpc() == null || actions == null) return "";
-        NPCComposition composition = npcModel.getNpc().getTransformedComposition();
-        if (composition == null || composition.getActions() == null) return "";
-        return Arrays.stream(composition.getActions())
+        // Mobile: read the composition on the client thread.
+        String[] spotActions = MobileActions.read(() -> {
+            NPCComposition composition = npcModel.getNpc().getTransformedComposition();
+            return composition == null ? null : composition.getActions();
+        }, null);
+        if (spotActions == null) return "";
+        return Arrays.stream(spotActions)
                 .filter(action -> action != null && actions.stream().anyMatch(a -> a.equalsIgnoreCase(action)))
                 .findFirst()
                 .orElse("");
+    }
+
+    /** Stops with {@code message}, turning the plugin off (not just this loop) so the Microbot Mobile screen shows it. */
+    private void stopPlugin(String message) {
+        Microbot.showMessage(message);
+        shutdown();
+        Microbot.stopPlugin(AutoFishingPlugin.class);
     }
 
     @Override

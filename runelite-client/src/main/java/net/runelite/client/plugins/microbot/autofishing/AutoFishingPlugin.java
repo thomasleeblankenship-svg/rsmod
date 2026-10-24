@@ -8,6 +8,7 @@ import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.plugins.microbot.PluginConstants;
 import net.runelite.client.plugins.microbot.Microbot;
+import net.runelite.client.plugins.microbot.mobile.MobileActions;
 import net.runelite.client.ui.overlay.OverlayManager;
 
 import javax.inject.Inject;
@@ -53,18 +54,26 @@ public class AutoFishingPlugin extends Plugin {
             overlayManager.add(fishingOverlay);
         }
         fishingScript.run(config);
-        startXp = Microbot.getClient().getSkillExperience(Skill.FISHING);
+        startXp = fishingXp();
         startTime = System.currentTimeMillis();
     }
 
     @Override
     protected void shutDown() {
         fishingScript.shutdown();
-        overlayManager.remove(fishingOverlay);
+        // Mobile: startUp tolerates a missing overlay manager, so stopping must too.
+        if (overlayManager != null) {
+            overlayManager.remove(fishingOverlay);
+        }
     }
 
     public int getXpGained() {
-        return Microbot.getClient().getSkillExperience(Skill.FISHING) - startXp;
+        return fishingXp() - startXp;
+    }
+
+    // Mobile: startUp runs off the client thread, so the XP read goes through the client-thread read.
+    private static int fishingXp() {
+        return MobileActions.read(() -> Microbot.getClient().getSkillExperience(Skill.FISHING), 0);
     }
 
     public long getRuntimeMillis() {
