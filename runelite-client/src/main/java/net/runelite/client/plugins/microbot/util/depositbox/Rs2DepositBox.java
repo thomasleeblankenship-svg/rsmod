@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.plugins.microbot.Microbot;
@@ -16,8 +17,9 @@ import net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel;
  * Deposit box actions with chsami/Microbot's {@code util/depositbox/Rs2DepositBox} names (at
  * {@code a2114401bbbc35e9762db9e8aa666d70ffcd24d8}, BSD 2-Clause), written for mobile: each deposit
  * is the deposit box inventory's "Deposit-All" option on the item's slot, dispatched through
- * {@link MobileActions}, and counts only once the item has left the inventory. Only the subset
- * scripts use so far is provided (open check, deposit-all by id or predicate, close).
+ * {@link MobileActions}, and counts only once the item has left the inventory. Also the single and
+ * X deposits, the deposit-inventory and deposit-worn buttons, and walking to the nearest usable box
+ * (never one in the Wilderness).
  */
 public final class Rs2DepositBox
 {
@@ -181,5 +183,222 @@ public final class Rs2DepositBox
 			}
 		}
 		return null;
+	}
+
+	// ---- Util action batch R (Claude 1): single deposits, buttons, walking ----
+
+	/** The deposit box's wait for the inventory to change after a deposit. */
+	private static final int DEPOSIT_WAIT_MILLIS = 2_500;
+
+	/** As upstream: the "Deposit inventory" button; true once the inventory changed (or was already empty). */
+	public static boolean depositAll()
+	{
+		if (Rs2Inventory.isEmpty()) return true;
+		return isOpen() && Rs2Inventory.waitForInventoryChanges(
+			() -> MobileActions.widget(InterfaceID.BankDepositbox.DEPOSIT_INV, -1, ""), 0, 5_000);
+	}
+
+	/** As upstream: deposits every stack whose name is one of {@code names} (ignoring case). */
+	public static boolean depositAll(String... names)
+	{
+		java.util.Set<String> wanted = Arrays.stream(names).filter(java.util.Objects::nonNull)
+			.map(n -> n.toLowerCase(java.util.Locale.ROOT)).collect(Collectors.toSet());
+		return depositAll(item -> item.getName() != null && wanted.contains(item.getName().toLowerCase(java.util.Locale.ROOT)));
+	}
+
+	/** As upstream: the "Deposit worn items" button. */
+	public static boolean depositEquipment()
+	{
+		return isOpen() && Global.sleepUntil(() -> MobileActions.widget(InterfaceID.BankDepositbox.DEPOSIT_WORN, -1, ""), 2_000);
+	}
+
+	/** As upstream: "Deposit-1" on the first item whose name contains {@code itemName}. */
+	public static boolean depositOne(String itemName)
+	{
+		return depositOne(itemName, false);
+	}
+
+	/** As upstream: "Deposit-1" on the first item with this ID. */
+	public static boolean depositOne(int itemId)
+	{
+		return depositOne(Rs2Inventory.get(itemId));
+	}
+
+	/** As upstream: "Deposit-1" on the first item named {@code itemName}, exactly or containing it. */
+	public static boolean depositOne(String itemName, boolean exact)
+	{
+		return depositOne(named(itemName, exact));
+	}
+
+	/** As upstream: "Deposit-1" on this inventory item; true once its stack shrank. */
+	public static boolean depositOne(Rs2ItemModel rs2Item)
+	{
+		return deposit(rs2Item, "Deposit-1", 0);
+	}
+
+	/** As upstream: "Deposit-X" with {@code amount} on the first item with this ID. */
+	public static boolean depositX(int itemId, int amount)
+	{
+		return depositX(Rs2Inventory.get(itemId), amount);
+	}
+
+	/** As upstream: "Deposit-X" on the first item whose name contains {@code itemName}. */
+	public static boolean depositX(String itemName, int amount)
+	{
+		return depositX(itemName, amount, false);
+	}
+
+	/** As upstream: "Deposit-X" on the first item named {@code itemName}, exactly or containing it. */
+	public static boolean depositX(String itemName, int amount, boolean exact)
+	{
+		return depositX(named(itemName, exact), amount);
+	}
+
+	/** As upstream: "Deposit-X", then types {@code amount} into the prompt; true once the stack shrank. */
+	public static boolean depositX(Rs2ItemModel rs2Item, int amount)
+	{
+		return amount > 0 && deposit(rs2Item, "Deposit-X", amount);
+	}
+
+	private static Rs2ItemModel named(String name, boolean exact)
+	{
+		if (name == null) return null;
+		String wanted = name.toLowerCase(java.util.Locale.ROOT);
+		return Rs2Inventory.items(i -> i.getName() != null && (exact ? i.getName().equalsIgnoreCase(name)
+			: i.getName().toLowerCase(java.util.Locale.ROOT).contains(wanted))).findFirst().orElse(null);
+	}
+
+	/** One deposit option on the item's slot; for "Deposit-X", {@code amount} is typed into the prompt. */
+	private static boolean deposit(Rs2ItemModel item, String option, int amount)
+	{
+		if (item == null || !isOpen() || !Rs2Inventory.hasItem(item.getId())) return false;
+		long before = carried(item.getId());
+		if (!Global.sleepUntil(() -> MobileActions.widget(InterfaceID.BankDepositbox.INVENTORY, item.getSlot(), option), 2_000))
+		{
+			return false;
+		}
+		if (amount > 0 && !(Global.sleepUntil(() -> MobileActions.read(() ->
+				Microbot.getClient().getVarcIntValue(net.runelite.api.VarClientInt.INPUT_TYPE) != 0, false), 3_000)
+			&& net.runelite.client.plugins.microbot.util.keyboard.Rs2Keyboard.typeString(Integer.toString(amount))
+			&& net.runelite.client.plugins.microbot.util.keyboard.Rs2Keyboard.enter()))
+		{
+			return false;
+		}
+		return Global.sleepUntil(() -> carried(item.getId()) < before, DEPOSIT_WAIT_MILLIS);
+	}
+
+	private static long carried(int itemId)
+	{
+		return Rs2Inventory.items(i -> i.getId() == itemId).mapToLong(Rs2ItemModel::getQuantity).sum();
+	}
+
+	/**
+	 * As upstream, without its path search: the usable deposit box nearest {@code worldPoint}
+	 * (straight-line, with a cost per plane), or null. A box in the Wilderness is never returned.
+	 */
+	public static DepositBoxLocation getNearestDepositBox(WorldPoint worldPoint, int maxObjectSearchRadius)
+	{
+		if (worldPoint == null) return null;
+		return Arrays.stream(DepositBoxLocation.values())
+			.filter(box -> !box.isInWilderness() && box.hasRequirements())
+			.min(java.util.Comparator.comparingInt(box -> Math.max(Math.abs(worldPoint.getX() - box.getWorldPoint().getX()),
+				Math.abs(worldPoint.getY() - box.getWorldPoint().getY())) + 12 * Math.abs(worldPoint.getPlane() - box.getWorldPoint().getPlane())))
+			.orElse(null);
+	}
+
+	/** As upstream: {@link #getNearestDepositBox(WorldPoint, int)} from the player. */
+	public static DepositBoxLocation getNearestDepositBox()
+	{
+		return getNearestDepositBox(net.runelite.client.plugins.microbot.util.player.Rs2Player.getWorldLocation(), 20);
+	}
+
+	/** As upstream: walks (with run on) to within 4 tiles of this deposit box; true when there. */
+	public static boolean walkToDepositBox(DepositBoxLocation depositBoxLocation)
+	{
+		if (isOpen()) return true;
+		if (depositBoxLocation == null || depositBoxLocation.isInWilderness()) return false;
+		net.runelite.client.plugins.microbot.util.player.Rs2Player.toggleRunEnergy(true);
+		Microbot.status = "Walking to nearest deposit box " + depositBoxLocation.name();
+		net.runelite.client.plugins.microbot.util.walker.Rs2Walker.walkTo(depositBoxLocation.getWorldPoint(), 4);
+		WorldPoint here = net.runelite.client.plugins.microbot.util.player.Rs2Player.getWorldLocation();
+		return here != null && depositBoxLocation.getWorldPoint().distanceTo2D(here) <= 4;
+	}
+
+	/** As upstream: {@link #walkToDepositBox(DepositBoxLocation)} to the nearest box. */
+	public static boolean walkToDepositBox()
+	{
+		return walkToDepositBox(getNearestDepositBox());
+	}
+
+	/** As upstream: walks to the nearest deposit box and opens it once within 8 tiles. */
+	public static boolean walkToAndUseDepositBox()
+	{
+		return walkToAndUseDepositBox(getNearestDepositBox());
+	}
+
+	/** As upstream: opens this deposit box when within 8 tiles, else walks towards it (false). */
+	public static boolean walkToAndUseDepositBox(DepositBoxLocation depositBoxLocation)
+	{
+		if (isOpen()) return true;
+		if (depositBoxLocation == null || depositBoxLocation.isInWilderness()) return false;
+		net.runelite.client.plugins.microbot.util.player.Rs2Player.toggleRunEnergy(true);
+		WorldPoint here = net.runelite.client.plugins.microbot.util.player.Rs2Player.getWorldLocation();
+		if (here != null && depositBoxLocation.getWorldPoint().distanceTo(here) <= 8)
+		{
+			return openDepositBox();
+		}
+		Microbot.status = "Walking to nearest deposit box " + depositBoxLocation.name();
+		net.runelite.client.plugins.microbot.util.walker.Rs2Walker.walkTo(depositBoxLocation.getWorldPoint());
+		return false;
+	}
+
+	/** As upstream: with no more than {@code emptySlotCount} free slots, deposits at the nearest box; else walks back. */
+	public static boolean bankItemsAndWalkBackToOriginalPosition(List<String> itemNames, WorldPoint initialPlayerLocation, int emptySlotCount)
+	{
+		return bankItemsAndWalkBackToOriginalPosition(itemNames, false, initialPlayerLocation, emptySlotCount, 4);
+	}
+
+	/** As upstream: banks when the inventory is full, else walks back to {@code initialPlayerLocation}. */
+	public static boolean bankItemsAndWalkBackToOriginalPosition(List<String> itemNames, WorldPoint initialPlayerLocation)
+	{
+		return bankItemsAndWalkBackToOriginalPosition(itemNames, false, initialPlayerLocation, 0, 4);
+	}
+
+	/** As upstream, by containment. */
+	public static boolean bankItemsAndWalkBackToOriginalPosition(List<String> itemNames, WorldPoint initialPlayerLocation, int emptySlotCount, int distance)
+	{
+		return bankItemsAndWalkBackToOriginalPosition(itemNames, false, initialPlayerLocation, emptySlotCount, distance);
+	}
+
+	/**
+	 * As upstream: when no more than {@code emptySlotCount} slots are free, walks to and opens the
+	 * nearest deposit box and deposits {@code itemNames} (false meanwhile); otherwise returns to
+	 * within {@code distance} (at most 10) of {@code initialPlayerLocation}. True once back with room.
+	 */
+	public static boolean bankItemsAndWalkBackToOriginalPosition(List<String> itemNames, boolean exactItemNames,
+		WorldPoint initialPlayerLocation, int emptySlotCount, int distance)
+	{
+		if (Rs2Inventory.getEmptySlots() <= emptySlotCount)
+		{
+			if (walkToAndUseDepositBox())
+			{
+				depositAll(itemNames, exactItemNames);
+			}
+			return false;
+		}
+		int range = Math.min(distance, 10);
+		WorldPoint here = net.runelite.client.plugins.microbot.util.player.Rs2Player.getWorldLocation();
+		if (here == null || initialPlayerLocation == null) return false;
+		if (initialPlayerLocation.distanceTo(here) > range
+			|| !net.runelite.client.plugins.microbot.util.tile.Rs2Tile.isTileReachable(initialPlayerLocation))
+		{
+			net.runelite.client.plugins.microbot.util.walker.Rs2Walker.walkTo(initialPlayerLocation, range);
+		}
+		else
+		{
+			net.runelite.client.plugins.microbot.util.walker.Rs2Walker.walkFastCanvas(initialPlayerLocation);
+		}
+		WorldPoint after = net.runelite.client.plugins.microbot.util.player.Rs2Player.getWorldLocation();
+		return Rs2Inventory.getEmptySlots() > emptySlotCount && after != null && initialPlayerLocation.distanceTo(after) <= range;
 	}
 }
