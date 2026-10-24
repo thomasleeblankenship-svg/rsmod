@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | Hub `microbot/tithefarming/**` (upstream copy), `config/checkstyle/suppressions.xml`, `runelite-client/build.gradle.kts`, `HubPortedPluginsTest`, `HUB_PORTS.md` | **Task: port tithefarming, now at 0 errors** (its natural-mouse flag and break-handler locks are inert) | this commit |
 
 ## Requests
 
