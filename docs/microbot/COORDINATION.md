@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | New `ui/overlay/components/{ButtonComponent,HorizontalRowComponent}.java` and `util/mouse/BotEventGuard.java` (upstream), `Microbot.java` (`getMouseManager`, bound by `mobilemicrobot/MobileMicrobotPlugin.java`), `plugins/agility/AgilityPlugin.java` (**`stickTile` getter public static, as upstream Microbot**), `util/magic/thralls/Rs2Thrall.java` (actions: `cast`, `getBestThrall`), new `pouch/PouchOverlay.java` (upstream), new `HubActionBatchHTest` | **Task: util-gap action batch H** (overlay components, thralls, agility stick tile, pouch overlay) | this commit |
 
 ## Requests
 
