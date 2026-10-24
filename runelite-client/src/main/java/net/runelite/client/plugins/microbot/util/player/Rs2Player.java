@@ -306,6 +306,52 @@ public final class Rs2Player
 		return net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory.interact(chosen, action);
 	}
 
+	/**
+	 * As upstream: at or below {@code prayerPoints}, drinks a prayer regeneration potion when its
+	 * effect is not active, else a blighted super restore in the Wilderness or on a PvP world, else
+	 * any prayer potion variant. False when above the threshold or nothing could be drunk.
+	 */
+	public static boolean drinkPrayerPotionAt(int prayerPoints)
+	{
+		if (getBoostedSkillLevel(net.runelite.api.Skill.PRAYER) > prayerPoints) return false;
+		boolean wilderness = net.runelite.client.plugins.microbot.Microbot.getVarbitValue(net.runelite.api.Varbits.IN_WILDERNESS) == 1;
+		boolean pvp = net.runelite.client.plugins.microbot.mobile.MobileActions.read(() ->
+			net.runelite.client.plugins.microbot.Microbot.getClient().getWorldType().contains(net.runelite.api.WorldType.PVP), false);
+		if (!hasPrayerRegenerationActive()
+			&& drinkPotion(net.runelite.client.plugins.microbot.util.misc.Rs2Potion.getPrayerRegenerationPotion())) return true;
+		if ((wilderness || pvp) && potion("blighted super restore") != null) return drinkPotion("blighted super restore");
+		return drinkPotion(net.runelite.client.plugins.microbot.util.misc.Rs2Potion.getPrayerPotionsVariants().toArray(new String[0]));
+	}
+
+	/**
+	 * Drinks an anti-poison when neither anti-poison nor anti-venom protection is active; true when
+	 * already protected or one was drunk. Mobile: upstream returns early when protection is
+	 * <em>not</em> active (an inversion that never drinks when it is needed); this follows the
+	 * method's documented intent instead.
+	 */
+	public static boolean drinkAntiPoisonPotion()
+	{
+		if (hasAntiPoisonActive() || hasAntiVenomActive()) return true;
+		return drinkPotion(net.runelite.client.plugins.microbot.util.misc.Rs2Potion.getAntiPoisonVariants().toArray(new String[0]));
+	}
+
+	/** The first unnoted potion whose name, without its dose suffix, is one of {@code names} (case-insensitive). */
+	private static net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel potion(String... names)
+	{
+		return net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory.items(item ->
+		{
+			if (item.isNoted() || item.getName() == null) return false;
+			String base = item.getName().replaceAll("\\(\\d+\\)$", "").trim();
+			return java.util.Arrays.stream(names).anyMatch(name -> name != null && name.equalsIgnoreCase(base));
+		}).findFirst().orElse(null);
+	}
+
+	private static boolean drinkPotion(String... names)
+	{
+		net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel potion = potion(names);
+		return potion != null && net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory.interact(potion, "Drink");
+	}
+
 	public static boolean isStandingOnGameObject()
 	{
 		return net.runelite.client.plugins.microbot.mobile.MobileActions.read(() ->
