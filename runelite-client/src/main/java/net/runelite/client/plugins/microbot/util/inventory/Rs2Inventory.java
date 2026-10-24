@@ -174,6 +174,8 @@ public final class Rs2Inventory
 	}
 	public static boolean isFull() { return count() >= 28; }
 	public static int emptySlotCount() { return Math.max(0, 28 - count()); }
+	/** As upstream: the number of empty inventory slots ({@link #emptySlotCount()}). */
+	public static int getEmptySlots() { return emptySlotCount(); }
 	public static List<Rs2ItemModel> getList(Predicate<Rs2ItemModel> predicate) { return items(predicate).collect(Collectors.toList()); }
 	public static Rs2ItemModel get(int id) { return items(i -> i.getId() == id).findFirst().orElse(null); }
 	public static Rs2ItemModel get(String name) { return items(i -> matches(i.getName(), name, false)).findFirst().orElse(null); }

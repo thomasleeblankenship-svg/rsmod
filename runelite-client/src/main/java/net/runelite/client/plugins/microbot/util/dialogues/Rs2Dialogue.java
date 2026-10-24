@@ -159,6 +159,12 @@ public final class Rs2Dialogue
 	}
 
 	/** As upstream: waits (upstream's default wait) until an option containing {@code text} shows. */
+	/** As upstream: waits (upstream's default wait) until a dialogue is showing. */
+	public static boolean sleepUntilInDialogue()
+	{
+		return net.runelite.client.plugins.microbot.util.Global.sleepUntilTrue(Rs2Dialogue::isInDialogue);
+	}
+
 	public static boolean sleepUntilHasDialogueOption(String text)
 	{
 		return sleepUntilHasDialogueOption(text, false);
