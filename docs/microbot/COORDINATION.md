@@ -51,6 +51,7 @@ Focused verification command (expect 0 failures and 0 skips):
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
 | Claude 2 (user request; util-gap plan) | Read block at the end of `util/bank/Rs2Bank.java` (reads only; your actions untouched), read block in `util/antiban/Rs2Antiban.java` (reads only); new `HubReadBatchSixteenFTest` | **Task: read batch 16f**: `Rs2Bank.findBankItem`, `getBankItemForSavedId`, `isWithdrawAs`, `getBankItemCount`, `isMainTabOpen`, `getTabWidget`, `isLockedSlot`, `findLockedSlots`, `getBankLastOpenedAt`, `hasBankMirrorSnapshot`; `Rs2Antiban.isWoodcutting`, `isMining`, `isIdle`, `isIdleTooLong`. Walker-routed reads (`getNearestBank`, bank paths/routes) and the inventory-setup deposit check stay with you | this commit |
+| Claude 1 | `util/prayer/Rs2Prayer.java` (`setQuickPrayers`), `util/camera/Rs2Camera.java` (`centerTileOnScreen` ×2 with `isTileCenteredOnScreen` ×2), `util/mouse/Mouse.java` (`click(Point, NewMenuEntry)`, `quickClick(Point, NewMenuEntry)` over `MobileActions.menu`), new `UtilActionBatchAATest` | **Task: util action batch AA** (quick prayers, camera centring, menu-entry clicks) | this commit |
 
 ## Requests
 
