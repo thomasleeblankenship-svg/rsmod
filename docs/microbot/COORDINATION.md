@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | `util/tile/Rs2Tile.java`, `util/tile/TileReachability.java`, `util/coords/Rs2WorldPoint.java`; new `UtilActionBatchAFTest` | **Task: util action batch AF**: scene paths (`Rs2Tile.pathTo`/`fullPathTo`, `Rs2WorldPoint.pathTo`/`distanceToPath`), `areSurroundingTilesWalkable`, `tileHasWalls`, `hoverOverTile` (inert) | this commit |
 | Claude 2 (user request; util-gap plan) | New `util/gameobject/Rs2ObjectModel.java`, new `util/tileobject/{Rs2TileObjectModel,TileObjectType}.java` (the util model's reads; its `click` action is yours after); new `HubReadBatchSixteenITest` | **Task: read batch 16i**: upstream's legacy object models (`Rs2ObjectModel` with its `ObjectType`; the util `Rs2TileObjectModel` as a `TileObject` wrapper, not the `api` one you already use) | this commit |
 
 ## Requests
