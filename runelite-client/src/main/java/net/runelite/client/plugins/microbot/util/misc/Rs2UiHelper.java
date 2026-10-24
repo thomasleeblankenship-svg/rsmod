@@ -113,4 +113,91 @@ public final class Rs2UiHelper
 		return rectangle.getX() >= 0 && rectangle.getY() >= 0
 			&& rectangle.getX() + rectangle.getWidth() <= canvas[0] && rectangle.getY() + rectangle.getHeight() <= canvas[1];
 	}
+
+	// ---- Read batch 16e (upstream 2.6.38) ----
+
+	/** As upstream: {@code null}, or a rectangle at (0, 0) or (1, 1), marks "no real clickbox". */
+	public static boolean isFallbackRectangle(Rectangle rectangle)
+	{
+		return rectangle == null || (rectangle.getX() == 1 && rectangle.getY() == 1) || (rectangle.getX() == 0 && rectangle.getY() == 0);
+	}
+
+	/** As upstream: the script mouse position is in {@code rectangle} (always true for a fallback rectangle). */
+	public static boolean isMouseWithinRectangle(Rectangle rectangle)
+	{
+		if ((rectangle.getX() == 1 && rectangle.getY() == 1) || (rectangle.getX() == 0 && rectangle.getY() == 0))
+		{
+			return true;
+		}
+		return rectangle.contains(net.runelite.client.plugins.microbot.Microbot.getMouse().getMousePosition());
+	}
+
+	/** As upstream: a half-tile square centred on {@code tile}'s canvas point, or the default rectangle. */
+	public static Rectangle getTileClickbox(net.runelite.api.Tile tile)
+	{
+		Rectangle box = tile == null ? null : MobileActions.read(() ->
+		{
+			net.runelite.api.coords.LocalPoint local = tile.getLocalLocation();
+			net.runelite.api.Client client = net.runelite.client.plugins.microbot.Microbot.getClient();
+			net.runelite.api.Point point = local == null ? null : net.runelite.api.Perspective.localToCanvas(client, local, client.getPlane());
+			int size = net.runelite.api.Perspective.LOCAL_TILE_SIZE;
+			return point == null ? null : new Rectangle(point.getX() - size / 4, point.getY() - size / 4, size / 2, size / 2);
+		}, null);
+		return box == null ? getDefaultRectangle() : box;
+	}
+
+	/** As upstream: the entry targets an actor. */
+	public static boolean hasActor(net.runelite.client.plugins.microbot.util.menu.NewMenuEntry entry)
+	{
+		return entry.getActor() != null;
+	}
+
+	/** As upstream: the entry targets a scene object. */
+	public static boolean isGameObject(net.runelite.client.plugins.microbot.util.menu.NewMenuEntry entry)
+	{
+		return entry.getGameObject() != null;
+	}
+
+	/** As upstream: compares dotted versions part by part (numeric prefix of each part; missing parts are 0). */
+	public static int compareVersions(String version1, String version2)
+	{
+		if (version1 == null || version2 == null)
+		{
+			return version1 == null ? (version2 == null ? 0 : -1) : 1;
+		}
+		String[] v1 = version1.split("\\.");
+		String[] v2 = version2.split("\\.");
+		for (int i = 0; i < Math.max(v1.length, v2.length); i++)
+		{
+			int a = i < v1.length ? parseVersionPart(v1[i]) : 0;
+			int b = i < v2.length ? parseVersionPart(v2[i]) : 0;
+			if (a != b)
+			{
+				return a < b ? -1 : 1;
+			}
+		}
+		return 0;
+	}
+
+	/** As upstream: the leading digits of {@code part}, or 0. */
+	public static int parseVersionPart(String part)
+	{
+		if (part == null)
+		{
+			return 0;
+		}
+		int end = 0;
+		while (end < part.length() && Character.isDigit(part.charAt(end)))
+		{
+			end++;
+		}
+		try
+		{
+			return end == 0 ? 0 : Integer.parseInt(part.substring(0, end));
+		}
+		catch (NumberFormatException e)
+		{
+			return 0;
+		}
+	}
 }

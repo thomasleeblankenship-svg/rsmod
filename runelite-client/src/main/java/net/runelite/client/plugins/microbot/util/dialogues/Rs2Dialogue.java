@@ -541,4 +541,98 @@ public final class Rs2Dialogue
 	{
 		return net.runelite.client.plugins.microbot.util.Global.sleepUntil(Rs2Dialogue::hasCombinationDialogue, 5_000);
 	}
+
+	// ---- Read batch 16e (upstream 2.6.38) ----
+
+	/** As upstream: the "Select an option" rows with text (the title row skipped); empty when no menu shows. */
+	public static java.util.List<net.runelite.api.widgets.Widget> getDialogueOptions()
+	{
+		if (!hasSelectAnOption())
+		{
+			return java.util.Collections.emptyList();
+		}
+		net.runelite.api.widgets.Widget[] children = MobileActions.read(() ->
+		{
+			net.runelite.api.widgets.Widget menu = Microbot.getClient()
+				.getWidget(net.runelite.api.widgets.InterfaceID.DIALOG_OPTION, 1);
+			return menu == null ? null : menu.getDynamicChildren();
+		}, null);
+		java.util.List<net.runelite.api.widgets.Widget> options = new java.util.ArrayList<>();
+		for (int i = 1; children != null && i < children.length; i++)
+		{
+			net.runelite.api.widgets.Widget option = children[i];
+			String text = option == null ? null : MobileActions.read(option::getText, null);
+			if (text != null && !text.isBlank())
+			{
+				options.add(option);
+			}
+		}
+		return options;
+	}
+
+	/** As upstream: the make-X (270) choices that carry options; empty when the interface is closed. */
+	public static java.util.List<net.runelite.api.widgets.Widget> getCombinationOptions()
+	{
+		if (!hasCombinationDialogue() || !Rs2Widget.isWidgetVisible(270, 13))
+		{
+			return java.util.Collections.emptyList();
+		}
+		return MobileActions.read(() ->
+		{
+			net.runelite.api.widgets.Widget list = Microbot.getClient().getWidget(270, 14);
+			net.runelite.api.widgets.Widget[] children = list == null ? null : list.getStaticChildren();
+			java.util.List<net.runelite.api.widgets.Widget> options = new java.util.ArrayList<>();
+			for (int i = 0; children != null && i < children.length; i++)
+			{
+				net.runelite.api.widgets.Widget widget = children[i];
+				if (widget != null && widget.getActions() != null && widget.getActions().length > 0)
+				{
+					options.add(widget);
+				}
+			}
+			return options;
+		}, java.util.Collections.emptyList());
+	}
+
+	/** As upstream: the make-X choice whose name contains {@code text}, ignoring case. */
+	public static net.runelite.api.widgets.Widget getCombinationOption(String text)
+	{
+		return getCombinationOption(text, false);
+	}
+
+	/** As upstream: the make-X choice whose tag-free name equals ({@code exact}) or contains {@code text}, ignoring case. */
+	public static net.runelite.api.widgets.Widget getCombinationOption(String text, boolean exact)
+	{
+		if (text == null)
+		{
+			return null;
+		}
+		String lower = text.toLowerCase();
+		for (net.runelite.api.widgets.Widget widget : getCombinationOptions())
+		{
+			String name = net.runelite.client.plugins.microbot.util.misc.Rs2UiHelper.stripColTags(
+				MobileActions.read(widget::getName, ""));
+			if (name != null && (exact ? name.equalsIgnoreCase(text) : name.toLowerCase().contains(lower)))
+			{
+				return widget;
+			}
+		}
+		return null;
+	}
+
+	/** As upstream's private check: a sprite or double-sprite dialogue's continue is showing. */
+	private static boolean hasSpriteContinue()
+	{
+		return Rs2Widget.isWidgetVisible(net.runelite.api.widgets.InterfaceID.DIALOG_SPRITE, 0)
+			|| Rs2Widget.isWidgetVisible(net.runelite.api.widgets.InterfaceID.DIALOG_SPRITE, 3)
+			|| Rs2Widget.isWidgetVisible(net.runelite.api.gameval.InterfaceID.OBJECTBOX_DOUBLE, 4);
+	}
+
+	/** As upstream: the sprite dialogue's picture (193:1) while it shows, else {@code null}. */
+	public static net.runelite.api.widgets.Widget getDialogueSprite()
+	{
+		return hasSpriteContinue()
+			? Rs2Widget.getWidget(net.runelite.api.widgets.InterfaceID.DIALOG_SPRITE, 1)
+			: null;
+	}
 }

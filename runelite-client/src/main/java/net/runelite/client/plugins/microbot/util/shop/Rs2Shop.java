@@ -226,6 +226,12 @@ public final class Rs2Shop
 		return stock().stream().anyMatch(item -> item.id == itemId && item.quantity >= minimumQuantity);
 	}
 
+	/** As upstream: the shop slot of the first item named {@code itemName} (any case), or -1. */
+	public static int getSlot(String itemName)
+	{
+		return stock().stream().filter(item -> item.name.equalsIgnoreCase(itemName)).mapToInt(item -> item.slot).findFirst().orElse(-1);
+	}
+
 	/** The open shop's slots, read on the client thread; empty when no shop is open. */
 	static List<Stock> stock()
 	{
