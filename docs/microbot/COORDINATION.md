@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | `util/inventory/Rs2LogBasket.java`, `util/gameobject/Rs2GameObject.java` (actions only), `util/misc/Rs2UiHelper.java`, `util/grandexchange/Rs2GrandExchange.java` (extractNumber delegates), new `util/overlay/OverlayHelper.java`, new `util/logging/Rs2LogRateLimit.java`, new `util/skills/fletching/data/{FletchingArrow,FletchingBolt,FletchingDart,FletchingMaterial,FletchingMode}.java`, `util/skills/fletching/data/FletchingItem.java`; new `UtilActionBatchAETest` | **Task: util action batch AE**: log basket check/bank, object click helpers, UI helpers, overlay helper, log rate limit, fletching data enums | this commit |
 | Claude 2 (user request; your farming-reads request) | New `questhelper/helpers/mischelpers/farmruns/{CropState,FarmingHandler,FarmingPatch,FarmingRegion,FarmingWorld,PatchImplementation,PatchPrediction,PatchState,PaymentTracker}.java` (upstream model files only; no HerbRun/TreeRun helpers); new `HubReadBatchSixteenHTest` | **Task: read batch 16h**: Quest Helper's farm-run model, as upstream (RuneLite timetracking and `ConfigManager` only). `Rs2Farming`/`SpiritTree` follow as 16i | this commit |
 
 ## Requests
