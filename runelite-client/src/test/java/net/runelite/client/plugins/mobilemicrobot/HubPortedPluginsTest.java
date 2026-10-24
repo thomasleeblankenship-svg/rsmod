@@ -99,7 +99,21 @@ public class HubPortedPluginsTest
 		"net.runelite.client.plugins.microbot.attackrangesplus.AttackRangesPlusPlugin",
 		"net.runelite.client.plugins.microbot.moonsofperil.MoonsOfPerilPlugin",
 		"net.runelite.client.plugins.microbot.plankrunner.PlankRunnerPlugin",
-		"net.runelite.client.plugins.microbot.wintertodt.MWintertodtPlugin");
+		"net.runelite.client.plugins.microbot.wintertodt.MWintertodtPlugin",
+		"net.runelite.client.plugins.microbot.actionreplay.ActionReplayPlugin",
+		"net.runelite.client.plugins.microbot.aerialfishing.AerialFishingPlugin",
+		"net.runelite.client.plugins.microbot.arceuuslibrary.ArceuusLibraryPlugin",
+		"net.runelite.client.plugins.microbot.construction.ConstructionPlugin",
+		"net.runelite.client.plugins.microbot.cooking.AutoCookingPlugin",
+		"net.runelite.client.plugins.microbot.fletching.FletchingPlugin",
+		"net.runelite.client.plugins.microbot.glassmake.GabulhasGlassMakePlugin",
+		"net.runelite.client.plugins.microbot.grapefarmer.GrapeFarmerPlugin",
+		"net.runelite.client.plugins.microbot.looter.AutoLooterPlugin",
+		"net.runelite.client.plugins.microbot.natepieshells.PiePlugin",
+		"net.runelite.client.plugins.microbot.sandminer.GabulhasSandMinerPlugin",
+		"net.runelite.client.plugins.microbot.scurrius.ScurriusPlugin",
+		"net.runelite.client.plugins.microbot.valetotems.ValeTotemPlugin",
+		"net.runelite.client.plugins.microbot.virewatch.PVirewatchKillerPlugin");
 
 	private static Plugin instance(String name) throws Exception
 	{
