@@ -51,7 +51,15 @@ public class HubPortedPluginsTest
 		"net.runelite.client.plugins.microbot.autofishing.AutoFishingPlugin",
 		"net.runelite.client.plugins.microbot.barbarianvillagefisher.BarbarianVillageFisherPlugin",
 		"net.runelite.client.plugins.microbot.banksbankstander.BanksBankStanderPlugin",
-		"net.runelite.client.plugins.microbot.kspwillowchopper.KspWillowChopperPlugin");
+		"net.runelite.client.plugins.microbot.kspwillowchopper.KspWillowChopperPlugin",
+		"net.runelite.client.plugins.microbot.birdhouseruns.FornBirdhouseRunsPlugin",
+		"net.runelite.client.plugins.microbot.bonestobananas.BonesToBananasPlugin",
+		"net.runelite.client.plugins.microbot.eelfishing.EelFishingPlugin",
+		"net.runelite.client.plugins.microbot.jewelleryenchant.JewelleryEnchantPlugin",
+		"net.runelite.client.plugins.microbot.leaguesfiremaking.LeaguesFiremakingPlugin",
+		"net.runelite.client.plugins.microbot.leftclickcast.LeftClickCastPlugin",
+		"net.runelite.client.plugins.microbot.piebaker.PieBakerPlugin",
+		"net.runelite.client.plugins.microbot.varrockcleaner.VarrockCleanerPlugin");
 
 	private static Plugin instance(String name) throws Exception
 	{
