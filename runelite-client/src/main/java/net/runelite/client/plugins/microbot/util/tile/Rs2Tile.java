@@ -755,6 +755,111 @@ public final class Rs2Tile
 			.contains(net.runelite.client.plugins.microbot.shortestpath.WorldPointUtil.packWorldPoint(point));
 	}
 
+	// ---- Util action batch AF (Claude 1): scene paths and surroundings ----
+
+	/**
+	 * As upstream: the scene path from {@code source} to {@code other} as checkpoint tiles (where it
+	 * turns, then its end), at most 25, without the source. When {@code other} cannot be reached the
+	 * path ends at the nearest reachable tile within 10 of it. Null on different floors or when there
+	 * is no path.
+	 */
+	public static List<Tile> pathTo(Tile source, Tile other)
+	{
+		return scenePath(source, other, false);
+	}
+
+	/** As upstream: like {@link #pathTo(Tile, Tile)}, but every tile from {@code source} (included) on. */
+	public static List<Tile> fullPathTo(Tile source, Tile other)
+	{
+		return scenePath(source, other, true);
+	}
+
+	private static List<Tile> scenePath(Tile source, Tile other, boolean full)
+	{
+		if (source == null || other == null)
+		{
+			return null;
+		}
+		return MobileActions.read(() ->
+		{
+			int plane = source.getPlane();
+			net.runelite.api.Point from = source.getSceneLocation();
+			net.runelite.api.Point to = other.getSceneLocation();
+			WorldView view = Microbot.getClient().getTopLevelWorldView();
+			if (plane != other.getPlane() || from == null || to == null || view == null || view.getScene() == null)
+			{
+				return null;
+			}
+			List<int[]> path = TileReachability.scenePath(flags(view, plane), from.getX(), from.getY(), to.getX(), to.getY());
+			List<int[]> points = full ? path : TileReachability.checkpoints(path);
+			if (points == null)
+			{
+				return null;
+			}
+			Tile[][] tiles = view.getScene().getTiles()[plane];
+			List<Tile> result = new java.util.ArrayList<>(points.size());
+			for (int[] point : points)
+			{
+				result.add(tiles[point[0]][point[1]]);
+			}
+			return result;
+		}, null);
+	}
+
+	/**
+	 * As upstream: whether any tile in the ring around an object of {@code sizeX} by {@code sizeY}
+	 * centred on {@code worldPoint} is reachable for the player (one scene flood, not one per tile).
+	 */
+	public static boolean areSurroundingTilesWalkable(WorldPoint worldPoint, int sizeX, int sizeY)
+	{
+		if (worldPoint == null)
+		{
+			return false;
+		}
+		return MobileActions.read(() ->
+		{
+			Client client = Microbot.getClient();
+			WorldView view = client.getTopLevelWorldView();
+			Player player = client.getLocalPlayer();
+			WorldPoint location = player == null ? null : player.getWorldLocation();
+			int[][] flags = view == null ? null : flags(view, worldPoint.getPlane());
+			if (flags == null || location == null || location.getPlane() != worldPoint.getPlane())
+			{
+				return false;
+			}
+			boolean[][] reachable = reachableFromPlayer(view, player, location, flags);
+			int minX = worldPoint.getX() - (sizeX - 1) / 2 - view.getBaseX();
+			int minY = worldPoint.getY() - (sizeY - 1) / 2 - view.getBaseY();
+			int maxX = minX + sizeX - 1;
+			int maxY = minY + sizeY - 1;
+			for (int x = minX - 1; x <= maxX + 1; x++)
+			{
+				for (int y = minY - 1; y <= maxY + 1; y++)
+				{
+					boolean inside = x >= minX && x <= maxX && y >= minY && y <= maxY;
+					if (!inside && TileReachability.isWithinBounds(x, y) && reachable[x][y])
+					{
+						return true;
+					}
+				}
+			}
+			return false;
+		}, false);
+	}
+
+	/** As upstream: a wall object stands on {@code source}. */
+	public static boolean tileHasWalls(WorldPoint source)
+	{
+		return source != null && net.runelite.client.plugins.microbot.util.gameobject.Rs2GameObject.getWallObjects().stream()
+			.anyMatch(wall -> source.equals(MobileActions.read(wall::getWorldLocation, null)));
+	}
+
+	/** As upstream without natural mouse (never on here): hovering is not done; always false. */
+	public static boolean hoverOverTile(Tile tile)
+	{
+		return false;
+	}
+
 	/** Upstream's start tile: the local scene tile inside an instance, else the world tile minus the scene base. */
 	private static boolean[][] reachableFromPlayer(WorldView view, Player player, WorldPoint location, int[][] flags)
 	{
