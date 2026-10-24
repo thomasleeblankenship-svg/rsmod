@@ -378,7 +378,8 @@ public class MobileMicrobotPluginTest
 		ConfigManager manager = mock(ConfigManager.class, CALLS_REAL_METHODS);
 		net.runelite.client.config.ConfigDescriptor descriptor = manager.getConfigDescriptor(config);
 		assertEquals("mobilemicrobot", descriptor.getGroup().value());
-		assertEquals(3, descriptor.getSections().size());
+		// General, Inventory management and Forestry (auto woodcutting) plus the example woodcutting section.
+		assertEquals(4, descriptor.getSections().size());
 		for (java.lang.reflect.Method original : net.runelite.client.plugins.microbot.woodcutting.AutoWoodcuttingConfig.class.getDeclaredMethods())
 		{
 			if (original.getAnnotation(net.runelite.client.config.ConfigItem.class) == null) { continue; }

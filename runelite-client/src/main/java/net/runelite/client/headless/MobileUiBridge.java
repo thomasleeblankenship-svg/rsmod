@@ -1738,6 +1738,11 @@ public final class MobileUiBridge
 				continue;
 			}
 			final String key = item.key();
+			if (!isShownForSelectedScript(cm, group, ci.section()))
+			{
+				// Microbot Mobile: only the selected script's settings (plus the shared controls) are shown.
+				continue;
+			}
 			if (isMobileHiddenItem(group, key))
 			{
 				// Window-chrome / hardware-input items in the RuneLite core group are N/A on a fullscreen touch
@@ -1829,6 +1834,10 @@ public final class MobileUiBridge
 		out.key("sections").arr();
 		for (ConfigSectionDescriptor s : cd.getSections())
 		{
+			if (!isShownForSelectedScript(cm, group, s.key()))
+			{
+				continue;
+			}
 			final ConfigSection sec = s.getSection();
 			out.obj()
 				.kv("key", s.key())
@@ -1841,6 +1850,23 @@ public final class MobileUiBridge
 		out.end();   // close the sections array
 		return out.end().toString();   // close the root object
 	}
+
+	/**
+	 * Microbot Mobile's settings belong to one script each (see
+	 * {@link net.runelite.client.plugins.mobilemicrobot.ScriptKind}); in its group, a section is shown only
+	 * while its script is the selected one. Every other group shows all sections.
+	 */
+	private static boolean isShownForSelectedScript(ConfigManager cm, String group, String section)
+	{
+		if (!MOBILE_MICROBOT_GROUP.equals(group))
+		{
+			return true;
+		}
+		return net.runelite.client.plugins.mobilemicrobot.ScriptKind.isSectionShown(
+			cm.getConfiguration(group, "selectedScript"), section);
+	}
+
+	private static final String MOBILE_MICROBOT_GROUP = "mobilemicrobot";
 
 	// ---- Writes: queued onto the correct lane, fire-and-forget -----------------------------------------
 

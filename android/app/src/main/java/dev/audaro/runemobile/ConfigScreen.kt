@@ -277,7 +277,20 @@ fun ConfigScreen(
                     newVal: String,
                 ) {
                     items = items.map { if (it.key == item.key) it.copy(value = newVal) else it }
-                    JvmLauncher.onBridgeTouch { JvmLauncher.setConfig(group, item.key, newVal) }
+                    if (group == MICROBOT_GROUP && item.key == MICROBOT_SCRIPT_KEY) {
+                        // Microbot Mobile shows only the selected script's settings: once the new selection is
+                        // written, re-pull the schema so the previous script's sections drop out.
+                        JvmLauncher.onBridgeTouch {
+                            val wid = parseWriteId(JvmLauncher.setConfig(group, item.key, newVal))
+                            var tries = 0
+                            while (wid > 0 && JvmLauncher.processedWriteId() < wid && tries++ < 60) {
+                                Thread.sleep(10)
+                            }
+                            reloadKey++
+                        }
+                    } else {
+                        JvmLauncher.onBridgeTouch { JvmLauncher.setConfig(group, item.key, newVal) }
+                    }
                     pendingFlush++ // FIX-8: arm the debounced crash-safe flush
                 }
 
@@ -625,6 +638,10 @@ private fun BoundedIntSlider(
 // common chords for display and write "0:0" to clear, which ConfigManager round-trips back to Keybind.NOT_SET.
 
 /** The serialized Keybind.NOT_SET (keyCode VK_UNDEFINED=0, no modifiers) — what desktop's HotkeyButton clears to. */
+/** Microbot Mobile's config group and its script selector (the bridge filters settings by that selection). */
+internal const val MICROBOT_GROUP = "mobilemicrobot"
+internal const val MICROBOT_SCRIPT_KEY = "selectedScript"
+
 private const val KEYBIND_NOT_SET = "0:0"
 
 /** True if a keybind value is set (parses as keyCode:modifiers and isn't NOT_SET). Blank/garbage → unset. */

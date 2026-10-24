@@ -34,13 +34,25 @@ public interface MobileMicrobotConfig extends AutoWoodcuttingConfig
 		return true;
 	}
 
-	@ConfigItem(keyName = "treeType", name = "Example woodcutting tree", description = "Tree type for the example woodcutting script", position = 2)
+	/** Section key of the example woodcutting script's settings (see {@link ScriptKind}). */
+	String EXAMPLE_WOODCUTTING_SECTION = "exampleWoodcutting";
+
+	@ConfigSection(
+			name = "Woodcutting (example)",
+			description = "Settings for the example woodcutting script",
+			position = -1
+	)
+	String exampleWoodcuttingSection = EXAMPLE_WOODCUTTING_SECTION;
+
+	@ConfigItem(keyName = "treeType", name = "Example woodcutting tree", description = "Tree type for the example woodcutting script", position = 2,
+		section = EXAMPLE_WOODCUTTING_SECTION)
 	default TreeType treeType()
 	{
 		return TreeType.NORMAL;
 	}
 
-	@ConfigItem(keyName = "maxDistance", name = "Example tree distance", description = "Maximum number of tiles to search from the player", position = 3)
+	@ConfigItem(keyName = "maxDistance", name = "Example tree distance", description = "Maximum number of tiles to search from the player", position = 3,
+		section = EXAMPLE_WOODCUTTING_SECTION)
 	default int maxDistance()
 	{
 		return 8;
