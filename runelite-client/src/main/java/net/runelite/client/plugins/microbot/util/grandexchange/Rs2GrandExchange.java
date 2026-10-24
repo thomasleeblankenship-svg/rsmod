@@ -47,8 +47,7 @@ import org.apache.commons.lang3.tuple.Pair;
  * per call on the client thread (a null entry or item id 0 is an empty slot); every click is
  * one {@link MobileActions} dispatch (upstream's {@code doInvoke(NewMenuEntry)} CC_OPs map to
  * {@link MobileActions#widget} with the same child and option), retried across ticks for up to
- * two seconds; keys go through {@link Rs2Keyboard}. Not ported: {@code sellLoot} (needs
- * {@code Rs2Bank.withdrawLootItems}) and bank PIN entry.
+ * two seconds; keys go through {@link Rs2Keyboard}. Not ported: bank PIN entry.
  */
 @Slf4j
 public final class Rs2GrandExchange
@@ -510,6 +509,17 @@ public final class Rs2GrandExchange
 	public static boolean collectAllToBank()
 	{
 		return collectAll(true);
+	}
+
+	/**
+	 * As upstream (deprecated there): withdraws {@code npcName}'s tradeable loot except
+	 * {@code itemsToNotSell} ({@link Rs2Bank#withdrawLootItems}) and sells it with
+	 * {@link #sellInventory}; false when nothing was withdrawn.
+	 */
+	@Deprecated
+	public static boolean sellLoot(String npcName, List<String> itemsToNotSell)
+	{
+		return Rs2Bank.withdrawLootItems(npcName, itemsToNotSell) && sellInventory();
 	}
 
 	/** Sells every tradeable inventory item at 5% under the guide price; true once the inventory is empty. */

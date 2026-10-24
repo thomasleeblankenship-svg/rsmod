@@ -18,6 +18,7 @@ import net.runelite.client.plugins.microbot.MicrobotRuntime;
 import net.runelite.client.plugins.microbot.api.MicrobotReadServices;
 import net.runelite.client.plugins.microbot.api.ReadApiFixture;
 import net.runelite.client.plugins.microbot.mobile.MobileActions;
+import net.runelite.client.plugins.microbot.util.bank.Rs2Bank;
 import net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory;
 import org.junit.After;
 import org.junit.Before;
@@ -194,6 +195,22 @@ public class Rs2GrandExchangeActionTest
 		actions.clearInvocations();
 		assertFalse(Rs2GrandExchange.sellItem("Oak plank", 5, 100));
 		actions.verify(() -> MobileActions.widget(anyInt(), anyInt(), anyString()), never());
+	}
+
+	@Test
+	public void sellLootSellsOnlyWhenLootWasWithdrawn()
+	{
+		try (MockedStatic<Rs2Bank> bank = mockStatic(Rs2Bank.class))
+		{
+			bank.when(() -> Rs2Bank.withdrawLootItems("vorkath", List.of("Coins"))).thenReturn(false);
+			assertFalse(Rs2GrandExchange.sellLoot("vorkath", List.of("Coins")));
+			inventory.verify(Rs2Inventory::items, never());
+
+			bank.when(() -> Rs2Bank.withdrawLootItems("vorkath", List.of("Coins"))).thenReturn(true);
+			inventory.when(Rs2Inventory::items).thenAnswer(c -> java.util.stream.Stream.empty());
+			inventory.when(Rs2Inventory::isEmpty).thenReturn(true);
+			assertTrue(Rs2GrandExchange.sellLoot("vorkath", List.of("Coins")));
+		}
 	}
 
 	@Test
