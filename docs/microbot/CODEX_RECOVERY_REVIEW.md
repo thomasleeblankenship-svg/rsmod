@@ -4,6 +4,35 @@ Review completed against `0e137e9c` on `feat/android-microbot-compat`.
 Scope: independent source inspection and existing regression tests; no runtime,
 walker, transport, bank or shared-fixture edits.
 
+## Follow-up: combined manual-input recovery coverage
+
+The user confirmed Lumbridge banking is already solved. This follow-up adds
+regression coverage only; it changes no bank, walker, runtime or shared-fixture
+implementation.
+
+New `MobileBankRecoveryIntegrationTest` uses the real installed read services,
+script session, JavaBridge scene-picking gate, walker, and bank adapters against
+a simulated renderer/game engine:
+
+- A native contact during a bank approach keeps the same session active and
+  enters the human-input pause. The run subsequently resumes, observes both
+  upstairs transitions, opens the bank, deposits all 27 logs once, retains the
+  axe, closes the bank, descends both floors and returns to its start tile.
+- Explicit Stop during that pause ends the trip promptly, leaves all 27 logs
+  and the axe intact, clears the walking target, and never opens/deposits at
+  the bank.
+
+The contact enters through `JavaBridge.armTap` and cancels the arm (as when a
+contact becomes a drag). This exercises manual-input arbitration; it does not
+simulate a completed Android touchscreen tap. Existing bridge tests separately
+cover tap/key dispatch and epoch invalidation. No phone success is inferred.
+
+Both new tests passed. Against base `cc81c24f` plus this test, the full shared
+focused check passed: **550 tests, zero failures/errors/skips**, client
+compilation, Checkstyle and PMD. Local log:
+`/workspace/tooling/codex-recovery-full-checks.log`. This closes the combined automated acceptance gap described in
+finding 3 below; that finding describes the earlier reviewed revision.
+
 ## Result
 
 All 63 selected tests passed, with zero failures, errors or skips. Compilation
