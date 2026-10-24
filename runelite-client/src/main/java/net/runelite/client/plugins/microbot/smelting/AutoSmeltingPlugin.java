@@ -82,6 +82,9 @@ public class AutoSmeltingPlugin extends Plugin {
     protected void shutDown() {
         autoSmeltingScript.hasBeenFilled = false;
         autoSmeltingScript.shutdown();
-        overlayManager.remove(autoSmeltingOverlay);
+        // Mobile: startUp tolerates a missing overlay manager, so stopping must too.
+        if (overlayManager != null) {
+            overlayManager.remove(autoSmeltingOverlay);
+        }
     }
 }

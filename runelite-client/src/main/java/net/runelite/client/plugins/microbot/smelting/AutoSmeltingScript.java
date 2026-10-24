@@ -155,6 +155,8 @@ public class AutoSmeltingScript extends Script {
     @Override
     public void shutdown() {
         Rs2Antiban.resetAntibanSettings();
+        // Mobile: the walker flag is global; give the next script back its teleports (as Firemaking Plus does).
+        Rs2Walker.disableTeleports = false;
         super.shutdown();
     }
 
