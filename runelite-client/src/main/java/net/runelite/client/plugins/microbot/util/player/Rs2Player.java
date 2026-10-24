@@ -598,6 +598,49 @@ public final class Rs2Player
 			net.runelite.api.widgets.WidgetInfo.LOGOUT_BUTTON.getId(), -1, "Logout");
 	}
 
+	/** As upstream: one step of a terminal logout (after a supply failure, for example). */
+	public enum TerminalLogoutState { BANK_CLOSING, LOGOUT_REQUESTED, LOGGED_OUT, INPUT_BLOCKED }
+
+	/**
+	 * As upstream: one non-blocking step towards logging out: closes the bank first when it is open,
+	 * else presses logout. {@code INPUT_BLOCKED} on the client thread or outside the game.
+	 */
+	public static TerminalLogoutState logoutWithoutAutoLoginStep()
+	{
+		Client client = net.runelite.client.plugins.microbot.Microbot.getClient();
+		if (client == null || client.isClientThread()) return TerminalLogoutState.INPUT_BLOCKED;
+		net.runelite.api.GameState state = net.runelite.client.plugins.microbot.mobile.MobileActions.read(client::getGameState,
+			net.runelite.api.GameState.UNKNOWN);
+		if (state == net.runelite.api.GameState.LOGIN_SCREEN) return TerminalLogoutState.LOGGED_OUT;
+		if (state != net.runelite.api.GameState.LOGGED_IN) return TerminalLogoutState.INPUT_BLOCKED;
+		if (net.runelite.client.plugins.microbot.util.bank.Rs2Bank.isOpen())
+		{
+			return net.runelite.client.plugins.microbot.util.bank.Rs2Bank.closeBank()
+				? TerminalLogoutState.BANK_CLOSING : TerminalLogoutState.INPUT_BLOCKED;
+		}
+		logout();
+		return TerminalLogoutState.LOGOUT_REQUESTED;
+	}
+
+	/**
+	 * As upstream: logs out (closing the bank first) and waits up to 5 s for the login screen.
+	 * Mobile adaptation: there is no auto-login to suppress, so no suppression request is posted.
+	 */
+	public static TerminalLogoutState logoutWithoutAutoLogin()
+	{
+		TerminalLogoutState state = logoutWithoutAutoLoginStep();
+		if (state == TerminalLogoutState.BANK_CLOSING)
+		{
+			if (!net.runelite.client.plugins.microbot.util.Global.sleepUntil(
+				() -> !net.runelite.client.plugins.microbot.util.bank.Rs2Bank.isOpen(), 2400)) return state;
+			state = logoutWithoutAutoLoginStep();
+		}
+		if (state == TerminalLogoutState.LOGOUT_REQUESTED
+			&& net.runelite.client.plugins.microbot.util.Global.sleepUntil(
+				() -> !net.runelite.client.plugins.microbot.Microbot.isLoggedIn(), 5000)) return TerminalLogoutState.LOGGED_OUT;
+		return state;
+	}
+
 	/** As upstream: waits up to 5 s for movement to start, then for it to stop. */
 	public static void waitForWalking()
 	{
