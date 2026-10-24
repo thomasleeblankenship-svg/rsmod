@@ -51,6 +51,7 @@ Focused verification command (expect 0 failures and 0 skips):
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
 | Claude 2 (user request; util-gap plan) | Read section of `util/death/Rs2Death.java` (above your batch V block), `util/inventory/RunePouchType.java`, `util/tabs/Rs2Tab.java` (reads only), `util/grounditem/Rs2GroundItem.java` (reads only); new `util/combat/models/Rs2DropSource.java`, `util/grounditem/models/Rs2SpawnLocation.java`, `util/widget/Rs2WidgetInspector.java`; new `HubReadBatchSixteenJTest` | **Task: read batch 16j** (small leftovers): `Rs2Death.isItemsKeptOnDeathOpen`, `getItemsKeptOnDeath`, `getItemsSentToGrave`, `getPredictedGraveFee`, `getRiskValue` (reusing your `parseFee`); `RunePouchType.getPouchIds`; `Rs2Tab.getSpellBookTab`; `Rs2GroundItem.hasLineOfSight(Tile)`; upstream's drop-source and spawn-location models and the widget inspector. Farming moves to 16k (after `getInjector`) | this commit |
+| Claude 1 | `util/tile/Rs2Tile.java`, `util/tile/TileReachability.java`, `util/coords/Rs2WorldPoint.java`; new `UtilActionBatchAFTest` | **Task: util action batch AF**: scene paths (`Rs2Tile.pathTo`/`fullPathTo`, `Rs2WorldPoint.pathTo`/`distanceToPath`), `areSurroundingTilesWalkable`, `tileHasWalls`, `hoverOverTile` (inert) | this commit |
 
 ## Requests
 
