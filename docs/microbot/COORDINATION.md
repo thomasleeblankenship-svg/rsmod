@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | `util/antiban/Rs2Antiban.java`, `util/antiban/enums/Category.java`, new `util/antiban/AntibanPlugin.java` (activity reads only, not a plugin), `runelite-api/.../coords/WorldArea.java` (intersectsWith2D), `plugins/mobilemicrobot/MobileMicrobotPlugin.java` (tick/chat forwarders); new `UtilActionBatchAMTest` | **Task: util action batch AM**: activity state (idle ticks, mining/woodcutting/cooking) and `Category.isBusy` for crafting, shootingstar, amethystminer, motherloadmine | this commit |
 
 ## Requests
 
