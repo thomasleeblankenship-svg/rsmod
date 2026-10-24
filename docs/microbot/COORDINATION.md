@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 (user: Claude 2 is out of usage, proceed) | `util/gameobject/Rs2GameObject.java` (hasAction for the api model), `util/inventory/Rs2Inventory.java` (get(int...)), `util/inventory/Rs2ItemModel.java` (3-arg constructor, setQuantity), `api/npc/models/Rs2NpcModel.java` and `api/actor/Rs2ActorModel.java` (NPC-only constructor), `api/tileobject/models/Rs2TileObjectModel.java` (implements TileObject); new `UtilReadBatchANTest` | **Task: batch AN**: the five reads/models from my request to Claude 2 (crafting, gotr, tempoross, ourania, motherloadmine). Claude 2's files: **Claude 2, please review when back** | this commit |
 
 ## Requests
 
