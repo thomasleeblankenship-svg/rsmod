@@ -238,6 +238,11 @@ class MainActivity : AppCompatActivity() {
     private var devBar: LinearLayout? = null
     private var launcherHandle: Button? = null
 
+    // On-game Microbot button (top-left pill): opens the plugin sheet straight on Microbot Mobile, or closes it.
+    private var microbotButton: Button? = null
+    private var microbotBaseLeft = 0
+    private var microbotBaseTop = 0
+
     // P2-1 (`android-inapp-dev-panel`): developer-mode overlay. All lazily created and fully torn down when the
     // pref is off, so a non-dev build/session pays nothing (no views, no timer). rootContainer is the frame the
     // chip/panel attach to; the ticker samples fps (native present-count delta), heap (bridge), and thermal ~1 Hz.
@@ -965,9 +970,10 @@ class MainActivity : AppCompatActivity() {
 
         // §4 right-bar redesign (increment 1): open the plugin launcher. The dismiss-flush (§4) persists any
         // config edit made in the panel even when it's closed without backgrounding.
-        fun openLauncher() {
+        fun openLauncher(startInConfig: Pair<String, String>? = null) {
             pluginPanel.setContent {
                 PluginPanel(
+                    startInConfig = startInConfig,
                     onClose = {
                         pluginPanel.visibility = View.GONE
                         // Dispose so the sheet's BackHandler unregisters — else BACK in-game would be swallowed.
@@ -1019,6 +1025,38 @@ class MainActivity : AppCompatActivity() {
                     }
                 alpha = 0.85f
                 setOnClickListener { openLauncher() }
+            }
+        // Microbot Mobile on the game: one tap opens the plugin sheet on the Microbot screen (status, script, Start/
+        // Stop); tapping again (or BACK) closes it. Scripts keep running while the sheet is closed.
+        val microbotButton =
+            Button(this).apply {
+                text = "Microbot"
+                contentDescription = "Open Microbot"
+                textSize = 12f
+                isAllCaps = false
+                minWidth = 0
+                minimumWidth = 0
+                minHeight = 0
+                minimumHeight = 0
+                val px = (16 * resources.displayMetrics.density).toInt()
+                setPadding(px, px / 4, px, px / 4)
+                setTextColor(0xFFFFFFFF.toInt())
+                background =
+                    android.graphics.drawable.GradientDrawable().apply {
+                        cornerRadius = 100f
+                        setColor(0xCC1E1E1E.toInt())
+                        setStroke((1 * resources.displayMetrics.density).toInt(), 0x8866BB6A.toInt())
+                    }
+                alpha = 0.85f
+                setOnClickListener {
+                    if (pluginPanel.visibility == View.VISIBLE) {
+                        pluginPanel.visibility = View.GONE
+                        pluginPanel.disposeComposition()
+                        JvmLauncher.onBridge { JvmLauncher.flushConfig() }
+                    } else {
+                        openLauncher(MICROBOT_GROUP to "Microbot Mobile")
+                    }
+                }
             }
         // One-tap layout switch (see layoutSwitchButton): same pill look as the launcher handle, top-centre, where
         // neither Classic's nor Fixed's engine HUD sits. updateLayoutSwitch shows it, labels it and hides it.
@@ -1167,6 +1205,21 @@ class MainActivity : AppCompatActivity() {
                 addView(hoppingOverlay, FrameLayout.LayoutParams(mp, mp)) // ENH-B06: "Hopping…" scrim (non-interactive)
                 addView(sessionExpiredOverlay, FrameLayout.LayoutParams(mp, mp)) // UX-LOGIN-01: "Session expired" card (interactive, top)
                 addView(fatalErrorOverlay, FrameLayout.LayoutParams(mp, mp)) // FATAL-1: engine-fatal card (topmost card)
+                // Microbot button: top-left, clear of the minimap (top-right) and chat (bottom-left); below the sheet.
+                microbotBaseLeft = (12 * resources.displayMetrics.density).toInt()
+                microbotBaseTop = (12 * resources.displayMetrics.density).toInt()
+                addView(
+                    microbotButton,
+                    FrameLayout
+                        .LayoutParams(
+                            FrameLayout.LayoutParams.WRAP_CONTENT,
+                            FrameLayout.LayoutParams.WRAP_CONTENT,
+                            Gravity.TOP or Gravity.START,
+                        ).apply {
+                            leftMargin = microbotBaseLeft
+                            topMargin = microbotBaseTop
+                        },
+                )
                 // §4: the launcher handle sits above the game/chrome (tappable) but below the launcher sheet
                 // (covered while it's open) and clears the bottom gesture inset.
                 handleBaseBottom = (10 * resources.displayMetrics.density).toInt()
@@ -1248,6 +1301,7 @@ class MainActivity : AppCompatActivity() {
         // the inset is added to the captured base margins, never replacing them, and 0 insets (emulator) are a no-op.
         this.devBar = devBar
         this.launcherHandle = launcherHandle
+        this.microbotButton = microbotButton
         ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
             applyHudControlInsets(insets)
             insets
@@ -4149,6 +4203,13 @@ class MainActivity : AppCompatActivity() {
         launcherHandle?.let { v ->
             (v.layoutParams as? FrameLayout.LayoutParams)?.let { lp ->
                 lp.bottomMargin = handleBaseBottom + i.bottom
+                v.layoutParams = lp
+            }
+        }
+        microbotButton?.let { v ->
+            (v.layoutParams as? FrameLayout.LayoutParams)?.let { lp ->
+                lp.leftMargin = microbotBaseLeft + i.left
+                lp.topMargin = microbotBaseTop + i.top
                 v.layoutParams = lp
             }
         }

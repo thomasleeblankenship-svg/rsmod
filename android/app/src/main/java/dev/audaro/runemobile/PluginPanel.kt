@@ -121,6 +121,9 @@ fun PluginPanel(
     onDiscord: () -> Unit = {},
     onPanelTextActive: (Boolean) -> Unit = {}, // FIX-11: forwarded to PanelView so the host can free the IME
     onEnterOverlayEdit: () -> Unit = {}, // overlay layout is now edited ON the live game (host drag mode)
+    // Open straight on one plugin's settings (configGroup, pluginName), e.g. the on-game Microbot button; Back from
+    // that screen then closes the whole sheet instead of returning to the launcher.
+    startInConfig: Pair<String, String>? = null,
 ) {
     var rows by remember { mutableStateOf<List<PluginRow>>(emptyList()) }
     var renderer by remember { mutableStateOf(rendererPref) }
@@ -133,7 +136,7 @@ fun PluginPanel(
     // Panel data for the Panels section of the grid (lifted from PanelList so panels become first-class tiles).
     var panels by remember { mutableStateOf<List<PanelEntry>>(emptyList()) }
     var panelAvail by remember { mutableStateOf(BooleanArray(7)) } // [quest,world,xp,loot,ge,overlay,infobox]
-    var configFor by remember { mutableStateOf<Pair<String, String>?>(null) } // (configGroup, pluginName)
+    var configFor by remember { mutableStateOf(startInConfig) } // (configGroup, pluginName)
     var panelOpen by remember { mutableStateOf<Pair<Int, String>?>(null) } // (panelIndex, tooltip)
     var questOpen by remember { mutableStateOf(false) } // A5 Tier-2 native screens
     var worldOpen by remember { mutableStateOf(false) }
@@ -263,6 +266,7 @@ fun PluginPanel(
             }
 
             configFor != null -> {
+                if (startInConfig != null && configFor == startInConfig) return false // opened directly: close sheet
                 configFor = null
             }
 
@@ -341,10 +345,17 @@ fun PluginPanel(
 
                 configFor != null -> {
                     val cf = configFor!!
+                    val back: () -> Unit = {
+                        if (cf == startInConfig) {
+                            onClose()
+                        } else {
+                            configFor = null
+                        }
+                    }
                     if (cf.first == MICROBOT_GROUP) {
-                        MicrobotScreen(cf.second, onBack = { configFor = null }, onTextActive = onPanelTextActive)
+                        MicrobotScreen(cf.second, onBack = back, onTextActive = onPanelTextActive)
                     } else {
-                        ConfigScreen(cf.first, cf.second, onBack = { configFor = null }, onTextActive = onPanelTextActive)
+                        ConfigScreen(cf.first, cf.second, onBack = back, onTextActive = onPanelTextActive)
                     }
                 }
 
