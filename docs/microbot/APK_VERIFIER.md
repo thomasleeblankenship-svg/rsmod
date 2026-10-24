@@ -76,6 +76,29 @@ rendering, touch, script or transport success on a device. The JSON explicitly
 records `device_test: not run`. GitHub's independent build needs its own SHA and
 matching source/output evidence; a local APK's checksum does not identify it.
 
+## Repeatable regression tests
+
+```sh
+python3 tests/test_verify_mobile_apk.py -v
+```
+
+The suite has 22 hermetic CLI tests. It creates temporary Git repositories,
+synthetic APK/class/resource fixtures and simulated Android SDK executables.
+It requires Python 3 and Git, but no SDK, Gradle, Android device or network.
+Temporary files are removed after each test, and source files are untouched.
+
+Coverage includes the successful JSON/command path, wrong/dirty source metadata,
+class inventory and content mismatches, resources from the requested revision
+rather than a changed working tree, malformed/duplicate ZIPs, token bundles,
+signing/alignment command failures, v1-only signing, wrong package/ABI, missing
+debug flag, input-overwrite protection, saved failure reports and a package
+modified while verification runs. Paths deliberately contain spaces.
+
+These tests simulate SDK results to exercise rejection and reporting behavior;
+they do not validate real signatures or ZIP alignment. Keep the real-APK smoke
+check below as separate evidence. This suite does not change or run the Java
+runtime, walker or device tests.
+
 ## Validation evidence
 
 Nine CLI checks passed: one real clean debug APK plus eight rejection cases
