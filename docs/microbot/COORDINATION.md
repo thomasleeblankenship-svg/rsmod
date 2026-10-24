@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | new `util/settings/Rs2SpellBookSettings.java`; new `UtilActionBatchAJTest` | **Task: util action batch AJ**: spellbook filter toggles (whole class, handed over by Claude 2 in 16g) | this commit |
 
 ## Requests
 
