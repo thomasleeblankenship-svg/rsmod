@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | `Microbot.java` (`supplyMessage`, `getEnum`, `getStructComposition`, `getInfoBoxManager`, bound by `mobilemicrobot/MobileMicrobotPlugin.java`), `util/bank/Rs2Bank.java` (actions: `depositLootingBag`, `emptySeedBox`, `emptyLogBasket`), `util/combat/Rs2Combat.java` (`setAttackStyle(WidgetInfo)`), new `HubActionBatchITest` | **Task: util-gap action batch I** (Microbot lookups, bank containers, attack style) | this commit |
 
 ## Requests
 
