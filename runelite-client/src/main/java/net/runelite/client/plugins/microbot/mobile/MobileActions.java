@@ -392,18 +392,36 @@ public final class MobileActions
 	/** Applies the selected spell to the NPC with this scene index. One script action. */
 	public static boolean spellOnNpc(int npcIndex)
 	{
-		return perform(() ->
+		return perform(() -> client().isWidgetSelected() && selectedOnNpc(npcIndex, "Cast"));
+	}
+
+	/**
+	 * Uses the item in {@code slot} on the NPC with this scene index: "Use" on the item, then the
+	 * selected item on the NPC, checked to still be that item. Two script actions.
+	 */
+	public static boolean itemOnNpc(int slot, int npcIndex)
+	{
+		int itemId = inventoryId(slot);
+		if (itemId < 0 || !waitFor(() -> inventory(slot, itemId, "Use"), 1800)) { return false; }
+		return waitFor(() -> perform(() ->
 		{
-			if (!client().isWidgetSelected()) { return false; }
-			NPC target = null;
-			for (NPC npc : client().getTopLevelWorldView().npcs())
-			{
-				if (npc.getIndex() == npcIndex) { target = npc; break; }
-			}
-			if (target == null) { return false; }
-			client().menuAction(0, 0, MenuAction.WIDGET_TARGET_ON_NPC, npcIndex, -1, "Cast", target.getName());
-			return true;
-		});
+			Widget selected = client().getSelectedWidget();
+			if (!client().isWidgetSelected() || selected == null || selected.getIndex() != slot || selected.getItemId() != itemId) { return false; }
+			return selectedOnNpc(npcIndex, "Use");
+		}), 1800);
+	}
+
+	/** The selected widget (a spell or an item) on the NPC with this scene index; client thread only. */
+	private static boolean selectedOnNpc(int npcIndex, String option)
+	{
+		NPC target = null;
+		for (NPC npc : client().getTopLevelWorldView().npcs())
+		{
+			if (npc.getIndex() == npcIndex) { target = npc; break; }
+		}
+		if (target == null) { return false; }
+		client().menuAction(0, 0, MenuAction.WIDGET_TARGET_ON_NPC, npcIndex, -1, option, target.getName());
+		return true;
 	}
 
 	/** Applies the selected spell to the player with this id. One script action. */
