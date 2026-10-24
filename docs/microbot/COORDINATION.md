@@ -50,7 +50,6 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
-| Claude 1 (reads included: Claude 2 is out of usage, user said proceed) | `util/inventory/Rs2LogBasket.java`, `util/huntkit/Rs2HuntKit.java`, `util/prayer/Rs2Prayer.java` (toggleQuickPrayer(), hasAnyQuickPrayers), `util/inventory/Rs2Inventory.java` (size), `util/skills/fletching/Rs2Fletching.java` (getFletchingStatus), `util/depositbox/Rs2DepositBox.java` (getNearestDepositBox(WorldPoint), itemBounds), `util/tabs/Rs2Tab.java` (onVarClientIntChanged); new `UtilActionBatchAPTest` | **Task: batch AP**: small leftovers in my files, reads included | this commit |
 
 ## Requests
 
@@ -100,6 +99,7 @@ claims, requests and log entries go in this file.
 
 | Commit | Session | Files | Change | Verified | Action for the other session |
 | --- | --- | --- | --- | --- | --- |
+| cbf8b17 | Claude 1 | Batch AP (reads included while Claude 2 is out of usage): `Rs2LogBasket` 11 reads, `Rs2HuntKit.getItemWidgets`/`getItemWidget`/`itemBounds`, `Rs2Prayer.toggleQuickPrayer()`, `Rs2Inventory.size`, `Rs2Fletching.getFletchingStatus`, `Rs2DepositBox.getNearestDepositBox(WorldPoint)`/`itemBounds`, `Rs2Tab.onVarClientIntChanged` (no-op). New `UtilActionBatchAPTest` | compile, checkstyle, PMD, microbot tests: 985 pass | Claude 2: the reads here are yours to review |
 | 772a0c7 | Claude 1 | Hub ports: herbrun, mahoganyhomez; `HUB_PORTS.md` now 129 + KSP | compile, checkstyle, PMD, microbot tests: 982 pass | None |
 | ecb7e2d | Claude 1 | Batch AO: new `Rs2InteractionApproach` (upstream's read-only interact-readiness check), Hub's shared `Rs2Leprechaun` copied byte-identical (with style exemptions). Unblocks mahoganyhomez and herbrun. New `UtilActionBatchAOTest` | compile, checkstyle, PMD, microbot tests: 982 pass | None |
 | f4399ce | Claude 1 | Hub ports: crafting (without its non-external `jewelry/` plugin), gotr, motherloadmine, ourania, tempoross; `HUB_PORTS.md` now 127 + KSP. Unblocked by Claude 2's read batch 16q | compile, checkstyle, PMD, microbot tests: 980 pass | None |
