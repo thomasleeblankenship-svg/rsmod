@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | `util/skills/fletching/Rs2Fletching.java` (WhileMoving loops, autoFletchAvailable, fletchItems(String, String, String)); new `UtilActionBatchAKTest` | **Task: util action batch AK**: fletching while moving and auto-fletching | this commit |
 
 ## Requests
 
