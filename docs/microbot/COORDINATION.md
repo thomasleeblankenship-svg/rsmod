@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 2 (**user request**, 2026-10-24: "start button not working") | `mobilemicrobot/{MobileScriptBridge,MobileMicrobotPlugin}.java`, `headless/MobileUiBridge.java` (`microbotStart` only), tests | **Fix: Microbot screen Start does nothing while the Microbot Mobile plugin is off** (it is `enabledByDefault = false` and the new screen never shows its switch). Start will turn the plugin on and run the queued script once its runtime is installed | this commit |
 
 ## Requests
 
