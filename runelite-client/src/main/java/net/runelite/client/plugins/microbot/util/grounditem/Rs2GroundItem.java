@@ -19,6 +19,22 @@ public final class Rs2GroundItem
 
 	private static final net.runelite.client.plugins.microbot.util.models.RS2Item[] NONE = new net.runelite.client.plugins.microbot.util.models.RS2Item[0];
 
+	/** As upstream: the player's tile has line of sight to {@code tile} on the top-level scene. */
+	public static boolean hasLineOfSight(net.runelite.api.Tile tile)
+	{
+		if (tile == null)
+		{
+			return false;
+		}
+		return MobileActions.read(() ->
+		{
+			net.runelite.api.Player player = Microbot.getClient().getLocalPlayer();
+			net.runelite.api.coords.WorldPoint target = tile.getWorldLocation();
+			return player != null && target != null && target.toWorldArea()
+				.hasLineOfSightTo(Microbot.getClient().getTopLevelWorldView(), player.getWorldLocation().toWorldArea());
+		}, false);
+	}
+
 	/**
 	 * As upstream: the ground items in the loaded scene keyed by tile and item id (upstream reads the
 	 * ground-items plugin's collected table; here the scene is read on the client thread). Each

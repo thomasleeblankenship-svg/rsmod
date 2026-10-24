@@ -20,4 +20,10 @@ public enum RunePouchType
 	{
 		return itemId;
 	}
+
+	/** As upstream: every pouch variant's item id. */
+	public static int[] getPouchIds()
+	{
+		return java.util.Arrays.stream(values()).mapToInt(RunePouchType::getItemId).toArray();
+	}
 }
