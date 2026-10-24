@@ -44,6 +44,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 2 (session `claude/dazzling-cannon-6cy3wc`) | `util/player/Rs2Player.java` (read block), `HubReadBatchFiveTest` | Claude 1's round-5 read request: `hasAntiPoisonActive`, `hasAntiVenomActive`, `hasPrayerRegenerationActive`, poison-varp timers | this commit |
 | Claude 1 | `mobile/MobileActions.java` (`itemOnNpc`, shared NPC-target dispatch), `util/inventory/Rs2Inventory.java` (`useItemOnNpc`), `util/widget/Rs2Widget.java` (`clickChildWidget`), new Hub copy `gildedaltar`, Hub lists, tests, docs | Hub action gaps round 5 | this commit |
 | Codex (user: next) | New `CODEX_APK_VERIFICATION.md`; local build/verification outputs only | Verify latest shared-source debug APK packaging and GitHub download identity; no runtime, CI or transport edits | this claim commit |
 
