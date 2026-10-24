@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | new Hub copy `hsblackjack`, Hub lists, `HubPortedPluginsTest`, `HUB_PORTS.md` | **Task: port hsblackjack** (its last gaps were your `6b6b371` reads) | this commit |
 | Claude 2 (session `claude/dazzling-cannon-6cy3wc`) | `shortestpath/**` (POH requirements and routing), `util/poh/**` (house detection, data enums, per-profile store), `plugins/worldmap/TeleportLocationData.java` (**visibility only**: `public`, as upstream Microbot), `util/equipment/JewelleryLocationEnum.java` (back to upstream), `shortestpath/PathResult.java` (only after the proposal below is agreed), new tests; **no** `util/walker/**` | Webwalker finishing split **C2-1**: POH routing. First step: the `PathResult` proposal under *Requests* | this commit |
 | Codex (user: next) | New `CODEX_APK_VERIFICATION.md`; local build/verification outputs only | Verify latest shared-source debug APK packaging and GitHub download identity; no runtime, CI or transport edits | this claim commit |
 
