@@ -95,6 +95,10 @@ public class MobileMicrobotPlugin extends Plugin
 				net.runelite.client.plugins.microbot.Microbot.bindNotifier(notifier);
 				net.runelite.client.plugins.microbot.Microbot.bindMouseManager(mouseManager);
 				net.runelite.client.plugins.microbot.Microbot.bindInfoBoxManager(infoBoxManager);
+				if (net.runelite.client.plugins.microbot.Microbot.getBlockingEventManager() != null)
+				{
+					net.runelite.client.plugins.microbot.Microbot.getBlockingEventManager().addDefaultEvents();
+				}
 				net.runelite.client.plugins.microbot.util.walker.Rs2Walker.setUsePathfinder(config.usePathfinder());
 				setRun(false);
 				enabled = true;
