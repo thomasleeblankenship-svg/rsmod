@@ -68,7 +68,8 @@ public class TransportDataTest
 		// "4. Mushroom Meadow": a dot, not the "4: ..." colon that menuShortcut and menuDestinationName
 		// parse for spirit trees, so a mushtree executor needs its own split (number = key, rest = name).
 		assertEquals(0, Rs2Walker.menuShortcut("4. Mushroom Meadow"));
-		assertEquals("4. Mushroom Meadow", Rs2Walker.menuDestinationName("4. Mushroom Meadow"));
+		assertEquals("the dot prefix is stripped for matching the menu text (Claude 1, mushtree executor)",
+			"Mushroom Meadow", Rs2Walker.menuDestinationName("4. Mushroom Meadow"));
 	}
 
 	@Test

@@ -644,7 +644,7 @@ public final class Rs2Walker
 	/** Rides on an NPC or vehicle: interact, answer the destination dialogue, wait for the landing. */
 	static final Set<TransportType> TRAVEL_TRANSPORTS = EnumSet.of(TransportType.BOAT, TransportType.SHIP, TransportType.NPC,
 		TransportType.CHARTER_SHIP, TransportType.SPIRIT_TREE, TransportType.MINECART, TransportType.MAGIC_CARPET,
-		TransportType.GNOME_GLIDER, TransportType.HOT_AIR_BALLOON);
+		TransportType.GNOME_GLIDER, TransportType.HOT_AIR_BALLOON, TransportType.QUETZAL, TransportType.MAGIC_MUSHTREE);
 
 	/** One object click that teleports: arrival is anywhere near the catalogued landing. */
 	static final Set<TransportType> TELEPORT_OBJECTS = EnumSet.of(TransportType.TELEPORTATION_LEVER,
@@ -677,13 +677,22 @@ public final class Rs2Walker
 	/** The charter-ship destination map (upstream: widget 885, child 4). */
 	private static final int CHARTER_GROUP = 885;
 	private static final int CHARTER_CHILD = 4;
+	/**
+	 * Destination maps answered by the entry whose text names the destination, by the widgets to
+	 * search: the charter map, Renu's quetzal map and the whistle's (any layer: the root can stay
+	 * hidden while the map shows, as upstream notes), and the Fossil Island mushtree menu.
+	 */
+	private static final int[] TEXT_MAPS = {(CHARTER_GROUP << 16) | CHARTER_CHILD,
+		InterfaceID.QuetzalMenu.UNIVERSE, InterfaceID.QuetzalMenu.CONTENTS, InterfaceID.QuetzalMenu.MAP, InterfaceID.QuetzalMenu.ICONS,
+		InterfaceID.QuetzalwhistleMenu.UNIVERSE, InterfaceID.QuetzalwhistleMenu.CONTENTS, InterfaceID.QuetzalwhistleMenu.MAP,
+		InterfaceID.QuetzalwhistleMenu.ICONS, InterfaceID.FossilMushtrees.UNIVERSE};
 
 	/** Transport types the walker can execute; the pathfinder is told to admit only these. */
 	static final Set<TransportType> EXECUTABLE_TRANSPORTS = EnumSet.of(TransportType.TRANSPORT, TransportType.AGILITY_SHORTCUT,
 		TransportType.BOAT, TransportType.SHIP, TransportType.NPC, TransportType.CHARTER_SHIP, TransportType.TELEPORTATION_ITEM,
 		TransportType.TELEPORTATION_SPELL, TransportType.SPIRIT_TREE, TransportType.FAIRY_RING, TransportType.MINECART,
 		TransportType.MAGIC_CARPET, TransportType.TELEPORTATION_LEVER, TransportType.TELEPORTATION_PORTAL,
-		TransportType.GNOME_GLIDER, TransportType.HOT_AIR_BALLOON);
+		TransportType.GNOME_GLIDER, TransportType.HOT_AIR_BALLOON, TransportType.QUETZAL, TransportType.MAGIC_MUSHTREE);
 
 	/**
 	 * Destination lists as {group, child}: the spirit tree menu (upstream {@code ADVENTURE_LOG_CONTAINER},
@@ -978,11 +987,12 @@ public final class Rs2Walker
 				Thread.sleep(600);
 				continue;
 			}
-			if (charterMapVisible())
+			int textMap = visibleTextMap();
+			if (textMap >= 0)
 			{
-				if (!chooseCharterDestination(step.destinationText))
+				if (!chooseTextMapDestination(textMap, step.destinationText))
 				{
-					lastStatus = "charter map does not offer " + step.destinationText;
+					lastStatus = "destination map does not offer " + step.destinationText;
 					return false;
 				}
 				Thread.sleep(600);
@@ -1440,10 +1450,13 @@ public final class Rs2Walker
 		return key != 0 && Global.sleepUntil(() -> MobileActions.type(key), 2_000);
 	}
 
-	/** "4: Grand Exchange" gives "Grand Exchange"; text without a shortcut prefix is returned trimmed. */
+	/**
+	 * "4: Grand Exchange" gives "Grand Exchange", and the mushtree form "4. Mushroom Meadow" gives
+	 * "Mushroom Meadow"; text without such a prefix is returned trimmed.
+	 */
 	static String menuDestinationName(String displayInfo)
 	{
-		return displayInfo.trim().replaceAll("^[0-9A-Za-z]:\\s*", "").trim();
+		return displayInfo.trim().replaceAll("^[0-9A-Za-z][:.]\\s*", "").trim();
 	}
 
 	/** "4: Grand Exchange" gives '4', "A: Port Piscarilius" gives 'a'; 0 without a shortcut prefix. */
@@ -1478,30 +1491,39 @@ public final class Rs2Walker
 		return root == null ? null : DESTINATION_MAPS.get(root);
 	}
 
-	private static boolean charterMapVisible()
+	/** The first of {@link #TEXT_MAPS} that is showing, or -1. */
+	private static int visibleTextMap()
 	{
 		return MobileActions.read(() ->
 		{
-			net.runelite.api.widgets.Widget map = Microbot.getClient().getWidget(CHARTER_GROUP, CHARTER_CHILD);
-			return map != null && !map.isHidden();
-		}, false);
+			for (int root : TEXT_MAPS)
+			{
+				net.runelite.api.widgets.Widget map = Microbot.getClient().getWidget(root);
+				if (map != null && !map.isHidden())
+				{
+					return root;
+				}
+			}
+			return -1;
+		}, -1);
 	}
 
 	/**
-	 * As upstream: the charter map entry whose text, name or option names {@code destination}, or its
-	 * nearest ancestor with an option, dispatched with its first option.
+	 * As upstream: the map entry under {@code rootId} whose text, name or option names the
+	 * destination ("4. Mushroom Meadow" names "Mushroom Meadow"), dispatched with the first option
+	 * of it or its nearest ancestor that has one, else tapped.
 	 */
-	private static boolean chooseCharterDestination(String destination)
+	private static boolean chooseTextMapDestination(int rootId, String destination)
 	{
 		if (destination == null || destination.isBlank())
 		{
 			return false;
 		}
-		String needle = Text.removeTags(destination).trim().toLowerCase(java.util.Locale.ROOT);
+		String needle = menuDestinationName(Text.removeTags(destination)).toLowerCase(java.util.Locale.ROOT);
 		Object[] target = MobileActions.read(() ->
 		{
-			net.runelite.api.widgets.Widget root = Microbot.getClient().getWidget(CHARTER_GROUP, CHARTER_CHILD);
-			net.runelite.api.widgets.Widget match = root == null ? null : findCharterEntry(root, needle);
+			net.runelite.api.widgets.Widget root = Microbot.getClient().getWidget(rootId);
+			net.runelite.api.widgets.Widget match = root == null || needle.isEmpty() ? null : findCharterEntry(root, needle);
 			for (net.runelite.api.widgets.Widget current = match; current != null; current = current == root ? null : current.getParent())
 			{
 				String option = current.getActions() == null ? null : Arrays.stream(current.getActions())
@@ -1512,7 +1534,7 @@ public final class Rs2Walker
 					return new Object[]{current.getId(), current.getIndex(), option};
 				}
 			}
-			return null;
+			return match == null ? null : new Object[]{match.getId(), match.getIndex(), ""};
 		}, null);
 		return target != null && Global.sleepUntil(() -> MobileActions.widget((int) target[0], (int) target[1], (String) target[2]), 2_000);
 	}

@@ -165,7 +165,7 @@ Known differences from desktop:
 - **Anti-ban settings** are inert. **Walking** (with the pathfinder setting on) executes stairs,
   doors, shortcuts, boats, ships, travel NPCs, charter ships, teleport items, teleport spells,
   fairy rings, spirit trees, levers, portals, minecarts (including Lovakengj's list), magic carpets,
-  gnome gliders and hot air balloons; not yet quetzals, mushtrees, canoes or POH. It never
+  gnome gliders, hot air balloons, quetzals and magic mushtrees; not yet canoes or POH. It never
   takes a transport into the Wilderness unless the goal is there. None of the transports has been
   tried on a phone.
 

@@ -30,7 +30,8 @@ public class TransportContractTest
 	private static final Set<TransportType> CONTRACT_TYPES = EnumSet.of(TransportType.FAIRY_RING,
 		TransportType.SPIRIT_TREE, TransportType.GNOME_GLIDER, TransportType.HOT_AIR_BALLOON, TransportType.MINECART,
 		TransportType.MAGIC_CARPET, TransportType.TELEPORTATION_PORTAL, TransportType.TELEPORTATION_LEVER,
-		TransportType.TELEPORTATION_ITEM, TransportType.TELEPORTATION_SPELL);
+		TransportType.TELEPORTATION_ITEM, TransportType.TELEPORTATION_SPELL, TransportType.QUETZAL,
+		TransportType.MAGIC_MUSHTREE);
 
 	private static List<Transport> catalogue(TransportType type)
 	{

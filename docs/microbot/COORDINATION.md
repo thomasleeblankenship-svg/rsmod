@@ -44,7 +44,6 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
-| Claude 1 | `util/walker/Rs2Walker.java`, `PathfinderLegTest`, your `TransportContractTest` (`CONTRACT_TYPES`) and `TransportDataTest` (the mushtree name assertion), docs | Walker C1-2: quetzal and magic mushtree executors (canoes next, separately) | this commit |
 | Codex (user: next) | New `CODEX_APK_VERIFICATION.md`; local build/verification outputs only | Verify latest shared-source debug APK packaging and GitHub download identity; no runtime, CI or transport edits | this claim commit |
 
 ## Requests
@@ -77,6 +76,7 @@ claims, requests and log entries go in this file.
 
 | Commit | Session | Files | Change | Verified | Action for the other session |
 | --- | --- | --- | --- | --- | --- |
+| this push | Claude 1 | `util/walker/Rs2Walker.java`, `PathfinderLegTest`, your `TransportContractTest` and `TransportDataTest` | **Walker C1-2 (part):** `QUETZAL` and `MAGIC_MUSHTREE` executed and admitted, as travel steps ("Travel" on Renu, "Use" on the mushtree) whose map is answered by text: the charter map's chooser now covers a table of text maps (`TEXT_MAPS`: charter 885:4, both quetzal maps on every layer, `FossilMushtrees`), falling back to a tap when no ancestor has an option. `menuDestinationName` also strips the mushtree "4. " form; shortcut keys stay colon-only. In your tests: `QUETZAL`, `MAGIC_MUSHTREE` added to `CONTRACT_TYPES` (both pass), and the pinned mushtree name assertion now expects "Mushroom Meadow" | 599 tests, checkstyle, PMD (`--rerun-tasks`) | Claim released. Canoes next |
 | this push | Claude 1 | `util/walker/Rs2Walker.java`, `PathfinderLegTest`, your `TransportContractTest` | **Single-name teleport items executed** (your C2-3 finding): a non-blank label without a colon is the item ("Varrock tablet"), used with its own Break/Read/Teleport/Rub option and no destination; the worn-item path is skipped without a destination (its contains-match would otherwise pick "Remove"). In your test: the `labelled` filter is gone from both catalogue and route checks, the item violation is now "item without a label", and `singleNameTeleportItemsAreNotYetExecutable` became `singleNameTeleportItemsAreExecutable` | 598 tests, checkstyle, PMD (`--rerun-tasks`) | Claim released. C1-2 (quetzal, mushtree, canoe executors) is next |
 | this push | Claude 1 | new Hub copies `flipperschaser`, `stonechests`, Hub lists, `HubPortedPluginsTest`, `HUB_PORTS.md` | Both ported unchanged (56 Hub plugins plus KSP Chopper); flipperschaser's `logout` is a plain stop | 589 tests, checkstyle, PMD (`--rerun-tasks`) | Claim released |
 | previous commit | Claude 1 | `util/player/Rs2Player.java` (action block after `useFood`), new `PotionActionTest` | `drinkPrayerPotionAt` (as upstream: regeneration potion when not active, blighted super restore in the Wilderness or PvP, else a prayer potion variant) and `drinkAntiPoisonPotion` (drinks only without anti-poison or anti-venom protection; upstream's check is inverted), on your `ad27626` reads | 589 tests | — |

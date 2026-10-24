@@ -68,7 +68,7 @@ public class PathfinderLegTest
 	public void routesNeedingATransportTheWalkerCannotExecuteFallBack()
 	{
 		assertNull(legFor(result(PathResult.Status.FOUND, TILES,
-			Map.of(1, transport(B, GOAL, TransportType.QUETZAL, "Travel", "Renu", 13350)))));
+			Map.of(1, transport(B, GOAL, TransportType.WILDERNESS_OBELISK, "Activate", "Obelisk", 14829)))));
 	}
 
 	@Test
@@ -355,5 +355,24 @@ public class PathfinderLegTest
 			Rs2Walker.teleportDestination(leg.stairs));
 		assertNull("a blank label is still refused", legFor(result(PathResult.Status.FOUND, TILES,
 			Map.of(0, transport(null, GOAL, TransportType.TELEPORTATION_ITEM, null, " ", -1)))));
+	}
+
+	@Test
+	public void quetzalsAndMushtreesAreTravelStepsAnsweredByTheirMapText()
+	{
+		Rs2Walker.WalkLeg quetzal = legFor(result(PathResult.Status.FOUND, TILES,
+			Map.of(1, transport(B, GOAL, TransportType.QUETZAL, "Travel", "Tal Teklan", 13350))));
+		assertNotNull(quetzal);
+		assertTrue(quetzal.stairs.travel);
+		assertEquals("Tal Teklan", Rs2Walker.menuDestinationName(quetzal.stairs.destinationText));
+
+		Rs2Walker.WalkLeg mushtree = legFor(result(PathResult.Status.FOUND, TILES,
+			Map.of(1, transport(B, GOAL, TransportType.MAGIC_MUSHTREE, "Use", "4. Mushroom Meadow", 30920))));
+		assertNotNull(mushtree);
+		assertTrue(mushtree.stairs.travel);
+		assertEquals("Use", mushtree.stairs.action);
+		assertEquals("Mushroom Meadow", Rs2Walker.menuDestinationName(mushtree.stairs.destinationText));
+		assertEquals("no shortcut key for the dot form", 0, Rs2Walker.menuShortcut(mushtree.stairs.destinationText));
+		assertEquals("a destination name is unchanged", "Port Sarim", Rs2Walker.menuDestinationName("Port Sarim"));
 	}
 }
