@@ -76,7 +76,8 @@ public class HubPortedPluginsTest
 		"net.runelite.client.plugins.microbot.flipperschaser.FlippersChaserPlugin",
 		"net.runelite.client.plugins.microbot.stonechests.StoneChestThieverPlugin",
 		"net.runelite.client.plugins.microbot.aiocamdozaal.AIOCamdozPlugin",
-		"net.runelite.client.plugins.microbot.shadeskiller.ShadesKillerPlugin");
+		"net.runelite.client.plugins.microbot.shadeskiller.ShadesKillerPlugin",
+		"net.runelite.client.plugins.microbot.chartercrafter.CharterCrafterPlugin");
 
 	private static Plugin instance(String name) throws Exception
 	{
