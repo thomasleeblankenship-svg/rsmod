@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | Actions in `util/inventory/Rs2Inventory.java` (`drop(String, boolean)`, `dropAmount` ×3), `util/npc/Rs2Npc.java` (`interact(Rs2NpcModel)`, `interact(NPC)`), `util/grounditem/Rs2GroundItem.java` (`loot(int[, int])`), `util/bank/Rs2Bank.java` (`withdrawAllButOne(String[, boolean])`), `util/keyboard/Rs2Keyboard.java` (`releaseHeldKeys`), `util/tabs/Rs2Tab.java` (`switchToEmotesTab`, `switchToMusicTab`), `util/dialogues/Rs2Dialogue.java` (`handleQuestOptionDialogueSelection`), `util/camera/Rs2Camera.java` (`trackNpc`, `stopTrackingNpc`, `isTrackingNpc`), `util/player/Rs2Player.java` (`logoutIfPlayerDetected` ×3, **inert by policy**, as `hopIfPlayerDetected`), new `HubActionBatchPTest` | **Task: util-gap action batch P** (the remaining small actions in the Hub table) | this commit |
 
 ## Requests
 
