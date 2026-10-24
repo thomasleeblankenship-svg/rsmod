@@ -1305,4 +1305,116 @@ public final class Rs2Player
 			return combatLevel >= localMin && combatLevel <= localMax && localCombatLevel >= min && localCombatLevel <= max;
 		}).collect(java.util.stream.Collectors.toList());
 	}
+
+	/** As upstream: {@code playerModel}'s pose differs from its idle pose (false for {@code null}). */
+	public static boolean isMoving(Rs2PlayerModel playerModel)
+	{
+		if (playerModel == null || playerModel.getPlayer() == null)
+		{
+			return false;
+		}
+		Player player = playerModel.getPlayer();
+		return net.runelite.client.plugins.microbot.mobile.MobileActions.read(
+			() -> player.getPoseAnimation() != player.getIdlePoseAnimation(), false);
+	}
+
+	/** As upstream: the local player's world view, or {@code null}. */
+	public static net.runelite.api.WorldView getWorldView()
+	{
+		return net.runelite.client.plugins.microbot.mobile.MobileActions.read(() ->
+		{
+			Player player = net.runelite.client.plugins.microbot.Microbot.getClient().getLocalPlayer();
+			return player == null ? null : player.getWorldView();
+		}, null);
+	}
+
+	/**
+	 * As upstream: an area of {@code targetXSpan} by {@code targetYSpan} centred on {@code targetPoint}
+	 * overlaps one of {@code playerXSpan} by {@code playerYSpan} centred on the player (same plane, 2D).
+	 */
+	public static boolean isPlayerAreaIntersecting(net.runelite.api.coords.WorldPoint targetPoint, int targetXSpan, int targetYSpan,
+		int playerXSpan, int playerYSpan)
+	{
+		if (targetPoint == null || targetXSpan < 0 || targetYSpan < 0 || playerXSpan < 0 || playerYSpan < 0)
+		{
+			return false;
+		}
+		net.runelite.api.coords.WorldPoint player = getWorldLocation();
+		if (player == null || targetPoint.getPlane() != player.getPlane())
+		{
+			return false;
+		}
+		net.runelite.api.coords.WorldArea target = new net.runelite.api.coords.WorldArea(
+			targetPoint.getX() - targetXSpan / 2, targetPoint.getY() - targetYSpan / 2, targetXSpan, targetYSpan, targetPoint.getPlane());
+		net.runelite.api.coords.WorldArea own = new net.runelite.api.coords.WorldArea(
+			player.getX() - playerXSpan / 2, player.getY() - playerYSpan / 2, playerXSpan, playerYSpan, player.getPlane());
+		// Same plane already checked, so this matches upstream's intersectsWith2D.
+		return target.intersectsWith(own);
+	}
+
+	/** As upstream: the multi-combat indicator is on. */
+	public static boolean isInMulti()
+	{
+		return net.runelite.client.plugins.microbot.Microbot.getVarbitValue(net.runelite.api.gameval.VarbitID.MULTIWAY_INDICATOR) == 1;
+	}
+
+	/** As upstream: the top-level scene is an instance and a house location is set. */
+	public static boolean isInPoh()
+	{
+		boolean instance = net.runelite.client.plugins.microbot.mobile.MobileActions.read(() ->
+		{
+			net.runelite.api.WorldView view = net.runelite.client.plugins.microbot.Microbot.getClient().getTopLevelWorldView();
+			return view != null && view.getScene() != null && view.getScene().isInstance();
+		}, false);
+		return instance && net.runelite.client.plugins.microbot.Microbot.getVarbitValue(net.runelite.api.gameval.VarbitID.POH_HOUSE_LOCATION) > 0;
+	}
+
+	/** As upstream: a ground item lies on the player's tile. */
+	public static boolean isStandingOnGroundItem()
+	{
+		net.runelite.api.coords.WorldPoint player = getWorldLocation();
+		return player != null && net.runelite.client.plugins.microbot.util.grounditem.Rs2GroundItem.getGroundItems().values().stream()
+			.anyMatch(item -> player.equals(item.getLocation()));
+	}
+
+	/** As upstream: the account type is ironman, ultimate or hardcore (1 to 3). */
+	public static boolean isIronman()
+	{
+		int accountType = net.runelite.client.plugins.microbot.Microbot.getVarbitValue(net.runelite.api.gameval.VarbitID.IRONMAN);
+		return accountType > 0 && accountType <= 3;
+	}
+
+	/** As upstream: the account type is a group ironman type (4 and above). */
+	public static boolean isGroupIronman()
+	{
+		return net.runelite.client.plugins.microbot.Microbot.getVarbitValue(net.runelite.api.gameval.VarbitID.IRONMAN) >= 4;
+	}
+
+	/** As upstream: the player is at y 6400 or above outside an instance. */
+	public static boolean isInCave()
+	{
+		net.runelite.api.coords.WorldPoint player = getWorldLocation();
+		boolean instance = net.runelite.client.plugins.microbot.mobile.MobileActions.read(() ->
+		{
+			net.runelite.api.WorldView view = net.runelite.client.plugins.microbot.Microbot.getClient().getTopLevelWorldView();
+			return view != null && view.isInstance();
+		}, false);
+		return player != null && player.getY() >= 6400 && !instance;
+	}
+
+	/** As upstream: the local player's current graphic (spot animation), or -1. */
+	public static int getGraphicId()
+	{
+		return net.runelite.client.plugins.microbot.mobile.MobileActions.read(() ->
+		{
+			Player player = net.runelite.client.plugins.microbot.Microbot.getClient().getLocalPlayer();
+			return player == null ? -1 : player.getGraphic();
+		}, -1);
+	}
+
+	/** As upstream: tutorial progress varp 281 is at least 1000. */
+	public static boolean hasCompletedTutorialIsland()
+	{
+		return net.runelite.client.plugins.microbot.Microbot.getVarbitPlayerValue(281) >= 1000;
+	}
 }

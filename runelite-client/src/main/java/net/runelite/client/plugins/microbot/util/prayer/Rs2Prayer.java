@@ -245,4 +245,68 @@ public final class Rs2Prayer
 	{
 		if (getActiveProtectionPrayer() != prayer) { toggle(prayer, true); }
 	}
+
+	/** As upstream: {@code prayer} is one of the selected quick prayers. */
+	public static boolean isQuickPrayerSet(Rs2PrayerEnum prayer)
+	{
+		return (Microbot.getVarbitValue(VarbitID.QUICKPRAYER_SELECTED) & (1 << prayer.getQuickPrayerIndex())) != 0;
+	}
+
+	/** As upstream: any quick prayer is selected. */
+	public static boolean hasAnyQuickPrayers()
+	{
+		return Microbot.getVarbitValue(VarbitID.QUICKPRAYER_SELECTED) > 0;
+	}
+
+	/** As upstream: Sharp Eye, Hawk Eye, Eagle Eye or Rigour is on. */
+	public static boolean isRangePrayerActive()
+	{
+		return anyActive(Rs2PrayerEnum.SHARP_EYE, Rs2PrayerEnum.HAWK_EYE, Rs2PrayerEnum.EAGLE_EYE, Rs2PrayerEnum.RIGOUR);
+	}
+
+	/** As upstream: Mystic Will, Mystic Lore, Mystic Might or Augury is on. */
+	public static boolean isMagePrayerActive()
+	{
+		return anyActive(Rs2PrayerEnum.MYSTIC_WILL, Rs2PrayerEnum.MYSTIC_LORE, Rs2PrayerEnum.MYSTIC_MIGHT, Rs2PrayerEnum.AUGURY);
+	}
+
+	/** As upstream: Piety, Chivalry, Ultimate Strength or Superhuman Strength is on. */
+	public static boolean isMeleePrayerActive()
+	{
+		return anyActive(Rs2PrayerEnum.PIETY, Rs2PrayerEnum.CHIVALRY, Rs2PrayerEnum.ULTIMATE_STRENGTH, Rs2PrayerEnum.SUPERHUMAN_STRENGTH);
+	}
+
+	private static boolean anyActive(Rs2PrayerEnum... prayers)
+	{
+		for (Rs2PrayerEnum prayer : prayers)
+		{
+			if (isPrayerActive(prayer))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** As upstream: King's Ransom's Knight Waves training is done and Prayer 70 / Defence 70 are reached. */
+	public static boolean isPietyUnlocked()
+	{
+		return knightWavesDone() && realLevel(Skill.PRAYER) >= 70 && realLevel(Skill.DEFENCE) >= 70;
+	}
+
+	/** As upstream: Knight Waves training is done and Prayer 60 / Defence 65 are reached. */
+	public static boolean isChivalryUnlocked()
+	{
+		return knightWavesDone() && realLevel(Skill.PRAYER) >= 60 && realLevel(Skill.DEFENCE) >= 65;
+	}
+
+	private static boolean knightWavesDone()
+	{
+		return Microbot.getVarbitValue(VarbitID.KR_KNIGHTWAVES_STATE) == 8;
+	}
+
+	private static int realLevel(Skill skill)
+	{
+		return net.runelite.client.plugins.microbot.mobile.MobileActions.read(() -> Microbot.getClient().getRealSkillLevel(skill), 0);
+	}
 }
