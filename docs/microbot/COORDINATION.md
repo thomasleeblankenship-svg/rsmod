@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | `util/math/Rs2Random.java` (`normalRange` ×2, `skewedRand` ×2), new `util/math/RateCalculator.java` (upstream), `util/inventory/Rs2Inventory.java` (actions: `useRestoreEnergyItem`, `dropAllExcept(int[, String[]])`), `util/npc/Rs2Npc.java` (`pickpocket(Map<NPC, HighlightedNpc>)`), `Microbot.java` (`isCantReachTargetDetectionEnabled`), `util/antiban/Rs2Antiban.java` (inert `applyFarmingSetup`), `plugins/tithefarm/TitheFarmPlantState.java` (**public, as upstream Microbot**), `plugins/npchighlight/NpcIndicatorsPlugin.java` (**`highlightedNpcs` static with a public getter, as upstream Microbot**), new `HubActionBatchMTest` | **Task: util-gap action batch M** (samplers, inventory and pickpocket actions, two core-plugin visibility changes) | this commit |
 
 ## Requests
 
