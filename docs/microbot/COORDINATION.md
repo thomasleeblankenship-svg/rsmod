@@ -44,6 +44,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | `util/grounditem/Rs2GroundItem.java` (loot actions: `lootUntradables`, `lootItemBasedOnValue`, `lootAtGePrice`), new Hub copies `aiocamdozaal`, `shadeskiller`, Hub lists, tests, docs | Loot gaps | this commit |
 | Codex (user: next) | New `CODEX_APK_VERIFICATION.md`; local build/verification outputs only | Verify latest shared-source debug APK packaging and GitHub download identity; no runtime, CI or transport edits | this claim commit |
 
 ## Requests
