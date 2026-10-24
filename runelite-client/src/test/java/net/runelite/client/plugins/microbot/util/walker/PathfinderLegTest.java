@@ -68,7 +68,7 @@ public class PathfinderLegTest
 	public void routesNeedingATransportTheWalkerCannotExecuteFallBack()
 	{
 		assertNull(legFor(result(PathResult.Status.FOUND, TILES,
-			Map.of(1, transport(B, GOAL, TransportType.GNOME_GLIDER, "Glider", "Captain Errdo", 10467)))));
+			Map.of(1, transport(B, GOAL, TransportType.QUETZAL, "Travel", "Renu", 13350)))));
 	}
 
 	@Test
@@ -306,5 +306,36 @@ public class PathfinderLegTest
 		assertTrue(Rs2Walker.entersWilderness(DESERTED_KEEP, GOAL));
 		assertFalse(Rs2Walker.entersWilderness(GOAL, DESERTED_KEEP));
 		assertFalse(Rs2Walker.entersWilderness(null, GOAL));
+	}
+
+	@Test
+	public void aGnomeGliderIsATravelStepThatPressesItsDestinationButton()
+	{
+		Rs2Walker.WalkLeg leg = legFor(result(PathResult.Status.FOUND, TILES,
+			Map.of(1, transport(B, GOAL, TransportType.GNOME_GLIDER, "Glider", "Kar-Hewo", 10467))));
+		assertNotNull(leg);
+		assertTrue(leg.stairs.travel);
+		assertEquals(List.of("Glider", "Travel"), Rs2Walker.npcOptions(leg.stairs));
+		assertEquals(Integer.valueOf(net.runelite.api.gameval.InterfaceID.Glidermap.ALKHARID_BUTTON),
+			Rs2Walker.destinationButton(Rs2Walker.GLIDER_BUTTONS, leg.stairs.destinationText));
+		assertEquals(Integer.valueOf(net.runelite.api.gameval.InterfaceID.Glidermap.GRANDTREE_BUTTON),
+			Rs2Walker.destinationButton(Rs2Walker.GLIDER_BUTTONS, " Ta Quir Priw "));
+		assertNull(Rs2Walker.destinationButton(Rs2Walker.GLIDER_BUTTONS, "Lumbridge"));
+		assertEquals("one button per catalogued glider destination", 7, Rs2Walker.GLIDER_BUTTONS.size());
+	}
+
+	@Test
+	public void aHotAirBalloonIsATravelStepThatPressesItsDestinationButton()
+	{
+		Rs2Walker.WalkLeg leg = legFor(result(PathResult.Status.FOUND, TILES,
+			Map.of(1, transport(B, GOAL, TransportType.HOT_AIR_BALLOON, "Use", "Taverley", 19128))));
+		assertNotNull(leg);
+		assertTrue(leg.stairs.travel);
+		assertEquals("Use", leg.stairs.action);
+		assertEquals(Integer.valueOf(net.runelite.api.gameval.InterfaceID.ZepBalloonMap.BTN_TAV),
+			Rs2Walker.destinationButton(Rs2Walker.BALLOON_BUTTONS, leg.stairs.destinationText));
+		assertEquals(Integer.valueOf(net.runelite.api.gameval.InterfaceID.ZepBalloonMap.BTN_CRAFT),
+			Rs2Walker.destinationButton(Rs2Walker.BALLOON_BUTTONS, "Crafting Guild"));
+		assertEquals("one button per catalogued balloon destination", 6, Rs2Walker.BALLOON_BUTTONS.size());
 	}
 }

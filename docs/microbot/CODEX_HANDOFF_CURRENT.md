@@ -18,6 +18,25 @@ Not phone-tested. Retest: the stairs from the upstairs Lumbridge bank; a tap dur
 script should resume); one full drop/bank cycle; then enable one Hub plugin from the plugin list
 (for example Fishing Trawler) and check that it stops on logout and when the app is backgrounded.
 
+## Behaviour in APK run 52 (`ba0f905`) — authoritative over older sections below
+
+Checked against git: the commits named here are all ancestors of `ba0f905`, the source of
+"Mobile test APK" run 52 (`SOURCE_COMMIT.txt` in the artifact). Older sections of this file
+describe earlier builds and are kept as history.
+
+- **A manual tap does not cancel the run** (`6f6a2cd`). It drops queued script input and
+  pauses script input for the 1.8 s human-input window; the script then continues by
+  itself. Stop, script swap, plugin disable, logout and Android backgrounding still end the
+  run, and coming back to the foreground never resumes it.
+- **Stalled walks retry** instead of stopping after 15 s (`ba30cb9`): replan from the observed
+  position, short steps, backoff. Retrying is **bounded by the 120 s walk deadline**: a route
+  that stays blocked for two minutes still fails, so a bank walk can fail and the woodcutting
+  script can stop.
+- **The idle-logout timer is fed while a script dispatches actions** (`1dec16e`, `a7ea94d`).
+- Not yet covered by any test: one combined run of a manual tap during a bank approach,
+  resume, both Lumbridge stair descents, bank open and deposit, and the return (Codex review
+  finding 3). The pieces are tested separately; none of it is phone evidence.
+
 ## Latest user instructions — supersede older cancellation requirements
 
 The user explicitly requested on 2026-10-23:
@@ -33,7 +52,7 @@ The user explicitly requested on 2026-10-23:
    infinite dispatch loop. Do not merely report queued input as successful arrival.
 3. Save a fresh handoff before usage is exhausted.
 
-**Item 1 is implemented in source (Claude 1), not yet in any published APK.**
+**Item 1 is implemented (Claude 1, `6f6a2cd`) and in APK run 52 and later.**
 `ScriptInputSession` now separates the session's lifetime from a per-input epoch:
 
 - A real tap or key bumps the input epoch and calls `MicrobotRuntime.noteHumanInput()`.
@@ -50,7 +69,7 @@ The user explicitly requested on 2026-10-23:
   with no auto-resume). The focused suite of 328 tests, checkstyle and PMD pass, all
   against mocked boundaries.
 
-**Item 2 and the walking fix are implemented in source (Claude 1), not yet in any APK.**
+**Item 2 and the walking fix are implemented (Claude 1, `ba30cb9`) and in APK run 52 and later.**
 `pending-walk-resolution.patch` was applied and finished, then removed from the tree
 (it is still in Git history):
 
@@ -72,12 +91,11 @@ The user explicitly requested on 2026-10-23:
   of these use a mocked engine and renderer, so this is **not phone evidence**. The stairs
   were reported broken on the `024f387` APK; retest them on a new build.
 
-Neither change is in the published debug APK; a new APK build is needed before a
-phone test. The requested behavior
-supersedes statements later in this file that describe cancellation in the old
+Both changes are in APK run 52 and later (they were not in the builds of that time). The
+requested behavior supersedes statements later in this file that describe cancellation in the old
 implementation.
 
-## AFK logout while a script runs — fixed in source, not yet in an APK
+## AFK logout while a script runs — fixed (`1dec16e`, `a7ea94d`), in APK run 52 and later
 
 User report 2026-10-23: kicked to the login screen mid-script and the client
 did not log back in. Cause: script actions are exact menu dispatches, and the
@@ -214,7 +232,7 @@ Evidence: `docs/microbot/build-logs/drop-stairs-checks.log`,
 `woodcutting-debug-build.log`, `debug-apk-signature.log`,
 `debug-apk-alignment.log`, `debug-apk-badging.log`.
 
-## APK and browser delivery (next step)
+## APK and browser delivery — historical (builds before run 52; see the top of this file)
 
 **Newest GitHub debug APK (source `d6b4be0`):** run 39911072637 succeeded
 (contract preflight, build, APK verification and upload). It adds two Claude 2
@@ -261,7 +279,8 @@ Next actions:
 3. Keep artifact metadata and this handoff current after future source changes.
 4. Give user download/install instructions and ask them to retest one full
    Drop logs inventory (axe retained), then starting at Lumbridge bank upstairs.
-   Manual taps intentionally cancel script input. Re-enable Run script afterward.
+   (Those builds cancelled the run on a manual tap. From run 52 a tap only pauses it; see
+   the top of this file.)
 
 GitHub API/gh returned Forbidden earlier, but public GitHub HTML works through
 curl. Do not mistake API restrictions for a total GitHub outage. Fetch public
