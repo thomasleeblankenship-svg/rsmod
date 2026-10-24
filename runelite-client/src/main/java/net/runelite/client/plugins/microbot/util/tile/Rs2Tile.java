@@ -536,4 +536,234 @@ public final class Rs2Tile
 		DANGEROUS_WORLD_TILES.clear();
 		DANGEROUS_LOCAL_TILES.clear();
 	}
+
+	// ---- Read batch 16e (upstream 2.6.38) ----
+
+	/** As upstream: walkable tiles within {@code radius} of {@code point} (radius clamped to the scene), excluding {@code point}. */
+	public static List<WorldPoint> getWalkableTilesAroundTile(WorldPoint point, int radius)
+	{
+		if (point == null)
+		{
+			return java.util.Collections.emptyList();
+		}
+		return MobileActions.read(() ->
+		{
+			WorldView view = Microbot.getClient().getTopLevelWorldView();
+			LocalPoint local = view == null ? null : LocalPoint.fromWorld(view, point);
+			int[][] flags = local == null ? null : flags(view, view.getPlane());
+			if (flags == null)
+			{
+				return java.util.Collections.<WorldPoint>emptyList();
+			}
+			int sceneX = local.getSceneX();
+			int sceneY = local.getSceneY();
+			int useRadius = radius;
+			if (sceneX - useRadius < 0 || sceneX + useRadius >= TileReachability.FLAG_DATA_SIZE)
+			{
+				useRadius = Math.min(sceneX, TileReachability.FLAG_DATA_SIZE - sceneX - 1);
+			}
+			if (sceneY - useRadius < 0 || sceneY + useRadius >= TileReachability.FLAG_DATA_SIZE)
+			{
+				useRadius = Math.min(sceneY, TileReachability.FLAG_DATA_SIZE - sceneY - 1);
+			}
+			List<WorldPoint> points = new java.util.ArrayList<>();
+			for (int dx = -useRadius; dx <= useRadius; dx++)
+			{
+				for (int dy = -useRadius; dy <= useRadius; dy++)
+				{
+					if ((dx != 0 || dy != 0) && (flags[sceneX + dx][sceneY + dy] & CollisionDataFlag.BLOCK_MOVEMENT_FULL) == 0)
+					{
+						points.add(new WorldPoint(point.getX() + dx, point.getY() + dy, point.getPlane()));
+					}
+				}
+			}
+			return points;
+		}, java.util.Collections.emptyList());
+	}
+
+	/** As upstream: {@link #getReachableTilesFromTile(WorldPoint, int, boolean)} ignoring collision. */
+	public static java.util.HashMap<WorldPoint, Integer> getReachableTilesFromTileIgnoreCollision(WorldPoint tile, int distance)
+	{
+		return getReachableTilesFromTile(tile, distance, true);
+	}
+
+	/**
+	 * As upstream: one step from {@code from} to the adjacent (or same) tile {@code to} is open on the
+	 * loaded floor. False off-scene, on another floor, or in an instance (template chunks repeat there).
+	 */
+	public static boolean isEdgePassable(WorldPoint from, WorldPoint to)
+	{
+		if (from == null || to == null || from.getPlane() != to.getPlane())
+		{
+			return false;
+		}
+		int dx = to.getX() - from.getX();
+		int dy = to.getY() - from.getY();
+		if (dx == 0 && dy == 0)
+		{
+			return true;
+		}
+		if (Math.abs(dx) > 1 || Math.abs(dy) > 1)
+		{
+			return false;
+		}
+		return MobileActions.read(() ->
+		{
+			WorldView view = Microbot.getClient().getTopLevelWorldView();
+			if (view == null || view.getPlane() != from.getPlane() || (view.getScene() != null && view.getScene().isInstance()))
+			{
+				return false;
+			}
+			int[][] flags = flags(view, view.getPlane());
+			int fx = from.getX() - view.getBaseX();
+			int fy = from.getY() - view.getBaseY();
+			return flags != null && TileReachability.isWithinBounds(fx, fy) && TileReachability.isWithinBounds(fx + dx, fy + dy)
+				&& TileReachability.isStepAllowed(flags, fx, fy, dx, dy);
+		}, false);
+	}
+
+	/** As upstream: {@code tileObject} (a wall from either face) can be used from a tile the player can reach. */
+	public static boolean isTileObjectReachable(net.runelite.api.TileObject tileObject)
+	{
+		if (tileObject == null)
+		{
+			return false;
+		}
+		return MobileActions.read(() ->
+		{
+			Client client = Microbot.getClient();
+			WorldView view = client.getTopLevelWorldView();
+			Player player = client.getLocalPlayer();
+			WorldPoint location = player == null ? null : player.getWorldLocation();
+			if (view == null || location == null || tileObject.getPlane() != location.getPlane())
+			{
+				return false;
+			}
+			LocalPoint objectLocal = tileObject.getLocalLocation();
+			if (objectLocal == null || !objectLocal.isInScene())
+			{
+				return false;
+			}
+			if (ignoresCollision(tileObject.getWorldLocation()))
+			{
+				return true;
+			}
+			int[][] flags = flags(view, view.getPlane());
+			if (flags == null)
+			{
+				return false;
+			}
+			int orientation = 0;
+			if (tileObject instanceof net.runelite.api.WallObject)
+			{
+				net.runelite.api.WallObject wall = (net.runelite.api.WallObject) tileObject;
+				orientation = wall.getOrientationA() | wall.getOrientationB();
+			}
+			return TileReachability.canInteractFromReachableTile(flags, reachableFromPlayer(view, player, location, flags),
+				objectLocal.getSceneX(), objectLocal.getSceneY(), orientation);
+		}, false);
+	}
+
+	/** As upstream: any tile of {@code gameObject}'s footprint can be used from a tile the player can reach (top-level scene only). */
+	public static boolean isGameObjectInteractableFromReachableTile(net.runelite.api.GameObject gameObject)
+	{
+		if (gameObject == null)
+		{
+			return false;
+		}
+		return MobileActions.read(() ->
+		{
+			Client client = Microbot.getClient();
+			WorldView view = client.getTopLevelWorldView();
+			Player player = client.getLocalPlayer();
+			if (view == null || player == null)
+			{
+				return false;
+			}
+			WorldView objectView = gameObject.getWorldView();
+			WorldView playerView = player.getWorldView();
+			if (objectView == null || playerView == null || !objectView.isTopLevel() || !playerView.isTopLevel()
+				|| gameObject.getPlane() != view.getPlane())
+			{
+				return false;
+			}
+			net.runelite.api.Point min = gameObject.getSceneMinLocation();
+			net.runelite.api.Point max = gameObject.getSceneMaxLocation();
+			LocalPoint playerLocal = player.getLocalLocation();
+			if (min == null || max == null || playerLocal == null)
+			{
+				return false;
+			}
+			if (ignoresCollision(gameObject.getWorldLocation()))
+			{
+				return true;
+			}
+			int[][] flags = flags(view, view.getPlane());
+			return flags != null && TileReachability.canInteractWithFootprintFromReachableTile(flags,
+				TileReachability.reachableFrom(flags, playerLocal.getSceneX(), playerLocal.getSceneY()),
+				min.getX(), min.getY(), max.getX(), max.getY());
+		}, false);
+	}
+
+	/** As upstream: the game object on {@code source} is named "bank booth" (any case). */
+	public static boolean isBankBooth(WorldPoint source)
+	{
+		if (source == null)
+		{
+			return false;
+		}
+		net.runelite.api.GameObject booth = net.runelite.client.plugins.microbot.util.gameobject.Rs2GameObject.getGameObjects().stream()
+			.filter(object -> source.equals(MobileActions.read(object::getWorldLocation, null))).findFirst().orElse(null);
+		net.runelite.api.ObjectComposition composition = booth == null ? null
+			: net.runelite.client.plugins.microbot.util.gameobject.Rs2GameObject.convertToObjectComposition(booth);
+		return composition != null && "bank booth".equalsIgnoreCase(composition.getName());
+	}
+
+	/** As upstream: no movement flag at all is set on {@code tile} (current floor). */
+	public static boolean isValidTile(Tile tile)
+	{
+		if (tile == null)
+		{
+			return false;
+		}
+		return MobileActions.read(() ->
+		{
+			Client client = Microbot.getClient();
+			CollisionData[] maps = client.getCollisionMaps();
+			int plane = client.getPlane();
+			net.runelite.api.Point scene = tile.getSceneLocation();
+			if (maps == null || plane < 0 || plane >= maps.length || maps[plane] == null || scene == null)
+			{
+				return false;
+			}
+			int[][] flags = maps[plane].getFlags();
+			return inBounds(flags, scene.getX(), scene.getY())
+				&& (flags[scene.getX()][scene.getY()] & MOVEMENT_FLAGS) == 0;
+		}, false);
+	}
+
+	/** Every flag in RuneLite's devtools {@code MovementFlag} (upstream's isValidTile test). */
+	private static final int MOVEMENT_FLAGS = CollisionDataFlag.BLOCK_MOVEMENT_NORTH_WEST | CollisionDataFlag.BLOCK_MOVEMENT_NORTH
+		| CollisionDataFlag.BLOCK_MOVEMENT_NORTH_EAST | CollisionDataFlag.BLOCK_MOVEMENT_EAST | CollisionDataFlag.BLOCK_MOVEMENT_SOUTH_EAST
+		| CollisionDataFlag.BLOCK_MOVEMENT_SOUTH | CollisionDataFlag.BLOCK_MOVEMENT_SOUTH_WEST | CollisionDataFlag.BLOCK_MOVEMENT_WEST
+		| CollisionDataFlag.BLOCK_MOVEMENT_OBJECT | CollisionDataFlag.BLOCK_MOVEMENT_FLOOR_DECORATION | CollisionDataFlag.BLOCK_MOVEMENT_FLOOR
+		| CollisionDataFlag.BLOCK_MOVEMENT_FULL;
+
+	private static boolean ignoresCollision(WorldPoint point)
+	{
+		return point != null && net.runelite.client.plugins.microbot.shortestpath.pathfinder.CollisionMap.ignoreCollisionPacked
+			.contains(net.runelite.client.plugins.microbot.shortestpath.WorldPointUtil.packWorldPoint(point));
+	}
+
+	/** Upstream's start tile: the local scene tile inside an instance, else the world tile minus the scene base. */
+	private static boolean[][] reachableFromPlayer(WorldView view, Player player, WorldPoint location, int[][] flags)
+	{
+		if (view.getScene() != null && view.getScene().isInstance())
+		{
+			LocalPoint local = player.getLocalLocation();
+			return local == null ? new boolean[TileReachability.FLAG_DATA_SIZE][TileReachability.FLAG_DATA_SIZE]
+				: TileReachability.reachableFrom(flags, local.getSceneX(), local.getSceneY());
+		}
+		return TileReachability.reachableFrom(flags, location.getX() - view.getBaseX(), location.getY() - view.getBaseY());
+	}
 }

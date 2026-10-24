@@ -173,6 +173,12 @@ public final class Rs2RunePouch
 		return runes;
 	}
 
+	/** As upstream: the carried pouch holds no runes (true without a pouch). */
+	public static boolean isEmpty()
+	{
+		return getRunes().isEmpty();
+	}
+
 	// ---- Util action batch T (Claude 1): the pouch's bank interface ----
 
 	/** The rune pouch panel in the bank side interface (upstream's validated children of 15). */

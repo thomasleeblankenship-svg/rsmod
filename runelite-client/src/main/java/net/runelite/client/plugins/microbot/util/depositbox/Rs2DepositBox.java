@@ -401,4 +401,37 @@ public final class Rs2DepositBox
 		WorldPoint after = net.runelite.client.plugins.microbot.util.player.Rs2Player.getWorldLocation();
 		return Rs2Inventory.getEmptySlots() > emptySlotCount && after != null && initialPlayerLocation.distanceTo(after) <= range;
 	}
+
+	// ---- Read batch 16e (upstream 2.6.38) ----
+
+	/** Upstream's deposit box inventory container (192:24). */
+	private static final int INVENTORY_CONTAINER = 24;
+
+	/** As upstream: the deposit box root widget (192:0) while open, else {@code null}. */
+	public static Widget getDepositBoxWidget()
+	{
+		return isOpen() ? net.runelite.client.plugins.microbot.util.widget.Rs2Widget.getWidget(GROUP, 0) : null;
+	}
+
+	/** As upstream: the deposit box's item slot widgets while open, else {@code null}. */
+	public static List<Widget> getItems()
+	{
+		if (!isOpen())
+		{
+			return null;
+		}
+		return MobileActions.read(() ->
+		{
+			Widget container = Microbot.getClient().getWidget(GROUP, INVENTORY_CONTAINER);
+			Widget[] children = container == null ? null : container.getDynamicChildren();
+			return children == null ? null : Arrays.asList(children);
+		}, null);
+	}
+
+	/** As upstream: the slot widget at {@code slotId}, or {@code null}. */
+	public static Widget getItemWidget(int slotId)
+	{
+		List<Widget> items = getItems();
+		return items == null || slotId < 0 || slotId >= items.size() ? null : items.get(slotId);
+	}
 }
