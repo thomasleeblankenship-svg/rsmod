@@ -471,4 +471,44 @@ public class LegacySceneReadTest
 		tile(9, 10);
 		assertEquals(world(9, 10), net.runelite.client.plugins.microbot.util.tile.Rs2Tile.getNearestWalkableTileWithLineOfSight(world(9, 9)));
 	}
+
+	@Test
+	public void batchFifteenReachableTilesAndGroundItemTable()
+	{
+		flags[6][5] = CollisionDataFlag.BLOCK_MOVEMENT_FULL;
+		for (int y = 0; y < 32; y++)
+		{
+			flags[8][y] = CollisionDataFlag.BLOCK_MOVEMENT_FULL;
+		}
+		net.runelite.client.plugins.microbot.util.reachable.Rs2Reachable.PackedTiles reach =
+			net.runelite.client.plugins.microbot.util.reachable.Rs2Reachable.getReachableTiles(world(5, 5));
+		assertTrue(reach.contains(world(7, 5)));
+		assertFalse("blocked tile", reach.contains(world(6, 5)));
+		assertFalse("behind the wall column", reach.contains(world(9, 5)));
+		int[] count = {0};
+		reach.forEach((int packed) -> count[0]++);
+		assertEquals(reach.size(), count[0]);
+		assertTrue(net.runelite.client.plugins.microbot.util.reachable.Rs2Reachable.isReachable(world(7, 6)));
+		assertFalse(net.runelite.client.plugins.microbot.util.reachable.Rs2Reachable.isReachable(world(9, 6)));
+
+		TileItem bass = mock(TileItem.class);
+		when(bass.getId()).thenReturn(365);
+		when(bass.getQuantity()).thenReturn(1);
+		TileItem bass2 = mock(TileItem.class);
+		when(bass2.getId()).thenReturn(365);
+		when(bass2.getQuantity()).thenReturn(2);
+		tile(6, 6).getGroundItems().add(bass);
+		tile(6, 6).getGroundItems().add(bass2);
+		net.runelite.api.ItemComposition definition = mock(net.runelite.api.ItemComposition.class);
+		when(definition.getId()).thenReturn(365);
+		when(definition.getName()).thenReturn("Bass");
+		when(f.client.getItemDefinition(365)).thenAnswer(i -> f.onClientThread(definition));
+		com.google.common.collect.Table<WorldPoint, Integer, net.runelite.client.plugins.grounditems.GroundItem> table =
+			net.runelite.client.plugins.microbot.util.grounditem.Rs2GroundItem.getGroundItems();
+		assertEquals(1, table.size());
+		net.runelite.client.plugins.grounditems.GroundItem item = table.get(world(6, 6), 365);
+		assertEquals("Bass", item.getName());
+		assertEquals("stacks on one tile add up", 3, item.getQuantity());
+		assertEquals(world(6, 6), item.getLocation());
+	}
 }

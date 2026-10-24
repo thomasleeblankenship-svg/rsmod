@@ -278,6 +278,7 @@ public final class MicrobotReadServices implements MicrobotReadApi, MicrobotRunt
 			pouchTracker.reset();
 			net.runelite.client.plugins.microbot.util.inventory.Rs2Gembag.clear();
 			net.runelite.client.plugins.microbot.util.bank.Rs2Bank.clearMemory();
+			net.runelite.client.plugins.microbot.util.bank.Rs2Bank.resetBankLiveEpoch();
 		}
 	}
 
@@ -366,6 +367,7 @@ public final class MicrobotReadServices implements MicrobotReadApi, MicrobotRunt
 	{
 		Rs2Inventory.storeInventoryItemsInMemory(event);
 		net.runelite.client.plugins.microbot.util.bank.Rs2Bank.storeBankItemsInMemory(event);
+		net.runelite.client.plugins.microbot.util.bank.Rs2Bank.noteBankSnapshot(event);
 		pouchTracker.onItemContainerChanged(event);
 		net.runelite.client.plugins.microbot.util.inventory.Rs2Gembag.onItemContainerChanged(event);
 	}

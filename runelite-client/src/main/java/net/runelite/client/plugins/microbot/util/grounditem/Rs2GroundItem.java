@@ -19,6 +19,61 @@ public final class Rs2GroundItem
 
 	private static final net.runelite.client.plugins.microbot.util.models.RS2Item[] NONE = new net.runelite.client.plugins.microbot.util.models.RS2Item[0];
 
+	/**
+	 * As upstream: the ground items in the loaded scene keyed by tile and item id (upstream reads the
+	 * ground-items plugin's collected table; here the scene is read on the client thread). Each
+	 * {@link net.runelite.client.plugins.grounditems.GroundItem} carries id, name, quantity, location,
+	 * layer height, prices, tradeability, stackability and ownership.
+	 */
+	public static com.google.common.collect.Table<net.runelite.api.coords.WorldPoint, Integer, net.runelite.client.plugins.grounditems.GroundItem> getGroundItems()
+	{
+		return MobileActions.read(() ->
+		{
+			com.google.common.collect.Table<net.runelite.api.coords.WorldPoint, Integer, net.runelite.client.plugins.grounditems.GroundItem> table =
+				com.google.common.collect.HashBasedTable.create();
+			net.runelite.api.WorldView view = Microbot.getClient().getTopLevelWorldView();
+			net.runelite.api.Tile[][][] tiles = view == null || view.getScene() == null ? null : view.getScene().getTiles();
+			net.runelite.client.game.ItemManager prices = Microbot.getItemManager();
+			if (tiles == null || view.getPlane() < 0 || view.getPlane() >= tiles.length)
+			{
+				return table;
+			}
+			for (net.runelite.api.Tile[] column : tiles[view.getPlane()])
+			{
+				for (net.runelite.api.Tile tile : column)
+				{
+					List<net.runelite.api.TileItem> items = tile == null ? null : tile.getGroundItems();
+					if (items == null)
+					{
+						continue;
+					}
+					for (net.runelite.api.TileItem item : items)
+					{
+						net.runelite.api.ItemComposition definition = item == null ? null : Microbot.getClient().getItemDefinition(item.getId());
+						if (definition == null)
+						{
+							continue;
+						}
+						net.runelite.client.plugins.grounditems.GroundItem existing = table.get(tile.getWorldLocation(), item.getId());
+						if (existing != null)
+						{
+							existing.setQuantity(existing.getQuantity() + item.getQuantity());
+							continue;
+						}
+						table.put(tile.getWorldLocation(), item.getId(), net.runelite.client.plugins.grounditems.GroundItem.builder()
+							.id(item.getId()).itemId(definition.getId()).name(definition.getName()).quantity(item.getQuantity())
+							.location(tile.getWorldLocation()).itemLayer(tile.getItemLayer())
+							.height(tile.getItemLayer() == null ? 0 : tile.getItemLayer().getHeight())
+							.haPrice(definition.getHaPrice()).gePrice(prices == null ? 0 : prices.getItemPrice(item.getId()))
+							.tradeable(definition.isTradeable()).stackable(definition.isStackable()).ownership(item.getOwnership())
+							.isPrivate(item.isPrivate()).build());
+					}
+				}
+			}
+			return table;
+		}, com.google.common.collect.HashBasedTable.create());
+	}
+
 	/** As upstream: every ground item within {@code range} tiles of the player, nearest first. */
 	@Deprecated
 	public static net.runelite.client.plugins.microbot.util.models.RS2Item[] getAll(int range)

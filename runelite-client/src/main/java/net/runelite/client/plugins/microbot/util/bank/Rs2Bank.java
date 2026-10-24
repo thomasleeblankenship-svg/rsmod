@@ -891,4 +891,140 @@ public final class Rs2Bank
 	{
 		return count(name, false);
 	}
+
+	// ---- Read batch 14 (Claude 2, util-gap plan): upstream 2.6.38 bank reads ----
+
+	/** Bank snapshots applied since login (see {@link #getBankLiveEpoch}). */
+	private static final java.util.concurrent.atomic.AtomicInteger BANK_LIVE_EPOCH = new java.util.concurrent.atomic.AtomicInteger();
+
+	/**
+	 * As upstream: a counter raised for every bank container snapshot (so a script can wait for a
+	 * fresh one after opening the bank); 0 after logout. Fed by {@code MicrobotReadServices}.
+	 */
+	public static int getBankLiveEpoch()
+	{
+		return BANK_LIVE_EPOCH.get();
+	}
+
+	/** Raises {@link #getBankLiveEpoch} for a bank container event; client thread, from {@code MicrobotReadServices}. */
+	public static void noteBankSnapshot(net.runelite.api.events.ItemContainerChanged event)
+	{
+		if (event.getContainerId() == InventoryID.BANK.getId() && event.getItemContainer() != null)
+		{
+			BANK_LIVE_EPOCH.incrementAndGet();
+		}
+	}
+
+	/** Resets {@link #getBankLiveEpoch} (logout). */
+	public static void resetBankLiveEpoch()
+	{
+		BANK_LIVE_EPOCH.set(0);
+	}
+
+	/** As upstream: the first remembered bank item matching {@code filter}. */
+	public static Rs2ItemModel get(Predicate<Rs2ItemModel> filter)
+	{
+		return getAll(filter).findFirst().orElse(null);
+	}
+
+	/** As upstream: the remembered bank item with {@code id}. */
+	public static Rs2ItemModel get(int id)
+	{
+		return get(item -> item.getId() == id);
+	}
+
+	/** As upstream: the remembered bank item named {@code name}, ignoring case. */
+	public static Rs2ItemModel get(String name)
+	{
+		return name == null ? null : get(item -> item.getName().equalsIgnoreCase(name));
+	}
+
+	/** As upstream: the open bank tab (0 is "all items"). */
+	public static int getCurrentTab()
+	{
+		return Microbot.getVarbitValue(VarbitID.BANK_CURRENTTAB);
+	}
+
+	/** As upstream: tab {@code index} is the open one. */
+	public static boolean isTabOpen(int index)
+	{
+		return getCurrentTab() == index;
+	}
+
+	/** As upstream: the bank PIN keypad is showing. */
+	public static boolean isBankPinWidgetVisible()
+	{
+		return net.runelite.client.plugins.microbot.util.widget.Rs2Widget.isWidgetVisible(net.runelite.api.widgets.ComponentID.BANK_PIN_CONTAINER);
+	}
+
+	/** As upstream: the remembered bank holds a rune pouch of any type. */
+	public static boolean hasRunePouch()
+	{
+		return Arrays.stream(net.runelite.client.plugins.microbot.util.inventory.RunePouchType.values())
+			.anyMatch(pouch -> hasItem(pouch.getItemId()));
+	}
+
+	/** As upstream: the bank tab widgets (dynamic children of the tab bar); empty when closed. */
+	public static List<Widget> getTabs()
+	{
+		return childrenOf(net.runelite.api.widgets.ComponentID.BANK_TAB_CONTAINER);
+	}
+
+	/** As upstream: the bank item slot widgets; empty when closed. */
+	public static List<Widget> getItems()
+	{
+		return childrenOf(net.runelite.api.widgets.ComponentID.BANK_ITEM_CONTAINER);
+	}
+
+	/** As upstream: the widget of bank slot {@code slotId}, or {@code null}. */
+	public static Widget getItemWidget(int slotId)
+	{
+		List<Widget> items = getItems();
+		return slotId < 0 || slotId >= items.size() ? null : items.get(slotId);
+	}
+
+	/** As upstream: the canvas bounds of bank slot {@code slotId}, or {@code null}. */
+	public static java.awt.Rectangle getItemBounds(int slotId)
+	{
+		Widget widget = getItemWidget(slotId);
+		return widget == null ? null : MobileActions.read(widget::getBounds, null);
+	}
+
+	/**
+	 * As upstream: the tab (1-9) holding bank slot {@code itemSlotId}, from the tab size varbits; 0
+	 * for the untabbed part, -1 for a slot outside the remembered bank. Adaptation: "outside" is
+	 * measured against the remembered items, where upstream reads the bank-size widget.
+	 */
+	public static int getItemTabForBankItem(int itemSlotId)
+	{
+		if (itemSlotId < 0 || itemSlotId >= getAll().count())
+		{
+			return -1;
+		}
+		int[] tabs = {
+			VarbitID.BANK_TAB_1, VarbitID.BANK_TAB_2, VarbitID.BANK_TAB_3,
+			VarbitID.BANK_TAB_4, VarbitID.BANK_TAB_5, VarbitID.BANK_TAB_6,
+			VarbitID.BANK_TAB_7, VarbitID.BANK_TAB_8, VarbitID.BANK_TAB_9,
+		};
+		int total = 0;
+		for (int i = 0; i < tabs.length; i++)
+		{
+			total += Microbot.getVarbitValue(tabs[i]);
+			if (itemSlotId < total)
+			{
+				return i + 1;
+			}
+		}
+		return 0;
+	}
+
+	private static List<Widget> childrenOf(int componentId)
+	{
+		return MobileActions.read(() ->
+		{
+			Widget parent = Microbot.getClient().getWidget(componentId);
+			Widget[] children = parent == null ? null : parent.getDynamicChildren();
+			return children == null ? java.util.Collections.<Widget>emptyList() : Arrays.asList(children);
+		}, java.util.Collections.emptyList());
+	}
 }
