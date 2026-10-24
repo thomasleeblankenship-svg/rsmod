@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 (**user request**: "can you import tutorial island"; lifts its earlier exclusion) | new `plugins/microbot/tutorialisland/` and its resources, `config/checkstyle/suppressions.xml`, `runelite-client/build.gradle.kts` (Hub PMD list), `HubPortedPluginsTest`, `docs/microbot/HUB_PORTS.md` | **Task: Hub port** of tutorialisland | this commit |
 
 ## Requests
 
