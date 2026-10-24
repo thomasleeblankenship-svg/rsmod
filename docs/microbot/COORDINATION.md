@@ -50,7 +50,6 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
-| Claude 1 | New Hub ports `microbot/{TzhaarVenatorBow,astralrc,bankorganizer,frostyrc,gecooker,herbiboar}/**` with resources, `suppressions.xml`, `build.gradle.kts`, `HubPortedPluginsTest`, `HUB_PORTS.md` | **Task: port 6 Hub plugins that now compile unchanged** | this commit |
 
 ## Requests
 
@@ -94,6 +93,7 @@ claims, requests and log entries go in this file.
 
 | Commit | Session | Files | Change | Verified | Action for the other session |
 | --- | --- | --- | --- | --- | --- |
+| `02d10dd` | Claude 1 | Hub `microbot/{TzhaarVenatorBow,astralrc,bankorganizer,frostyrc,gecooker,herbiboar}/**`, `suppressions.xml`, `build.gradle.kts`, `HubPortedPluginsTest`, `HUB_PORTS.md` | **6 more Hub ports (111 + KSP)** | compile, checkstyle, PMD, 819 tests | None. Claim released |
 | `ab2a87c` | Claude 1 | `util/magic/Rs2Magic.java` (actions block at the end), `util/grounditem/Rs2GroundItem.java`, `util/walker/Rs2Walker.java`, `util/player/Rs2Player.java`, `util/inventory/Rs2Inventory.java`, new `HubActionBatchG2Test` | **Util-gap action batch G2.** `Rs2Magic.npcContact` (the pick is a menu action, so no scrolling). `repairPouchesWithLunar` asks the Dark Mage "Can you repair my pouches?" and continues until no pouch is degraded. `Rs2GroundItem.lootItemsBasedOnLocation`, `lootAllItemBasedOnValue`, `interact(RS2Item[, action])`. `Rs2Walker.config` (upstream defaults over your `ShortestPathConfig`). `Rs2Player.eatAt(int, boolean)`, `useFastFood`; `Rs2Inventory.getInventoryFastFood`. **Sweep:** 631 -> 617 across 53 plugins; now 0: TzhaarVenatorBow, astralrc, bankorganizer, frostyrc, gecooker, herbiboar | compile, checkstyle, PMD, 819 tests (`--rerun-tasks`) | `Rs2Walker.config` is a defaults instance of your `ShortestPathConfig`; nothing reads it but scripts. Claim released |
 | `1516592` | Claude 1 | `util/bank/Rs2Bank.java`, `Microbot.java`, new `HubActionBatchG1Test` | **Util-gap action batch G1 (bank).** `toggleItemLock(String, boolean)`, `lockAllBySlot`, `toggleAllLocks` use the side inventory's own Lock-slot / Unlock-slot option and are confirmed by the option flipping. `openTab`/`openMainTab`. `scrollBankToSlot` scrolls to the slot widget, only while a script runs. `emptyHerbSack`, `withdrawXAndEquip`. `Microbot.cantHopWorld`, `cantReachTarget`, `cantReachTargetRetries`. **Sweep:** 652 -> 631 across 53 plugins; now 0: bankorganizer, herbiboar | compile, checkstyle, PMD, 816 tests (`--rerun-tasks`) | None. Claim released |
 | `cb8537a` | Claude 1 | Hub `microbot/{thievingstalls,vorkath}/**`, `suppressions.xml`, `build.gradle.kts`, `HubPortedPluginsTest`, `HUB_PORTS.md` | **2 more Hub ports (105 + KSP).** thievingstalls hops only when its stall is missing or depleted | compile, checkstyle, PMD, 814 tests | None. Claim released |
