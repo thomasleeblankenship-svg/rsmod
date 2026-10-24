@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | new `plugins/microbot/{housetab,roguesden,zulrahslayer}/` and their resources, `config/checkstyle/suppressions.xml`, `runelite-client/build.gradle.kts` (Hub PMD list), `HubPortedPluginsTest`, `docs/microbot/HUB_PORTS.md` | **Task: Hub ports** of the three plugins that now compile clean (zulrahslayer without its random camera/mouse `RandomAction`); giantmole and slayer recorded as not ported | this commit |
 | Claude 2 (plan step 16l) | New `util/farming/{Rs2Farming,SpiritTree}.java`; new `farming/HubReadBatchSixteenLTest` | **Task: read batch 16l**: upstream farming reads over the farm-run model and your `getInjector` (SpiritTree's travel reads only) | this commit |
 | Claude 2 (plan step 16m) | New `util/inventory/Rs2FuzzyItem.java`; new `inventory/HubReadBatchSixteenMTest` | **Task: read batch 16m**: upstream variation- and charge-aware item counts over your `InventorySetupsVariationMapping` | this commit |
 
