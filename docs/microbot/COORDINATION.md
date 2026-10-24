@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 | `callback/ClientThread.java` (`<T> T invoke(Supplier<T>)`), new `util/misc/Operation.java` (upstream enum), `util/inventory/Rs2Inventory.java` (actions: `combineClosest(int, int)`), `util/player/Rs2Player.java` (actions: `drinkPrayerPotion`, `drinkAntiFirePotion`, `drinkGoadingPotion`), `util/dialogues/Rs2Dialogue.java` (actions: `keyPressForDialogueOption(int\|String[, exact])`, `clickCombinationOption(String[, exact])`, `sleepUntilHasCombinationDialogue`), new `HubActionBatchCTest` | **Task: util-gap action batch C** | this commit |
 
 ## Requests
 
