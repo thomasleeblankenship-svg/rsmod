@@ -141,4 +141,34 @@ public final class Rs2PlayerStateCache
 			return value;
 		}).orElse(0);
 	}
+
+	// ---- api batch 1 (Claude 1, user-authorised; Claude 2's file): upstream reads ----
+
+	/** As upstream: the local player's world location (read now; mobile keeps no per-tick copy). */
+	public net.runelite.api.coords.WorldPoint getLocalPlayerPosition()
+	{
+		return net.runelite.client.plugins.microbot.util.player.Rs2Player.getWorldLocation();
+	}
+
+	/** As upstream: the local player's world view, read on the client thread. */
+	public net.runelite.api.WorldView getLocalPlayerWorldView()
+	{
+		return services.read(() ->
+		{
+			net.runelite.api.Player player = services.getClient().getLocalPlayer();
+			return player == null ? null : player.getWorldView();
+		}).orElse(null);
+	}
+
+	/** As upstream: the local player's state in {@code quest}. */
+	public net.runelite.api.QuestState getQuestState(net.runelite.api.Quest quest)
+	{
+		return net.runelite.client.plugins.microbot.util.player.Rs2Player.getQuestState(quest);
+	}
+
+	/** As upstream's reset of its per-tick player copy; mobile reads live, so this does nothing. */
+	public void invalidateLocalPlayer()
+	{
+		// The local player is read live; nothing is cached.
+	}
 }

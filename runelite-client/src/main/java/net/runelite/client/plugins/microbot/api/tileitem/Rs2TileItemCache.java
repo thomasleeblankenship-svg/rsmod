@@ -97,4 +97,11 @@ public final class Rs2TileItemCache
 		}
 		return result;
 	}
+
+	/** As upstream: the installed cache's current snapshot stream; empty before the runtime is installed. */
+	public static Stream<Rs2TileItemModel> getTileItemsStream()
+	{
+		Rs2TileItemCache cache = net.runelite.client.plugins.microbot.Microbot.getRs2TileItemCache();
+		return cache == null ? Stream.empty() : cache.getStream();
+	}
 }

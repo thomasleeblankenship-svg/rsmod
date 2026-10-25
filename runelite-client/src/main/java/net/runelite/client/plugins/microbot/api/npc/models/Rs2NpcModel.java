@@ -181,4 +181,58 @@ public class Rs2NpcModel extends Rs2ActorModel implements IEntity
 		}
 		return null;
 	}
+
+	// ---- api batch 1 (Claude 1, user-authorised; Claude 2's file): upstream reads ----
+
+	/** As upstream: within {@code maxDistance} local units of the local player (read on the client thread). */
+	public boolean isWithinDistanceFromPlayer(int maxDistance)
+	{
+		int distance = getDistanceFromPlayer();
+		return distance != Integer.MAX_VALUE && distance <= maxDistance;
+	}
+
+	/**
+	 * As upstream: the local-point distance to the local player, read on the client thread;
+	 * {@link Integer#MAX_VALUE} when either location is unknown.
+	 */
+	public int getDistanceFromPlayer()
+	{
+		net.runelite.api.coords.LocalPoint npcLocation = getLocalLocation();
+		return net.runelite.client.plugins.microbot.mobile.MobileActions.read(() ->
+		{
+			net.runelite.api.Player local = net.runelite.client.plugins.microbot.Microbot.getClient().getLocalPlayer();
+			net.runelite.api.coords.LocalPoint player = local == null ? null : local.getLocalLocation();
+			return player == null || npcLocation == null ? Integer.MAX_VALUE : npcLocation.distanceTo(player);
+		}, Integer.MAX_VALUE);
+	}
+
+	/** As upstream: within {@code maxDistance} tiles of {@code anchor}. */
+	public boolean isWithinDistance(net.runelite.api.coords.WorldPoint anchor, int maxDistance)
+	{
+		net.runelite.api.coords.WorldPoint location = getWorldLocation();
+		return anchor != null && location != null && location.distanceTo(anchor) <= maxDistance;
+	}
+
+	/** As upstream: its pose is not its idle pose (read on the client thread). */
+	public boolean isMoving()
+	{
+		return npc != null && net.runelite.client.plugins.microbot.mobile.MobileActions.read(
+			() -> npc.getPoseAnimation() != npc.getIdlePoseAnimation(), false);
+	}
+
+	/** As upstream: NPCs named one of {@code names} (exact, any case) or containing one (otherwise). */
+	public static java.util.function.Predicate<Rs2NpcModel> matches(boolean exact, String... names)
+	{
+		return npc ->
+		{
+			String name = npc.getName();
+			if (name == null || names == null)
+			{
+				return false;
+			}
+			String lower = name.toLowerCase(java.util.Locale.ROOT);
+			return exact ? java.util.Arrays.stream(names).anyMatch(name::equalsIgnoreCase)
+				: java.util.Arrays.stream(names).anyMatch(part -> part != null && lower.contains(part.toLowerCase(java.util.Locale.ROOT)));
+		};
+	}
 }

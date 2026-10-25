@@ -115,4 +115,18 @@ public class Rs2PlayerModel extends Rs2ActorModel implements IEntity
 	{
 		return false;
 	}
+
+	/** As upstream: the captured animation is one of the sailing salvaging animations. */
+	public boolean isSalvaging()
+	{
+		int animation = getAnimation();
+		for (int id : net.runelite.client.plugins.microbot.api.player.data.SalvagingAnimations.SALVAGING_ANIMATIONS)
+		{
+			if (animation == id)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
 }

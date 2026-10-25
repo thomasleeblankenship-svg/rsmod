@@ -64,4 +64,11 @@ public final class Rs2NpcCache
 		}
 		return result;
 	}
+
+	/** As upstream: the installed cache's current snapshot stream; empty before the runtime is installed. */
+	public static Stream<Rs2NpcModel> getNpcsStream()
+	{
+		Rs2NpcCache cache = net.runelite.client.plugins.microbot.Microbot.getRs2NpcCache();
+		return cache == null ? Stream.empty() : cache.getStream();
+	}
 }
