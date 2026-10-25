@@ -139,6 +139,45 @@ public class MobileMicrobotPluginTest
 	}
 
 	@Test
+	public void runningHubScriptShowsItsOwnStatusAndKeepsItsStopReason()
+	{
+		String before = Microbot.status;
+		try
+		{
+			net.runelite.client.plugins.Plugin hubPlugin =
+				new net.runelite.client.plugins.microbot.varrockcleaner.VarrockCleanerPlugin();
+			plugin.onPluginChanged(new net.runelite.client.events.PluginChanged(hubPlugin, true));
+			Microbot.status = "Walking to bank";
+			assertTrue(MobileScriptBridge.statusJson(), MobileScriptBridge.statusJson().contains("\"detail\":\"Walking to bank\""));
+
+			Microbot.status = "No essence in bank!";
+			plugin.onPluginChanged(new net.runelite.client.events.PluginChanged(hubPlugin, false));
+			String status = MobileScriptBridge.statusJson();
+			assertTrue(status, status.contains("Hub plugin stopped: ") && status.contains(" - No essence in bank!"));
+			assertTrue(status, status.contains("\"detail\":\"\""));
+		}
+		finally
+		{
+			Microbot.status = before;
+		}
+	}
+
+	@Test
+	public void idleScriptStatusIsNotShown()
+	{
+		String before = Microbot.status;
+		try
+		{
+			Microbot.status = "IDLE";
+			assertEquals("", MobileScriptBridge.scriptDetail());
+		}
+		finally
+		{
+			Microbot.status = before;
+		}
+	}
+
+	@Test
 	public void stopInvalidatesPendingStart()
 	{
 		MobileScriptBridge.start("DIAGNOSTICS");

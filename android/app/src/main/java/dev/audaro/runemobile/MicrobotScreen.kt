@@ -48,6 +48,8 @@ data class MicrobotStatus(
     val running: Boolean,
     val status: String,
     val scripts: List<MicrobotScript>,
+    // The running script's own progress line (e.g. "Walking to bank"); empty when stopped.
+    val detail: String = "",
 ) {
     companion object {
         val UNKNOWN = MicrobotStatus(ready = false, running = false, status = "Connecting…", scripts = emptyList())
@@ -69,6 +71,7 @@ fun parseMicrobotStatus(json: String?): MicrobotStatus =
             running = obj.optBoolean("running", false),
             status = obj.optString("status", ""),
             scripts = scripts,
+            detail = obj.optString("detail", ""),
         )
     } catch (t: Throwable) {
         MicrobotStatus.UNKNOWN
@@ -148,6 +151,9 @@ private fun MicrobotControlCard(
             }
             if (live.status.isNotEmpty()) {
                 Text(live.status, color = Color.Gray, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
+            }
+            if (live.running && live.detail.isNotEmpty()) {
+                Text(live.detail, color = Color(0xFFB0BEC5), fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
             }
             Spacer(Modifier.size(12.dp))
             Text("Script", color = Color.Gray, fontSize = 12.sp)

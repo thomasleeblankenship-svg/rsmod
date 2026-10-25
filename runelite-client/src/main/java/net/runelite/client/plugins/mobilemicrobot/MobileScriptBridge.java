@@ -45,6 +45,13 @@ public final class MobileScriptBridge
 		running = isRunning;
 	}
 
+	/** The running script's {@code Microbot.status}, or "" when it is unset or upstream's default "IDLE". */
+	static String scriptDetail()
+	{
+		String value = net.runelite.client.plugins.microbot.Microbot.status;
+		return value == null || value.isBlank() || "IDLE".equalsIgnoreCase(value.trim()) ? "" : value.trim();
+	}
+
 	public static String statusJson()
 	{
 		MobileMicrobotPlugin current = plugin;
@@ -54,6 +61,9 @@ public final class MobileScriptBridge
 		obj.addProperty("running", active);
 		obj.addProperty("script", selected);
 		obj.addProperty("status", running && !active ? "Stopped: input permission cancelled" : status);
+		// The running script's own progress line (Microbot.status, e.g. "Walking to bank"), shown under the status.
+		String detail = active ? scriptDetail() : "";
+		obj.addProperty("detail", detail);
 		return obj.toString();
 	}
 

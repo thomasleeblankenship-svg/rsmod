@@ -245,7 +245,11 @@ public class MobileMicrobotPlugin extends Plugin
 			hub.stopped(plugin);
 			if (wasActive)
 			{
-				MobileScriptBridge.update("Hub plugin stopped: " + HubPluginHost.name(plugin), "", false);
+				// The script stopped itself (a user Stop ends the session first, so it is not active here):
+				// keep the reason it gave, e.g. "No essence in bank!".
+				String reason = MobileScriptBridge.scriptDetail();
+				MobileScriptBridge.update("Hub plugin stopped: " + HubPluginHost.name(plugin)
+					+ (reason.isEmpty() ? "" : " - " + reason), "", false);
 			}
 		}
 	}
