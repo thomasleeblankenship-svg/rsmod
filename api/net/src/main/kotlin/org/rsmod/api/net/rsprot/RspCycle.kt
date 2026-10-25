@@ -33,7 +33,7 @@ import org.rsmod.map.square.MapSquareKey
 import org.rsmod.map.zone.ZoneKey
 
 class RspCycle(
-    private val session: Session<Player>,
+    private var session: Session<Player>,
     private val playerInfo: PlayerInfo,
     private val npcInfo: NpcInfo,
     private val xteaProvider: XteaProvider,
@@ -61,6 +61,14 @@ class RspCycle(
     fun init(player: Player) {
         player.updateCoords()
         player.queueRebuildLogin()
+    }
+
+    /**
+     * Attaches a reconnected [session] to this cycle. The known client state (coords, build area,
+     * region) is kept, as the client retains its game state across a reconnect.
+     */
+    fun reconnect(session: Session<Player>) {
+        this.session = session
     }
 
     private fun Player.queueRebuildLogin() {

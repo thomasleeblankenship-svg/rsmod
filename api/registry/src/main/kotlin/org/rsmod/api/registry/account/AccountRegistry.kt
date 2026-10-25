@@ -18,6 +18,7 @@ constructor(
 ) {
     private val pendingLogins = ConcurrentLinkedQueue<QueuedLogin>()
     private val pendingLogouts = ConcurrentLinkedQueue<QueuedLogout>()
+    private val pendingReconnects = ConcurrentLinkedQueue<() -> Unit>()
 
     public fun queueLogin(
         player: Player,
@@ -26,6 +27,14 @@ constructor(
     ) {
         val queued = QueuedLogin(player, response, callback)
         pendingLogins.add(queued)
+    }
+
+    /**
+     * Queues a [reconnect] to be handled on the game thread by [handleReconnects], at the same
+     * point in the cycle as logins.
+     */
+    public fun queueReconnect(reconnect: () -> Unit) {
+        pendingReconnects.add(reconnect)
     }
 
     public fun queueLogout(player: Player) {
@@ -38,6 +47,14 @@ constructor(
             val next = pendingLogins.poll() ?: break
             val (player, response, callback) = next
             callback(player, response)
+        }
+    }
+
+    public fun handleReconnects(count: Int = DEFAULT_RECONNECTS_PER_CYCLE) {
+        var left = count
+        while (left-- > 0) {
+            val next = pendingReconnects.poll() ?: break
+            next()
         }
     }
 
@@ -80,5 +97,6 @@ constructor(
     private companion object {
         private const val DEFAULT_LOGINS_PER_CYCLE = 100
         private const val DEFAULT_LOGOUTS_PER_CYCLE = 200
+        private const val DEFAULT_RECONNECTS_PER_CYCLE = 100
     }
 }

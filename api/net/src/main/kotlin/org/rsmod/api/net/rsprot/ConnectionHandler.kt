@@ -16,6 +16,7 @@ import org.rsmod.api.config.refs.modlevels
 import org.rsmod.api.db.gateway.GameDbManager
 import org.rsmod.api.db.gateway.model.GameDbResult
 import org.rsmod.api.net.rsprot.player.AccountLoadResponseHook
+import org.rsmod.api.net.rsprot.player.GameReconnectHook
 import org.rsmod.api.net.rsprot.provider.Js5Store
 import org.rsmod.api.player.forceDisconnect
 import org.rsmod.api.pw.hash.PasswordHashing
@@ -236,7 +237,17 @@ private constructor(
         responseHandler: GameLoginResponseHandler<Player>,
         block: LoginBlock<XteaKey>,
     ) {
-        // TODO: Reconnection.
-        responseHandler.writeFailedResponse(LoginResponse.ConnectFail)
+        if (accountManager.isLoaderShuttingDown()) {
+            responseHandler.writeFailedResponse(LoginResponse.LoginServerOffline)
+            return
+        }
+
+        if (!block.crc.validate(js5Crc)) {
+            responseHandler.writeFailedResponse(LoginResponse.OutOfDateReload)
+            return
+        }
+
+        val hook = GameReconnectHook(playerList, block, responseHandler)
+        accountReg.queueReconnect(hook::handle)
     }
 }

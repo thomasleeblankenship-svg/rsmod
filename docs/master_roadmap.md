@@ -29,7 +29,7 @@ Every runtime-throwing `TODO()` stub becomes a graceful path.
 - [ ] Set a CI gate: new modules ship with tests.
 
 ### M2. Login/session completeness — **Complexity: M** — _Dependencies: M1 (net tests first)_
-- [ ] Reconnection support (`ConnectionHandler.onReconnect`) — rsprot exposes the hooks; needs session-state retention policy.
+- [x] Reconnection support (`ConnectionHandler.onReconnect` → `GameReconnectHook`): a disconnected player keeps their place for the logout grace period (16 cycles); a reconnect presenting the previous session's cipher seed re-attaches the new session to the existing player, keeping player/npc info and client state. Updates queued while disconnected are not replayed.
 - [ ] Token/JWS authentication (`tokenLogin`) — required by modern launchers.
 - [ ] Decide email-login username policy (`AccountLoadResponseHook` TODO).
 

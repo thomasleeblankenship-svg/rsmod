@@ -261,7 +261,7 @@ class AccountLoadResponseHook(
         }
 
         player.slotId = slotId
-        eventBus.publish(SessionStart(player, session))
+        eventBus.publish(SessionStart(player, session, loginBlock.seed))
         val register = playerRegistry.add(player)
         if (register.isSuccess()) {
             claimWorld(player)

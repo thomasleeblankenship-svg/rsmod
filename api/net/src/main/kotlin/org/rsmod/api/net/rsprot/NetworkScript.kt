@@ -59,7 +59,7 @@ constructor(
         val playerInfo = service.playerInfoProtocol.alloc(slot, OldSchoolClientType.DESKTOP)
         val npcInfo = service.npcInfoProtocol.alloc(slot, OldSchoolClientType.DESKTOP)
 
-        val client = RspClient(session, playerInfo, npcInfo) as Client<Any, Any>
+        val client = RspClient(session, playerInfo, npcInfo, loginSeed) as Client<Any, Any>
         val cycle = RspCycle(session, playerInfo, npcInfo, xtea, objTypes, regionReg)
 
         player.client = client

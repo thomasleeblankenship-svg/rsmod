@@ -53,7 +53,6 @@ Note: the tick driver lives in `server/app` (`GameService`, 600 ms loop) and the
 - **Cities/regions beyond Lumbridge**: none scripted.
 - **NPC drop tables**: `api/death/NpcDeath.kt` — `// TODO: Drop tables.`
 - **Player death mechanics**: `api/death/PlayerDeath.kt` — `// TODO: Drop death invs, etc.`
-- **Reconnection**: `ConnectionHandler.onReconnect()` returns `ConnectFail` (`// TODO: Reconnection`).
 - **Token/JWS login**: `ConnectionHandler.tokenLogin()` returns `InvalidLoginPacket` (`// TODO: Token authentication handling`).
 - **PK skulling**: `api/combat/.../PlayerCommons.kt` — `// TODO(combat): Set pk skull when applicable.`
 - **Followers/pets**: `EquipmentTabScript.kt:16` — logic deferred until followers exist.
@@ -103,7 +102,7 @@ One hygiene note: `server/services/build/` (stale build output) is checked into 
 
 - **Library**: [rsprot](https://github.com/blurite/rsprot) (`net.rsprot.protocol.*`) for the OSRS protocol, RSA, Huffman, and player/NPC info packing; openrs2 for cache access. `NetworkFactory.kt` extends rsprot's `AbstractNetworkServiceFactory<Player>`; port 43594; **desktop client only**.
 - **JS5**: fully wired (`Js5Store`, group response provider, CRC validation during login).
-- **Login**: complete password flow — bcrypt verification, TOTP 2FA, known-device handling, realm registration modes, CPU-starvation mitigation. **Gaps**: token auth and reconnection are stubs (return failure responses — graceful, non-throwing).
+- **Login**: complete password flow — bcrypt verification, TOTP 2FA, known-device handling, realm registration modes, CPU-starvation mitigation. **Gaps**: token auth is a stub (returns a failure response — graceful, non-throwing). Reconnection is handled by `GameReconnectHook`.
 - **Game packets**: ~34 message handlers (op-loc/npc/obj/player, if-buttons, resume-dialogs, movement, chat).
 - **Per-tick network step**: `RspCycle` carries a TODO about restructuring when the net module is "implemented properly" — the author considers the module provisional.
 - **Tests**: none in `api/net`.
@@ -152,7 +151,7 @@ No serious red flags found; the codebase is visibly allocation-conscious. Observ
 ## Priority Summary
 
 1. **Runtime-throwing stubs** (4 sites, §3) — small in count, but each is a live crash path.
-2. **Reconnection + token login** — the two functional holes in an otherwise complete network layer.
+2. **Token login** — the remaining functional hole in an otherwise complete network layer (reconnection is implemented).
 3. **Death mechanics** (NPC drop tables, player death inventory) — core gameplay loop currently incomplete.
 4. **Content breadth** — 19 skills, all quests, all minigames, and every city beyond Lumbridge are unbuilt; the framework to build them is in place.
 5. **Test gaps** — persistence (`db`/`account`) and `net` have zero coverage despite being correctness-critical.
