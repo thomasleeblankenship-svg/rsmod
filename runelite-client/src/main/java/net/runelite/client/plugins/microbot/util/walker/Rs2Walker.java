@@ -44,6 +44,7 @@ import net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel;
 import net.runelite.client.plugins.microbot.util.magic.Rs2Magic;
 import net.runelite.client.plugins.microbot.util.player.Rs2Player;
 import net.runelite.client.plugins.microbot.util.tabs.Rs2Tab;
+import net.runelite.client.plugins.microbot.util.walker.door.Rs2DoorClassifier;
 import net.runelite.client.plugins.microbot.util.walker.puzzles.DraynorBasementSolver;
 import net.runelite.client.plugins.skillcalculator.skills.MagicAction;
 import net.runelite.client.util.Text;
@@ -67,6 +68,9 @@ public final class Rs2Walker
 	// isNearPath's last checked position (upstream's routeState.lastPosition).
 	private static volatile WorldPoint lastNearPathPosition;
 	private static volatile String lastStatus = "Idle";
+	// Why and when the target was last cleared (upstream's routeState.lastRouteClearReason / AtMs).
+	private static volatile String lastRouteClearReason = "";
+	private static volatile long lastRouteClearAtMs;
 	private static final long MAX_WALK_MILLIS = 120_000;
 	/** No observed movement for this long triggers a replan and retry, never a stop. */
 	private static final long DEFAULT_STALL_MILLIS = 15_000;
@@ -123,15 +127,20 @@ public final class Rs2Walker
 	/** Null cancels an outstanding walk without issuing any game input. */
 	public static void setTarget(WorldPoint point)
 	{
-		target = point;
-		GENERATION.incrementAndGet();
+		setTarget(point, point == null ? "cleared" : "set");
 	}
 
-	/** Upstream overload; the reason is logged only. {@code null} cancels any walk in progress. */
+	/** Upstream overload; the reason is logged, and kept for {@link #getLastRouteClearReason()} when the target is cleared. */
 	public static void setTarget(WorldPoint point, String reason)
 	{
 		LOG.debug("Walker target {} ({})", point, reason);
-		setTarget(point);
+		if (point == null)
+		{
+			lastRouteClearReason = reason == null ? "" : reason;
+			lastRouteClearAtMs = System.currentTimeMillis();
+		}
+		target = point;
+		GENERATION.incrementAndGet();
 	}
 
 	/**
@@ -2635,6 +2644,27 @@ public final class Rs2Walker
 	}
 
 	/**
+	 * The action route door recovery uses on an object, by upstream's door priority
+	 * ({@link Rs2DoorClassifier}): never Close/Shut, never one that carries the player across
+	 * (stiles, which are transports), and never Pay-toll, Pick-lock, Force or Exit (they spend coins,
+	 * train Thieving, or leave somewhere; the route plans those as transports when it means to).
+	 */
+	private static final List<String> UNSAFE_DOOR_ACTIONS = List.of("pay-toll", "pick-lock", "force", "exit");
+
+	static String routeDoorAction(String[] actions)
+	{
+		if (actions == null)
+		{
+			return null;
+		}
+		return Arrays.stream(actions).filter(java.util.Objects::nonNull)
+			.filter(action -> !Rs2DoorClassifier.isDoorCloseOrShutAction(action) && !Rs2DoorClassifier.isMovesYouAction(action))
+			.filter(action -> UNSAFE_DOOR_ACTIONS.stream().noneMatch(action.toLowerCase(java.util.Locale.ROOT)::startsWith))
+			.filter(action -> Rs2DoorClassifier.doorActionPriorityIndex(action) < Integer.MAX_VALUE)
+			.min(java.util.Comparator.comparingInt(Rs2DoorClassifier::doorActionPriorityIndex)).orElse(null);
+	}
+
+	/**
 	 * As upstream's {@code processWalk}: before walking to a Draynor Manor basement tile, enter the
 	 * basement and set its levers ({@link DraynorBasementSolver}); the puzzle doors are varbit-gated
 	 * transports. False when the target is in the basement but the player could not get in.
@@ -2692,17 +2722,18 @@ public final class Rs2Walker
 							continue;
 						}
 						String name = composition.getName().toLowerCase(java.util.Locale.ENGLISH);
-						if ((name.contains("door") || name.contains("gate") || StrongholdDoors.isStrongholdDoor(name))
-							&& Arrays.stream(composition.getActions()).anyMatch("Open"::equalsIgnoreCase))
+						String action = routeDoorAction(composition.getActions());
+						if (action != null && (StrongholdDoors.isStrongholdDoor(name)
+							|| Rs2DoorClassifier.isRouteDoorObject(object == tile.getWallObject(), name, action)))
 						{
-							return new Object[]{object.getId(), object.getWorldLocation(), name};
+							return new Object[]{object.getId(), object.getWorldLocation(), name, action};
 						}
 					}
 				}
 			}
 			return null;
 		}, null);
-		if (door == null || !MobileActions.objectAt((int) door[0], (WorldPoint) door[1], "Open"))
+		if (door == null || !MobileActions.objectAt((int) door[0], (WorldPoint) door[1], (String) door[3]))
 		{
 			return false;
 		}
@@ -2944,6 +2975,104 @@ public final class Rs2Walker
 			}
 		});
 		return withdrawals.isEmpty() ? Rs2TransportLoadout.unavailable() : new Rs2TransportLoadout(withdrawals, List.of(), true);
+	}
+
+	/** As upstream: compares walking straight to {@code target} with a trip through the nearest bank. */
+	public static TransportRouteAnalysis compareRoutes(WorldPoint startPoint, WorldPoint target)
+	{
+		return net.runelite.client.plugins.microbot.util.walker.banking.Rs2WalkerBankingPlanner.compareRoutes(startPoint, target);
+	}
+
+	/** As upstream: {@link #compareRoutes(WorldPoint, WorldPoint)} from the player. */
+	public static TransportRouteAnalysis compareRoutes(WorldPoint target)
+	{
+		return compareRoutes(null, target);
+	}
+
+	/** As upstream: why the walker's target was last cleared ("" before the first clear). */
+	public static String getLastRouteClearReason()
+	{
+		return lastRouteClearReason;
+	}
+
+	/** As upstream: when the walker's target was last cleared (epoch millis, 0 before the first clear). */
+	public static long getLastRouteClearAtMs()
+	{
+		return lastRouteClearAtMs;
+	}
+
+	/** As upstream: {@link #getPointWithWallDistance(WorldPoint, WorldPoint)} without a player side. */
+	public static WorldPoint getPointWithWallDistance(WorldPoint target)
+	{
+		return getPointWithWallDistance(target, null);
+	}
+
+	/**
+	 * As upstream: nudges a click target off a wall edge onto an open neighbour, preferring one the
+	 * player can reach and nearest to {@code playerLoc} (so the click stays on the player's side).
+	 * Collision is read on the client thread; the target comes back unchanged when it has no wall,
+	 * is outside the scene, or no clean neighbour exists.
+	 */
+	public static WorldPoint getPointWithWallDistance(WorldPoint target, WorldPoint playerLoc)
+	{
+		if (target == null)
+		{
+			return null;
+		}
+		Map<WorldPoint, Integer> flags = MobileActions.read(() -> collisionAround(target), null);
+		if (flags == null || flags.get(target) == null || (flags.get(target) & WALL_FLAGS) == 0)
+		{
+			return target;
+		}
+		Set<WorldPoint> neighbours = net.runelite.client.plugins.microbot.util.tile.Rs2Tile.getReachableTilesFromTile(target, 1).keySet();
+		Set<WorldPoint> fromPlayer = playerLoc == null ? Set.of()
+			: net.runelite.client.plugins.microbot.util.tile.Rs2Tile.getReachableTilesFromTile(playerLoc, 20).keySet();
+		return chooseWallDistanceNeighbour(target, neighbours, flags, playerLoc, fromPlayer);
+	}
+
+	/** Directional walls and full blocks: a tile with none of these is a clean click target. */
+	static final int WALL_FLAGS = net.runelite.api.CollisionDataFlag.BLOCK_MOVEMENT_NORTH | net.runelite.api.CollisionDataFlag.BLOCK_MOVEMENT_EAST
+		| net.runelite.api.CollisionDataFlag.BLOCK_MOVEMENT_SOUTH | net.runelite.api.CollisionDataFlag.BLOCK_MOVEMENT_WEST
+		| net.runelite.api.CollisionDataFlag.BLOCK_MOVEMENT_FULL;
+
+	/** The clean neighbour of {@code target}: reachable from the player when known, then nearest to the player (or target). */
+	static WorldPoint chooseWallDistanceNeighbour(WorldPoint target, Set<WorldPoint> neighbours, Map<WorldPoint, Integer> flags,
+		WorldPoint playerLoc, Set<WorldPoint> fromPlayer)
+	{
+		WorldPoint anchor = playerLoc != null ? playerLoc : target;
+		return neighbours.stream()
+			.filter(tile -> !tile.equals(target) && flags.get(tile) != null && (flags.get(tile) & WALL_FLAGS) == 0)
+			.min(java.util.Comparator.comparing((WorldPoint tile) -> !fromPlayer.isEmpty() && !fromPlayer.contains(tile))
+				.thenComparingInt(tile -> tile.distanceTo2D(anchor)).thenComparingInt(WorldPoint::getX).thenComparingInt(WorldPoint::getY))
+			.orElse(target);
+	}
+
+	/** Collision flags for {@code target} and its eight neighbours in the top-level scene (client thread). */
+	private static Map<WorldPoint, Integer> collisionAround(WorldPoint target)
+	{
+		Client client = Microbot.getClient();
+		WorldView view = client == null ? null : client.getTopLevelWorldView();
+		if (view == null || view.getCollisionMaps() == null || target.getPlane() != view.getPlane()
+			|| view.getCollisionMaps()[view.getPlane()] == null)
+		{
+			return null;
+		}
+		int[][] scene = view.getCollisionMaps()[view.getPlane()].getFlags();
+		Map<WorldPoint, Integer> out = new java.util.HashMap<>();
+		for (int dx = -1; dx <= 1; dx++)
+		{
+			for (int dy = -1; dy <= 1; dy++)
+			{
+				WorldPoint tile = target.dx(dx).dy(dy);
+				net.runelite.api.coords.LocalPoint local = net.runelite.api.coords.LocalPoint.fromWorld(view, tile);
+				if (local != null && local.getSceneX() >= 0 && local.getSceneY() >= 0
+					&& local.getSceneX() < scene.length && local.getSceneY() < scene[local.getSceneX()].length)
+				{
+					out.put(tile, scene[local.getSceneX()][local.getSceneY()]);
+				}
+			}
+		}
+		return out;
 	}
 
 	/** The catalogue transports behind edges built by {@link Rs2PathApi} (other edges have none). */
