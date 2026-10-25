@@ -178,4 +178,71 @@ public class Rs2TileItemModel implements IEntity
 	{
 		return worldView;
 	}
+
+	// ---- api batch 2 (Claude 1, user-authorised; Claude 2's file): upstream reads ----
+
+	private <T> T definition(java.util.function.Function<ItemComposition, T> read, T fallback)
+	{
+		return net.runelite.client.plugins.microbot.mobile.MobileActions.read(() ->
+		{
+			ItemComposition composition = net.runelite.client.plugins.microbot.Microbot.getClient().getItemDefinition(id);
+			return composition == null ? fallback : read.apply(composition);
+		}, fallback);
+	}
+
+	/** As upstream: the item definition's store price times the quantity (upstream's name for it). */
+	public int getTotalGeValue()
+	{
+		return definition(composition -> composition.getPrice() * quantity, 0);
+	}
+
+	/** As upstream: the market price (item manager) times the quantity. */
+	public long getTotalValue()
+	{
+		return definition(composition ->
+		{
+			net.runelite.client.game.ItemManager items = net.runelite.client.plugins.microbot.Microbot.getItemManager();
+			return items == null ? 0L : items.getItemPrice(composition.getId()) * quantity;
+		}, 0L);
+	}
+
+	/** As upstream: the item can be traded. */
+	public boolean isTradeable()
+	{
+		return definition(ItemComposition::isTradeable, false);
+	}
+
+	/** As upstream: a members' item. */
+	public boolean isMembers()
+	{
+		return definition(ItemComposition::isMembers, false);
+	}
+
+	/** As upstream: the market price is above the high-alchemy value (60% of the store price). */
+	public boolean isProfitableToHighAlch()
+	{
+		return definition(composition ->
+		{
+			net.runelite.client.game.ItemManager items = net.runelite.client.plugins.microbot.Microbot.getItemManager();
+			return items != null && items.getItemPrice(composition.getId()) > composition.getPrice() * 60 / 100;
+		}, false);
+	}
+
+	/** As upstream: it despawns within {@code ticks} game ticks. */
+	public boolean willDespawnWithin(int ticks)
+	{
+		return despawnTime - currentTick() <= ticks;
+	}
+
+	/** As upstream: its despawn tick has passed (false when it has none). */
+	public boolean isDespawned()
+	{
+		return despawnTime != -1 && despawnTime <= currentTick();
+	}
+
+	private static int currentTick()
+	{
+		return net.runelite.client.plugins.microbot.mobile.MobileActions.read(
+			() -> net.runelite.client.plugins.microbot.Microbot.getClient().getTickCount(), 0);
+	}
 }
