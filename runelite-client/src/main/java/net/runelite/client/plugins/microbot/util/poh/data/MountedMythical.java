@@ -1,7 +1,7 @@
 /*
  * Copied from chsami/Microbot a2114401bbbc35e9762db9e8aa666d70ffcd24d8,
  * runelite-client/src/main/java/net/runelite/client/plugins/microbot/util/poh/data/MountedMythical.java.
- * Adaptation: data only; upstream's execute(), getObject() (actions and live-object lookups) are left to the walker's POH executor;
+ * Adaptation: execute() added in batch AQ (the walker's POH steps use their own executor);
  * lint-only edits (PMD suppressions, a shorter array initializer).
  * BSD 2-Clause License; see LICENSE.
  */
@@ -41,5 +41,12 @@ public enum MountedMythical implements PohTeleport {
     /** As upstream: the mounted item in the house scene, or {@code null}. */
     public static DecorativeObject getObject() {
         return net.runelite.client.plugins.microbot.util.gameobject.Rs2GameObject.getDecorativeObject(MYTHS_GUILD.getObjectId());
+    }
+
+    /** As upstream: the mounted mythical cape's "Teleport". */
+    @Override
+    public boolean execute() {
+        DecorativeObject cape = getObject();
+        return cape != null && net.runelite.client.plugins.microbot.util.gameobject.Rs2GameObject.interact(cape, "Teleport");
     }
 }

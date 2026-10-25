@@ -1,7 +1,7 @@
 /*
  * Copied from chsami/Microbot a2114401bbbc35e9762db9e8aa666d70ffcd24d8,
  * runelite-client/src/main/java/net/runelite/client/plugins/microbot/util/poh/data/PohPortal.java.
- * Adaptation: data only; upstream's getPortal(), execute() (actions and live-object lookups) are left to the walker's POH executor;
+ * Adaptation: execute() added in batch AQ (the walker's POH steps use their own executor);
  * lint-only edits (PMD suppressions, a shorter array initializer).
  * BSD 2-Clause License; see LICENSE.
  */
@@ -198,5 +198,12 @@ public enum PohPortal implements PohTeleport {
     /** As upstream: this portal's object in the house scene, or {@code null}. */
     public GameObject getPortal() {
         return Rs2GameObject.getGameObject(objectIds);
+    }
+
+    /** As upstream: enters this portal room portal. */
+    @Override
+    public boolean execute() {
+        GameObject portal = getPortal();
+        return portal != null && Rs2GameObject.interact(portal, "enter");
     }
 }

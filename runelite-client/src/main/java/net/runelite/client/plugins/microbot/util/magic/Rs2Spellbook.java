@@ -288,6 +288,44 @@ public enum Rs2Spellbook {
         return Rs2Npc.getNpc(ARCEUUS.getGameID()) != null;
     }
 
+    /**
+     * As upstream: the nearest spellbook switch point the player can reach by route (with banked
+     * transport items when {@code includeBankeItems}), or {@code null}. Also {@code null} when a house
+     * teleport (tablet or spell runes) is available: upstream treats the house as the switch point.
+     */
+    public static WorldPoint getNearestSwitchLocation(boolean includeBankeItems) {
+        WorldPoint playerLocation = Rs2Player.getWorldLocation();
+        if (playerLocation == null || canTeleportToPOH()) {
+            return null;
+        }
+        WorldPoint nearest = null;
+        int best = Integer.MAX_VALUE;
+        for (Rs2Spellbook book : values()) {
+            WorldPoint target = book.getSwitchLocation();
+            if (target == null) {
+                continue;
+            }
+            net.runelite.client.plugins.microbot.shortestpath.PathResult route =
+                net.runelite.client.plugins.microbot.shortestpath.MobilePathfinder.find(playerLocation, target, includeBankeItems);
+            // Upstream accepts a route ending within 10 tiles of the target.
+            java.util.List<WorldPoint> tiles = route.getTiles();
+            if (!route.isFound() || tiles.isEmpty() || tiles.get(tiles.size() - 1).distanceTo(target) > 10) {
+                continue;
+            }
+            if (tiles.size() < best) {
+                best = tiles.size();
+                nearest = target;
+            }
+        }
+        return nearest;
+    }
+
+    /** As upstream: a house tablet is carried or the runes for Teleport to House are. */
+    private static boolean canTeleportToPOH() {
+        return net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory.hasItem(net.runelite.api.gameval.ItemID.POH_TABLET_TELEPORTTOHOUSE)
+            || Rs2Magic.hasRequiredRunes(Rs2Spells.TELEPORT_TO_HOUSE);
+    }
+
     /** As upstream: the player is in their house (upstream assumes house furniture can switch the book). */
     public static boolean canSwitchInPOH() {
         return net.runelite.client.plugins.microbot.util.poh.PohPresence.isInHouse();

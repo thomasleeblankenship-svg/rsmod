@@ -188,6 +188,23 @@ public final class Rs2UiHelper
 	}
 
 	/** As upstream: compares dotted versions part by part (numeric prefix of each part; missing parts are 0). */
+	/** The upstream Microbot version this client's API tracks (chsami/Microbot a2114401). */
+	public static final String MICROBOT_API_VERSION = "2.6.38";
+
+	/**
+	 * As upstream: whether a plugin's {@code minClientVersion} is met. Mobile adaptation: compared
+	 * with {@link #MICROBOT_API_VERSION}, the upstream version whose API this client provides
+	 * (there is no Microbot build version here); always true in debug, or without a minimum.
+	 */
+	public static boolean isClientVersionCompatible(String minClientVersion)
+	{
+		if (net.runelite.client.plugins.microbot.Microbot.isDebug() || minClientVersion == null || minClientVersion.isEmpty())
+		{
+			return true;
+		}
+		return compareVersions(MICROBOT_API_VERSION, minClientVersion) >= 0;
+	}
+
 	public static int compareVersions(String version1, String version2)
 	{
 		if (version1 == null || version2 == null)

@@ -60,7 +60,10 @@ public final class PohTeleports
 	/** As upstream: in the house, opens the jewellery box and teleports to {@code destination}. */
 	public static boolean useJewelleryBox(JewelleryLocationEnum destination)
 	{
-		if (destination == null || destination == JewelleryLocationEnum.FORTIS_COLOSSEUM || !checkIsInHouse())
+		// Batch AQ: Ferox Enclave (a level-0 safe zone inside the Wilderness, refused by name as its Death's
+		// Office is) and any Wilderness destination are refused, as the nexus's are.
+		if (destination == null || destination == JewelleryLocationEnum.FORTIS_COLOSSEUM || destination == JewelleryLocationEnum.FEROX_ENCLAVE
+			|| isWildernessDestination(destination.getLocation()) || !checkIsInHouse())
 		{
 			return false;
 		}
@@ -130,7 +133,13 @@ public final class PohTeleports
 
 	private static boolean isWilderness(NexusPortal destination)
 	{
-		return destination.getLocation() != null && Rs2Pvp.getWildernessLevelFrom(destination.getLocation()) > 0;
+		return isWildernessDestination(destination.getLocation());
+	}
+
+	/** Whether {@code destination} is in the Wilderness (house teleports there are refused by policy). */
+	public static boolean isWildernessDestination(net.runelite.api.coords.WorldPoint destination)
+	{
+		return destination != null && Rs2Pvp.getWildernessLevelFrom(destination) > 0;
 	}
 
 	private static TileObject first(Integer[] ids)

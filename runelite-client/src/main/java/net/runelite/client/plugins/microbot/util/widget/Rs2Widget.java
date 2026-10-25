@@ -598,4 +598,64 @@ public final class Rs2Widget
 		}, null);
 		return target != null && MobileActions.widget(target[0], target[1], "");
 	}
+
+	// ---- Batch AQ (Claude 1): modal overlap check ----
+
+	/**
+	 * As upstream: whether {@code overlayBoundsCanvas} overlaps (by more than 8 by 8 pixels) a shown
+	 * child of the main modal (fixed, resizable or pre-EoC layout), with the widget bounds shifted by
+	 * the viewport offset. One client-thread read.
+	 */
+	public static boolean checkBoundsOverlapWidgetInMainModal(java.awt.Rectangle overlayBoundsCanvas, int viewportXOffset, int viewportYOffset)
+	{
+		if (overlayBoundsCanvas == null)
+		{
+			return false;
+		}
+		return MobileActions.read(() ->
+		{
+			net.runelite.api.Client client = Microbot.getClient();
+			Widget modal = client.getWidget(InterfaceID.TOPLEVEL, 40);
+			if (modal == null || modal.isHidden())
+			{
+				modal = client.getWidget(InterfaceID.TOPLEVEL_OSRS_STRETCH, 16);
+			}
+			if (modal == null)
+			{
+				modal = client.getWidget(InterfaceID.TOPLEVEL_PRE_EOC, 16);
+			}
+			return overlapsChild(modal, overlayBoundsCanvas, viewportXOffset, viewportYOffset);
+		}, false);
+	}
+
+	/** Upstream: only the modal's direct dynamic and nested children are checked; call on the client thread. */
+	static boolean overlapsChild(Widget modal, java.awt.Rectangle overlay, int xOffset, int yOffset)
+	{
+		if (modal == null || modal.isHidden())
+		{
+			return false;
+		}
+		for (Widget[] children : new Widget[][]{modal.getDynamicChildren(), modal.getNestedChildren()})
+		{
+			if (children == null)
+			{
+				continue;
+			}
+			for (Widget child : children)
+			{
+				if (child == null || child.isHidden() || child.getCanvasLocation() == null || child.getBounds() == null)
+				{
+					continue;
+				}
+				java.awt.Rectangle bounds = child.getBounds();
+				java.awt.Rectangle shifted = new java.awt.Rectangle(bounds.x + xOffset, bounds.y + yOffset, bounds.width, bounds.height);
+				java.awt.Rectangle overlap = shifted.intersection(overlay);
+				if (shifted.intersects(overlay) && overlap.width > 8 && overlap.height > 8)
+				{
+					return true;
+				}
+			}
+		}
+		return false;
+	}
 }

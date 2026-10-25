@@ -1,7 +1,7 @@
 /*
  * Copied from chsami/Microbot a2114401bbbc35e9762db9e8aa666d70ffcd24d8,
  * runelite-client/src/main/java/net/runelite/client/plugins/microbot/util/poh/data/NexusPortal.java.
- * Adaptation: data only; upstream's execute() (actions and live-object lookups) are left to the walker's POH executor;
+ * Adaptation: execute() added in batch AQ (the walker's POH steps use their own executor);
  * lint-only edits (PMD suppressions, a shorter array initializer).
  * BSD 2-Clause License; see LICENSE.
  */
@@ -174,5 +174,11 @@ public enum NexusPortal implements PohTeleport {
     @Override
     public String toString() {
         return getText();
+    }
+
+    /** As upstream: teleports through the house's portal nexus (Wilderness destinations refused). */
+    @Override
+    public boolean execute() {
+        return net.runelite.client.plugins.microbot.util.poh.PohTeleports.usePortalNexus(this);
     }
 }
