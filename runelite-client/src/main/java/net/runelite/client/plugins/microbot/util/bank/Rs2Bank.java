@@ -391,20 +391,16 @@ public final class Rs2Bank
 	}
 
 	/**
-	 * Walking-route check for {@link #isNearBankOnFoot}: a wall is in the way when the route is both more than
-	 * {@link #WALL_DETOUR_SLACK_TILES} steps longer than the straight line and more than twice it. Walking
+	 * Walking-route check for {@link #isNearBankOnFoot}: a wall is in the way when
+	 * {@link Rs2Walker#isWallDetour(int, int)} says so (the walker's own arrival rule). Walking
 	 * round bank booths stays near (Lumbridge top floor: 10 steps for 6 straight); a wall does not (Draynor
 	 * south side: 20 steps for 7 straight). {@link Integer#MAX_VALUE} means no complete route was found, which
 	 * keeps the straight-line answer.
 	 */
 	public static boolean nearOnFoot(int walkingSteps, int straightTiles)
 	{
-		if (walkingSteps == Integer.MAX_VALUE) return true;
-		return walkingSteps - straightTiles <= WALL_DETOUR_SLACK_TILES || walkingSteps <= 2 * straightTiles;
+		return walkingSteps == Integer.MAX_VALUE || !Rs2Walker.isWallDetour(walkingSteps, straightTiles);
 	}
-
-	// Mobile: a route this many steps longer than the straight line (and over twice it) means a wall is in the way.
-	static final int WALL_DETOUR_SLACK_TILES = 4;
 
 	// Mobile: the walker's arrival radius is straight-line, so it can stop on the wrong side of a bank wall;
 	// then walk on to the bank tile itself, which routes through the entrance.

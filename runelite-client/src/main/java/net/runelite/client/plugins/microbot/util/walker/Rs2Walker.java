@@ -145,7 +145,7 @@ public final class Rs2Walker
 			return WalkerState.MOVING;
 		}
 		int radius = Math.max(0, distance);
-		if (arrived(scene.player, destination, radius))
+		if (arrivedOnFoot(scene, destination, radius))
 		{
 			return WalkerState.ARRIVED;
 		}
@@ -282,7 +282,7 @@ public final class Rs2Walker
 			{
 				return fail("No logged-in walking collision snapshot");
 			}
-			if (arrived(scene.player, destination, radius))
+			if (arrivedOnFoot(scene, destination, radius))
 			{
 				lastStatus = "Arrived";
 				return true;
@@ -315,7 +315,7 @@ public final class Rs2Walker
 				{
 					return fail("Walking stopped: unexpected plane change");
 				}
-				if (arrived(scene.player, destination, radius))
+				if (arrivedOnFoot(scene, destination, radius))
 				{
 					lastStatus = "Arrived";
 					return true;
@@ -2419,6 +2419,15 @@ public final class Rs2Walker
 			List<WorldPoint> local = MobileRoutePlanner.route(scene.player, destination, radius, scene::canStep);
 			if (!local.isEmpty())
 			{
+				// Mobile: the first tile inside the radius can be behind a wall; then walk to beside the goal.
+				if (radius > 1 && walledOff(scene, local.get(local.size() - 1), destination))
+				{
+					List<WorldPoint> closer = MobileRoutePlanner.route(scene.player, destination, 1, scene::canStep);
+					if (!closer.isEmpty())
+					{
+						return closer;
+					}
+				}
 				return local;
 			}
 		}
@@ -2446,6 +2455,38 @@ public final class Rs2Walker
 	{
 		return player != null && player.getPlane() == goal.getPlane() && player.distanceTo(goal) <= radius;
 	}
+
+	/**
+	 * Mobile: {@link #arrived} that also needs the walk to the goal not to go round a wall. Within the radius in a
+	 * straight line is not enough: behind Draynor bank's south wall the bank is 7 tiles away but 20 steps.
+	 */
+	private static boolean arrivedOnFoot(MobileRoutePlanner.Scene scene, WorldPoint goal, int radius)
+	{
+		return arrived(scene.player, goal, radius) && (radius <= 1 || !walledOff(scene, scene.player, goal));
+	}
+
+	/** Whether the in-scene walk from {@code from} to within a tile of {@code goal} is a {@link #isWallDetour wall detour}. */
+	static boolean walledOff(MobileRoutePlanner.Scene scene, WorldPoint from, WorldPoint goal)
+	{
+		if (scene == null || !scene.contains(from) || !scene.contains(goal))
+		{
+			return false;
+		}
+		List<WorldPoint> route = MobileRoutePlanner.route(from, goal, 1, scene::canStep);
+		return !route.isEmpty() && isWallDetour(route.size() - 1, Math.max(0, from.distanceTo(goal) - 1));
+	}
+
+	/**
+	 * Mobile: whether a walk of {@code steps} where the straight line is {@code straightTiles} means a wall is in the
+	 * way: more than {@value #WALL_DETOUR_SLACK_STEPS} steps longer and more than twice the straight line. Walking
+	 * round bank booths is not a wall (Lumbridge top floor: 10 steps for 6); Draynor bank's south wall is (20 for 7).
+	 */
+	public static boolean isWallDetour(int steps, int straightTiles)
+	{
+		return steps - straightTiles > WALL_DETOUR_SLACK_STEPS && steps > 2 * straightTiles;
+	}
+
+	static final int WALL_DETOUR_SLACK_STEPS = 4;
 
 	private static boolean fail(String status)
 	{
