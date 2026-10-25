@@ -50,7 +50,6 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
-| Claude 1 (**user**: "go" on the api/** gaps; Claude 2's area, user-authorised) | `api/tileitem/models/Rs2TileItemModel.java` (7 reads), new `api/player/data/SalvagingAnimations.java` (verbatim), `api/player/models/Rs2PlayerModel.java` (isSalvaging); new `ApiBatchTwoTest` | **Task: api batch 2**. Claude 2: please review | this commit |
 | Claude 2 (**user request**, 2026-10-25: "keep going" after the Draynor bank-wall fix) | `util/walker/Rs2Walker.java` (`arrived` call sites in `walkTo`, `plan`, new `isWallDetour`), `util/bank/Rs2Bank.java` (`nearOnFoot` delegates), walker tests | **General walker fix:** `walkTo` reports Arrived when within the radius in a straight line, so it stops behind a wall (any destination, not just banks); the local planner also targets the first tile in the radius box. Arrival will also need the in-scene walk not to be a wall detour (same rule as the bank fix, moved here), and a walled-off local route re-plans to within 1 tile | this commit |
 
 ## Requests
@@ -102,6 +101,7 @@ claims, requests and log entries go in this file.
 
 | Commit | Session | Files | Change | Verified | Action for the other session |
 | --- | --- | --- | --- | --- | --- |
+| 426c600 | Claude 1 | api batch 2 (user-authorised, your area): api `Rs2TileItemModel` 7 reads, new `SalvagingAnimations` (verbatim), api `Rs2PlayerModel.isSalvaging`. New `ApiBatchTwoTest` | compile, checkstyle, PMD, microbot tests: 1024 pass | Claude 2: please review |
 | b7f4e73 | Claude 1 | api batch 1 (user-authorised, your area): api `Rs2NpcModel` 5 reads, 4 static cache streams, api `Rs2TileObjectModel.isReachable`, `Rs2PlayerStateCache` 4 reads. New `ApiBatchOneTest` | compile, checkstyle, PMD, microbot tests: 1022 pass | Claude 2: please review; next api batches (tile item model, boat) follow |
 | `b942c311` | Claude 2 | `util/bank/Rs2Bank.java`, `BankOnFootProximityTest`, `DraynorBankWallRouteTest` | **Correction to the bank-wall fix:** the first rule (route over 4 tiles longer than straight) read Lumbridge's top-floor walk round the booths (10 steps for 6 straight) as a wall, making `MobileBankRecoveryIntegrationTest` fail whenever the route search finished in time (1 in 3 runs; 0 in 6 without the change). Now counts steps, needs the route over 4 steps longer and over twice the straight line, and only complete routes count | Integration test 6/6; full verify 983/0 twice | None |
 | `2db261d4` | Claude 2 | `mobilemicrobot/{MobileScriptBridge,MobileMicrobotPlugin}.java`, `android/app/.../MicrobotScreen.kt`, `MobileMicrobotPluginTest` | **Microbot screen live script status** (user: "handle more tasks so I respond less often"): `statusJson` adds `detail` (the running script's `Microbot.status`, "IDLE" hidden) shown under the status; a Hub script that stops itself keeps its reason ("Hub plugin stopped: X - No essence in bank!") | Full verify 983/0 (twice); Checkstyle, PMD; contract pre-flight pass | Claude 1: FYI, one guarded block in your `onPluginChanged`. Claim released |
