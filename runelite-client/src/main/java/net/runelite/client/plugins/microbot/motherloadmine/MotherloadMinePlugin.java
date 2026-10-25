@@ -52,7 +52,9 @@ public class MotherloadMinePlugin extends Plugin {
     @Override
     protected void startUp() throws AWTException {
 		log.info("Starting MotherloadMine plugin v{}", version);
-        overlayManager.add(motherloadMineOverlay);
+        if (overlayManager != null) {
+            overlayManager.add(motherloadMineOverlay);
+        }
         motherloadMineScript.run();
 		log.info("MotherloadMine startup complete");
     }
@@ -61,7 +63,10 @@ public class MotherloadMinePlugin extends Plugin {
     public void shutDown() {
 		log.info("Starting MotherloadMine shutdown");
         motherloadMineScript.shutdown();
-        overlayManager.remove(motherloadMineOverlay);
+        // Mobile: tolerate a missing overlay manager, as startUp does.
+        if (overlayManager != null) {
+            overlayManager.remove(motherloadMineOverlay);
+        }
 		blacklistedCrates.clear();
 		log.info("MotherloadMine shutdown complete");
     }
