@@ -15,6 +15,8 @@ dependencies {
     implementation(projects.api.config)
     implementation(projects.api.cache)
     implementation(projects.api.core)
+    implementation(projects.api.db)
+    implementation(projects.api.dbGateway)
     implementation(projects.api.gameProcess)
     implementation(projects.api.market)
     implementation(projects.api.npc)

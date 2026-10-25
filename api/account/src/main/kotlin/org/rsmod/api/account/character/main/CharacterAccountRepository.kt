@@ -14,6 +14,7 @@ import org.rsmod.api.db.util.setSqliteTimestamp
 import org.rsmod.api.parsers.jackson.readReifiedValue
 import org.rsmod.api.parsers.json.Json
 import org.rsmod.api.realm.Realm
+import org.rsmod.api.server.config.ServerConfig
 import org.rsmod.game.entity.Player
 import org.rsmod.game.type.varp.VarpLifetime
 import org.rsmod.game.type.varp.VarpTypeList
@@ -23,11 +24,15 @@ public class CharacterAccountRepository
 constructor(
     @Json private val objectMapper: ObjectMapper,
     private val realm: Realm,
+    private val serverConfig: ServerConfig,
     private val applier: CharacterAccountApplier,
     private val varpTypes: VarpTypeList,
 ) {
     private val realmId: Int
         get() = realm.config.id
+
+    private val worldId: Int
+        get() = serverConfig.world
 
     public fun insertOrSelectAccountId(
         connection: DatabaseConnection,
@@ -221,7 +226,8 @@ constructor(
                 """
                     UPDATE characters
                     SET x = ?, z = ?, level = ?, varps = ?, last_login = ?, run_energy = ?,
-                        xp_rate_in_hundreds = ?, last_logout = CURRENT_TIMESTAMP
+                        xp_rate_in_hundreds = ?, last_logout = CURRENT_TIMESTAMP,
+                        world_id = CASE WHEN world_id = ? THEN NULL ELSE world_id END
                     WHERE id = ?
                 """
                     .trimIndent()
@@ -238,7 +244,8 @@ constructor(
             it.setSqliteTimestamp(5, player.lastLogin)
             it.setInt(6, player.runEnergy)
             it.setInt(7, (player.xpRate * 100).roundToInt())
-            it.setInt(8, characterId)
+            it.setInt(8, worldId)
+            it.setInt(9, characterId)
             it.executeUpdate()
         }
 
@@ -258,6 +265,61 @@ constructor(
             it.setNullableString(3, player.modLevel.internalName)
             it.setInt(4, accountId)
             it.executeUpdate()
+        }
+    }
+
+    /**
+     * Marks the character with [characterId] as online in this server's world.
+     *
+     * The claim only succeeds when the character is not already claimed by a _different_ world, so
+     * two worlds that share the same database can never both hold the same character.
+     *
+     * The claim is released by [save] (which only clears it if it still belongs to this world) or
+     * by [releaseWorldClaims] when this world starts up after an unclean shutdown.
+     *
+     * @return `true` if this world now holds the claim, `false` if another world already holds it.
+     */
+    public fun claimWorld(connection: DatabaseConnection, characterId: Int): Boolean {
+        val update =
+            connection.prepareStatement(
+                """
+                    UPDATE characters
+                    SET world_id = ?
+                    WHERE id = ? AND (world_id IS NULL OR world_id = ?)
+                """
+                    .trimIndent()
+            )
+        update.use {
+            it.setInt(1, worldId)
+            it.setInt(2, characterId)
+            it.setInt(3, worldId)
+            return it.executeUpdate() > 0
+        }
+    }
+
+    /**
+     * Registers this server's world in the `worlds` table (if it is not already present) and
+     * releases every character claim held by it.
+     *
+     * This must only be called while no players are online in this world (i.e., during startup). It
+     * recovers characters that were left claimed because the world previously stopped without
+     * saving them (e.g., a crash or power loss).
+     *
+     * @return the number of character claims that were released.
+     */
+    public fun releaseWorldClaims(connection: DatabaseConnection): Int {
+        val insert =
+            connection.prepareStatement("INSERT INTO worlds (id) VALUES (?) ON CONFLICT DO NOTHING")
+        insert.use {
+            it.setInt(1, worldId)
+            it.executeUpdate()
+        }
+
+        val release =
+            connection.prepareStatement("UPDATE characters SET world_id = NULL WHERE world_id = ?")
+        release.use {
+            it.setInt(1, worldId)
+            return it.executeUpdate()
         }
     }
 }

@@ -41,6 +41,7 @@ class AccountLoadResponseHook(
     private val inputPassword: CharArray,
     private val verifyPassword: (String, CharArray) -> Boolean,
     private val verifyTotp: (CharArray, String) -> Boolean,
+    private val claimWorld: (Player) -> Unit,
 ) : AccountLoadCallback {
     override fun invoke(response: AccountLoadResponse) {
         try {
@@ -216,8 +217,15 @@ class AccountLoadResponseHook(
     }
 
     private fun handleGameLogin(player: Player, loadResponse: AccountLoadResponse.Ok) {
-        val isOnline = player.isOnline(loadResponse.account.worldId)
-        if (isOnline) {
+        // The character is still claimed by another world, which happens while that world is
+        // saving the character after a logout (e.g., during a world hop).
+        val claimedWorld = loadResponse.account.worldId
+        if (claimedWorld != null && claimedWorld != world) {
+            writeErrorResponse(LoginResponse.HopBlocked)
+            return
+        }
+
+        if (playerRegistry.isOnline(player.userId)) {
             writeErrorResponse(LoginResponse.Duplicate)
             return
         }
@@ -256,20 +264,13 @@ class AccountLoadResponseHook(
         eventBus.publish(SessionStart(player, session))
         val register = playerRegistry.add(player)
         if (register.isSuccess()) {
+            claimWorld(player)
             eventBus.publish(SessionStateEvent.Login(player))
             eventBus.publish(SessionStateEvent.EngineLogin(player))
             return
         }
         logger.warn { "Failed to register player: $register (player=$player)" }
         session.requestClose()
-    }
-
-    private fun Player.isOnline(lastKnownWorld: Int?): Boolean {
-        val loggedInAnotherWorld = lastKnownWorld != null && lastKnownWorld != world
-        if (loggedInAnotherWorld) {
-            return true
-        }
-        return playerRegistry.isOnline(userId)
     }
 
     private fun Player.createLoginResponse(slotId: Int, auth: AccountLoadAuth) =

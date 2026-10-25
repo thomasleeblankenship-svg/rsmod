@@ -10,10 +10,14 @@ import net.rsprot.protocol.loginprot.incoming.util.LoginBlock
 import net.rsprot.protocol.loginprot.incoming.util.OtpAuthenticationType
 import net.rsprot.protocol.loginprot.outgoing.LoginResponse
 import org.rsmod.api.account.AccountManager
+import org.rsmod.api.account.character.main.CharacterAccountRepository
 import org.rsmod.api.account.loader.request.AccountLoadAuth
 import org.rsmod.api.config.refs.modlevels
+import org.rsmod.api.db.gateway.GameDbManager
+import org.rsmod.api.db.gateway.model.GameDbResult
 import org.rsmod.api.net.rsprot.player.AccountLoadResponseHook
 import org.rsmod.api.net.rsprot.provider.Js5Store
+import org.rsmod.api.player.forceDisconnect
 import org.rsmod.api.pw.hash.PasswordHashing
 import org.rsmod.api.realm.Realm
 import org.rsmod.api.registry.account.AccountRegistry
@@ -24,6 +28,8 @@ import org.rsmod.api.totp.useSecret
 import org.rsmod.events.EventBus
 import org.rsmod.game.GameUpdate
 import org.rsmod.game.entity.Player
+import org.rsmod.game.entity.PlayerList
+import org.rsmod.game.entity.player.PlayerUid
 import org.rsmod.game.type.mod.ModLevelTypeList
 
 class ConnectionHandler
@@ -38,6 +44,9 @@ private constructor(
     private val accountManager: AccountManager,
     private val passwordHashing: PasswordHashing,
     private val totp: Totp,
+    private val db: GameDbManager,
+    private val characterRepository: CharacterAccountRepository,
+    private val playerList: PlayerList,
     modLevelTypes: ModLevelTypeList,
     js5: Js5Store,
 ) : GameConnectionHandler<Player> {
@@ -119,6 +128,7 @@ private constructor(
                 inputPassword = password.copyOf(),
                 verifyPassword = ::verifyPassword,
                 verifyTotp = ::verifyTotp,
+                claimWorld = ::claimWorld,
             )
         val loadAuth = auth.otpAuthentication.toAccountLoadAuth()
         val username = block.username
@@ -172,6 +182,27 @@ private constructor(
         } catch (e: Exception) {
             logger.error { "Totp verification error: ${e::class.simpleName}" }
             false
+        }
+    }
+
+    // Logins are validated against the character's world claim when the account is loaded, but two
+    // worlds can load the same character concurrently. The conditional claim is the authoritative
+    // check: whichever world writes it first keeps the character, and the other disconnects it.
+    private fun claimWorld(player: Player) {
+        val uid = player.uid
+        val characterId = player.characterId
+        db.request(
+            request = { GameDbResult.Ok(characterRepository.claimWorld(it, characterId)) },
+            response = { onWorldClaim(uid, it) },
+        )
+    }
+
+    private fun onWorldClaim(uid: PlayerUid, result: GameDbResult<Boolean>) {
+        val player = uid.resolve(playerList) ?: return
+        val claimed = result is GameDbResult.Ok && result.value
+        if (!claimed) {
+            logger.warn { "Could not claim world $world for player (result=$result): $player" }
+            player.forceDisconnect()
         }
     }
 
