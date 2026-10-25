@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 (**user**: "finish api then walker") | `util/bank/Rs2Bank.java` (itemBounds, invokeMenu, isInventoryItemRetainedForSetupDeposit, updateLocalBank), `util/equipment/Rs2Equipment.java` (invokeMenu), `util/inventory/Rs2ItemModel.java` (createFromCache, toString), `util/player/{Rs2Player,Rs2PlayerModel}.java` (internal location/world view, footprint, skull), `util/tile/Rs2Tile.java` (lastEdgeDecision), new `util/poh/PohTransport.java`; new `UtilActionBatchASTest` | **Task: batch AS**: the last portable util leftovers (reads in Claude 2's model files user-authorised) | this commit |
 
 ## Requests
 
