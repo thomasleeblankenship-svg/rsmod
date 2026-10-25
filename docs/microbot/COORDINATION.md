@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 2 (**user request**, 2026-10-25: "handle more tasks so I respond less often") | `mobilemicrobot/{MobileScriptBridge,MobileMicrobotPlugin}.java`, `android/app/.../MicrobotScreen.kt`, tests | **Microbot screen shows the running script's own status** (`Microbot.status`, e.g. "Walking to bank") as a detail line, and a script that stops itself keeps its reason ("Hub plugin stopped: X - No essence in bank!") instead of a bare "stopped" | this commit |
 
 ## Requests
 
