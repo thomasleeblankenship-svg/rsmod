@@ -50,7 +50,6 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
-| Claude 1 (**user request**: back to util, about 12 tasks at a time) | `util/poh/data/{PohTeleport,JewelleryBox,NexusPortal,MountedGlory,MountedMythical,MountedDigsite,MountedXerics,PohPortal}.java` (execute(), actions only), `util/poh/PohTeleports.java` (Ferox Enclave refusal), `util/magic/Rs2Spellbook.java` (getNearestSwitchLocation), `util/widget/Rs2Widget.java` (checkBoundsOverlapWidgetInMainModal), `util/misc/Rs2UiHelper.java` (isClientVersionCompatible), new `util/overlay/GembagOverlay.java`, `Microbot.java` (getTooltipManager); new `UtilActionBatchAQTest` | **Task: batch AQ**: POH teleport execute(), Wilderness gap fix, spellbook switch location, modal overlap, version check, gem bag overlay | this commit |
 | Claude 2 (**user request**, 2026-10-25: "handle more tasks so I respond less often") | `mobilemicrobot/{MobileScriptBridge,MobileMicrobotPlugin}.java`, `android/app/.../MicrobotScreen.kt`, tests | **Microbot screen shows the running script's own status** (`Microbot.status`, e.g. "Walking to bank") as a detail line, and a script that stops itself keeps its reason ("Hub plugin stopped: X - No essence in bank!") instead of a bare "stopped" | this commit |
 
 ## Requests
