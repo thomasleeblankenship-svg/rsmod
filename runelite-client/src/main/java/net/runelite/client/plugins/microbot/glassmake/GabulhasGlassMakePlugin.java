@@ -56,6 +56,9 @@ public class GabulhasGlassMakePlugin extends Plugin {
 
     protected void shutDown() {
         gabulhasGlassMakeScript.shutdown();
-        overlayManager.remove(gabulhasGlassMakeOverlay);
+        // Mobile: startUp tolerates a missing overlay manager, so stopping must too.
+        if (overlayManager != null) {
+            overlayManager.remove(gabulhasGlassMakeOverlay);
+        }
     }
 }

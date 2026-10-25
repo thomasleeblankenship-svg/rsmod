@@ -19,6 +19,10 @@ import java.util.concurrent.TimeUnit;
 import static net.runelite.client.plugins.microbot.glassmake.GabulhasGlassMakeInfo.states.*;
 
 
+/**
+ * Superglass Make: withdraws seaweed (or giant seaweed) and buckets of sand, casts Superglass Make, picks up
+ * any molten glass that fell, and banks. Adapted for Microbot Mobile; see MOBILE_PORT.md in this package.
+ */
 @Slf4j
 public class GabulhasGlassMakeScript extends Script {
     @Inject
@@ -27,12 +31,17 @@ public class GabulhasGlassMakeScript extends Script {
     private GabulhasGlassMakeInfo.items currentItem;
 
     private boolean oneTimeSpellBookCheck = false;
+    // Mobile: enableAutoRunOn is global; the value before start is put back on stop.
+    private Boolean autoRunBefore;
 
     public boolean run(GabulhasGlassMakeConfig config) {
         oneTimeSpellBookCheck = false;
         Rs2Antiban.antibanSetupTemplates.applyUniversalAntibanSetup();
         Rs2AntibanSettings.actionCooldownChance = 0.2;
         currentItem = config.ITEM();
+        if (autoRunBefore == null) {
+            autoRunBefore = Microbot.enableAutoRunOn;
+        }
         Microbot.enableAutoRunOn = false;
         mainScheduledFuture = scheduledExecutorService.scheduleWithFixedDelay(() -> {
             try {
@@ -45,8 +54,10 @@ public class GabulhasGlassMakeScript extends Script {
                         GabulhasGlassMakeInfo.botStatus = GabulhasGlassMakeInfo.states.Banking;
                         break;
                     case Banking:
-                        banking();
-                        GabulhasGlassMakeInfo.botStatus = GabulhasGlassMakeInfo.states.Glassblowing;
+                        // Mobile: cast only once the bank trip worked; otherwise bank again next loop.
+                        if (banking()) {
+                            GabulhasGlassMakeInfo.botStatus = GabulhasGlassMakeInfo.states.Glassblowing;
+                        }
                         break;
                     case Glassblowing:
                         glassblowing();
@@ -61,6 +72,8 @@ public class GabulhasGlassMakeScript extends Script {
 
             } catch (Exception ex) {
                 Microbot.logStackTrace(this.getClass().getSimpleName(), ex);
+                // Mobile: stop rather than retry a failing step every tick.
+                stopPlugin("Glass Make stopped after an error: " + ex);
             }
         }, 0, 600, TimeUnit.MILLISECONDS);
         return true;
@@ -70,6 +83,26 @@ public class GabulhasGlassMakeScript extends Script {
     public void shutdown() {
         Rs2Antiban.resetAntibanSettings();
         super.shutdown();
+        if (autoRunBefore != null) {
+            Microbot.enableAutoRunOn = autoRunBefore;
+            autoRunBefore = null;
+        }
+    }
+
+    /** Stops with {@code message}, turning the plugin off (not just this loop) so the Microbot Mobile screen shows it. */
+    private void stopPlugin(String message) {
+        Microbot.showMessage(message);
+        shutdown();
+        Microbot.stopPlugin(GabulhasGlassMakePlugin.class);
+    }
+
+    // Mobile: open the bank with a bounded number of tries that stop with the script (upstream looped forever).
+    private boolean openBankBounded() {
+        for (int attempt = 0; attempt < 10 && !Rs2Bank.isOpen() && super.isRunning(); attempt++) {
+            Rs2Bank.openBank();
+            sleepUntil(Rs2Bank::isOpen, 1200);
+        }
+        return Rs2Bank.isOpen();
     }
 
     private void takeBreak() {
@@ -80,22 +113,20 @@ public class GabulhasGlassMakeScript extends Script {
 
     }
 
-    private void banking() {
+    private boolean banking() {
         takeBreak();
 
-
-        while (!Rs2Bank.isOpen()) {
-            Rs2Bank.openBank();
-            sleep(100, 200);
+        if (!openBankBounded()) {
+            return false;
         }
         Rs2Bank.depositAll("Molten Glass");
         sleepUntil(() -> !Rs2Inventory.contains("Molten Glass"), 100);
         if (currentItem == GabulhasGlassMakeInfo.items.GiantSeaweed) {
             if (Rs2Bank.count("Giant seaweed") < 3 || Rs2Bank.count("Bucket of sand") < 3) {
                 notifier.notify("Out of materials");
-                while (super.isRunning()) {
-                    sleep(1000);
-                }
+                // Mobile: stop the plugin (upstream idled until stopped by hand, still showing as running).
+                stopPlugin("Glass Make: out of materials");
+                return false;
             }
 
             for (int i = 0; i < 3; i++) {
@@ -106,9 +137,9 @@ public class GabulhasGlassMakeScript extends Script {
         } else {
             if (Rs2Bank.count("Seaweed") < 3 || Rs2Bank.count("Bucket of sand") < 3) {
                 notifier.notify("Out of materials");
-                while (super.isRunning()) {
-                    sleep(1000);
-                }
+                // Mobile: stop the plugin (upstream idled until stopped by hand, still showing as running).
+                stopPlugin("Glass Make: out of materials");
+                return false;
             }
 
             Rs2Bank.withdrawX("Bucket of sand", 13);
@@ -120,11 +151,9 @@ public class GabulhasGlassMakeScript extends Script {
 
         sleep(60, 100);
         Rs2Bank.closeBank();
-        while (Rs2Bank.isOpen()) {
-            sleep(40, 100);
-        }
-
-
+        // Mobile: bounded wait for the bank to close.
+        sleepUntil(() -> !Rs2Bank.isOpen(), 3000);
+        return !Rs2Bank.isOpen();
     }
 
     private void glassblowing() {
@@ -147,18 +176,18 @@ public class GabulhasGlassMakeScript extends Script {
 
 
     private void picking() {
-        while (!Rs2Bank.isOpen()) {
-            Rs2Bank.openBank();
-            sleep(60, 200);
+        if (!openBankBounded()) {
+            return;
         }
         Rs2Bank.depositAll("Molten Glass");
         sleepUntil(() -> !Rs2Inventory.contains("Molten Glass"), 100);
         if (Rs2GroundItem.exists("Molten Glass", 1)) {
             sleep(60, 100);
             Rs2Bank.closeBank();
-            while (Rs2GroundItem.exists("Molten Glass", 1)) {
+            // Mobile: bounded and stop-aware (upstream looted until none was left, whatever happened).
+            for (int attempt = 0; attempt < 30 && super.isRunning() && Rs2GroundItem.exists("Molten Glass", 1); attempt++) {
                 Rs2GroundItem.loot("Molten Glass", 1);
-                sleep(60, 100);
+                sleep(600, 700);
             }
         }
 
