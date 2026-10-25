@@ -2,21 +2,14 @@ package net.runelite.client.plugins.microbot.piebaker;
 
 import com.google.inject.Provides;
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.api.InventoryID;
 import net.runelite.api.Skill;
-import net.runelite.api.events.GameTick;
-import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.gameval.ItemID;
 import net.runelite.client.config.ConfigManager;
-import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.plugins.microbot.Microbot;
 import net.runelite.client.plugins.microbot.PluginConstants;
-import net.runelite.client.plugins.microbot.util.bank.Rs2Bank;
-import net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory;
-import net.runelite.client.plugins.microbot.util.magic.Rs2Magic;
-import net.runelite.client.plugins.skillcalculator.skills.MagicAction;
+import net.runelite.client.plugins.microbot.mobile.MobileActions;
 import net.runelite.client.ui.overlay.OverlayManager;
 
 import javax.inject.Inject;
@@ -47,6 +40,9 @@ public class PieBakerPlugin extends Plugin {
     @Inject
     private PieBakerConfig config;
 
+    @Inject
+    private PieBakerScript pieBakerScript;
+
     private static final Map<String, Integer> RAW_PIES = new HashMap<>();
 
     static {
@@ -75,54 +71,20 @@ public class PieBakerPlugin extends Plugin {
 
     @Override
     protected void startUp() {
-        overlayManager.add(pieBakerOverlay);
+        if (overlayManager != null) {
+            overlayManager.add(pieBakerOverlay);
+        }
         startTime = Instant.now();
-        startMagicXP = Microbot.getClient().getSkillExperience(Skill.MAGIC);
-        startCookingXP = Microbot.getClient().getSkillExperience(Skill.COOKING);
+        startMagicXP = experience(Skill.MAGIC);
+        startCookingXP = experience(Skill.COOKING);
+        pieBakerScript.run(config, getSelectedRawPieId());
     }
 
     @Override
     protected void shutDown() {
-        overlayManager.remove(pieBakerOverlay);
-    }
-
-    @Subscribe
-    public void onItemContainerChanged(ItemContainerChanged event) {
-        if (event.getContainerId() == InventoryID.BANK.getId()) {
-            if (Rs2Inventory.isEmpty() && shouldWithdrawPies()) {
-                withdrawPies();
-            }
-        }
-    }
-
-    @Subscribe
-    public void onGameTick(GameTick event) {
-        String[] rawPiesArray = RAW_PIES.keySet().toArray(new String[0]);
-        if (Rs2Inventory.hasItem(rawPiesArray)) {
-            castBakePieSpell();
-        } else if (Rs2Inventory.isEmpty() && shouldWithdrawPies()) {
-            withdrawPies();
-        } else {
-            Rs2Bank.depositAll();
-        }
-    }
-
-    private boolean shouldWithdrawPies() {
-        return Rs2Bank.hasItem(getSelectedRawPieId());
-    }
-
-    private void withdrawPies() {
-        Rs2Bank.withdrawAll(getSelectedRawPieId());
-    }
-
-    private void castBakePieSpell() {
-        if (config.tickPerfect()) {
-            String[] rawPiesArray = RAW_PIES.keySet().toArray(new String[0]);
-            while (Rs2Inventory.hasItem(rawPiesArray)) {
-                Rs2Magic.cast(MagicAction.BAKE_PIE);
-            }
-        } else {
-            Rs2Magic.cast(MagicAction.BAKE_PIE);
+        pieBakerScript.shutdown();
+        if (overlayManager != null) {
+            overlayManager.remove(pieBakerOverlay);
         }
     }
 
@@ -135,18 +97,27 @@ public class PieBakerPlugin extends Plugin {
     }
 
     public int getMagicXPPerHour() {
-        int currentXP = Microbot.getClient().getSkillExperience(Skill.MAGIC);
-        return calculateXPPerHour(startMagicXP, currentXP);
+        return calculateXPPerHour(startMagicXP, experience(Skill.MAGIC));
     }
 
     public int getCookingXPPerHour() {
-        int currentXP = Microbot.getClient().getSkillExperience(Skill.COOKING);
-        return calculateXPPerHour(startCookingXP, currentXP);
+        return calculateXPPerHour(startCookingXP, experience(Skill.COOKING));
+    }
+
+    /** Experience in {@code skill}, read on the client thread (0 when the read fails). */
+    private static int experience(Skill skill) {
+        return MobileActions.read(() -> Microbot.getClient().getSkillExperience(skill), 0);
     }
 
     private int calculateXPPerHour(int startXP, int currentXP) {
+        if (startTime == null) {
+            return 0;
+        }
         long elapsedTime = Instant.now().getEpochSecond() - startTime.getEpochSecond();
+        if (elapsedTime <= 0) {
+            return 0;
+        }
         int xpGained = currentXP - startXP;
-        return (int) (xpGained * 3600 / elapsedTime);
+        return (int) ((long) xpGained * 3600 / elapsedTime);
     }
 }
