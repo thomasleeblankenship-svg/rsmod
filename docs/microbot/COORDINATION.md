@@ -50,7 +50,6 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
-| Claude 1 (**user**: "go" on the api/** gaps; Claude 2's area, user-authorised) | new `api/boat/**` (Rs2BoatCache, models/Rs2BoatModel, data/*), `Microbot.java` (getRs2BoatCache), Hub style exemption for the verbatim data files; new `ApiBoatTest` | **Task: api batch 3**: upstream's sailing boat API. Claude 2: please review | this commit |
 
 ## Requests
 
