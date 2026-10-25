@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 2 (**user**: "go") | new `util/reflection/Rs2Reflection.java` (the ground-item actions read only), test | **Last Hub-used util read missing by name** (`UTIL_GAP.md` re-measured: 91 of 94 present; the other two, `Rs2PathApi.getActiveRoute`/`getPathfinderConfig`, sit in Claude 1's walker W1 claim). Upstream's `invokeMenu`/`setItemId` (menu injection) are not ported | this commit |
 | Claude 1 (**user request**, 2026-10-25: "go next batch" after "finish api then walker") | `util/walker/Rs2Walker.java`, new `util/walker/{Rs2PathApi,Rs2Route*,Rs2Transport{Edge,Executor,ItemRequirement,Type,Loadout},Rs2TerminalTravelMode,Rs2ActiveRouteStatus,StrongholdAnswer}.java`, new `util/walker/puzzles/**`, tests | **Walker batch W1:** wire `MinigameTeleports`; upstream route value types; `Rs2PathApi` mobile facade (legacy delegations, active route, plan, tile queries, catalog edges); Stronghold of Security answers; Draynor basement puzzle; transport-edge queries | this commit |
 
 ## Requests
