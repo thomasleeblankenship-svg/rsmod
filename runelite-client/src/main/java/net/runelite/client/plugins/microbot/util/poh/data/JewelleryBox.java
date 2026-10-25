@@ -1,7 +1,7 @@
 /*
  * Copied from chsami/Microbot a2114401bbbc35e9762db9e8aa666d70ffcd24d8,
  * runelite-client/src/main/java/net/runelite/client/plugins/microbot/util/poh/data/JewelleryBox.java.
- * Adaptation: data only; upstream's execute() (actions and live-object lookups) are left to the walker's POH executor.
+ * Adaptation: execute() is the action (batch AQ); the walker's POH steps run through their own executor.
  * BSD 2-Clause License; see LICENSE.
  */
 package net.runelite.client.plugins.microbot.util.poh.data;
@@ -94,4 +94,9 @@ public enum JewelleryBox implements PohTeleport {
                 .collect(Collectors.toList());
     }
 
+    /** As upstream: teleports through the house's jewellery box (Wilderness destinations refused). */
+    @Override
+    public boolean execute() {
+        return net.runelite.client.plugins.microbot.util.poh.PohTeleports.useJewelleryBox(location);
+    }
 }

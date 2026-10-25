@@ -944,6 +944,83 @@ public final class Rs2Bank
 			.min(Comparator.comparingInt(bank -> estimatedBankDistance(origin, bank.getWorldPoint()))).orElse(null);
 	}
 
+	// ---- Batch AR (Claude 1): bank route reads ----
+
+	/**
+	 * As upstream: the nearest bank with its requirements met. A bank within
+	 * {@code maxObjectSearchRadius} tiles on this floor wins (upstream scans booths in that radius);
+	 * otherwise {@link #getNearestBank(WorldPoint)} chooses.
+	 */
+	public static BankLocation getNearestBank(WorldPoint worldPoint, int maxObjectSearchRadius)
+	{
+		if (worldPoint == null) return null;
+		BankLocation close = Arrays.stream(BankLocation.values())
+			.filter(bank -> bank.getWorldPoint().getPlane() == worldPoint.getPlane()
+				&& bank.getWorldPoint().distanceTo2D(worldPoint) <= Math.max(0, maxObjectSearchRadius) && bank.hasRequirements())
+			.min(Comparator.comparingInt(bank -> bank.getWorldPoint().distanceTo2D(worldPoint))).orElse(null);
+		return close != null ? close : getNearestBank(worldPoint);
+	}
+
+	/** As upstream: the walk path from the player to the nearest bank (50-tile search), or an empty list. */
+	public static List<WorldPoint> getPathToNearestBank()
+	{
+		return getPathToNearestBank(location(), 50);
+	}
+
+	/** As upstream: {@link #getPathToNearestBank(WorldPoint, int)} with a 50-tile search. */
+	public static List<WorldPoint> getPathToNearestBank(WorldPoint worldPoint)
+	{
+		return getPathToNearestBank(worldPoint, 50);
+	}
+
+	/** As upstream: the walk path to {@link #getNearestBank(WorldPoint, int)}, or an empty list when none is reachable. */
+	public static List<WorldPoint> getPathToNearestBank(WorldPoint worldPoint, int maxObjectSearchRadius)
+	{
+		NearestBankRoute route = routeTo(worldPoint, getNearestBank(worldPoint, maxObjectSearchRadius));
+		return route == null ? new java.util.ArrayList<>() : new java.util.ArrayList<>(route.getPath());
+	}
+
+	/** As upstream: the nearest bank (20-tile search) and the path to it, or null when none is reachable. */
+	public static NearestBankRoute getNearestBankRoute(WorldPoint worldPoint)
+	{
+		return routeTo(worldPoint, getNearestBank(worldPoint, 20));
+	}
+
+	private static NearestBankRoute routeTo(WorldPoint origin, BankLocation bank)
+	{
+		if (origin == null || bank == null) return null;
+		List<WorldPoint> path = Rs2Walker.getWalkPath(origin, bank.getWorldPoint());
+		return path == null || path.isEmpty() ? null : new NearestBankRoute(path, bank);
+	}
+
+	/**
+	 * As upstream: a chosen bank and the walk path to it. Adaptation: upstream's {@code getRoute()}
+	 * (its route model, not ported) is not provided.
+	 */
+	public static final class NearestBankRoute
+	{
+		private final List<WorldPoint> path;
+		private final BankLocation bank;
+
+		private NearestBankRoute(List<WorldPoint> path, BankLocation bank)
+		{
+			this.path = List.copyOf(path);
+			this.bank = bank;
+		}
+
+		/** As upstream: the walk path, start to bank. */
+		public List<WorldPoint> getPath()
+		{
+			return path;
+		}
+
+		/** As upstream: the chosen bank. */
+		public BankLocation getBank()
+		{
+			return bank;
+		}
+	}
+
 	/** As upstream: any bank on this floor within {@code distance} tiles. */
 	public static boolean isNearBank(int distance)
 	{

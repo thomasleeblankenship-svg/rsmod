@@ -1,7 +1,7 @@
 /*
  * Copied from chsami/Microbot a2114401bbbc35e9762db9e8aa666d70ffcd24d8,
  * runelite-client/src/main/java/net/runelite/client/plugins/microbot/util/poh/data/MountedDigsite.java.
- * Adaptation: data only; upstream's execute(), getWidget(), getObject() (actions and live-object lookups) are left to the walker's POH executor;
+ * Adaptation: execute() added in batch AQ (the walker's POH steps use their own executor);
  * lint-only edits (PMD suppressions, a shorter array initializer).
  * BSD 2-Clause License; see LICENSE.
  */
@@ -49,5 +49,32 @@ public enum MountedDigsite implements PohTeleport {
     /** As upstream: the mounted item in the house scene, or {@code null}. */
     public static DecorativeObject getObject() {
         return net.runelite.client.plugins.microbot.util.gameobject.Rs2GameObject.getDecorativeObject(IDS);
+    }
+
+    /**
+     * As upstream: the destination's left-click option when the mounted item shows it, else its
+     * "Teleport menu" and then the destination in that menu.
+     */
+    @Override
+    public boolean execute() {
+        DecorativeObject pendant = getObject();
+        if (pendant == null) {
+            return false;
+        }
+        int id = net.runelite.client.plugins.microbot.mobile.MobileActions.read(pendant::getId, -1);
+        if (id == objectId) {
+            return net.runelite.client.plugins.microbot.util.gameobject.Rs2GameObject.interact(pendant, destinationName);
+        }
+        if (getMenuWidget() == null) {
+            if (!net.runelite.client.plugins.microbot.util.gameobject.Rs2GameObject.interact(pendant, "Teleport menu")
+                    || !net.runelite.client.plugins.microbot.util.Global.sleepUntil(() -> getMenuWidget() != null, 10_000)) {
+                return false;
+            }
+        }
+        return net.runelite.client.plugins.microbot.util.widget.Rs2Widget.clickWidget(destinationName);
+    }
+
+    private static net.runelite.api.widgets.Widget getMenuWidget() {
+        return net.runelite.client.plugins.microbot.util.widget.Rs2Widget.getWidget(net.runelite.api.gameval.InterfaceID.MENU, 3);
     }
 }

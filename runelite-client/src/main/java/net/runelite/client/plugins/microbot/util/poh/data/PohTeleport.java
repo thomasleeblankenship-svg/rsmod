@@ -1,7 +1,7 @@
 /*
  * Copied from chsami/Microbot a2114401bbbc35e9762db9e8aa666d70ffcd24d8,
  * runelite-client/src/main/java/net/runelite/client/plugins/microbot/util/poh/data/PohTeleport.java.
- * Adaptation: data only; upstream's execute() (actions and live-object lookups) are left to the walker's POH executor.
+ * Adaptation: execute() is the action (batch AQ); the walker's POH steps run through their own executor.
  * BSD 2-Clause License; see LICENSE.
  */
 package net.runelite.client.plugins.microbot.util.poh.data;
@@ -32,4 +32,10 @@ public interface PohTeleport {
      * @return Enum's value.name()
      */
     String name();
+
+    /**
+     * As upstream: uses this teleport from inside the house (the device must be in the scene). True
+     * once the teleport was dispatched. Wilderness destinations are refused (Batch AQ, Claude 1).
+     */
+    boolean execute();
 }

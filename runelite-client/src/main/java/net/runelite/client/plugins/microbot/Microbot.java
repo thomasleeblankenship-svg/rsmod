@@ -272,6 +272,12 @@ public class Microbot {
         return net.runelite.client.RuneLite.getInjector();
     }
 
+    /** As upstream: RuneLite's tooltip manager, from the client's injector (null before the client has started). */
+    public static net.runelite.client.ui.overlay.tooltip.TooltipManager getTooltipManager() {
+        com.google.inject.Injector injector = getInjector();
+        return injector == null ? null : injector.getInstance(net.runelite.client.ui.overlay.tooltip.TooltipManager.class);
+    }
+
     /** As upstream: RuneLite's info box manager. Bound by the mobile plugin; null until then. */
     public static net.runelite.client.ui.overlay.infobox.InfoBoxManager getInfoBoxManager() {
         return infoBoxManager;

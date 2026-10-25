@@ -1,7 +1,7 @@
 /*
  * Copied from chsami/Microbot a2114401bbbc35e9762db9e8aa666d70ffcd24d8,
  * runelite-client/src/main/java/net/runelite/client/plugins/microbot/util/poh/data/MountedGlory.java.
- * Adaptation: data only; upstream's execute(), getObject() (actions and live-object lookups) are left to the walker's POH executor;
+ * Adaptation: execute() added in batch AQ (the walker's POH steps use their own executor);
  * lint-only edits (PMD suppressions, a shorter array initializer).
  * BSD 2-Clause License; see LICENSE.
  */
@@ -51,5 +51,15 @@ public enum MountedGlory implements PohTeleport {
     /** As upstream: the mounted item in the house scene, or {@code null}. */
     public static DecorativeObject getObject() {
         return net.runelite.client.plugins.microbot.util.gameobject.Rs2GameObject.getDecorativeObject(ObjectID.POH_TROPHY_AMULETOFGLORY_4);
+    }
+
+    /** As upstream: the mounted glory's option for this destination. */
+    @Override
+    public boolean execute() {
+        if (net.runelite.client.plugins.microbot.util.poh.PohTeleports.isWildernessDestination(getDestination())) {
+            return false;
+        }
+        DecorativeObject glory = getObject();
+        return glory != null && net.runelite.client.plugins.microbot.util.gameobject.Rs2GameObject.interact(glory, destinationName);
     }
 }
