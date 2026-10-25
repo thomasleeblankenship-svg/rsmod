@@ -19,6 +19,18 @@ verify, Checkstyle and PMD clean). Details are in
 | 16q | **Done (`b975f67c`).** Claude 1's five Hub-blocking reads (tile object model as `TileObject`, `Rs2NpcModel(NPC)`, item model constructor and `setQuantity`, `Rs2Inventory.get(int...)`) | — | Done |
 | 16p | **Done.** Report updated to 16a to 16o (944 tests); only 16n remains, on Claude 1's answer | — | Done |
 
+## User-requested work since the read batches (2026-10-24 to 25)
+
+| Item | Status |
+| --- | --- |
+| Microbot Mobile screen: picker, Start/Stop, per-script settings, on-game button | Done |
+| 12 F2P Hub scripts ported for mobile (each has a `MOBILE_PORT.md`) | Done; user confirmed Start works |
+| Start turns Microbot Mobile on; Hub script no longer marked stopped each tick | Done |
+| Live script status and stop reason on the Microbot screen | Done (`2db261d4`) |
+| Bank behind a wall (Draynor): on-foot bank proximity, then walker arrival on foot | Done (`b942c311`, `4b99682e`) |
+| Device retest of Draynor banking | Waiting on the user |
+| 16n `util/world` read half | Still waiting on Claude 1 |
+
 ## Rules for every step
 
 1. Pull first, post the claim row and push it before editing.
