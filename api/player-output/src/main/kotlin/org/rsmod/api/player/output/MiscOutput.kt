@@ -1,6 +1,7 @@
 package org.rsmod.api.player.output
 
 import net.rsprot.protocol.game.outgoing.logout.Logout
+import net.rsprot.protocol.game.outgoing.logout.LogoutTransfer
 import net.rsprot.protocol.game.outgoing.logout.LogoutWithReason
 import net.rsprot.protocol.game.outgoing.misc.client.ServerTickEnd
 import net.rsprot.protocol.game.outgoing.misc.client.UpdateRebootTimer
@@ -21,6 +22,16 @@ public object MiscOutput {
     /** @see [Logout] */
     public fun logout(player: Player) {
         player.client.write(Logout)
+    }
+
+    /**
+     * Instructs the client to log out and immediately log in to [world] at [host].
+     *
+     * @param properties the client world-list property flags of the target world.
+     * @see [LogoutTransfer]
+     */
+    public fun logoutTransfer(player: Player, host: String, world: Int, properties: Int) {
+        player.client.write(LogoutTransfer(host, world, properties))
     }
 
     /** Calls [LogoutWithReason] with an arg of `1` (reason = `Kicked`). */

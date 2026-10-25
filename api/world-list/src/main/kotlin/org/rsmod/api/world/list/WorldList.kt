@@ -15,7 +15,11 @@ public class WorldList {
 
     public operator fun get(id: Int): WorldListEntry? = entries.firstOrNull { it.id == id }
 
-    internal fun update(entries: List<WorldListEntry>) {
+    /**
+     * Replaces the snapshot with [entries]. This is called by [WorldListService] after each refresh
+     * and should not otherwise be called outside of tests.
+     */
+    public fun update(entries: List<WorldListEntry>) {
         this.entries = entries
     }
 }

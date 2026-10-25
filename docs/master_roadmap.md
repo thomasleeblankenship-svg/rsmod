@@ -105,7 +105,8 @@ _The framework pattern is proven (woodcutting). Each gathering skill is mostly c
 ### M12. Multi-world / infrastructure hardening — **Complexity: L** — _Dependencies: M2_
 - [x] Cross-world character claims: `characters.world_id` is claimed on login (`CharacterAccountRepository.claimWorld`), released by the logout save, and stale claims are cleared on world startup (`WorldClaimReleaseService`). Logins to a character still held by another world receive `HopBlocked`.
 - [x] World list: `api/world-list` reports each world's heartbeat + population to the `worlds` table every 5s (`WorldListService`) and exposes a `WorldList` snapshot; worlds without a heartbeat for 30s are listed offline. Hosts/flags/locations are configured per row in `worlds` (migration V7).
-- [ ] World switching (world hop).
+- [x] World switching: `::worlds` lists online worlds and `::hop <world>` sends `LogoutTransfer` to the target world's host and logs the player out (`content/other/world-hop`). Hops respect logout prevention (e.g., combat).
+- [ ] In-game world switcher interface + client world list (`worldlist.ws`) endpoint.
 - [ ] Evaluate SQLite → PostgreSQL migration for multi-world deployments (Flyway makes this tractable; `db-gateway` abstraction already isolates JDBC).
 - [ ] Friends/ignore lists, private messaging, clan chat (rsprot supports the packets; no server implementation yet).
 - [ ] World-entity support in `api/net` (currently a bare provider) — needed for ships/POH rendering on modern revs.
