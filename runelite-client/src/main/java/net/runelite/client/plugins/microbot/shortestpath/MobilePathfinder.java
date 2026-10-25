@@ -235,10 +235,34 @@ public final class MobilePathfinder
 	 */
 	public static PathResult findAny(WorldPoint start, Set<WorldPoint> goals)
 	{
+		return findAny(start, goals, false);
+	}
+
+	/** {@link #findAny(WorldPoint, Set)}, optionally planning as if the remembered bank's items were carried. */
+	public static PathResult findAny(WorldPoint start, Set<WorldPoint> goals, boolean useBankItems)
+	{
 		Objects.requireNonNull(start, "start");
 		if (goals == null || goals.isEmpty())
 		{
 			return PathResult.failed(start, null);
+		}
+		Client client = Microbot.getClient();
+		PathfinderConfig shared = client == null || !useBankItems ? null : sharedConfig(client);
+		if (shared != null)
+		{
+			synchronized (LOCK)
+			{
+				shared.setUseBankItems(true);
+				try
+				{
+					PathfinderConfig config = refreshedConfig(start, null);
+					return config == null ? PathResult.failed(start, null) : search(config, start, goals);
+				}
+				finally
+				{
+					shared.setUseBankItems(false);
+				}
+			}
 		}
 		PathfinderConfig config = refreshedConfig(start, null);
 		return config == null ? PathResult.failed(start, null) : search(config, start, goals);

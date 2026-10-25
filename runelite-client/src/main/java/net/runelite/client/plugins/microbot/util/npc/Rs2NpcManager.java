@@ -1,9 +1,8 @@
 /*
  * Copied from chsami/Microbot a2114401bbbc35e9762db9e8aa666d70ffcd24d8,
  * runelite-client/src/main/java/net/runelite/client/plugins/microbot/util/npc/Rs2NpcManager.java.
- * Adaptation: getClosestLocation finds the nearest accessible cluster centre with
- * MobilePathfinder.findAny (upstream: Rs2Walker.findNearestAccessibleTarget over Rs2PathApi, with
- * bank items); otherwise lint-only edits (whitespace). BSD 2-Clause License; see LICENSE.
+ * getClosestLocation finds the nearest accessible cluster centre with Rs2Walker.findNearestAccessibleTarget
+ * (with bank items), as upstream; otherwise lint-only edits (whitespace). BSD 2-Clause License; see LICENSE.
  */
 package net.runelite.client.plugins.microbot.util.npc;
 
@@ -12,8 +11,6 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.plugins.microbot.Microbot;
-import net.runelite.client.plugins.microbot.shortestpath.MobilePathfinder;
-import net.runelite.client.plugins.microbot.shortestpath.PathResult;
 import org.slf4j.event.Level;
 
 import javax.annotation.Nullable;
@@ -352,29 +349,9 @@ public class Rs2NpcManager {
         return getClosestLocation(npcName, 1, false);
     }
 
-    /**
-     * Mobile stand-in for upstream's {@code Rs2Walker.findNearestAccessibleTarget(targets, true)}:
-     * one multi-target search from the player; the index of the target within 2 tiles of where the
-     * route ends, or -1. Bank items are not considered (the mobile pathfinder has no bank planning).
-     */
+    /** As upstream: {@code Rs2Walker.findNearestAccessibleTarget(targets, true)}, planning with the bank's items. */
     private static int findNearestAccessibleTarget(List<WorldPoint> targets) {
-        WorldPoint start = net.runelite.client.plugins.microbot.util.player.Rs2Player.getWorldLocation();
-        if (start == null || targets.isEmpty()) {
-            return -1;
-        }
-        PathResult route = MobilePathfinder.findAny(start, new HashSet<>(targets));
-        WorldPoint end = route.isFound() ? route.getGoal() : null;
-        if (end == null) {
-            return -1;
-        }
-        for (int i = 0; i < targets.size(); i++) {
-            WorldPoint target = targets.get(i);
-            // Upstream: WorldArea(target, 2, 2).intersectsWith2D(WorldArea(end, 2, 2)).
-            if (Math.abs(target.getX() - end.getX()) < 2 && Math.abs(target.getY() - end.getY()) < 2) {
-                return i;
-            }
-        }
-        return -1;
+        return net.runelite.client.plugins.microbot.util.walker.Rs2Walker.findNearestAccessibleTarget(targets, true);
     }
 
 }

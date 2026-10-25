@@ -9,6 +9,7 @@ import net.runelite.api.Client;
 import net.runelite.api.Tile;
 import net.runelite.api.WorldView;
 import net.runelite.api.coords.LocalPoint;
+import net.runelite.api.coords.WorldArea;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.plugins.microbot.Microbot;
 import net.runelite.client.plugins.microbot.mobile.MobileActions;
@@ -334,20 +335,25 @@ public final class WalkerPathReads
 	private static Map<Integer, Integer> spellRunes(Transport transport)
 	{
 		Map<Integer, Integer> runes = new HashMap<>();
-		if (transport.getDisplayInfo() == null)
-		{
-			return runes;
-		}
-		String name = transport.getDisplayInfo().contains(":")
-			? transport.getDisplayInfo().split(":")[0].trim().toLowerCase() : transport.getDisplayInfo();
-		net.runelite.client.plugins.microbot.util.magic.Rs2Spells spell =
-			net.runelite.client.plugins.microbot.util.magic.Rs2Magic.getRs2Spell(name);
+		net.runelite.client.plugins.microbot.util.magic.Rs2Spells spell = spellOf(transport);
 		if (spell != null)
 		{
 			net.runelite.client.plugins.microbot.util.magic.Rs2Magic.getRequiredRunes(spell, 1, true)
 				.forEach((rune, quantity) -> runes.put(rune.getItemId(), quantity));
 		}
 		return runes;
+	}
+
+	/** The spell named in a spell transport's {@code displayInfo} (before any ":"), or null. */
+	private static net.runelite.client.plugins.microbot.util.magic.Rs2Spells spellOf(Transport transport)
+	{
+		if (transport.getDisplayInfo() == null)
+		{
+			return null;
+		}
+		String name = transport.getDisplayInfo().contains(":")
+			? transport.getDisplayInfo().split(":")[0].trim().toLowerCase() : transport.getDisplayInfo();
+		return net.runelite.client.plugins.microbot.util.magic.Rs2Magic.getRs2Spell(name);
 	}
 
 	private static int currencyItemId(String currencyName)
@@ -424,5 +430,278 @@ public final class WalkerPathReads
 			Tile[][][] tiles = view.getScene().getTiles();
 			return tiles == null ? null : tiles[point.getPlane()][local.getSceneX()][local.getSceneY()];
 		}, null);
+	}
+
+	// ---- Walker batch (user request: 13 walker tasks), upstream Rs2Walker 2.6.38 ----
+
+	/**
+	 * As upstream {@code canReach(worldPoint, sizeX, sizeY, pathSizeX, pathSizeY, useBankedItems)}: plans from the
+	 * player to {@code worldPoint} and reports whether the route's end, widened to {@code pathSizeX} by
+	 * {@code pathSizeY}, touches the object footprint widened by one tile on every side. False when no route can
+	 * be planned (including on the client thread, where the pathfinder cannot run).
+	 */
+	public static boolean canReach(WorldPoint worldPoint, int sizeX, int sizeY, int pathSizeX, int pathSizeY, boolean useBankedItems)
+	{
+		WorldPoint start = Rs2Player.getWorldLocation();
+		if (worldPoint == null || start == null)
+		{
+			return false;
+		}
+		try
+		{
+			List<WorldPoint> tiles = MobilePathfinder.find(start, worldPoint, useBankedItems).getTiles();
+			return !tiles.isEmpty() && endpointReaches(tiles.get(tiles.size() - 1), worldPoint, sizeX, sizeY, pathSizeX, pathSizeY);
+		}
+		catch (RuntimeException e)
+		{
+			return false;
+		}
+	}
+
+	/** Upstream's area test for {@link #canReach(WorldPoint, int, int, int, int, boolean)}, both areas centred. */
+	static boolean endpointReaches(WorldPoint endpoint, WorldPoint object, int sizeX, int sizeY, int pathSizeX, int pathSizeY)
+	{
+		WorldArea objectArea = new WorldArea(new WorldPoint(object.getX() - (sizeX + 2) / 2, object.getY() - (sizeY + 2) / 2,
+			object.getPlane()), sizeX + 2, sizeY + 2);
+		WorldArea pathArea = new WorldArea(new WorldPoint(endpoint.getX() - pathSizeX / 2, endpoint.getY() - pathSizeY / 2,
+			endpoint.getPlane()), pathSizeX, pathSizeY);
+		return pathArea.intersectsWith2D(objectArea);
+	}
+
+	/**
+	 * As upstream {@code findNearestAccessibleTarget(startPoint, targets, useBankItems, tolerance)}: one
+	 * multi-target search from {@code startPoint} (the player when null); the index of the target whose
+	 * {@code tolerance}-sized area overlaps the route's end, or -1 when none is reachable.
+	 */
+	public static int findNearestAccessibleTarget(WorldPoint startPoint, List<WorldPoint> targets, boolean useBankItems, int tolerance)
+	{
+		if (targets == null || targets.isEmpty())
+		{
+			return -1;
+		}
+		WorldPoint start = startPoint != null ? startPoint : Rs2Player.getWorldLocation();
+		if (start == null)
+		{
+			return -1;
+		}
+		try
+		{
+			List<WorldPoint> tiles = MobilePathfinder.findAny(start, new java.util.HashSet<>(targets), useBankItems).getTiles();
+			return tiles.isEmpty() ? -1 : matchTarget(tiles.get(tiles.size() - 1), targets, tolerance);
+		}
+		catch (RuntimeException e)
+		{
+			return -1;
+		}
+	}
+
+	/** Upstream's match: the first target whose {@code tolerance}-sized area overlaps the route's end. */
+	static int matchTarget(WorldPoint end, List<WorldPoint> targets, int tolerance)
+	{
+		WorldArea endArea = new WorldArea(end, tolerance, tolerance);
+		for (int i = 0; i < targets.size(); i++)
+		{
+			if (new WorldArea(targets.get(i), tolerance, tolerance).intersectsWith2D(endArea))
+			{
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	/**
+	 * As upstream {@code nearestReachable(start, candidates)}: {@code start} when it is a candidate, else the
+	 * candidate a complete multi-target route ends on, else null (a partial route ends on no candidate).
+	 */
+	public static WorldPoint nearestReachable(WorldPoint start, java.util.Collection<WorldPoint> candidates)
+	{
+		if (start == null || candidates == null || candidates.isEmpty())
+		{
+			return null;
+		}
+		java.util.Set<WorldPoint> targets = new java.util.HashSet<>(candidates);
+		if (targets.contains(start))
+		{
+			return start;
+		}
+		try
+		{
+			List<WorldPoint> tiles = MobilePathfinder.findAny(start, targets).getTiles();
+			WorldPoint end = tiles.isEmpty() ? null : tiles.get(tiles.size() - 1);
+			return end != null && targets.contains(end) ? end : null;
+		}
+		catch (RuntimeException e)
+		{
+			return null;
+		}
+	}
+
+	/** As upstream {@code getDistanceBetween}: the planned route's tile count, or {@link Integer#MAX_VALUE} for a null end. */
+	public static int getDistanceBetween(WorldPoint startpoint, WorldPoint endpoint)
+	{
+		if (startpoint == null || endpoint == null)
+		{
+			return Integer.MAX_VALUE;
+		}
+		try
+		{
+			return MobilePathfinder.find(startpoint, endpoint).getTiles().size();
+		}
+		catch (RuntimeException e)
+		{
+			return Integer.MAX_VALUE;
+		}
+	}
+
+	/**
+	 * As upstream {@code getTransportsForPath(path, indexOfStartPoint, prefTransportType, applyFiltering)}: walks
+	 * {@code path} from the start index and collects each transport whose origin (or, for a teleport, whose
+	 * destination) lies on it, preferring {@code prefTransportType} at a tile, then jumps to its destination.
+	 * With {@code applyFiltering} only the transports bank preparation covers remain. Adaptation: origins are
+	 * matched as world tiles (upstream also tries their instance copies).
+	 */
+	public static List<Transport> getTransportsForPath(List<WorldPoint> path, int indexOfStartPoint, TransportType prefTransportType,
+		boolean applyFiltering)
+	{
+		WorldPoint player = Rs2Player.getWorldLocation();
+		List<Transport> found = transportsForPath(path, indexOfStartPoint, prefTransportType, ShortestPathPlugin.getTransports(),
+			player == null ? -1 : player.getPlane());
+		if (applyFiltering)
+		{
+			found.removeIf(t -> !BANK_PLANNED.contains(t.getType()) && !plainTransportNeedsItems(t));
+		}
+		return found;
+	}
+
+	/** {@link #getTransportsForPath} on a given transport map and player plane (-1: unknown). */
+	static List<Transport> transportsForPath(List<WorldPoint> path, int indexOfStartPoint, TransportType prefTransportType,
+		Map<WorldPoint, java.util.Set<Transport>> transports, int playerPlane)
+	{
+		List<Transport> found = new java.util.ArrayList<>();
+		if (path == null || path.isEmpty() || indexOfStartPoint < 0 || indexOfStartPoint >= path.size() || transports == null)
+		{
+			return found;
+		}
+		Map<WorldPoint, Integer> firstIndex = new HashMap<>(path.size());
+		for (int i = 0; i < path.size(); i++)
+		{
+			firstIndex.putIfAbsent(path.get(i), i);
+		}
+		int current = indexOfStartPoint;
+		while (current < path.size())
+		{
+			WorldPoint point = path.get(current);
+			java.util.Set<Transport> here = transports.get(point);
+			int next = current + 1;
+			if (here != null && !here.isEmpty())
+			{
+				List<Transport> ordered = new java.util.ArrayList<>(here);
+				ordered.sort(java.util.Comparator.comparing(Transport::getType, (a, b) ->
+					a == prefTransportType && b != prefTransportType ? -1
+						: b == prefTransportType && a != prefTransportType ? 1 : a.compareTo(b)));
+				for (Transport transport : ordered)
+				{
+					Integer destination = firstIndex.get(transport.getDestination());
+					boolean teleport = transport.getType() == TransportType.TELEPORTATION_ITEM
+						|| transport.getType() == TransportType.TELEPORTATION_SPELL;
+					if (teleport)
+					{
+						if (destination != null)
+						{
+							found.add(transport);
+							next = destination > current ? destination : current + 1;
+							break;
+						}
+						continue;
+					}
+					if (transport.getOrigin() != null && playerPlane >= 0 && playerPlane != transport.getOrigin().getPlane())
+					{
+						continue;
+					}
+					Integer origin = firstIndex.get(transport.getOrigin());
+					if (origin == null || destination == null || destination < origin || !point.equals(transport.getOrigin()))
+					{
+						continue;
+					}
+					found.add(transport);
+					next = destination > current ? destination : current + 1;
+					break;
+				}
+			}
+			current = next;
+		}
+		return found;
+	}
+
+	/**
+	 * As upstream {@code hasRequiredTransportItems}: whether the carried (inventory and worn) items cover the
+	 * transport. A fairy ring needs a Dramen or Lunar staff until the Lumbridge elite diary; a spell needs its
+	 * listed items or its runes; a fare-only transport needs the currency in the inventory; the bank-planned
+	 * types and item-requiring plain transports need their item requirements; anything else needs nothing.
+	 */
+	public static boolean hasRequiredTransportItems(Transport transport)
+	{
+		return hasRequiredTransportItems(transport, WalkerPathReads::carriedItemQuantity,
+			net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory::itemQuantity,
+			() -> Microbot.getVarbitValue(net.runelite.api.gameval.VarbitID.LUMBRIDGE_DIARY_ELITE_COMPLETE) == 1);
+	}
+
+	static boolean hasRequiredTransportItems(Transport transport, java.util.function.IntUnaryOperator carried,
+		java.util.function.IntUnaryOperator inInventory, java.util.function.BooleanSupplier lumbridgeEliteDone)
+	{
+		if (transport == null)
+		{
+			return false;
+		}
+		TransportType type = transport.getType();
+		if (type == TransportType.FAIRY_RING)
+		{
+			return lumbridgeEliteDone.getAsBoolean()
+				|| carried.applyAsInt(net.runelite.api.gameval.ItemID.DRAMEN_STAFF) > 0
+				|| carried.applyAsInt(net.runelite.api.gameval.ItemID.LUNAR_MOONCLAN_LIMINAL_STAFF) > 0;
+		}
+		if (!BANK_PLANNED.contains(type) && !plainTransportNeedsItems(transport))
+		{
+			return true;
+		}
+		List<TransportItemRequirement> listed = transport.getItemRequirements() == null
+			? Collections.emptyList() : transport.getItemRequirements();
+		if (type == TransportType.TELEPORTATION_SPELL && transport.getDisplayInfo() != null)
+		{
+			// An unrecognised spell counts as not covered rather than as needing no runes.
+			return listed.isEmpty() ? spellOf(transport) != null && spellRunes(transport).isEmpty()
+				: listed.stream().allMatch(r -> r.isSatisfiedBy(carried));
+		}
+		boolean noItems = transport.getItemIdRequirements() == null || transport.getItemIdRequirements().isEmpty();
+		if (CURRENCY_BASED.contains(type) && noItems && transport.getCurrencyName() != null
+			&& !transport.getCurrencyName().isEmpty() && transport.getCurrencyAmount() > 0)
+		{
+			int currency = currencyItemId(transport.getCurrencyName());
+			return currency > 0 && inInventory.applyAsInt(currency) >= transport.getCurrencyAmount();
+		}
+		return noItems || listed.stream().allMatch(r -> r.isSatisfiedBy(carried));
+	}
+
+	/** As upstream {@code getMissingTransports}: the transports {@link #hasRequiredTransportItems} rejects. */
+	public static List<Transport> getMissingTransports(List<Transport> transports)
+	{
+		List<Transport> missing = new java.util.ArrayList<>();
+		if (transports != null)
+		{
+			for (Transport transport : transports)
+			{
+				if (!hasRequiredTransportItems(transport))
+				{
+					missing.add(transport);
+				}
+			}
+		}
+		return missing;
+	}
+
+	/** As upstream {@code getMissingTransportItemIds}: the item ids of {@link #getMissingTransportItemIdsWithQuantities}. */
+	public static List<Integer> getMissingTransportItemIds(List<Transport> transports)
+	{
+		return new java.util.ArrayList<>(getMissingTransportItemIdsWithQuantities(transports).keySet());
 	}
 }

@@ -61,6 +61,10 @@ public final class Rs2Walker
 	private static final String STAIRS_UNAVAILABLE = "staircase action unavailable";
 	private static final AtomicLong GENERATION = new AtomicLong();
 	private static volatile WorldPoint target;
+	// The running walk's route (pathfinder or local tiles), for isNear/isNearPath; empty when no walk runs.
+	private static volatile List<WorldPoint> activeRoute = Collections.emptyList();
+	// isNearPath's last checked position (upstream's routeState.lastPosition).
+	private static volatile WorldPoint lastNearPathPosition;
 	private static volatile String lastStatus = "Idle";
 	private static final long MAX_WALK_MILLIS = 120_000;
 	/** No observed movement for this long triggers a replan and retry, never a stop. */
@@ -295,6 +299,7 @@ public final class Rs2Walker
 				return fail("No walking route; a transport or an unmapped region may be required");
 			}
 			List<WorldPoint> global = leg.route;
+			activeRoute = global;
 			long lastProgress = System.currentTimeMillis();
 			WorldPoint previous = scene.player;
 			int progress = 0;
@@ -354,6 +359,7 @@ public final class Rs2Walker
 							return fail("No usable transport toward " + destination);
 						}
 						global = leg.route;
+						activeRoute = global;
 						progress = 0;
 						previous = scene.player;
 						lastProgress = System.currentTimeMillis();
@@ -371,6 +377,7 @@ public final class Rs2Walker
 						return fail("No walking route after transport " + used);
 					}
 					global = leg.route;
+					activeRoute = global;
 					progress = 0;
 					previous = scene.player;
 					lastProgress = System.currentTimeMillis();
@@ -394,7 +401,7 @@ public final class Rs2Walker
 				{
 					// A script asked for a fresh route (recalculatePath); plan it from where the player stands.
 					List<WorldPoint> replanned = plan(scene, leg.destination, leg.radius);
-					if (!replanned.isEmpty()) { global = replanned; progress = 0; }
+					if (!replanned.isEmpty()) { global = replanned; activeRoute = global; progress = 0; }
 				}
 				if (System.currentTimeMillis() - lastProgress >= stallMillis)
 				{
@@ -405,7 +412,7 @@ public final class Rs2Walker
 					LOG.warn("Mobile walk stalled, retry {}: player={} target={} accepted={} bridge={}",
 						stalls, scene.player, destination, acceptedWalks, JavaBridge.getScriptWalkStatus());
 					List<WorldPoint> replanned = plan(scene, leg.destination, leg.radius);
-					if (!replanned.isEmpty()) { global = replanned; progress = 0; }
+					if (!replanned.isEmpty()) { global = replanned; activeRoute = global; progress = 0; }
 					recovered = true;
 					lastStatus = "Walk stalled; retrying (" + stalls + ")";
 					long backoff = Math.min(STALL_RETRY_MAX_BACKOFF_MILLIS, STALL_RETRY_BACKOFF_MILLIS * stalls);
@@ -417,7 +424,7 @@ public final class Rs2Walker
 				if (!recovered && System.currentTimeMillis() - lastProgress >= stallMillis / 2)
 				{
 					List<WorldPoint> replanned = plan(scene, leg.destination, leg.radius);
-					if (!replanned.isEmpty()) { global = replanned; progress = 0; }
+					if (!replanned.isEmpty()) { global = replanned; activeRoute = global; progress = 0; }
 					recovered = true;
 					LOG.info("Mobile walk recovery: player={} target={} bridge={}", scene.player, destination, JavaBridge.getScriptWalkStatus());
 				}
@@ -490,6 +497,7 @@ public final class Rs2Walker
 			if (GENERATION.get() == generation)
 			{
 				target = null;
+				activeRoute = Collections.emptyList();
 			}
 		}
 	}
@@ -2617,5 +2625,221 @@ public final class Rs2Walker
 			}
 			return false;
 		}, false);
+	}
+
+	// ---- Walker batch (user request: 13 walker tasks), upstream Rs2Walker 2.6.38 ----
+
+	/** As upstream: {@link #canReach(WorldPoint, int, int, int, int)} with a 3x3 route-end area. */
+	public static boolean canReach(WorldPoint worldPoint, int sizeX, int sizeY)
+	{
+		return canReach(worldPoint, sizeX, sizeY, 3, 3);
+	}
+
+	/** As upstream: an object of {@code sizeX} by {@code sizeY} at {@code worldPoint} can be reached on foot. */
+	public static boolean canReach(WorldPoint worldPoint, int sizeX, int sizeY, int pathSizeX, int pathSizeY)
+	{
+		return canReach(worldPoint, sizeX, sizeY, pathSizeX, pathSizeY, false);
+	}
+
+	/** As upstream: {@link #canReach(WorldPoint, int, int, int, int, boolean)} with a 2x2 route-end area. */
+	public static boolean canReach(WorldPoint worldPoint, int sizeX, int sizeY, boolean useBankedItems)
+	{
+		return canReach(worldPoint, sizeX, sizeY, 2, 2, useBankedItems);
+	}
+
+	/** As upstream: the argument order with {@code useBankedItems} before the route-end area. */
+	public static boolean canReach(WorldPoint worldPoint, int sizeX, int sizeY, boolean useBankedItems, int pathSizeX, int pathSizeY)
+	{
+		return canReach(worldPoint, sizeX, sizeY, pathSizeX, pathSizeY, useBankedItems);
+	}
+
+	/** As upstream: whether the planned route's end touches the object footprint; see {@link WalkerPathReads}. */
+	public static boolean canReach(WorldPoint worldPoint, int sizeX, int sizeY, int pathSizeX, int pathSizeY, boolean useBankedItems)
+	{
+		return WalkerPathReads.canReach(worldPoint, sizeX, sizeY, pathSizeX, pathSizeY, useBankedItems);
+	}
+
+	/** As upstream: the index of the nearest target reachable from the player (tolerance 2, no bank items), or -1. */
+	public static int findNearestAccessibleTarget(List<WorldPoint> targets)
+	{
+		return findNearestAccessibleTarget(Rs2Player.getWorldLocation(), targets, false, 2);
+	}
+
+	/** As upstream: {@link #findNearestAccessibleTarget(List)}, optionally planning with the bank's items. */
+	public static int findNearestAccessibleTarget(List<WorldPoint> targets, boolean useBankItems)
+	{
+		return findNearestAccessibleTarget(Rs2Player.getWorldLocation(), targets, useBankItems, 2);
+	}
+
+	/** As upstream: the index of the nearest target reachable from {@code startPoint} (tolerance 2), or -1. */
+	public static int findNearestAccessibleTarget(WorldPoint startPoint, List<WorldPoint> targets)
+	{
+		return findNearestAccessibleTarget(startPoint, targets, false, 2);
+	}
+
+	/** As upstream: one multi-target search; see {@link WalkerPathReads#findNearestAccessibleTarget}. */
+	public static int findNearestAccessibleTarget(WorldPoint startPoint, List<WorldPoint> targets, boolean useBankItems, int tolerance)
+	{
+		return WalkerPathReads.findNearestAccessibleTarget(startPoint, targets, useBankItems, tolerance);
+	}
+
+	/** As upstream: the candidate a route from {@code start} reaches, or null; see {@link WalkerPathReads}. */
+	public static WorldPoint nearestReachable(WorldPoint start, java.util.Collection<WorldPoint> candidates)
+	{
+		return WalkerPathReads.nearestReachable(start, candidates);
+	}
+
+	/** As upstream: the planned route's tile count between two points. */
+	public static int getDistanceBetween(WorldPoint startpoint, WorldPoint endpoint)
+	{
+		return WalkerPathReads.getDistanceBetween(startpoint, endpoint);
+	}
+
+	/** As upstream: the player is within {@code distance} (exclusive) of region tile {@code (regionX, regionY)}. */
+	public static boolean isCloseToRegion(int distance, int regionX, int regionY)
+	{
+		int to = distanceToRegion(regionX, regionY);
+		return to != Integer.MAX_VALUE && to < distance;
+	}
+
+	/** As upstream: the distance to region tile {@code (regionX, regionY)} of the player's region and plane. */
+	public static int distanceToRegion(int regionX, int regionY)
+	{
+		WorldPoint player = Rs2Player.getWorldLocation();
+		if (player == null)
+		{
+			return Integer.MAX_VALUE;
+		}
+		return WorldPoint.fromRegion(player.getRegionID(), regionX, regionY, player.getPlane()).distanceTo(player);
+	}
+
+	/** As upstream: the player is on one of the running walk's last 10 route tiles (within 2); false with no walk. */
+	public static boolean isNear()
+	{
+		return isNear(activeRoute, Rs2Player.getWorldLocation());
+	}
+
+	static boolean isNear(List<WorldPoint> path, WorldPoint player)
+	{
+		if (path == null || path.isEmpty() || player == null)
+		{
+			return false;
+		}
+		int index = -1;
+		for (int i = 0; i < path.size(); i++)
+		{
+			WorldPoint point = path.get(i);
+			if (point.getPlane() == player.getPlane() && point.distanceTo2D(player) < 3)
+			{
+				index = i;
+				break;
+			}
+		}
+		return index >= Math.max(path.size() - 10, 0);
+	}
+
+	/** As upstream: the player stands exactly on {@code target}. */
+	public static boolean isNear(WorldPoint target)
+	{
+		WorldPoint player = Rs2Player.getWorldLocation();
+		return player != null && player.equals(target);
+	}
+
+	/**
+	 * As upstream: true with no walk running, when the player has not moved since the last call (upstream's
+	 * side effect: the position is remembered), in the player-owned house, or when a route tile is reachable
+	 * within {@code config.recalculateDistance() - 1}; false means the player has left the route.
+	 */
+	public static boolean isNearPath()
+	{
+		List<WorldPoint> path = activeRoute;
+		WorldPoint player = Rs2Player.getWorldLocation();
+		if (path == null || path.isEmpty() || player == null)
+		{
+			return true;
+		}
+		WorldPoint previous = lastNearPathPosition;
+		lastNearPathPosition = player;
+		if (config.recalculateDistance() < 0 || player.equals(previous)
+			|| net.runelite.client.plugins.microbot.util.poh.PohPresence.isInHouse())
+		{
+			return true;
+		}
+		Map<WorldPoint, Integer> reachable = net.runelite.client.plugins.microbot.util.tile.Rs2Tile
+			.getReachableTilesFromTile(player, config.recalculateDistance() - 1);
+		return path.stream().anyMatch(reachable::containsKey);
+	}
+
+	/** As upstream: {@link #getTransportsForPath(List, int, TransportType, boolean)} preferring teleport items, unfiltered. */
+	public static List<Transport> getTransportsForPath(List<WorldPoint> path, int indexOfStartPoint)
+	{
+		return getTransportsForPath(path, indexOfStartPoint, TransportType.TELEPORTATION_ITEM, false);
+	}
+
+	/** As upstream: {@link #getTransportsForPath(List, int, TransportType, boolean)} unfiltered. */
+	public static List<Transport> getTransportsForPath(List<WorldPoint> path, int indexOfStartPoint, TransportType prefTransportType)
+	{
+		return getTransportsForPath(path, indexOfStartPoint, prefTransportType, false);
+	}
+
+	/** As upstream: the transports along {@code path}; see {@link WalkerPathReads#getTransportsForPath}. */
+	public static List<Transport> getTransportsForPath(List<WorldPoint> path, int indexOfStartPoint, TransportType prefTransportType,
+		boolean applyFiltering)
+	{
+		return WalkerPathReads.getTransportsForPath(path, indexOfStartPoint, prefTransportType, applyFiltering);
+	}
+
+	/** As upstream: the carried items cover {@code transport}; see {@link WalkerPathReads#hasRequiredTransportItems}. */
+	public static boolean hasRequiredTransportItems(Transport transport)
+	{
+		return WalkerPathReads.hasRequiredTransportItems(transport);
+	}
+
+	/** As upstream: the transports whose required items are not carried. */
+	public static List<Transport> getMissingTransports(List<Transport> transports)
+	{
+		return WalkerPathReads.getMissingTransports(transports);
+	}
+
+	/** As upstream: the item ids to withdraw for {@code transports}. */
+	public static List<Integer> getMissingTransportItemIds(List<Transport> transports)
+	{
+		return WalkerPathReads.getMissingTransportItemIds(transports);
+	}
+
+	/** As upstream: {@link #getTransportsForDestination(WorldPoint, boolean)} planned with the bank's items. */
+	public static List<Transport> prepareTransportsForDestination(WorldPoint destination)
+	{
+		return getTransportsForDestination(destination, true);
+	}
+
+	/**
+	 * As upstream: {@link #walkWithState(WorldPoint, int)}, but when another walk is running it waits at most
+	 * {@code lockWaitMs} for it to finish (0: no wait) and returns {@link WalkerState#EXIT} if it does not.
+	 * Mobile has no walker lock (a new walk replaces the running one), so the running walk is what it waits on.
+	 *
+	 * @throws IllegalArgumentException when {@code lockWaitMs} is negative
+	 */
+	public static WalkerState walkWithStateTry(WorldPoint target, int distance, long lockWaitMs)
+	{
+		if (target == null)
+		{
+			return WalkerState.EXIT;
+		}
+		if (lockWaitMs < 0)
+		{
+			throw new IllegalArgumentException("lockWaitMs must be >= 0");
+		}
+		Client client = Microbot.getClient();
+		if (client != null && client.isClientThread())
+		{
+			return WalkerState.EXIT;
+		}
+		if (Rs2Walker.target != null && (lockWaitMs == 0
+			|| !Global.sleepUntil(() -> Rs2Walker.target == null, (int) Math.min(Integer.MAX_VALUE, lockWaitMs))))
+		{
+			return WalkerState.EXIT;
+		}
+		return walkWithState(target, distance);
 	}
 }
