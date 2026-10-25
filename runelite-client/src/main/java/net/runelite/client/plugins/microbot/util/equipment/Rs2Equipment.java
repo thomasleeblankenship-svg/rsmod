@@ -361,6 +361,15 @@ public final class Rs2Equipment
 	}
 
 	/** As upstream: {@code action} on the worn item whose name contains {@code name} (ignoring case). */
+	/** As upstream: {@code action} on the worn {@code rs2Item} (through the equipment tab). */
+	public static void invokeMenu(net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel rs2Item, String action)
+	{
+		if (rs2Item != null && rs2Item.getName() != null && action != null && !action.isEmpty())
+		{
+			interact(rs2Item.getName(), action, true);
+		}
+	}
+
 	public static boolean interact(String name, String action)
 	{
 		return interact(name, action, false);

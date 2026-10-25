@@ -360,4 +360,50 @@ public class Rs2ItemModel
 		}
 		return lower.contains("jug of wine");
 	}
+
+	// ---- Batch AS (Claude 1, user-authorised; Claude 2's file): leftovers ----
+
+	/** As upstream: a model of {@code quantity} x {@code id} in {@code slot}, its definition read on the client thread. */
+	public static Rs2ItemModel createFromCache(int id, int quantity, int slot)
+	{
+		ItemComposition composition = net.runelite.client.plugins.microbot.mobile.MobileActions.read(
+			() -> net.runelite.client.plugins.microbot.Microbot.getClient().getItemDefinition(id), null);
+		return new Rs2ItemModel(new Item(id, quantity), composition, null, slot);
+	}
+
+	/** As upstream: a multi-line description (id, name, quantity, slot, flags, prices, actions). */
+	@Override
+	public String toString()
+	{
+		StringBuilder sb = new StringBuilder("Rs2ItemModel {\n");
+		sb.append("\tid: ").append(id).append('\n');
+		sb.append("\tname: '").append(name).append("'\n");
+		sb.append("\tquantity: ").append(quantity).append('\n');
+		sb.append("\tslot: ").append(slot).append('\n');
+		sb.append("\tisStackable: ").append(isStackable()).append('\n');
+		sb.append("\tisNoted: ").append(isNoted()).append('\n');
+		sb.append("\tisTradeable: ").append(isTradeable()).append('\n');
+		long price = getPrice();
+		sb.append("\tprice: ").append(price).append(" gp (total)\n");
+		if (quantity > 0)
+		{
+			sb.append("\tunitPrice: ").append(price / quantity).append(" gp (each)\n");
+		}
+		if (itemComposition != null)
+		{
+			sb.append("\thaPrice: ").append(getHaPrice()).append(" gp\n");
+		}
+		String[] actions = getInventoryActions();
+		if (actions != null && actions.length > 0)
+		{
+			sb.append("\tinventoryActions: ").append(java.util.Arrays.toString(java.util.Arrays.stream(actions)
+				.filter(action -> action != null && !action.isEmpty()).toArray())).append('\n');
+		}
+		if (!getEquipmentActions().isEmpty())
+		{
+			sb.append("\tequipmentActions: ").append(getEquipmentActions()).append('\n');
+		}
+		sb.append("\tcompositionLoaded: ").append(itemComposition != null).append('\n');
+		return sb.append('}').toString();
+	}
 }

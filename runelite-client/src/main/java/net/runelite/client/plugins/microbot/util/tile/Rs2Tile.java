@@ -595,31 +595,48 @@ public final class Rs2Tile
 	{
 		if (from == null || to == null || from.getPlane() != to.getPlane())
 		{
+			lastEdgeDecision = "bad-args";
 			return false;
 		}
 		int dx = to.getX() - from.getX();
 		int dy = to.getY() - from.getY();
 		if (dx == 0 && dy == 0)
 		{
+			lastEdgeDecision = "same-tile";
 			return true;
 		}
 		if (Math.abs(dx) > 1 || Math.abs(dy) > 1)
 		{
+			lastEdgeDecision = "not-adjacent";
 			return false;
 		}
-		return MobileActions.read(() ->
+		String decision = MobileActions.read(() ->
 		{
 			WorldView view = Microbot.getClient().getTopLevelWorldView();
 			if (view == null || view.getPlane() != from.getPlane() || (view.getScene() != null && view.getScene().isInstance()))
 			{
-				return false;
+				return "no-scene";
 			}
 			int[][] flags = flags(view, view.getPlane());
 			int fx = from.getX() - view.getBaseX();
 			int fy = from.getY() - view.getBaseY();
-			return flags != null && TileReachability.isWithinBounds(fx, fy) && TileReachability.isWithinBounds(fx + dx, fy + dy)
-				&& TileReachability.isStepAllowed(flags, fx, fy, dx, dy);
-		}, false);
+			if (flags == null || !TileReachability.isWithinBounds(fx, fy) || !TileReachability.isWithinBounds(fx + dx, fy + dy))
+			{
+				return "out-of-scene";
+			}
+			return TileReachability.isStepAllowed(flags, fx, fy, dx, dy) ? "passable" : "blocked";
+		}, "no-client");
+		lastEdgeDecision = decision;
+		return "passable".equals(decision);
+	}
+
+	/** Batch AS: the outcome of the last {@link #isEdgePassable} call, for diagnostics (as upstream). */
+	private static volatile String lastEdgeDecision = "-";
+
+	/** As upstream: why the last {@link #isEdgePassable} call answered as it did ("passable", "blocked", ...). */
+	public static String lastEdgeDecision()
+	{
+		return lastEdgeDecision;
 	}
 
 	/** As upstream: {@code tileObject} (a wall from either face) can be used from a tile the player can reach. */

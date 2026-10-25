@@ -30,4 +30,18 @@ public class Rs2PlayerModel extends net.runelite.client.plugins.microbot.api.pla
 		Player player = getPlayer();
 		return player == null ? 0 : net.runelite.client.plugins.microbot.mobile.MobileActions.read(player::getTeam, 0);
 	}
+
+	/** As upstream: sets the live player's skull icon (a client-side display value), on the client thread. */
+	public void setSkullIcon(int skullIcon)
+	{
+		Player player = getPlayer();
+		if (player != null)
+		{
+			net.runelite.client.plugins.microbot.mobile.MobileActions.read(() ->
+			{
+				player.setSkullIcon(skullIcon);
+				return true;
+			}, false);
+		}
+	}
 }
