@@ -65,4 +65,11 @@ public final class Rs2PlayerCache
 		}
 		return result;
 	}
+
+	/** As upstream: the installed cache's current snapshot stream; empty before the runtime is installed. */
+	public static Stream<Rs2PlayerModel> getPlayersStream()
+	{
+		Rs2PlayerCache cache = net.runelite.client.plugins.microbot.Microbot.getRs2PlayerCache();
+		return cache == null ? Stream.empty() : cache.getStream();
+	}
 }

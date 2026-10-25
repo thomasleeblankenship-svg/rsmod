@@ -304,4 +304,29 @@ public class Rs2TileObjectModel implements TileObject, IEntity
 	{
 		return services.read(() -> tileObject.isOpShown(index)).orElse(false);
 	}
+
+	/**
+	 * As upstream: a tile beside this object can be reached on foot (a game object by its footprint,
+	 * others by their tile); false in another world view (an instance or a boat).
+	 */
+	@Override
+	public boolean isReachable()
+	{
+		if (worldView == null)
+		{
+			return false;
+		}
+		WorldView playerView = services.read(() ->
+		{
+			net.runelite.api.Player player = services.getClient().getLocalPlayer();
+			return player == null ? null : player.getWorldView();
+		}).orElse(null);
+		if (playerView == null || playerView.getId() != worldView.getId())
+		{
+			return false;
+		}
+		return tileObject instanceof GameObject
+			? net.runelite.client.plugins.microbot.util.gameobject.Rs2GameObject.isReachable((GameObject) tileObject)
+			: net.runelite.client.plugins.microbot.util.tile.Rs2Tile.isTileObjectReachable(tileObject);
+	}
 }
