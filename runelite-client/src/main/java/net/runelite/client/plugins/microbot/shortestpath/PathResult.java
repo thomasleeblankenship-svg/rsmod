@@ -91,6 +91,12 @@ public final class PathResult
 			return source;
 		}
 
+		/** The catalogue transport this step was copied from (for {@code Rs2PathApi}'s route values). */
+		public Transport getTransport()
+		{
+			return source;
+		}
+
 		/**
 		 * Whether this step lands in the player-owned house (house teleport spell, tablet, cape or the
 		 * outside portal): arrival is being in the house, and the landing tile is synthetic.

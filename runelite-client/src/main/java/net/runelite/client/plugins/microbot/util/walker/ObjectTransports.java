@@ -59,6 +59,8 @@ final class ObjectTransports
 		 * {@link #destinationText} its option); {@code null} otherwise. Its origin is never walked to.
 		 */
 		final net.runelite.client.plugins.microbot.shortestpath.PohDevice house;
+		/** A grouping-tab minigame teleport: {@link #destinationText} is the minigame's display name. */
+		final boolean minigame;
 
 		Step(WorldPoint origin, WorldPoint arrival, int objectId, String action, String target)
 		{
@@ -111,6 +113,15 @@ final class ObjectTransports
 			boolean travel, String destinationText, boolean item, Set<Integer> itemIds, boolean spell, boolean fairyRing, boolean canoe,
 			boolean intoHouse, net.runelite.client.plugins.microbot.shortestpath.PohDevice house)
 		{
+			this(origin, arrival, objectId, action, target, arrivalRadius, travel, destinationText, item, itemIds, spell, fairyRing,
+				canoe, intoHouse, house, false);
+		}
+
+		Step(WorldPoint origin, WorldPoint arrival, int objectId, String action, String target, int arrivalRadius,
+			boolean travel, String destinationText, boolean item, Set<Integer> itemIds, boolean spell, boolean fairyRing, boolean canoe,
+			boolean intoHouse, net.runelite.client.plugins.microbot.shortestpath.PohDevice house, boolean minigame)
+		{
+			this.minigame = minigame;
 			this.intoHouse = intoHouse;
 			this.house = house;
 			this.canoe = canoe;
@@ -155,7 +166,14 @@ final class ObjectTransports
 		Step toHouse()
 		{
 			return new Step(origin, arrival, objectId, action, target, arrivalRadius, travel, destinationText, item, itemIds, spell,
-				fairyRing, canoe, true, house);
+				fairyRing, canoe, true, house, minigame);
+		}
+
+		/** A minigame teleport from {@code origin} (where the route reaches it) to {@code arrival}. */
+		static Step minigame(WorldPoint origin, WorldPoint arrival, String displayInfo, int arrivalRadius)
+		{
+			return new Step(origin, arrival, -1, "", "Minigame teleport", arrivalRadius, false, displayInfo, false, Set.of(), false,
+				false, false, false, null, true);
 		}
 
 		@Override

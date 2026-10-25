@@ -44,6 +44,7 @@ import net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel;
 import net.runelite.client.plugins.microbot.util.magic.Rs2Magic;
 import net.runelite.client.plugins.microbot.util.player.Rs2Player;
 import net.runelite.client.plugins.microbot.util.tabs.Rs2Tab;
+import net.runelite.client.plugins.microbot.util.walker.puzzles.DraynorBasementSolver;
 import net.runelite.client.plugins.skillcalculator.skills.MagicAction;
 import net.runelite.client.util.Text;
 import org.slf4j.Logger;
@@ -111,6 +112,12 @@ public final class Rs2Walker
 	public static WorldPoint getTarget()
 	{
 		return target;
+	}
+
+	/** The running walk's route tiles (empty when no walk runs), for {@link Rs2PathApi}. */
+	static List<WorldPoint> activeRoutePath()
+	{
+		return activeRoute;
 	}
 
 	/** Null cancels an outstanding walk without issuing any game input. */
@@ -275,6 +282,10 @@ public final class Rs2Walker
 			lastStatus = "Walking cancelled";
 			return false;
 		}
+		if (!prepareDraynorBasement(destination))
+		{
+			return fail("Draynor Manor basement entrance not reached");
+		}
 		int radius = Math.max(0, Math.min(10, distance));
 		long generation = GENERATION.incrementAndGet();
 		target = destination;
@@ -338,6 +349,7 @@ public final class Rs2Walker
 						? useHouseDevice(leg.stairs, generation, deadline)
 						: leg.stairs.canoe ? useCanoe(leg.stairs, generation, deadline)
 						: leg.stairs.fairyRing ? useFairyRing(leg.stairs, generation, deadline)
+						: leg.stairs.minigame ? useMinigameTeleport(leg.stairs, generation, deadline)
 						: leg.stairs.spell ? useTeleportSpell(leg.stairs, generation, deadline)
 						: leg.stairs.item ? useTeleportItem(leg.stairs, generation, deadline)
 						: leg.stairs.travel ? useTravel(leg.stairs, generation, deadline)
@@ -674,6 +686,11 @@ public final class Rs2Walker
 		if (target == null)
 		{
 			return WalkerState.EXIT;
+		}
+		// The basement solver walks on its own (each walk advances the generation): solve first.
+		if (!prepareDraynorBasement(target))
+		{
+			return !MobileActions.active() || Thread.currentThread().isInterrupted() ? WalkerState.EXIT : WalkerState.UNREACHABLE;
 		}
 		long before = GENERATION.get();
 		if (walkTo(target, distance))
@@ -1089,7 +1106,7 @@ public final class Rs2Walker
 		TransportType.TELEPORTATION_SPELL, TransportType.SPIRIT_TREE, TransportType.FAIRY_RING, TransportType.MINECART,
 		TransportType.MAGIC_CARPET, TransportType.TELEPORTATION_LEVER, TransportType.TELEPORTATION_PORTAL,
 		TransportType.GNOME_GLIDER, TransportType.HOT_AIR_BALLOON, TransportType.QUETZAL, TransportType.MAGIC_MUSHTREE,
-		TransportType.CANOE, TransportType.POH);
+		TransportType.CANOE, TransportType.POH, TransportType.TELEPORTATION_MINIGAME);
 
 	/**
 	 * Destination lists as {group, child}: the spirit tree menu (upstream {@code ADVENTURE_LOG_CONTAINER},
@@ -1208,7 +1225,7 @@ public final class Rs2Walker
 			if (!EXECUTABLE_TRANSPORTS.contains(transport.getType())
 				|| (transport.getAction() == null && transport.getType() != TransportType.TELEPORTATION_ITEM
 					&& transport.getType() != TransportType.TELEPORTATION_SPELL && transport.getType() != TransportType.FAIRY_RING
-					&& transport.getType() != TransportType.POH))
+					&& transport.getType() != TransportType.POH && transport.getType() != TransportType.TELEPORTATION_MINIGAME))
 			{
 				LOG.info("Mobile walk: route needs {} ({}); using the same-plane planner", transport.getType(), transport);
 				return null;
@@ -1224,6 +1241,18 @@ public final class Rs2Walker
 				ObjectTransports.Step step = new ObjectTransports.Step(from, transport.getDestination(), -1, "",
 					transport.getName(), TELEPORT_ARRIVAL_TILES, false, transport.getDisplayInfo().trim(), false, Set.of(), true);
 				return new WalkLeg(from, 1, intoHouse ? step.toHouse() : step, new ArrayList<>(tiles.subList(0, i + 1)), true);
+			}
+			if (transport.getType() == TransportType.TELEPORTATION_MINIGAME)
+			{
+				if (disableTeleports || MinigameTeleports.isRefused(transport.getDisplayInfo(), transport.getDestination()))
+				{
+					LOG.info("Mobile walk: route needs minigame teleport {}; using the same-plane planner", transport);
+					return null;
+				}
+				// Like a spell, a minigame teleport is used where the route reaches it.
+				ObjectTransports.Step step = ObjectTransports.Step.minigame(tiles.get(i), transport.getDestination(),
+					transport.getDisplayInfo().trim(), TELEPORT_ARRIVAL_TILES);
+				return new WalkLeg(tiles.get(i), 1, intoHouse ? step.toHouse() : step, new ArrayList<>(tiles.subList(0, i + 1)), true);
 			}
 			if (transport.getType() == TransportType.TELEPORTATION_ITEM)
 			{
@@ -1563,6 +1592,37 @@ public final class Rs2Walker
 				}
 				castAt = System.currentTimeMillis();
 				casts++;
+			}
+			long remaining = deadline - System.currentTimeMillis();
+			if (remaining > 0) { Thread.sleep(Math.min(300, remaining)); }
+		}
+		lastStatus = !MobileActions.active() || GENERATION.get() != generation
+			? "teleport cancelled" : "teleport landing was not observed";
+		return false;
+	}
+
+	/** Teleports with the grouping tab ({@link MinigameTeleports}), then waits to observe the landing. */
+	private static boolean useMinigameTeleport(ObjectTransports.Step step, long generation, long walkDeadline) throws InterruptedException
+	{
+		long deadline = Math.min(walkDeadline, System.currentTimeMillis() + SPELL_TELEPORT_MILLIS);
+		lastStatus = "Minigame teleport to " + step.destinationText;
+		if (!MinigameTeleports.teleport(step.destinationText, step.arrival))
+		{
+			lastStatus = "cannot use the minigame teleport to " + step.destinationText;
+			return false;
+		}
+		while (System.currentTimeMillis() < deadline && GENERATION.get() == generation
+			&& MobileActions.active() && !Thread.currentThread().isInterrupted())
+		{
+			MobileRoutePlanner.Scene scene = awaitSnapshot(generation, deadline);
+			if (scene == null)
+			{
+				lastStatus = "no collision snapshot, loading timed out or game state changed";
+				return false;
+			}
+			if (step.observedArrival(scene.player))
+			{
+				return true;
 			}
 			long remaining = deadline - System.currentTimeMillis();
 			if (remaining > 0) { Thread.sleep(Math.min(300, remaining)); }
@@ -2574,22 +2634,39 @@ public final class Rs2Walker
 		}, null);
 	}
 
+	/**
+	 * As upstream's {@code processWalk}: before walking to a Draynor Manor basement tile, enter the
+	 * basement and set its levers ({@link DraynorBasementSolver}); the puzzle doors are varbit-gated
+	 * transports. False when the target is in the basement but the player could not get in.
+	 */
+	private static boolean prepareDraynorBasement(WorldPoint destination)
+	{
+		if (!DraynorBasementSolver.isBasementTarget(destination))
+		{
+			return true;
+		}
+		DraynorBasementSolver.solveIfNeeded(destination);
+		return MobileActions.active() && !Thread.currentThread().isInterrupted()
+			&& DraynorBasementSolver.isBasementTarget(Rs2Player.getWorldLocation());
+	}
+
 	private static boolean tryOpenDoor(WorldPoint routeTile)
 	{
-		return MobileActions.read(() ->
+		// The door is found on the client thread; the click and any Stronghold question are handled off it.
+		Object[] door = MobileActions.read(() ->
 		{
 			Client client = Microbot.getClient();
 			Player player = client == null ? null : client.getLocalPlayer();
 			WorldView view = player == null ? null : player.getWorldView();
 			if (view == null || view.getScene() == null || player.getWorldLocation() == null)
 			{
-				return false;
+				return null;
 			}
 			Tile[][][] tiles = view.getScene().getTiles();
 			int plane = player.getWorldLocation().getPlane();
 			if (tiles == null || plane < 0 || plane >= tiles.length || tiles[plane] == null)
 			{
-				return false;
+				return null;
 			}
 			for (Tile[] column : tiles[plane])
 			{
@@ -2615,16 +2692,27 @@ public final class Rs2Walker
 							continue;
 						}
 						String name = composition.getName().toLowerCase(java.util.Locale.ENGLISH);
-						if ((name.contains("door") || name.contains("gate"))
+						if ((name.contains("door") || name.contains("gate") || StrongholdDoors.isStrongholdDoor(name))
 							&& Arrays.stream(composition.getActions()).anyMatch("Open"::equalsIgnoreCase))
 						{
-							return MobileActions.objectAt(object.getId(), object.getWorldLocation(), "Open");
+							return new Object[]{object.getId(), object.getWorldLocation(), name};
 						}
 					}
 				}
 			}
+			return null;
+		}, null);
+		if (door == null || !MobileActions.objectAt((int) door[0], (WorldPoint) door[1], "Open"))
+		{
 			return false;
-		}, false);
+		}
+		// As upstream: a Stronghold of Security door asks its question once; answer it so the door opens.
+		if (StrongholdDoors.isStrongholdDoor((String) door[2]) && StrongholdDoors.isInStronghold((WorldPoint) door[1])
+			&& !StrongholdDoors.answerIfAsked())
+		{
+			LOG.info("Mobile walk: unknown Stronghold of Security question at {}", door[1]);
+		}
+		return true;
 	}
 
 	// ---- Walker batch (user request: 13 walker tasks), upstream Rs2Walker 2.6.38 ----
@@ -2805,6 +2893,64 @@ public final class Rs2Walker
 	public static List<Integer> getMissingTransportItemIds(List<Transport> transports)
 	{
 		return WalkerPathReads.getMissingTransportItemIds(transports);
+	}
+
+	// ---- Walker batch W1 (Claude 1): upstream's planner-independent transport-edge queries ----
+
+	/** As upstream: {@link #getTransportsForDestination(WorldPoint, boolean)} as immutable edges. */
+	public static List<Rs2TransportEdge> getTransportEdgesForDestination(WorldPoint destination, boolean useBankItems)
+	{
+		return getTransportsForDestination(destination, useBankItems).stream()
+			.filter(transport -> transport.getDestination() != null)
+			.map(Rs2PathApi::toTransportEdge).collect(java.util.stream.Collectors.toUnmodifiableList());
+	}
+
+	/** As upstream: the edges whose required items are not carried ({@link #getMissingTransports}). */
+	public static List<Rs2TransportEdge> getMissingTransportEdges(List<Rs2TransportEdge> transports)
+	{
+		if (transports == null || transports.isEmpty())
+		{
+			return List.of();
+		}
+		Set<Transport> missing = new HashSet<>(getMissingTransports(sources(transports)));
+		return transports.stream().filter(edge -> missing.contains(edge.getSourceIdentity()))
+			.collect(java.util.stream.Collectors.toUnmodifiableList());
+	}
+
+	/** As upstream: {@link #getMissingTransportItemIdsWithQuantities} for edges. */
+	public static Map<Integer, Integer> getMissingTransportEdgeItemIdsWithQuantities(List<Rs2TransportEdge> transports)
+	{
+		return transports == null || transports.isEmpty() ? Map.of()
+			: getMissingTransportItemIdsWithQuantities(sources(transports));
+	}
+
+	/**
+	 * As upstream: the withdrawals that prepare {@code transports}. Mobile: equipment is not
+	 * planned separately, and the loadout is satisfiable when nothing is missing or the bank
+	 * covers something missing (upstream's rune-pouch and fare accounting is not ported).
+	 */
+	public static Rs2TransportLoadout getMissingTransportEdgeLoadout(List<Rs2TransportEdge> transports)
+	{
+		if (getMissingTransportEdges(transports).isEmpty())
+		{
+			return Rs2TransportLoadout.empty();
+		}
+		Map<Integer, Integer> withdrawals = new java.util.LinkedHashMap<>();
+		getMissingTransportEdgeItemIdsWithQuantities(transports).forEach((id, quantity) ->
+		{
+			if (id != null && id > 0 && quantity != null && quantity > 0)
+			{
+				withdrawals.put(id, quantity);
+			}
+		});
+		return withdrawals.isEmpty() ? Rs2TransportLoadout.unavailable() : new Rs2TransportLoadout(withdrawals, List.of(), true);
+	}
+
+	/** The catalogue transports behind edges built by {@link Rs2PathApi} (other edges have none). */
+	private static List<Transport> sources(List<Rs2TransportEdge> transports)
+	{
+		return transports.stream().map(Rs2TransportEdge::getSourceIdentity).filter(Transport.class::isInstance)
+			.map(Transport.class::cast).collect(java.util.stream.Collectors.toList());
 	}
 
 	/** As upstream: {@link #getTransportsForDestination(WorldPoint, boolean)} planned with the bank's items. */
