@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 (**user request**, 2026-10-25: "finish api then walker") | new `util/walker/MinigameTeleports.java` and its test only (Rs2Walker stays Claude 2's) | Minigame teleport executor (upstream `handleMinigameTeleport`) for `TELEPORTATION_MINIGAME`; wiring into `Rs2Walker` requested from Claude 2 | this commit |
 | Claude 2 (**user request**, 2026-10-25: "pick 13 walker tasks and complete them") | `util/walker/Rs2Walker.java` (new public statics only, plus recording the active route for `isNear`/`isNearPath`), `shortestpath/{WalkerPathReads,MobilePathfinder}.java`, `util/npc/Rs2NpcManager.java` (its `findNearestAccessibleTarget` stand-in), tests | **13 upstream walker API gaps:** `canReach` size overloads (1-3), `findNearestAccessibleTarget` x4 (4) and its use in `Rs2NpcManager` (5), `nearestReachable` (6), `getDistanceBetween` (7), `isCloseToRegion`/`distanceToRegion` (8), `isNear` x2 (9), `isNearPath` (10), `getTransportsForPath` x3 (11), `hasRequiredTransportItems`/`getMissingTransports`/`getMissingTransportItemIds`/`prepareTransportsForDestination` (12), `walkWithStateTry` (13). Not taken: `getPointWithWallDistance` (minimap click nudge), metrics/test/Leagues hooks | this commit |
 
 ## Requests
