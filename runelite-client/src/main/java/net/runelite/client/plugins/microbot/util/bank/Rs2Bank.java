@@ -376,20 +376,34 @@ public final class Rs2Bank
 	{
 		if (!isNearBank(bank, distance)) return false;
 		WorldPoint origin = location();
-		return origin == null || nearOnFoot(Rs2Walker.getTotalTiles(bank.getWorldPoint()), origin.distanceTo(bank.getWorldPoint()));
+		return origin == null || nearOnFoot(walkingTiles(origin, bank.getWorldPoint()), origin.distanceTo(bank.getWorldPoint()));
+	}
+
+	// The full route length, or Integer.MAX_VALUE unless the search completed (a search cut short under load
+	// returns a partial path that must not read as a detour), and on the client thread, where it cannot run.
+	private static int walkingTiles(WorldPoint origin, WorldPoint goal)
+	{
+		net.runelite.api.Client client = Microbot.getClient();
+		if (client != null && client.isClientThread()) return Integer.MAX_VALUE;
+		net.runelite.client.plugins.microbot.shortestpath.PathResult route =
+			net.runelite.client.plugins.microbot.shortestpath.MobilePathfinder.find(origin, goal);
+		return route != null && route.isFound() ? Math.max(0, route.getTiles().size() - 1) : Integer.MAX_VALUE;
 	}
 
 	/**
-	 * Walking-route check for {@link #isNearBankOnFoot}: near unless the route is more than
-	 * {@link #WALL_DETOUR_SLACK_TILES} longer than the straight line. {@link Integer#MAX_VALUE} means no route
-	 * was found, which keeps the straight-line answer. At Draynor the south side is 7 straight but 17-21 walking.
+	 * Walking-route check for {@link #isNearBankOnFoot}: a wall is in the way when the route is both more than
+	 * {@link #WALL_DETOUR_SLACK_TILES} steps longer than the straight line and more than twice it. Walking
+	 * round bank booths stays near (Lumbridge top floor: 10 steps for 6 straight); a wall does not (Draynor
+	 * south side: 20 steps for 7 straight). {@link Integer#MAX_VALUE} means no complete route was found, which
+	 * keeps the straight-line answer.
 	 */
-	static boolean nearOnFoot(int walkingTiles, int straightTiles)
+	public static boolean nearOnFoot(int walkingSteps, int straightTiles)
 	{
-		return walkingTiles == Integer.MAX_VALUE || walkingTiles - straightTiles <= WALL_DETOUR_SLACK_TILES;
+		if (walkingSteps == Integer.MAX_VALUE) return true;
+		return walkingSteps - straightTiles <= WALL_DETOUR_SLACK_TILES || walkingSteps <= 2 * straightTiles;
 	}
 
-	// Mobile: a route this much longer than the straight line means a wall is in the way.
+	// Mobile: a route this many steps longer than the straight line (and over twice it) means a wall is in the way.
 	static final int WALL_DETOUR_SLACK_TILES = 4;
 
 	// Mobile: the walker's arrival radius is straight-line, so it can stop on the wrong side of a bank wall;

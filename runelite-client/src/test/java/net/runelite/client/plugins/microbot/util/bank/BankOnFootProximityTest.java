@@ -5,23 +5,24 @@ import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
-/** Bank "near" needs a walking route not much longer than the straight line, so a player behind a bank wall keeps walking. */
+/** Bank "near" needs a walking route close to the straight line, so a player behind a bank wall keeps walking. */
 public class BankOnFootProximityTest
 {
 	@Test
 	public void routeCloseToTheStraightLineIsNear()
 	{
-		assertTrue(Rs2Bank.nearOnFoot(2, 1));
-		assertTrue(Rs2Bank.nearOnFoot(9, 7));
-		assertTrue(Rs2Bank.nearOnFoot(11, 7));
+		assertTrue(Rs2Bank.nearOnFoot(1, 1));
+		assertTrue(Rs2Bank.nearOnFoot(8, 7));
+		// Lumbridge top floor, round the booths: 10 steps for 6 straight.
+		assertTrue(Rs2Bank.nearOnFoot(10, 6));
 	}
 
 	@Test
 	public void detourAroundAWallIsNotNear()
 	{
-		// Draynor: south side 7 straight, 17-21 walking; outside the east wall 5 straight, 11-15 walking.
-		assertFalse(Rs2Bank.nearOnFoot(17, 7));
-		assertFalse(Rs2Bank.nearOnFoot(11, 5));
+		// Draynor: south side 20 steps for 7 straight; outside the east wall 12 for 5.
+		assertFalse(Rs2Bank.nearOnFoot(20, 7));
+		assertFalse(Rs2Bank.nearOnFoot(12, 5));
 	}
 
 	@Test
