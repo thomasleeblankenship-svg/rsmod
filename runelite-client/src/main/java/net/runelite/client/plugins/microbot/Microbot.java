@@ -48,7 +48,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *     {@link MicrobotReadServices} (read-only API stage) instead of Guice-injected fields, and
  *     return {@code null} when it is not installed, like the other getters here.
  *     The player and player-state caches are exposed the same way
- *     ({@link #getRs2PlayerCache()}, {@link #getRs2PlayerStateCache()}); the boat cache is not ported.</li>
+ *     ({@link #getRs2PlayerCache()}, {@link #getRs2PlayerStateCache()}, {@link #getRs2BoatCache()}).</li>
  * </ul>
  * {@link #getVarbitValue} and {@link #getVarbitPlayerValue} read the read-API stage's
  * {@code Rs2PlayerStateCache}, as upstream does. {@link #isPluginEnabled} and
@@ -270,6 +270,27 @@ public class Microbot {
     /** As upstream: the client's Guice injector (RuneLite's; null before the client has started). */
     public static com.google.inject.Injector getInjector() {
         return net.runelite.client.RuneLite.getInjector();
+    }
+
+    private static volatile net.runelite.client.plugins.microbot.api.boat.Rs2BoatCache rs2BoatCache;
+
+    /** As upstream: the boat cache, built over the installed read services; null before the runtime is installed. */
+    public static net.runelite.client.plugins.microbot.api.boat.Rs2BoatCache getRs2BoatCache() {
+        MicrobotReadServices services = MicrobotReadServices.current();
+        if (services == null) {
+            return null;
+        }
+        net.runelite.client.plugins.microbot.api.boat.Rs2BoatCache cache = rs2BoatCache;
+        if (cache == null) {
+            synchronized (Microbot.class) {
+                cache = rs2BoatCache;
+                if (cache == null) {
+                    cache = new net.runelite.client.plugins.microbot.api.boat.Rs2BoatCache(services);
+                    rs2BoatCache = cache;
+                }
+            }
+        }
+        return cache;
     }
 
     /** As upstream: RuneLite's tooltip manager, from the client's injector (null before the client has started). */
