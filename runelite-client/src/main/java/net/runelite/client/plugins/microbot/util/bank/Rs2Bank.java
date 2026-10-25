@@ -360,8 +360,46 @@ public final class Rs2Bank
 	public static boolean walkToBankAndUseBank(BankLocation bank)
 	{
 		if (bank == null || !bank.hasRequirements()) return false;
-		if (isNearBank(bank, 8)) return openBank();
-		return Rs2Walker.walkTo(bank.getWorldPoint(), 6) && isNearBank(bank, 8) && openBank();
+		if (isNearBankOnFoot(bank, 8)) return openBank();
+		if (!Rs2Walker.walkTo(bank.getWorldPoint(), 6)) return false;
+		closeInIfWalledOff(bank, 8);
+		return isNearBankOnFoot(bank, 8) && openBank();
+	}
+
+	/**
+	 * Mobile: {@link #isNearBank(BankLocation, int)} that also needs a short walking route. Straight-line
+	 * distance alone counts a player outside a bank's back wall as near (Draynor, beside Diango), where the
+	 * booths and bankers cannot be reached, so the script retried {@link #openBank()} there forever. When no
+	 * route can be computed the straight-line answer stands, as upstream.
+	 */
+	public static boolean isNearBankOnFoot(BankLocation bank, int distance)
+	{
+		if (!isNearBank(bank, distance)) return false;
+		WorldPoint origin = location();
+		return origin == null || nearOnFoot(Rs2Walker.getTotalTiles(bank.getWorldPoint()), origin.distanceTo(bank.getWorldPoint()));
+	}
+
+	/**
+	 * Walking-route check for {@link #isNearBankOnFoot}: near unless the route is more than
+	 * {@link #WALL_DETOUR_SLACK_TILES} longer than the straight line. {@link Integer#MAX_VALUE} means no route
+	 * was found, which keeps the straight-line answer. At Draynor the south side is 7 straight but 17-21 walking.
+	 */
+	static boolean nearOnFoot(int walkingTiles, int straightTiles)
+	{
+		return walkingTiles == Integer.MAX_VALUE || walkingTiles - straightTiles <= WALL_DETOUR_SLACK_TILES;
+	}
+
+	// Mobile: a route this much longer than the straight line means a wall is in the way.
+	static final int WALL_DETOUR_SLACK_TILES = 4;
+
+	// Mobile: the walker's arrival radius is straight-line, so it can stop on the wrong side of a bank wall;
+	// then walk on to the bank tile itself, which routes through the entrance.
+	private static void closeInIfWalledOff(BankLocation bank, int distance)
+	{
+		if (isNearBank(bank, distance) && !isNearBankOnFoot(bank, distance))
+		{
+			Rs2Walker.walkTo(bank.getWorldPoint(), 1);
+		}
 	}
 
 	/** As upstream: banks at the nearest bank when the inventory is full, else walks back (within 4 tiles). */
@@ -909,8 +947,12 @@ public final class Rs2Bank
 		if (bank == null) return false;
 		if (isOpen()) return true;
 		net.runelite.client.plugins.microbot.util.player.Rs2Player.toggleRunEnergy(toggleRun);
-		if (!isNearBank(bank, 4)) Rs2Walker.walkTo(bank.getWorldPoint(), 4);
-		return isNearBank(bank, 4);
+		if (!isNearBankOnFoot(bank, 4))
+		{
+			Rs2Walker.walkTo(bank.getWorldPoint(), 4);
+			closeInIfWalledOff(bank, 4);
+		}
+		return isNearBankOnFoot(bank, 4);
 	}
 
 	public static boolean walkToBankAndUseBank() { return walkToBankAndUseBank(getNearestBank()); }

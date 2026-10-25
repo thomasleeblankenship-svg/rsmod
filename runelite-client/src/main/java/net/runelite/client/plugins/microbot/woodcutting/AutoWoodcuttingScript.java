@@ -398,7 +398,8 @@ public class AutoWoodcuttingScript extends Script {
 
     private boolean handleBanking(AutoWoodcuttingConfig config) {
         BankLocation nearestBank = Rs2Bank.getNearestBank();
-        boolean isBankOpen = Rs2Bank.isNearBank(nearestBank, 8) ? Rs2Bank.openBank() : Rs2Bank.walkToBankAndUseBank(nearestBank);
+        // Mobile: near on foot, not just in a straight line, so a bank behind a wall (Draynor) is walked to.
+        boolean isBankOpen = Rs2Bank.isNearBankOnFoot(nearestBank, 8) ? Rs2Bank.openBank() : Rs2Bank.walkToBankAndUseBank(nearestBank);
         if (!isBankOpen || !Rs2Bank.isOpen()) {
             stopForActionFailure("Bank could not be opened: " + Rs2Walker.getLastStatus());
             return false;
