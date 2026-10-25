@@ -1460,4 +1460,22 @@ public final class Rs2Player
 	{
 		return net.runelite.client.plugins.microbot.Microbot.getVarbitPlayerValue(281) >= 1000;
 	}
+
+	// ---- Batch AS (Claude 1, user-authorised; Claude 2's reads): internal reads ----
+
+	/** As upstream's internal read: {@link #getWorldLocation()} (instance-aware, on the client thread). */
+	public static net.runelite.api.coords.WorldPoint getWorldLocation_Internal()
+	{
+		return getWorldLocation();
+	}
+
+	/** As upstream's internal read: the local player's world view, on the client thread. */
+	public static net.runelite.api.WorldView getWorldView_Internal()
+	{
+		return net.runelite.client.plugins.microbot.mobile.MobileActions.read(() ->
+		{
+			Player player = net.runelite.client.plugins.microbot.Microbot.getClient().getLocalPlayer();
+			return player == null ? null : player.getWorldView();
+		}, null);
+	}
 }

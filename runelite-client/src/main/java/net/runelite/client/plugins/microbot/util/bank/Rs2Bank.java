@@ -1569,6 +1569,79 @@ public final class Rs2Bank
 		return slotId < 0 || slotId >= items.size() ? null : items.get(slotId);
 	}
 
+	// ---- Batch AS (Claude 1): leftovers ----
+
+	/** As upstream: the canvas bounds of {@code rs2Item}'s bank slot, or {@code null}. */
+	public static java.awt.Rectangle itemBounds(Rs2ItemModel rs2Item)
+	{
+		return rs2Item == null ? null : getItemBounds(rs2Item.getSlot());
+	}
+
+	/**
+	 * As upstream: menu op {@code identifier} (1-based, as the client numbers them) on {@code rs2Item}:
+	 * the bank slot when the bank shows that item there, else its slot in the inventory beside the bank.
+	 * One exact menu dispatch.
+	 */
+	public static void invokeMenu(final int identifier, Rs2ItemModel rs2Item)
+	{
+		if (rs2Item == null || !isOpen())
+		{
+			return;
+		}
+		Widget bankSlot = getItemWidget(rs2Item.getSlot());
+		boolean inBank = bankSlot != null && MobileActions.read(bankSlot::getItemId, -1) == rs2Item.getId();
+		Microbot.doInvoke(new net.runelite.client.plugins.microbot.util.menu.NewMenuEntry()
+			.param0(rs2Item.getSlot())
+			.param1(inBank ? BANK_ITEM_CONTAINER : BANK_SIDE_ITEMS)
+			.opcode(net.runelite.api.MenuAction.CC_OP.getId())
+			.identifier(identifier)
+			.itemId(rs2Item.getId())
+			.target(rs2Item.getName()), new java.awt.Rectangle(1, 1));
+	}
+
+	/**
+	 * As upstream: an inventory item a setup keeps when depositing: its id is in {@code retainIds}, or
+	 * its name matches a {@code fuzzyNames} key (contains when the value is true, else exact, any case).
+	 */
+	public static boolean isInventoryItemRetainedForSetupDeposit(Rs2ItemModel item,
+		Set<Integer> retainIds, java.util.Map<String, Boolean> fuzzyNames)
+	{
+		if (item == null)
+		{
+			return false;
+		}
+		if (retainIds != null && retainIds.contains(item.getId()))
+		{
+			return true;
+		}
+		String name = item.getName();
+		if (fuzzyNames == null || name == null)
+		{
+			return false;
+		}
+		String lower = name.toLowerCase(Locale.ROOT);
+		for (java.util.Map.Entry<String, Boolean> entry : fuzzyNames.entrySet())
+		{
+			String key = entry.getKey();
+			if (key == null || key.isEmpty())
+			{
+				continue;
+			}
+			boolean fuzzy = Boolean.TRUE.equals(entry.getValue());
+			if (fuzzy ? lower.contains(key.toLowerCase(Locale.ROOT)) : name.equalsIgnoreCase(key))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** As upstream's container hook: the live bank memory ({@link #storeBankItemsInMemory}). */
+	public static void updateLocalBank(net.runelite.api.events.ItemContainerChanged event)
+	{
+		storeBankItemsInMemory(event);
+	}
+
 	/** As upstream: the canvas bounds of bank slot {@code slotId}, or {@code null}. */
 	public static java.awt.Rectangle getItemBounds(int slotId)
 	{
