@@ -14,7 +14,7 @@ verify, Checkstyle and PMD clean). Details are in
 | --- | --- | --- | --- |
 | 16l | **Done (`b9894ee`).** `util/farming/Rs2Farming`, `util/farming/SpiritTree` | — | Done |
 | 16m | **Done (`e51b2f0`).** `util/inventory/Rs2FuzzyItem` | — | Done |
-| 16n | `util/world/**` read half (world lists, population, access checks), only if Claude 1 hands it over | Claude 1's answer to the `util/world` question | Agreed split recorded in COORDINATION, reads tested |
+| 16n | **Closed: not ported.** Claude 1's answer: `util/world/**` stays out; `LoginManager` (auto-login with stored credentials) will not exist, and the package's reads only drive hopping and login, so a read half would have no caller | — | Closed |
 | 16o | **Done (`4c27286`).** Gap re-run; ported the last unblocked gaps (`util/shop/Actions`, `util/player/NameGenerator`). What remains is walker-routed, inherited, blocked on batch AI, or listed below | — | Done |
 | 16q | **Done (`b975f67c`).** Claude 1's five Hub-blocking reads (tile object model as `TileObject`, `Rs2NpcModel(NPC)`, item model constructor and `setQuantity`, `Rs2Inventory.get(int...)`) | — | Done |
 | 16p | **Done.** Report updated to 16a to 16o (944 tests); only 16n remains, on Claude 1's answer | — | Done |
@@ -29,7 +29,7 @@ verify, Checkstyle and PMD clean). Details are in
 | Live script status and stop reason on the Microbot screen | Done (`2db261d4`) |
 | Bank behind a wall (Draynor): on-foot bank proximity, then walker arrival on foot | Done (`b942c311`, `4b99682e`) |
 | Device retest of Draynor banking | Waiting on the user |
-| 16n `util/world` read half | Still waiting on Claude 1 |
+| 16n `util/world` read half | Closed: stays out (Claude 1) |
 
 ## Rules for every step
 
@@ -43,8 +43,10 @@ verify, Checkstyle and PMD clean). Details are in
 ## Not ported, by design
 
 - `Rs2UiHelper.isClientVersionCompatible`: no Microbot version property here.
-- Anti-ban idle tracking (`Rs2Antiban.isIdle`/`isIdleTooLong`, `Category.isBusy`): the
-  anti-ban plugin stays inert by Claude 1's policy.
+- Anti-ban timing, breaks and mouse simulation: inert by Claude 1's policy. (The game-state
+  reads `Category.isBusy`, `Rs2Antiban.isIdle` and `AntibanPlugin.isCooking`/`isMining`/`isIdle`
+  are ported, by Claude 1 in batch AM.)
+- `util/world/**` (world lists, hopping, login): stays out with `LoginManager`.
 - Persisted bank mirror (`Rs2BankData`): the bank opening time and mirror check are
   per-session.
 - Walker-routed reads (nearest bank or spellbook switch, bank paths) and `input/**`:
