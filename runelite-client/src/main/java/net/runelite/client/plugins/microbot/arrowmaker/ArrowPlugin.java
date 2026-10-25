@@ -55,6 +55,8 @@ public class ArrowPlugin extends Plugin {
 
     protected void shutDown() {
         arrowScript.shutdown();
-        overlayManager.remove(arrowOverlay);
+        if (overlayManager != null) {
+            overlayManager.remove(arrowOverlay);
+        }
     }
 }
