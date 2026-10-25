@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 2 (**user request**, 2026-10-25: option 1, "another batch of Hub scripts ported for mobile") | `mobilemicrobot/ScriptKind.java` (12 new Hub entries), `ScriptSettingsVisibilityTest`, and the 12 plugin folders `microbot/{fletching,thievingstalls,motherloadmine,karambwans,glassmake,cannonballsmelter,amethystminer,sandminer,piebaker,lunartanner,jewelleryenchant,arrowmaker}/**` | **Members batch 2:** 12 non-combat skilling scripts in the Microbot picker, each ported for mobile like the F2P batch (one commit per script, `MOBILE_PORT.md`) | this commit |
 | Claude 1 (**user**: "go", walker work) | new `util/walker/{door/Rs2DoorClassifier,door/Rs2DoorGeometry,geometry/WalkerPathGeometry,TransportRouteAnalysis}.java` (upstream verbatim), new `util/walker/banking/Rs2WalkerBankingPlanner.java` (mobile facade), `util/walker/Rs2Walker.java`, tests | **Walker batch W2:** upstream's pure door/path geometry and route-analysis helpers; door classifier used by route door recovery; banking-route planner facade; `Rs2Walker` route-compare, wall-distance and route-clear statics | this commit |
 
 ## Requests
