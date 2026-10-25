@@ -18,7 +18,9 @@ public class BotApi {
 
     public Rs2TileObjectModel getGameObject(final int id, final WorldPoint worldPoint)
     {
-        return Microbot.getRs2TileObjectCache().query().withId(id).nearest(worldPoint, 5);
+        // Mobile: query on the client thread.
+        return net.runelite.client.plugins.microbot.mobile.MobileActions.read(
+            () -> Microbot.getRs2TileObjectCache().query().withId(id).nearest(worldPoint, 5), null);
     }
 
     public void steal(final Rs2TileObjectModel gameObject)
