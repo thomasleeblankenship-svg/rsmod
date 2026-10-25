@@ -28,6 +28,10 @@ import net.runelite.client.plugins.microbot.util.widget.Rs2Widget;
 import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Amethyst miner: mines amethyst in the Mining Guild and banks or chisels it, with a gem bag option.
+ * Adapted for Microbot Mobile; see MOBILE_PORT.md in this package.
+ */
 public class AmethystMiningScript extends Script {
     public static Status status = Status.IDLE;
     public static boolean lockedStatus = false;
@@ -59,7 +63,9 @@ public class AmethystMiningScript extends Script {
                 return;
             }
             if (config.pickAxeInInventory() && pickAxeInInventory.isEmpty()) {
-                pickAxeInInventory = Rs2Inventory.get("pickaxe").getName();
+                // Mobile: null-safe (upstream threw before its own "not found" message when no pickaxe was held).
+                Rs2ItemModel pickaxe = Rs2Inventory.get("pickaxe");
+                pickAxeInInventory = pickaxe == null || pickaxe.getName() == null ? "" : pickaxe.getName();
                 if (!pickAxeInInventory.isEmpty()) {
                     itemsToKeep.add(pickAxeInInventory);
                 }
@@ -73,7 +79,8 @@ public class AmethystMiningScript extends Script {
 
             if (Rs2AntibanSettings.actionCooldownActive) return;
 
-            if (Rs2Player.isAnimating() || Microbot.getClient().getLocalPlayer().isInteracting()) return;
+            // Mobile: read on the client thread.
+            if (Rs2Player.isAnimating() || Rs2Player.isInteracting()) return;
 
             handleDragonPickaxeSpec();
             handleInventory();
@@ -93,6 +100,11 @@ public class AmethystMiningScript extends Script {
             }
         } catch (Exception e) {
             Microbot.log("Error in AmethystMiningScript: " + e.getMessage());
+            // Mobile: stop rather than retry a failing step every tick, and turn the plugin off so the
+            // Microbot Mobile screen shows it stopped.
+            Microbot.showMessage("Amethyst Miner stopped after an error: " + e);
+            shutdown();
+            Microbot.stopPlugin(AmethystMiningPlugin.class);
         }
     }
 
@@ -157,11 +169,20 @@ public class AmethystMiningScript extends Script {
         AmethystCraftingOption craftingOption = config.amethystCraftingOption();
         int requiredLevel = craftingOption.getRequiredLevel();
         Rs2ItemModel chisel = Rs2Inventory.get("chisel");
+        // Mobile: no chisel carried -> bank for one rather than throw.
+        if (chisel == null) {
+            status = Status.BANKING;
+            return;
+        }
         Rs2Inventory.moveItemToSlot(chisel, 27);
         sleepUntil(() -> Rs2Inventory.slotContains(27, "chisel"), 5000);
-        if (Microbot.getClient().getRealSkillLevel(Skill.CRAFTING) >= requiredLevel ) {
-            Rs2Inventory.combineClosest(ItemID.CHISEL, ItemID.AMETHYST);
-            sleepUntil(() -> Rs2Widget.getWidget(17694733) != null);
+        // Mobile: the Crafting level is read on the client thread.
+        if (Rs2Player.getRealSkillLevel(Skill.CRAFTING) >= requiredLevel ) {
+            // Mobile: press the option only once the make menu is up after an accepted combine.
+            if (!Rs2Inventory.combineClosest(ItemID.CHISEL, ItemID.AMETHYST)
+                || !sleepUntil(() -> Rs2Widget.getWidget(17694733) != null, 5000)) {
+                return;
+            }
             Rs2Keyboard.keyPress(craftingOption.getDialogOption());
             sleepUntil(() -> !Rs2Inventory.hasItem(ItemID.AMETHYST), 40000);
             Rs2Antiban.actionCooldown();
@@ -208,8 +229,12 @@ public class AmethystMiningScript extends Script {
     }
 
     private WallObject findClosestVein() {
+        // Mobile: read the player's tile once (upstream waited on the client thread, without a timeout, for
+        // every comparison).
+        WorldPoint player = Rs2Player.getWorldLocation();
+        if (player == null) return null;
         return Rs2GameObject.getWallObjects().stream()
-                .filter(this::isVein).min((a, b) -> Integer.compare(distanceToPlayer(a), distanceToPlayer(b))).orElse(null);
+                .filter(this::isVein).min((a, b) -> Integer.compare(distanceToPlayer(a, player), distanceToPlayer(b, player))).orElse(null);
     }
 
     private boolean isVein(WallObject wallObject) {
@@ -217,10 +242,10 @@ public class AmethystMiningScript extends Script {
         return id == 11388 || id == 11389;
     }
 
-    private int distanceToPlayer(WallObject wallObject) {
+    private int distanceToPlayer(WallObject wallObject, WorldPoint player) {
         WorldPoint closestWalkableNeighbour = Rs2Tile.getNearestWalkableTile(wallObject.getWorldLocation());
         if (closestWalkableNeighbour == null) return 999;
-        return Microbot.getClientThread().invoke(() -> Microbot.getClient().getLocalPlayer().getWorldLocation().distanceTo2D(closestWalkableNeighbour));
+        return player.distanceTo2D(closestWalkableNeighbour);
     }
 
     private void interactWithVein(WallObject vein) {

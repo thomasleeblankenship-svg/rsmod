@@ -45,7 +45,9 @@ public class AmethystMiningPlugin extends Plugin {
 
     @Override
     protected void startUp() throws AWTException {
-        overlayManager.add(amethystMiningOverlay);
+        if (overlayManager != null) {
+            overlayManager.add(amethystMiningOverlay);
+        }
         amethystMiningScript.run(amethystMiningConfig);
     }
 
@@ -90,6 +92,9 @@ public class AmethystMiningPlugin extends Plugin {
 
     protected void shutDown() {
         amethystMiningScript.shutdown();
-        overlayManager.remove(amethystMiningOverlay);
+        // Mobile: tolerate a missing overlay manager, as startUp does.
+        if (overlayManager != null) {
+            overlayManager.remove(amethystMiningOverlay);
+        }
     }
 }
