@@ -23,7 +23,15 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
 
+/**
+ * Cannonball smelter: withdraws steel bars and an ammo mould and smelts cannonballs at the chosen furnace,
+ * banking between inventories. Adapted for Microbot Mobile; see MOBILE_PORT.md in this package.
+ */
 public class CannonballSmelterScript extends Script {
+
+    // Mobile: both settings are global; the values found at start are put back on stop.
+    private Boolean autoRunBefore;
+    private int runEnergyThresholdBefore;
 
     private static CannonballSmelterConfig config;
 
@@ -55,6 +63,10 @@ public class CannonballSmelterScript extends Script {
         Rs2Antiban.resetAntibanSettings();
         cannonballAntiBan();
         Rs2AntibanSettings.actionCooldownChance = 0.1;
+        if (autoRunBefore == null) {
+            autoRunBefore = Microbot.enableAutoRunOn;
+            runEnergyThresholdBefore = Microbot.runEnergyThreshold;
+        }
         Microbot.enableAutoRunOn = true;
         Microbot.runEnergyThreshold = 5000;
         mainScheduledFuture = scheduledExecutorService.scheduleWithFixedDelay(() -> {
@@ -78,10 +90,10 @@ public class CannonballSmelterScript extends Script {
                 }
 
                 endTime = System.currentTimeMillis();
-                long totalTime = endTime - startTime;
-                System.out.println("Total time for loop " + totalTime);
             } catch (Exception ex) {
                 Microbot.logStackTrace(this.getClass().getSimpleName(), ex);
+                // Mobile: stop rather than retry a failing step every 100 ms.
+                stopPlugin("Cannonball Smelter stopped after an error: " + ex);
             }
         }, 0, 100, TimeUnit.MILLISECONDS);
         return true;
@@ -111,7 +123,10 @@ public class CannonballSmelterScript extends Script {
             Microbot.status = "Moving to furnace...";
             sleepUntil(() -> Rs2Widget.getWidget(17694733) != null);
             if(Rs2Widget.getWidget(17694733) != null) {
-                Rs2Widget.clickWidget(17694734);
+                // Mobile: retry the make click until accepted (one action per game tick).
+                if (!sleepUntil(() -> Rs2Widget.clickWidget(17694734), 3000)) {
+                    return;
+                }
                 Microbot.status = "Smelting Cannonballs...";
                 sleep(200,600);
                 mouseOff();
@@ -145,9 +160,7 @@ public class CannonballSmelterScript extends Script {
         }
     
         if (Rs2Bank.isOpen() && !Rs2Bank.hasItem(ItemID.STEEL_BAR)) {
-            Microbot.showMessage("No steel bars in bank. Halting.");
-            sleep(3000, 5000);
-            shutdown();
+            stopPlugin("No steel bars in bank. Halting.");
             return;
         }
     
@@ -157,8 +170,7 @@ public class CannonballSmelterScript extends Script {
         if (hasBars()) {
             Rs2Keyboard.keyPress(KeyEvent.VK_ESCAPE);
         } else {
-            Microbot.showMessage("Failed to withdraw steel bars.");
-            shutdown();
+            stopPlugin("Failed to withdraw steel bars.");
         }
     }
     
@@ -177,9 +189,8 @@ public class CannonballSmelterScript extends Script {
             sleepUntil(Rs2Bank::isOpen);
 
             if(!Rs2Bank.hasItem("ammo mould") && !Rs2Bank.hasItem("double ammo mould")) {
-                Microbot.showMessage("Could not find ammo mould or double ammo mould in bank, exiting...");
-                sleep(3000, 5000);
-                shutdown();
+                stopPlugin("Could not find ammo mould or double ammo mould in bank, exiting...");
+                return;
             }
 
             if(Rs2Bank.hasItem("double ammo mould")) {
@@ -192,9 +203,8 @@ public class CannonballSmelterScript extends Script {
             sleepUntil(this::required, 3000);
         }
         if(!Rs2Bank.hasItem(ItemID.STEEL_BAR)) {
-            Microbot.showMessage("Can't find Steel bars in bank, exiting...");
-            sleep(3000,5000);
-            shutdown();
+            stopPlugin("Can't find Steel bars in bank, exiting...");
+            return;
         }
         Rs2Bank.withdrawAll(ItemID.STEEL_BAR);
         sleepUntil(() -> Rs2Inventory.hasItem(ItemID.STEEL_BAR));
@@ -202,8 +212,7 @@ public class CannonballSmelterScript extends Script {
             Rs2Keyboard.keyPress(KeyEvent.VK_ESCAPE);
         }
         if (!Rs2Inventory.hasItem(ItemID.STEEL_BAR)) {
-            Microbot.showMessage("Could not find item in bank.");
-            shutdown();
+            stopPlugin("Could not find item in bank.");
         }
     }
 
@@ -235,6 +244,11 @@ public class CannonballSmelterScript extends Script {
     }
 
     public void mouseOff() {
+        // Mobile: there is no natural mouse (Microbot.naturalMouse is null); upstream's move off screen would
+        // throw on every smelt, so it is skipped.
+        if (Microbot.naturalMouse == null) {
+            return;
+        }
         int horizontal = random.nextBoolean() ? -1 : client.getCanvasWidth() + 1;
         int vertical = random.nextBoolean() ? -1 : client.getCanvasHeight() + 1;
 
@@ -250,5 +264,17 @@ public class CannonballSmelterScript extends Script {
     public void shutdown() {
         super.shutdown();
         Rs2Antiban.resetAntibanSettings();
+        if (autoRunBefore != null) {
+            Microbot.enableAutoRunOn = autoRunBefore;
+            Microbot.runEnergyThreshold = runEnergyThresholdBefore;
+            autoRunBefore = null;
+        }
+    }
+
+    /** Stops with {@code message}, turning the plugin off (not just this loop) so the Microbot Mobile screen shows it. */
+    private void stopPlugin(String message) {
+        Microbot.showMessage(message);
+        shutdown();
+        Microbot.stopPlugin(CannonballSmelterPlugin.class);
     }
 }

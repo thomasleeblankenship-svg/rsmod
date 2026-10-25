@@ -53,7 +53,10 @@ public class CannonballSmelterPlugin extends Plugin {
 
         protected void shutDown() {
             cannonballSmelterScript.shutdown();
-            overlayManager.remove(cannonballSmelterOverlay);
+            // Mobile: startUp tolerates a missing overlay manager, so stopping must too.
+            if (overlayManager != null) {
+                overlayManager.remove(cannonballSmelterOverlay);
+            }
         }
 }
 
