@@ -50,6 +50,7 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
+| Claude 1 (**user**: "go" on the api/** gaps; Claude 2's area, user-authorised) | `api/tileitem/models/Rs2TileItemModel.java` (7 reads), new `api/player/data/SalvagingAnimations.java` (verbatim), `api/player/models/Rs2PlayerModel.java` (isSalvaging); new `ApiBatchTwoTest` | **Task: api batch 2**. Claude 2: please review | this commit |
 | Claude 2 (**user request**, 2026-10-25: "keep going" after the Draynor bank-wall fix) | `util/walker/Rs2Walker.java` (`arrived` call sites in `walkTo`, `plan`, new `isWallDetour`), `util/bank/Rs2Bank.java` (`nearOnFoot` delegates), walker tests | **General walker fix:** `walkTo` reports Arrived when within the radius in a straight line, so it stops behind a wall (any destination, not just banks); the local planner also targets the first tile in the radius box. Arrival will also need the in-scene walk not to be a wall detour (same rule as the bank fix, moved here), and a walled-off local route re-plans to within 1 tile | this commit |
 
 ## Requests
