@@ -1,7 +1,6 @@
 package net.runelite.client.plugins.microbot.sandminer;
 
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.api.GameState;
 import net.runelite.api.Skill;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.gameval.ItemID;
@@ -28,9 +27,22 @@ import static net.runelite.client.plugins.microbot.sandminer.GabulhasSandMinerIn
 public class GabulhasSandMinerScript extends Script {
     private final WorldPoint miningPoint = new WorldPoint(3165, 2905, 0);
     private final WorldPoint grinder = new WorldPoint(3150, 2908, 0);
+    /** Longest wait for the grinder to take the sandstone; upstream waited without a limit. */
+    private static final long DEPOSIT_TIMEOUT_MS = 30_000;
+    /** Most empty waterskins one inventory can hold; bounds the drop loop. */
+    private static final int MAX_WATERSKIN_DROPS = 28;
+    /** {@link Microbot#enableAutoRunOn} as found at start, put back on stop (the flag is global). */
+    private Boolean autoRunBefore;
 
     public boolean run(GabulhasSandMinerConfig config) {
+        if (autoRunBefore == null) {
+            autoRunBefore = Microbot.enableAutoRunOn;
+        }
         Microbot.enableAutoRunOn = false;
+        if (config.hopworldclose() || config.hopworldlong()) {
+            // Mobile scripts do not hop worlds; the script keeps mining when another player is near.
+            Microbot.log("Sandstone miner: world hopping is off on mobile; mining continues when players are near.");
+        }
         if (config.turboMode()) {
             Rs2Camera.setZoom(Rs2Random.randomGaussian(100, 20));
             Rs2Camera.setYaw((Rs2Random.dicePercentage(50) ? Rs2Random.randomGaussian(750, 50) : Rs2Random.randomGaussian(1700, 50)));
@@ -44,7 +56,7 @@ public class GabulhasSandMinerScript extends Script {
                     case Mining:
                         if (config.useHumidify()) humidifyIfNeeded();
                         miningLoop(config);
-                        handleSafety();
+                        if (handleSafety()) return;
                         botStatus = states.Depositing;
                         break;
                     case Depositing:
@@ -54,24 +66,39 @@ public class GabulhasSandMinerScript extends Script {
                 }
             } catch (Exception ex) {
                 Microbot.logStackTrace(this.getClass().getSimpleName(), ex);
+                // Mobile: stop rather than retry a failing step every 600 ms.
+                stopPlugin("Sandstone miner stopped after an error: " + ex);
             }
         }, 0, 600, TimeUnit.MILLISECONDS);
         return true;
     }
 
-    private void handleSafety() {
+    /** Walks to a bank and stops when health is low; returns whether it stopped. Mobile does not log out. */
+    private boolean handleSafety() {
         var health = Rs2Player.getHealthPercentage();
         if (health < 25) {
             Microbot.log("Health is low: " + health + "%, banking for safety.");
             Rs2Bank.walkToBank();
-            Rs2Player.logout();
-            Microbot.stopPlugin(GabulhasSandMinerPlugin.class);
+            stopPlugin("Sandstone miner stopped: health is low (" + health + "%).");
+            return true;
         }
+        return false;
     }
 
     @Override
     public void shutdown() {
         super.shutdown();
+        if (autoRunBefore != null) {
+            Microbot.enableAutoRunOn = autoRunBefore;
+            autoRunBefore = null;
+        }
+    }
+
+    /** Stops with {@code message}, turning the plugin off (not just this loop) so the Microbot Mobile screen shows it. */
+    private void stopPlugin(String message) {
+        Microbot.showMessage(message);
+        shutdown();
+        Microbot.stopPlugin(GabulhasSandMinerPlugin.class);
     }
 
 
@@ -86,22 +113,6 @@ public class GabulhasSandMinerScript extends Script {
             if (!config.useHumidify() && !Rs2Player.isAnimating()) {
                 dropEmptyWaterskins();
             }
-
-            if (config.hopworldclose()) {
-                while (Rs2Player.hopIfPlayerDetected(1, 3000, 100) && super.isRunning()) {
-                    sleepUntil(() -> Microbot.getClient().getGameState() == GameState.HOPPING);
-                    sleepUntil(() -> Microbot.getClient().getGameState() == GameState.LOGGED_IN);
-                    sleep(1200, 2000);
-                }
-            } else if (config.hopworldlong()) {
-                while (Rs2Player.hopIfPlayerDetected(1, 3000, 6) && super.isRunning()) {
-                    sleepUntil(() -> Microbot.getClient().getGameState() == GameState.HOPPING);
-                    sleepUntil(() -> Microbot.getClient().getGameState() == GameState.LOGGED_IN);
-                    sleep(1200, 2000);
-                }
-            }
-
-
 
             if (!config.turboMode()) sleep(Rs2Random.nextInt(300, 5000, 0.1, true));
             if (!Rs2Player.isInteracting() || !Rs2Player.isAnimating()) {
@@ -130,6 +141,9 @@ public class GabulhasSandMinerScript extends Script {
                         Rs2Player.waitForAnimation();
                     }
                     Rs2Antiban.actionCooldown();
+                } else {
+                    // No rock in reach (e.g. still walking): wait a tick rather than spin in turbo mode.
+                    sleep(600);
                 }
             }
         }
@@ -140,7 +154,6 @@ public class GabulhasSandMinerScript extends Script {
             return;
         }
         if (Rs2Magic.isSpellbook(Rs2Spellbook.LUNAR) && !Rs2Inventory.hasItem(ItemID.WATER_SKIN1, ItemID.WATER_SKIN2, ItemID.WATER_SKIN3, ItemID.WATER_SKIN4)) {
-            System.out.println("Humidified");
             Rs2Magic.cast(MagicAction.HUMIDIFY);
             sleepUntilOnClientThread(() -> Rs2Inventory.hasItem("Waterskin(4)"));
             Rs2Antiban.actionCooldown();
@@ -150,7 +163,7 @@ public class GabulhasSandMinerScript extends Script {
     }
 
     private void dropEmptyWaterskins() {
-        while (Rs2Inventory.hasItem(ItemID.WATER_SKIN0)) {
+        for (int i = 0; i < MAX_WATERSKIN_DROPS && Rs2Inventory.hasItem(ItemID.WATER_SKIN0) && super.isRunning(); i++) {
             Rs2Inventory.drop(ItemID.WATER_SKIN0);
             sleep(550,650);
         }
@@ -160,9 +173,15 @@ public class GabulhasSandMinerScript extends Script {
         if (!config.turboMode()) Rs2Walker.walkTo(grinder);
         var grinderObj = Microbot.getRs2TileObjectCache().query()
                 .withId(26199)
-                .nearest(grinder, 5);
+                .nearestOnClientThread(grinder, 5);
         if (grinderObj != null) grinderObj.click("Deposit");
+        long deadline = System.currentTimeMillis() + DEPOSIT_TIMEOUT_MS;
         while (Rs2Inventory.contains("Sandstone (1kg)", "Sandstone (2kg)", "Sandstone (5kg)", "Sandstone (10kg)") && super.isRunning()) {
+            if (System.currentTimeMillis() > deadline) {
+                // The next Depositing pass (after a mining pass that finds the inventory full) clicks the grinder again.
+                Microbot.log("Sandstone miner: grinder did not take the sandstone, retrying.");
+                return;
+            }
             if (!config.turboMode()) {
                 sleep(100, 3000);
             } else {

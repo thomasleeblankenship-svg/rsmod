@@ -61,7 +61,9 @@ public class GabulhasSandMinerPlugin extends Plugin {
 
     protected void shutDown() {
         gabulhasSandMinerScript.shutdown();
-        overlayManager.remove(gabulhasSandMinerOverlay);
+        if (overlayManager != null) {
+            overlayManager.remove(gabulhasSandMinerOverlay);
+        }
         scriptStartTime = null;
         rocksMined = 0;
     }
