@@ -48,6 +48,8 @@ public class JewelleryEnchantPlugin extends Plugin {
     @Override
     protected void shutDown() throws Exception {
         jewelleryEnchantScript.shutdown();
-        overlayManager.remove(jewelleryEnchantOverlay);
+        if (overlayManager != null) {
+            overlayManager.remove(jewelleryEnchantOverlay);
+        }
     }
 }

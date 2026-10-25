@@ -9,13 +9,20 @@ import net.runelite.client.plugins.microbot.util.equipment.Rs2Equipment;
 import net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory;
 import net.runelite.client.plugins.microbot.util.magic.Rs2Magic;
 import net.runelite.client.plugins.microbot.util.magic.Runes;
+import net.runelite.client.plugins.microbot.util.tabs.Rs2Tab;
 
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+/** Enchants jewellery with the standard spellbook's Enchant spells; mobile port notes in {@code MOBILE_PORT.md}. */
 public class JewelleryEnchantScript extends Script {
+    /** Failed casts in a row before the script gives up and turns the plugin off. */
+    private static final int MAX_CAST_FAILURES = 5;
+
+    private int castFailures;
 
     public boolean run(JewelleryEnchantConfig config) {
+        castFailures = 0;
         mainScheduledFuture = scheduledExecutorService.scheduleWithFixedDelay(() -> {
             try {
                 if (!Microbot.isLoggedIn() || !super.run()) return;
@@ -23,8 +30,7 @@ public class JewelleryEnchantScript extends Script {
                 Jewellery jewellery = config.jewellery();
 
                 if (!jewellery.hasRequiredLevel()) {
-                    Microbot.showMessage("Magic level too low.");
-                    shutdown();
+                    stopPlugin("Magic level too low.");
                     return;
                 }
 
@@ -42,12 +48,20 @@ public class JewelleryEnchantScript extends Script {
                     return;
                 }
 
-                Rs2Magic.cast(jewellery);
-                sleep(200, 300);
-                Rs2Inventory.interact(jewellery.getName(), "Use");
+                // Mobile: click the jewellery only once the spell is selected, and on the inventory tab.
+                boolean cast = Rs2Magic.cast(jewellery)
+                        && Rs2Tab.switchToInventoryTab()
+                        && sleepUntil(() -> Rs2Inventory.interact(jewellery.getUnenchantedId(), "Use"), 2_000);
+                if (cast) {
+                    castFailures = 0;
+                } else if (++castFailures >= MAX_CAST_FAILURES) {
+                    stopPlugin("Jewellery Enchant stopped: " + jewellery.getName() + " could not be enchanted.");
+                }
 
             } catch (Exception ex) {
-                System.out.println(ex.getMessage());
+                Microbot.logStackTrace(this.getClass().getSimpleName(), ex);
+                // Mobile: stop rather than retry a failing step.
+                stopPlugin("Jewellery Enchant stopped after an error: " + ex);
             }
         }, 0, 2000, TimeUnit.MILLISECONDS);
         return true;
@@ -63,8 +77,16 @@ public class JewelleryEnchantScript extends Script {
         sleep(300, 500);
 
         handleStaffEquipping(jewellery);
-        ensureCorrectRunes(jewellery);
-        handleJewelleryWithdrawal(jewellery);
+        if (ensureCorrectRunes(jewellery)) {
+            handleJewelleryWithdrawal(jewellery);
+        }
+    }
+
+    /** Stops with {@code message}, turning the plugin off (not just this loop) so the Microbot Mobile screen shows it. */
+    private void stopPlugin(String message) {
+        Microbot.showMessage(message);
+        shutdown();
+        Microbot.stopPlugin(JewelleryEnchantPlugin.class);
     }
 
     private void handleStaffEquipping(Jewellery jewellery) {
@@ -121,15 +143,15 @@ public class JewelleryEnchantScript extends Script {
         return true;
     }
 
-    private void ensureCorrectRunes(Jewellery jewellery) {
+    /** Withdraws the runes one cast needs; false when the bank is out and the plugin was turned off. */
+    private boolean ensureCorrectRunes(Jewellery jewellery) {
         if (!Rs2Inventory.hasItem(Runes.COSMIC.getItemId())) {
             if (Rs2Bank.hasItem(Runes.COSMIC.getItemId())) {
                 Rs2Bank.withdrawAll(Runes.COSMIC.getItemId());
                 sleepUntil(() -> Rs2Inventory.hasItem(Runes.COSMIC.getItemId()));
             } else {
-                Microbot.showMessage("Out of Cosmic runes!");
-                shutdown();
-                return;
+                stopPlugin("Out of Cosmic runes!");
+                return false;
             }
         }
         for (Map.Entry<Runes, Integer> entry : jewellery.getRequiredRunes().entrySet()) {
@@ -142,18 +164,17 @@ public class JewelleryEnchantScript extends Script {
                     Rs2Bank.withdrawX(rune.getItemId(), amount);
                     sleep(200, 400);
                 } else {
-                    Microbot.showMessage("Out of " + rune.name() + " runes!");
-                    shutdown();
-                    return;
+                    stopPlugin("Out of " + rune.name() + " runes!");
+                    return false;
                 }
             }
         }
+        return true;
     }
 
     private void handleJewelleryWithdrawal(Jewellery jewellery) {
         if (!Rs2Bank.hasItem(jewellery.getUnenchantedId())) {
-            Microbot.showMessage("You have no " + jewellery.getName() + " left in your bank.");
-            shutdown();
+            stopPlugin("You have no " + jewellery.getName() + " left in your bank.");
             return;
         }
         Rs2Bank.withdrawAll(jewellery.getUnenchantedId());
