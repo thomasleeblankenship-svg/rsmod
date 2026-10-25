@@ -55,6 +55,8 @@ public class TanLeatherPlugin extends Plugin {
     protected void shutDown() {
         log.info("Shutting down TanLeatherPlugin");
         tanLeatherScript.shutdown();
-        overlayManager.remove(tanLeatherOverlay);
+        if (overlayManager != null) {
+            overlayManager.remove(tanLeatherOverlay);
+        }
     }
 }

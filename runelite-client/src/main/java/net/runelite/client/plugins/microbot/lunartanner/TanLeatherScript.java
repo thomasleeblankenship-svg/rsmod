@@ -7,10 +7,15 @@ import net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory;
 import net.runelite.client.plugins.microbot.util.magic.Rs2Magic;
 import net.runelite.client.plugins.skillcalculator.skills.MagicAction;
 import net.runelite.client.util.QuantityFormatter;
+import net.runelite.http.api.item.ItemPrice;
 
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+/** Casts Tan Leather on hides and banks the leather; mobile port notes in {@code MOBILE_PORT.md}. */
 public class TanLeatherScript extends Script {
+    /** Failed casts in a row before the script gives up (missing runes, wrong spellbook). */
+    private static final int MAX_CAST_FAILURES = 5;
 
     public static String combinedMessage = "";
     public static long hidesTanned = 0;
@@ -24,26 +29,29 @@ public class TanLeatherScript extends Script {
     }
 
     private State currentState = State.TANNING;
+    private int castFailures;
 
     public boolean run(TanLeatherConfig config) {
         startTime = System.currentTimeMillis();
-        long unprocessedItemPrice = Microbot.getItemManager().search(config.ITEM().getName()).get(0).getPrice();
-        long processedItemPrice = Microbot.getItemManager().search(config.ITEM().getFinished()).get(0).getPrice();
-        profitPerHide = processedItemPrice - unprocessedItemPrice;
+        castFailures = 0;
+        profitPerHide = price(config.ITEM().getFinished()) - price(config.ITEM().getName());
 
         mainScheduledFuture = scheduledExecutorService.scheduleWithFixedDelay(() -> {
             try {
                 if (!super.run() || !Microbot.isLoggedIn()) return;
                 if (Rs2Inventory.hasItem(config.ITEM().getName(), true)) {
                     int initialHideCount = Rs2Inventory.count(config.ITEM().getFinished());
-                    Rs2Magic.cast(MagicAction.TAN_LEATHER);
-
-                    // Wait for the inventory count to change indicating hides have been tanned
-                    while (Rs2Inventory.count(config.ITEM().getFinished()) == initialHideCount) {
-                        // Check the inventory count periodically without sleeping
-                        // You can adjust the delay time based on the frequency of checking
-                        // This loop will exit once the count changes
+                    // Mobile: wait (bounded) for the leather instead of spinning until it appears, which never
+                    // ended when the cast failed.
+                    boolean tanned = Rs2Magic.cast(MagicAction.TAN_LEATHER)
+                            && sleepUntil(() -> Rs2Inventory.count(config.ITEM().getFinished()) != initialHideCount, 3_000);
+                    if (!tanned) {
+                        if (++castFailures >= MAX_CAST_FAILURES) {
+                            stopPlugin("Tan Leather stopped: the spell could not be cast (runes, Lunar spellbook?).");
+                        }
+                        return;
                     }
+                    castFailures = 0;
 
                     int hidesTannedThisAction = Rs2Inventory.count(config.ITEM().getFinished()) - initialHideCount;
                     hidesTanned += hidesTannedThisAction;
@@ -51,16 +59,18 @@ public class TanLeatherScript extends Script {
                     bank(config);
                 }
             } catch (Exception ex) {
-                System.out.println(ex.getMessage());
+                Microbot.logStackTrace(this.getClass().getSimpleName(), ex);
+                // Mobile: stop rather than retry a failing step.
+                stopPlugin("Tan Leather stopped after an error: " + ex);
             }
-        }, 0, 50, TimeUnit.MILLISECONDS);
+        }, 0, 600, TimeUnit.MILLISECONDS);
         return true;
     }
 
     // Calculate the profit and display it
     private void calculateProfitAndDisplay(TanLeatherConfig config) {
         double elapsedHours = (System.currentTimeMillis() - startTime) / 3600000.0;
-        int hidesPerHour = (int) (hidesTanned / elapsedHours);
+        int hidesPerHour = elapsedHours > 0 ? (int) (hidesTanned / elapsedHours) : 0;
         long totalProfit = profitPerHide * hidesTanned;
         long profitPerHour = profitPerHide * hidesPerHour;
 
@@ -76,7 +86,11 @@ public class TanLeatherScript extends Script {
     private void bank(TanLeatherConfig config) {
         if (currentState != State.BANKING) {
             currentState = State.BANKING;
-            if (!Rs2Bank.openBank()) return;
+            if (!Rs2Bank.openBank()) {
+                // Mobile: retry on the next pass; upstream stayed in BANKING and never banked again.
+                currentState = State.TANNING;
+                return;
+            }
 
             Rs2Bank.depositAll(config.ITEM().getFinished());
             sleepUntilOnClientThread(() -> !Rs2Inventory.hasItem(config.ITEM().getFinished()));
@@ -85,8 +99,7 @@ public class TanLeatherScript extends Script {
                 Rs2Bank.withdrawAll(config.ITEM().getName());
                 sleepUntilOnClientThread(() -> Rs2Inventory.hasItem(config.ITEM().getName()));
             } else {
-                Microbot.showMessage("No more " + config.ITEM().getName() + " to tan.");
-                shutdown();
+                stopPlugin("No more " + config.ITEM().getName() + " to tan.");
                 return;
             }
 
@@ -94,6 +107,19 @@ public class TanLeatherScript extends Script {
             currentState = State.TANNING;
             calculateProfitAndDisplay(config);
         }
+    }
+
+    /** Grand Exchange price of the first item matching {@code name}, or 0 when none matches. */
+    private static long price(String name) {
+        List<ItemPrice> matches = Microbot.getItemManager().search(name);
+        return matches == null || matches.isEmpty() ? 0 : matches.get(0).getPrice();
+    }
+
+    /** Stops with {@code message}, turning the plugin off (not just this loop) so the Microbot Mobile screen shows it. */
+    private void stopPlugin(String message) {
+        Microbot.showMessage(message);
+        shutdown();
+        Microbot.stopPlugin(TanLeatherPlugin.class);
     }
 
     @Override
