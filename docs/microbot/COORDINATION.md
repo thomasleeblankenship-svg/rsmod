@@ -50,7 +50,6 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
-| Claude 1 (**user request**: handle about 12 tasks at a time) | `plugins/microbot/{tempoross,motherloadmine,herbrun,gotr,ourania,crafting,mahoganyhomez,shootingstar,amethystminer,zulrahslayer,housetab,roguesden}/` (mobile fixes + `MOBILE_PORT.md` each), `mobilemicrobot/ScriptKind.java` (screen entries) and `ScriptSettingsVisibilityTest` (count) | **Task: mobile port round 1** of 12 members Hub plugins already ported | this commit |
 | Claude 2 (**user request**, 2026-10-25: Draynor banking "stops behind the bank by Diango, never makes it inside") | `util/bank/Rs2Bank.java` (`walkToBank`, `walkToBankAndUseBank`, new `isNearBankOnFoot`), tests | **Fix:** "near the bank" is straight-line only (8 tiles), so outside the back wall the script tries `openBank` forever. Near now also needs a short walking route; otherwise it walks on to the bank tile (through the entrance). Falls back to straight-line when no route can be computed | this commit |
 | Claude 2 (**user request**, 2026-10-25: "handle more tasks so I respond less often") | `mobilemicrobot/{MobileScriptBridge,MobileMicrobotPlugin}.java`, `android/app/.../MicrobotScreen.kt`, tests | **Microbot screen shows the running script's own status** (`Microbot.status`, e.g. "Walking to bank") as a detail line, and a script that stops itself keeps its reason ("Hub plugin stopped: X - No essence in bank!") instead of a bare "stopped" | this commit |
 
