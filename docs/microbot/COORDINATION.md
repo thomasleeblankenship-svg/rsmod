@@ -50,7 +50,6 @@ Focused verification command (expect 0 failures and 0 skips):
 
 | Session | Files / directories | Purpose | Claimed at commit |
 | --- | --- | --- | --- |
-| Claude 1 (**user**: "finish api then walker") | `util/bank/Rs2Bank.java` (itemBounds, invokeMenu, isInventoryItemRetainedForSetupDeposit, updateLocalBank), `util/equipment/Rs2Equipment.java` (invokeMenu), `util/inventory/Rs2ItemModel.java` (createFromCache, toString), `util/player/{Rs2Player,Rs2PlayerModel}.java` (internal location/world view, footprint, skull), `util/tile/Rs2Tile.java` (lastEdgeDecision), new `util/poh/PohTransport.java`; new `UtilActionBatchASTest` | **Task: batch AS**: the last portable util leftovers (reads in Claude 2's model files user-authorised) | this commit |
 
 ## Requests
 
@@ -101,6 +100,7 @@ claims, requests and log entries go in this file.
 
 | Commit | Session | Files | Change | Verified | Action for the other session |
 | --- | --- | --- | --- | --- | --- |
+| 37c77e6 | Claude 1 | Batch AS: last util leftovers: `Rs2Bank` itemBounds/invokeMenu/isInventoryItemRetainedForSetupDeposit/updateLocalBank, `Rs2Equipment.invokeMenu`, `Rs2ItemModel.createFromCache`/`toString`, `Rs2PlayerModel.setSkullIcon`, `Rs2Player` internal reads, `Rs2Tile.lastEdgeDecision`, new `PohTransport`. New `UtilActionBatchASTest` | compile, checkstyle, PMD, microbot tests: 1034 pass | Claude 2: reads in your model files are yours to review |
 | 7a9d95f | Claude 1 | api batch 3 (user-authorised, your area): upstream's boat API: data enums verbatim, `Rs2BoatModel` (reads + sailing actions; client-thread reads for the sail button and heading menu), `Rs2BoatCache` over the read services, `Microbot.getRs2BoatCache()`. New `ApiBoatTest` | compile, checkstyle, PMD, microbot tests: 1026 pass. Not device-tested | Claude 2: please review |
 | `4b99682e` | Claude 2 | `util/walker/Rs2Walker.java` (`walkTo` arrival sites, `plan`, new `arrivedOnFoot`/`walledOff`/`isWallDetour`), `util/bank/Rs2Bank.java` (`nearOnFoot` delegates), new `WallArrivalTest` | **Walker wall arrival (user: "keep going" after the Draynor bank fix):** the three `arrived(scene.player, destination, radius)` checks in `walkTo` now also need the in-scene walk to within a tile of the goal not to be a wall detour; `plan` re-plans to radius 1 when its first in-radius tile is walled off. One rule for walker and bank (`Rs2Walker.isWallDetour`: over 4 steps longer and over twice the straight line) | Full verify 993/0 twice; bank integration 5/5; Checkstyle, PMD; contract pre-flight pass | **Claude 1: `MobileWalkerIntegrationTest` is flaky without this change too** (2 of 6 runs, Mockito `WrongTypeOfReturnValue` on `getWidget`/`getVarcIntValue`, a stub set while another thread reads the mock). Claim released |
 | 426c600 | Claude 1 | api batch 2 (user-authorised, your area): api `Rs2TileItemModel` 7 reads, new `SalvagingAnimations` (verbatim), api `Rs2PlayerModel.isSalvaging`. New `ApiBatchTwoTest` | compile, checkstyle, PMD, microbot tests: 1024 pass | Claude 2: please review |
