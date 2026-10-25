@@ -27,6 +27,19 @@ public enum ScriptKind
 	F2P_MUSEUM_CLEANER("F2P: Varrock Museum Cleaner", hub("varrockcleaner.VarrockCleanerPlugin", "varrockmuseum")),
 	F2P_FISHING("F2P: Auto Fishing", hub("autofishing.AutoFishingPlugin", "AutoFishing")),
 	F2P_BANK_SELLER("F2P: Bank Seller (GE)", hub("bankseller.BankSellerPlugin", "bankseller")),
+	// Members skilling Hub scripts (non-combat), ported for mobile like the free-to-play batch.
+	P2P_FLETCHING("Members: Fletcher", hub("fletching.FletchingPlugin", "Fletching")),
+	P2P_STALL_THIEVING("Members: Stall Thieving", hub("thievingstalls.StallThievingPlugin", "stallthieving")),
+	P2P_MOTHERLODE_MINE("Members: Motherlode Mine", hub("motherloadmine.MotherloadMinePlugin", "micro-motherloadmine")),
+	P2P_KARAMBWANS("Members: Karambwan Fisher", hub("karambwans.GabulhasKarambwansPlugin", "GabulhasKarambwans")),
+	P2P_GLASS_MAKE("Members: Glass Make", hub("glassmake.GabulhasGlassMakePlugin", "GabulhasGlassMake")),
+	P2P_CANNONBALLS("Members: Cannonball Smelter", hub("cannonballsmelter.CannonballSmelterPlugin", "CannonballSmelter")),
+	P2P_AMETHYST("Members: Amethyst Miner", hub("amethystminer.AmethystMiningPlugin", "AmethystMining")),
+	P2P_SANDSTONE("Members: Sandstone Miner", hub("sandminer.GabulhasSandMinerPlugin", "GabulhasSandMiner")),
+	P2P_PIE_BAKER("Members: Pie Baker", hub("piebaker.PieBakerPlugin", "piebaker")),
+	P2P_LUNAR_TANNER("Members: Lunar Tanner", hub("lunartanner.TanLeatherPlugin", "tanLeather")),
+	P2P_JEWELLERY_ENCHANT("Members: Jewellery Enchant", hub("jewelleryenchant.JewelleryEnchantPlugin", "jewelleryenchant")),
+	P2P_ARROW_MAKER("Members: Arrow Maker", hub("arrowmaker.ArrowPlugin", "ArrowMaking")),
 	TUTORIAL_ISLAND("Tutorial Island", hub("tutorialisland.TutorialIslandPlugin", "MicroTutIsland"));
 
 	private static final String HUB_PACKAGE = "net.runelite.client.plugins.microbot.";

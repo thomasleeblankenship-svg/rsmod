@@ -123,6 +123,6 @@ public class ScriptSettingsVisibilityTest
 			assertTrue(kind + " settings group " + kind.getConfigGroup() + " in " + groups, groups.contains(kind.getConfigGroup()));
 			assertTrue(kind + " starts at no Microbot section", kind.getSettingsSections().isEmpty());
 		}
-		assertEquals("the 12 F2P scripts and Tutorial Island", 13, hubs);
+		assertEquals("the 12 F2P scripts, 12 members scripts and Tutorial Island", 25, hubs);
 	}
 }

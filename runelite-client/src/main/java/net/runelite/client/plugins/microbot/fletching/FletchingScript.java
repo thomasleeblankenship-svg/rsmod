@@ -18,6 +18,7 @@ import net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory;
 import net.runelite.client.plugins.microbot.util.keyboard.Rs2Keyboard;
 import net.runelite.client.plugins.microbot.util.math.Rs2Random;
 import net.runelite.client.plugins.microbot.util.misc.Rs2UiHelper;
+import net.runelite.client.plugins.microbot.util.player.Rs2Player;
 import net.runelite.client.plugins.microbot.util.widget.Rs2Widget;
 
 import java.util.concurrent.TimeUnit;
@@ -30,6 +31,10 @@ class ProgressiveFletchingModel {
     private FletchingMaterial fletchingMaterial;
 }
 
+/**
+ * Fletcher: cuts logs into shafts, stocks and bows, or strings bows, banking between inventories, with
+ * progressive modes that pick the best item for the level. Adapted for Microbot Mobile; see MOBILE_PORT.md.
+ */
 public class FletchingScript extends Script {
 
     // The fletching interface widget group ID
@@ -102,7 +107,8 @@ public class FletchingScript extends Script {
                 }
 
             } catch (Exception ex) {
-                System.out.println(ex.getMessage());
+                // Mobile: stop rather than retry a failing step every tick.
+                stopPlugin("Fletcher stopped after an error: " + ex);
             }
         }, 0, 600, TimeUnit.MILLISECONDS);
     }
@@ -142,8 +148,7 @@ public class FletchingScript extends Script {
         if (!hasPrimaryInBank && !hasPrimaryInInventory) {
             Rs2Bank.closeBank();
             Microbot.status = "[Shutting down] - Reason: " + primaryItemToFletch + " not found in the bank.";
-            Microbot.showMessage(Microbot.status);
-            shutdown();
+            stopPlugin(Microbot.status);
             return;
         }
 
@@ -166,8 +171,7 @@ public class FletchingScript extends Script {
             }
             Rs2Bank.closeBank();
             Microbot.status = "[Shutting down] - Reason: " + secondaryItemToFletch + " not found in the bank.";
-            Microbot.showMessage(Microbot.status);
-            shutdown();
+            stopPlugin(Microbot.status);
             return;
         }
 
@@ -179,7 +183,8 @@ public class FletchingScript extends Script {
                 Rs2Bank.withdrawAll(secondaryItemToFletch);
             }
         }
-        if (Rs2AntibanSettings.naturalMouse) {
+        // Mobile: there is no natural mouse (Microbot.naturalMouse is null), so this desktop flourish is skipped.
+        if (Rs2AntibanSettings.naturalMouse && Microbot.naturalMouse != null) {
             // Testing if completing the mouse movement before the final item check improves the overall flow.
             // This should allow time for the inventory to update while the mouse is moving.
             // Enhances the bot's behavior to appear more natural and less automated.
@@ -203,8 +208,11 @@ public class FletchingScript extends Script {
 
     private void fletch(FletchingConfig config) {
         String itemToUse = usesKnife() ? getKnifeInInventory() : primaryItemToFletch;
-        Rs2Inventory.combineClosest(itemToUse, secondaryItemToFletch);
-        sleepUntil(() -> Rs2Widget.getWidget(FLETCHING_WIDGET_GROUP_ID) != null, 5000);
+        // Mobile: press the make key only once the menu is up; a refused combine is retried next loop.
+        if (!Rs2Inventory.combineClosest(itemToUse, secondaryItemToFletch)
+            || !sleepUntil(() -> Rs2Widget.getWidget(FLETCHING_WIDGET_GROUP_ID) != null, 5000)) {
+            return;
+        }
         char option;
         if (fletchingMode == FletchingMode.PROGRESSIVE || fletchingMode == FletchingMode.PROGRESSIVE_STRUNG) {
 
@@ -225,7 +233,7 @@ public class FletchingScript extends Script {
     private boolean configChecks(FletchingConfig config) {
         if (config.fletchingMaterial() == FletchingMaterial.REDWOOD && config.fletchingItem() != FletchingItem.SHIELD) {
             Microbot.getNotifier().notify("[Wrong Configuration] You can only make shields with redwood logs.");
-            shutdown();
+            stopPlugin("[Wrong Configuration] You can only make shields with redwood logs.");
             return false;
         }
         return true;
@@ -260,15 +268,15 @@ public class FletchingScript extends Script {
     }
 
     public void calculateItemToFletch() {
-        int level = Microbot.getClient().getRealSkillLevel(Skill.FLETCHING);
+        // Mobile: read on the client thread.
+        int level = Rs2Player.getRealSkillLevel(Skill.FLETCHING);
         FletchingItem item = null;
         FletchingMaterial material = null;
 
 
 
         if (fletchingMode == FletchingMode.PROGRESSIVE_STRUNG && level < 5) {
-            Microbot.showMessage("Can't String Bows Below Level 5");
-            shutdown();
+            stopPlugin("Can't String Bows Below Level 5");
             return;
         }
         if (level < 5) {
@@ -316,6 +324,13 @@ public class FletchingScript extends Script {
         model.setFletchingMaterial(material);
     }
 
+
+    /** Stops with {@code message}, turning the plugin off (not just this loop) so the Microbot Mobile screen shows it. */
+    private void stopPlugin(String message) {
+        Microbot.showMessage(message);
+        shutdown();
+        Microbot.stopPlugin(FletchingPlugin.class);
+    }
 
     @Override
     public void shutdown() {

@@ -55,7 +55,12 @@ public class FletchingPlugin extends Plugin {
     }
 
     protected void shutDown() {
-        fletchingScript.shutdown();
-        overlayManager.remove(fletchingOverlay);
+        if (fletchingScript != null) {
+            fletchingScript.shutdown();
+        }
+        // Mobile: startUp tolerates a missing overlay manager, so stopping must too.
+        if (overlayManager != null) {
+            overlayManager.remove(fletchingOverlay);
+        }
     }
 }

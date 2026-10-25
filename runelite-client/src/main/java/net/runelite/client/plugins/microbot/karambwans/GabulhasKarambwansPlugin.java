@@ -56,6 +56,9 @@ public class GabulhasKarambwansPlugin extends Plugin {
 
     protected void shutDown() {
         gabulhasKarambwansScript.shutdown();
-        overlayManager.remove(gabulhasKarambwansOverlay);
+        // Mobile: startUp tolerates a missing overlay manager, so stopping must too.
+        if (overlayManager != null) {
+            overlayManager.remove(gabulhasKarambwansOverlay);
+        }
     }
 }

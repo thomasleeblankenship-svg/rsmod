@@ -26,6 +26,10 @@ import java.util.concurrent.TimeUnit;
 import static net.runelite.client.plugins.microbot.karambwans.GabulhasKarambwansInfo.botStatus;
 import static net.runelite.client.plugins.microbot.karambwans.GabulhasKarambwansInfo.states;
 
+/**
+ * Karambwan fisher: fishes karambwans at the DKP fairy ring spot and banks in Zanaris (or Seers' with the
+ * Kandarin hard diary), returning by fairy ring. Adapted for Microbot Mobile; see MOBILE_PORT.md.
+ */
 @Slf4j
 public class GabulhasKarambwansScript extends Script {
     // Zanaris fairy ring object ID — Rs2GameObject.getAll() does NOT find it; use the tile object cache.
@@ -36,9 +40,14 @@ public class GabulhasKarambwansScript extends Script {
     private final WorldPoint fishingPoint = new WorldPoint(2899, 3118, 0);
     private final WorldPoint bankPoint = new WorldPoint(2381, 4455, 0);
     private GabulhasKarambwansConfig config;
+    // Mobile: enableAutoRunOn is global; the value before start is put back on stop.
+    private Boolean autoRunBefore;
 
     public boolean run(GabulhasKarambwansConfig config) {
         this.config = config;
+        if (autoRunBefore == null) {
+            autoRunBefore = Microbot.enableAutoRunOn;
+        }
         Microbot.enableAutoRunOn = false;
         Rs2Antiban.setActivity(Activity.CATCHING_RAW_KARAMBWAN);
         mainScheduledFuture = scheduledExecutorService.scheduleWithFixedDelay(() -> {
@@ -54,9 +63,11 @@ public class GabulhasKarambwansScript extends Script {
                         Rs2Player.waitForAnimation();
                         break;
                     case WALKING_TO_RING_TO_BANK:
-                        walkToRingToBank();
-                        Rs2Random.waitEx(400, 200);
-                        botStatus = states.WALKING_TO_BANK;
+                        // Mobile: move on only once the ring click was accepted (or no ring is needed).
+                        if (walkToRingToBank()) {
+                            Rs2Random.waitEx(400, 200);
+                            botStatus = states.WALKING_TO_BANK;
+                        }
                         break;
                     case WALKING_TO_BANK:
                         doBank();
@@ -76,6 +87,8 @@ public class GabulhasKarambwansScript extends Script {
                 }
             } catch (Exception ex) {
                 Microbot.logStackTrace(this.getClass().getSimpleName(), ex);
+                // Mobile: stop rather than retry a failing step every second.
+                stopPlugin("Karambwan fisher stopped after an error: " + ex);
             }
         }, 0, 1000, TimeUnit.MILLISECONDS);
         return true;
@@ -84,6 +97,17 @@ public class GabulhasKarambwansScript extends Script {
     @Override
     public void shutdown() {
         super.shutdown();
+        if (autoRunBefore != null) {
+            Microbot.enableAutoRunOn = autoRunBefore;
+            autoRunBefore = null;
+        }
+    }
+
+    /** Stops with {@code message}, turning the plugin off (not just this loop) so the Microbot Mobile screen shows it. */
+    private void stopPlugin(String message) {
+        Microbot.showMessage(message);
+        shutdown();
+        Microbot.stopPlugin(GabulhasKarambwansPlugin.class);
     }
 
     private void fishingLoop() {
@@ -94,24 +118,27 @@ public class GabulhasKarambwansScript extends Script {
                     Rs2Player.waitForAnimation();
                     sleep(2000, 4000);
                 } else {
-                    Microbot.showMessage("Raw karambwanji not detected. Shutting down");
-                    shutdown();
+                    stopPlugin("Raw karambwanji not detected. Shutting down");
                     return;
                 }
             }
+            // Mobile: pause between checks; upstream spun here while the player was fishing.
+            sleep(600);
         }
     }
 
-    private void walkToRingToBank() {
+    private boolean walkToRingToBank() {
         if (config.bankLocation() != KarambwanBankLocation.NONE) {
-            return;
+            return true;
         }
         WorldPoint ringLocation = new WorldPoint(2900, 3111, 0); // Karamja ring
-        var fairyRing = Microbot.getRs2TileObjectCache().query().nearest(ringLocation, 3);
-        if (fairyRing != null) {
-            fairyRing.click("Zanaris");
+        var fairyRing = net.runelite.client.plugins.microbot.mobile.MobileActions.read(
+            () -> Microbot.getRs2TileObjectCache().query().nearest(ringLocation, 3), null);
+        if (fairyRing != null && fairyRing.click("Zanaris")) {
             Rs2Player.waitForAnimation();
+            return true;
         }
+        return false;
     }
 
     private void doBank() {
@@ -123,9 +150,8 @@ public class GabulhasKarambwansScript extends Script {
             sleepUntil(() -> Rs2Bank.isNearBank(net.runelite.client.plugins.microbot.util.bank.enums.BankLocation.CAMELOT, 15), 5000);
         } else {
             Rs2Walker.walkTo(bankPoint, 3);
-            while (!Rs2Player.isInArea(bankPoint, 4) && super.isRunning()) {
-                Rs2Player.waitForWalking();
-            }
+            // Mobile: bounded wait; upstream looped forever when the walk did not get there.
+            sleepUntil(() -> Rs2Player.isInArea(bankPoint, 4) || !super.isRunning(), 20000);
         }
         if (!Rs2Bank.walkToBankAndUseBank()) {
             Rs2Bank.openBank();

@@ -14,7 +14,6 @@ import net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel;
 import net.runelite.client.plugins.microbot.util.player.Rs2Player;
 import net.runelite.client.plugins.microbot.util.walker.Rs2Walker;
 import net.runelite.client.plugins.microbot.Microbot;
-import net.runelite.client.plugins.microbot.util.security.Login;
 
 import javax.inject.Inject;
 
@@ -37,24 +36,19 @@ public class FortisGemStallThievingSpot implements IStallThievingSpot {
             }
         }
 
-        if (Rs2Player.hopIfPlayerDetected(1, 0, 2)) {
-            return;
-        }
-
-        final Rs2TileObjectModel stall = Microbot.getRs2TileObjectCache().query().withId(STALL_ID).within(SAFESPOT, 2).nearest();
+        // Mobile: no world hopping (upstream hopped when another player was near, or the stall was missing or
+        // empty). The script stays on its world and waits for the stall to restock instead.
+        final Rs2TileObjectModel stall = net.runelite.client.plugins.microbot.mobile.MobileActions.read(
+            () -> Microbot.getRs2TileObjectCache().query().withId(STALL_ID).within(SAFESPOT, 2).nearest(), null);
         if (stall == null) {
-            boolean started = Microbot.hopToWorld(Login.getRandomWorld(Rs2Player.isMember()));
-            if (started) {
-                Global.sleepUntil(Microbot::isLoggedIn, 15000);
-            }
+            Global.sleep(600);
             return;
         }
 
-        if (!Rs2GameObject.hasAction(stall.getObjectComposition(), "Steal-from")) {
-            boolean started = Microbot.hopToWorld(Login.getRandomWorld(Rs2Player.isMember()));
-            if (started) {
-                Global.sleepUntil(Microbot::isLoggedIn, 15000);
-            }
+        boolean stealable = net.runelite.client.plugins.microbot.mobile.MobileActions.read(
+            () -> Rs2GameObject.hasAction(stall.getObjectComposition(), "Steal-from"), false);
+        if (!stealable) {
+            Global.sleep(600);
             return;
         }
 

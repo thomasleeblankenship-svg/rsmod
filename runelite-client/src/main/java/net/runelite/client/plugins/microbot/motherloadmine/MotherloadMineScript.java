@@ -28,6 +28,7 @@ import net.runelite.api.gameval.ItemID;
 import net.runelite.api.gameval.ObjectID;
 import net.runelite.api.gameval.VarbitID;
 import net.runelite.client.plugins.microbot.Microbot;
+import net.runelite.client.plugins.microbot.mobile.MobileActions;
 import net.runelite.client.plugins.microbot.Script;
 import net.runelite.client.plugins.microbot.api.player.Rs2PlayerCache;
 import net.runelite.client.plugins.microbot.api.tileobject.Rs2TileObjectCache;
@@ -89,8 +90,10 @@ public class MotherloadMineScript extends Script
 
 	private final MotherloadMinePlugin plugin;
     private final MotherloadMineConfig config;
-    private final Rs2TileObjectCache rs2TileObjectCache;
-    private final Rs2PlayerCache rs2PlayerCache;
+    // Mobile: taken from Microbot when the script starts. The read caches have no injectable constructor, so
+    // injecting them (as upstream does) would stop the plugin from loading at all.
+    private Rs2TileObjectCache rs2TileObjectCache;
+    private Rs2PlayerCache rs2PlayerCache;
 
 
 	private boolean shouldEmptySack = false;
@@ -102,17 +105,22 @@ public class MotherloadMineScript extends Script
     private MLMStatus lastLoggedStatus = null;
 
 	@Inject
-	public MotherloadMineScript(MotherloadMinePlugin plugin, MotherloadMineConfig config, Rs2TileObjectCache rs2TileObjectCache, Rs2PlayerCache rs2PlayerCache)
+	public MotherloadMineScript(MotherloadMinePlugin plugin, MotherloadMineConfig config)
 	{
 		this.plugin = plugin;
 		this.config = config;
-        this.rs2TileObjectCache = rs2TileObjectCache;
-        this.rs2PlayerCache = rs2PlayerCache;
     }
 
     public boolean run()
     {
         log.info("Starting MotherloadMine script");
+        rs2TileObjectCache = Microbot.getRs2TileObjectCache();
+        rs2PlayerCache = Microbot.getRs2PlayerCache();
+        if (rs2TileObjectCache == null || rs2PlayerCache == null)
+        {
+            Microbot.showMessage("Motherlode Mine needs the Microbot Mobile runtime; start it from the Microbot screen.");
+            return false;
+        }
         initialize();
         mainScheduledFuture = scheduledExecutorService.scheduleWithFixedDelay(this::executeTaskSafely, 0, 600, TimeUnit.MILLISECONDS);
         return true;
@@ -418,8 +426,8 @@ public class MotherloadMineScript extends Script
 		if (rs2TileObjectCache.query().interact(ObjectID.MOTHERLODE_WHEEL_STRUT_BROKEN))
 		{
 			// We use a modified version of waitForXpDrop to ensure we break out of the sleep if the strut is repaired
-			final int skillExp = Microbot.getClientThread().invoke(() -> Microbot.getClient().getSkillExperience(Skill.SMITHING));
-			sleepUntilTrue(() -> skillExp != Microbot.getClientThread().invoke(() -> Microbot.getClient().getSkillExperience(Skill.SMITHING)) || getBrokenStrutCount() <= 1, 250, 20_000);
+			final int skillExp = MobileActions.read(() -> Microbot.getClient().getSkillExperience(Skill.SMITHING), -1);
+			sleepUntilTrue(() -> skillExp != MobileActions.read(() -> Microbot.getClient().getSkillExperience(Skill.SMITHING), skillExp) || getBrokenStrutCount() <= 1, 250, 20_000);
 
 			dropHammerIfNeeded();
 			shouldRepairWaterwheel = false;
@@ -666,7 +674,7 @@ public class MotherloadMineScript extends Script
 		return sleepUntil(() -> {
 			Rs2TileObjectModel _vein = rs2TileObjectCache.query().where(o -> Objects.equals(o.getWorldLocation(), veinLocation)).nearest();
 			if (_vein == null || !isValidVein(_vein)) return false;
-			WorldPoint playerLoc = Microbot.getClientThread().invoke(() -> Microbot.getClient().getLocalPlayer().getWorldLocation());
+			WorldPoint playerLoc = Rs2Player.getWorldLocation();
 			return AntibanPlugin.isMining() && playerLoc != null && _vein.getWorldLocation().distanceTo(playerLoc) <= 2;
 		}, 10_000);
 	}
@@ -735,9 +743,8 @@ public class MotherloadMineScript extends Script
     {
         Rs2Camera.resetPitch();
         Rs2Camera.resetZoom();
-		LocalPoint localTarget = Microbot.getClientThread().invoke(() ->
-			LocalPoint.fromWorld(Microbot.getClient().getTopLevelWorldView(), miningSpot.getWorldPoint().get(0))
-		);
+		LocalPoint localTarget = MobileActions.read(() ->
+			LocalPoint.fromWorld(Microbot.getClient().getTopLevelWorldView(), miningSpot.getWorldPoint().get(0)), null);
 		if (localTarget != null) {
         	Rs2Camera.turnTo(localTarget);
 		}
@@ -785,14 +792,14 @@ public class MotherloadMineScript extends Script
 
     private boolean isUpperFloor()
     {
-		Integer height = Microbot.getClientThread().invoke(() -> {
+		Integer height = MobileActions.read(() -> {
 			if (Microbot.getClient() == null || Microbot.getClient().getLocalPlayer() == null) return null;
 			return Perspective.getTileHeight(
 				Microbot.getClient(),
 				Microbot.getClient().getLocalPlayer().getLocalLocation(),
 				0
 			);
-		});
+		}, null);
 		return height != null && height < UPPER_FLOOR_HEIGHT;
     }
 
