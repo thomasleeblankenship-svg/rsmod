@@ -82,7 +82,8 @@ public class WalkerBatchW1Test
 			Map.of(B, Set.of(ladder)));
 		assertFalse(route.getSteps().get(0).isTransport());
 		assertEquals(Rs2TransportExecutor.OBJECT, route.getSteps().get(1).getTransport().orElseThrow().getExecutor());
-		assertEquals(Rs2TransportExecutor.UNSUPPORTED, Rs2PathApi.executor(TransportType.WILDERNESS_OBELISK));
+		assertEquals(Rs2TransportExecutor.WILDERNESS_OBELISK, Rs2PathApi.executor(TransportType.WILDERNESS_OBELISK));
+		assertEquals(Rs2TransportExecutor.UNSUPPORTED, Rs2PathApi.executor(TransportType.GRAPPLE_SHORTCUT));
 		assertEquals(Rs2RouteTermination.CUTOFF_REACHED, Rs2PathApi.termination(PathResult.Status.TIMED_OUT));
 		assertEquals(Rs2RouteTermination.SEARCH_EXHAUSTED, Rs2PathApi.termination(PathResult.Status.PARTIAL));
 	}

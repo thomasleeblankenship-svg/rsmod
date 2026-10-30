@@ -69,7 +69,24 @@ public class PathfinderLegTest
 	public void routesNeedingATransportTheWalkerCannotExecuteFallBack()
 	{
 		assertNull(legFor(result(PathResult.Status.FOUND, TILES,
-			Map.of(1, transport(B, GOAL, TransportType.WILDERNESS_OBELISK, "Activate", "Obelisk", 14829)))));
+			Map.of(1, transport(B, GOAL, TransportType.GRAPPLE_SHORTCUT, "Grapple", "Rocks", 17042)))));
+	}
+
+	@Test
+	public void anObeliskBecomesAnObeliskStepThatAcceptsAnyLanding()
+	{
+		WorldPoint square = new WorldPoint(3156, 3620, 0);
+		WorldPoint landing = new WorldPoint(3307, 3916, 0);
+		Rs2Walker.WalkLeg leg = legFor(result(PathResult.Status.FOUND, List.of(A, square, landing, GOAL),
+			Map.of(1, transport(square, landing, TransportType.WILDERNESS_OBELISK, "Activate", "Obelisk", 14829))));
+		assertNotNull(leg);
+		assertTrue(leg.stairs.obelisk);
+		assertEquals(square, leg.destination);
+		assertEquals("Activate", leg.stairs.action);
+		assertEquals(14829, leg.stairs.objectId);
+		assertFalse("still in the square", leg.stairs.observedArrival(square.dx(1)));
+		assertTrue("the catalogued landing", leg.stairs.observedArrival(landing));
+		assertTrue("another obelisk (the landing is random)", leg.stairs.observedArrival(new WorldPoint(3035, 3732, 0)));
 	}
 
 	@Test

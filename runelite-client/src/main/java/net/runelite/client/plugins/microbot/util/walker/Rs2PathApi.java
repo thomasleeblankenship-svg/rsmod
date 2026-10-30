@@ -274,7 +274,7 @@ public final class Rs2PathApi
 		}
 	}
 
-	/** The mobile walker's executor for {@code type}: UNSUPPORTED for what {@link Rs2Walker} does not run (Wilderness obelisks among them). */
+	/** The mobile walker's executor for {@code type}: UNSUPPORTED for what {@link Rs2Walker} does not run. */
 	static Rs2TransportExecutor executor(TransportType type)
 	{
 		if (type == null || !Rs2Walker.EXECUTABLE_TRANSPORTS.contains(type))
@@ -296,6 +296,7 @@ public final class Rs2PathApi
 			case QUETZAL: return Rs2TransportExecutor.QUETZAL;
 			case TELEPORTATION_SPELL: return Rs2TransportExecutor.SPELL_TELEPORT;
 			case SPIRIT_TREE: return Rs2TransportExecutor.SPIRIT_TREE;
+			case WILDERNESS_OBELISK: return Rs2TransportExecutor.WILDERNESS_OBELISK;
 			default: return Rs2TransportExecutor.OBJECT;
 		}
 	}

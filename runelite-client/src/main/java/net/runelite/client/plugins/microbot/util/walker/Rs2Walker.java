@@ -359,6 +359,7 @@ public final class Rs2Walker
 						: leg.stairs.canoe ? useCanoe(leg.stairs, generation, deadline)
 						: leg.stairs.fairyRing ? useFairyRing(leg.stairs, generation, deadline)
 						: leg.stairs.minigame ? useMinigameTeleport(leg.stairs, generation, deadline)
+						: leg.stairs.obelisk ? useObelisk(leg.stairs, generation, deadline)
 						: leg.stairs.spell ? useTeleportSpell(leg.stairs, generation, deadline)
 						: leg.stairs.item ? useTeleportItem(leg.stairs, generation, deadline)
 						: leg.stairs.travel ? useTravel(leg.stairs, generation, deadline)
@@ -1115,7 +1116,7 @@ public final class Rs2Walker
 		TransportType.TELEPORTATION_SPELL, TransportType.SPIRIT_TREE, TransportType.FAIRY_RING, TransportType.MINECART,
 		TransportType.MAGIC_CARPET, TransportType.TELEPORTATION_LEVER, TransportType.TELEPORTATION_PORTAL,
 		TransportType.GNOME_GLIDER, TransportType.HOT_AIR_BALLOON, TransportType.QUETZAL, TransportType.MAGIC_MUSHTREE,
-		TransportType.CANOE, TransportType.POH, TransportType.TELEPORTATION_MINIGAME);
+		TransportType.CANOE, TransportType.POH, TransportType.TELEPORTATION_MINIGAME, TransportType.WILDERNESS_OBELISK);
 
 	/**
 	 * Destination lists as {group, child}: the spirit tree menu (upstream {@code ADVENTURE_LOG_CONTAINER},
@@ -1143,6 +1144,10 @@ public final class Rs2Walker
 
 	/** A home teleport channels for about ten seconds before the landing. */
 	private static final long SPELL_TELEPORT_MILLIS = 30_000;
+	/** Activating an obelisk, stepping into its square and the teleport itself (a few seconds in game). */
+	private static final long OBELISK_MILLIS = 25_000;
+	/** Re-activate when the obelisk has not changed this long after a click (the click did not land). */
+	private static final long OBELISK_RETRY_MILLIS = 6_000;
 
 	/** Teleports land in an area rather than on one tile. */
 	private static final int TELEPORT_ARRIVAL_TILES = 8;
@@ -1211,7 +1216,8 @@ public final class Rs2Walker
 			{
 				continue;
 			}
-			if (entersWilderness(transport.getDestination(), destination))
+			// An obelisk already stands in the Wilderness, so its landing does not take the player into it.
+			if (transport.getType() != TransportType.WILDERNESS_OBELISK && entersWilderness(transport.getDestination(), destination))
 			{
 				LOG.info("Mobile walk: route takes {} into the Wilderness; using the same-plane planner", transport);
 				return null;
@@ -1300,6 +1306,12 @@ public final class Rs2Walker
 				ObjectTransports.Step step = new ObjectTransports.Step(transport.getOrigin(), transport.getDestination(), -1, "",
 					"Fairy ring", FAIRY_RING_ARRIVAL_TILES, false, code, false, Set.of(), false, true);
 				return new WalkLeg(transport.getOrigin(), 1, intoHouse ? step.toHouse() : step, new ArrayList<>(tiles.subList(0, i + 1)), true);
+			}
+			if (transport.getType() == TransportType.WILDERNESS_OBELISK)
+			{
+				ObjectTransports.Step step = ObjectTransports.Step.obelisk(transport.getOrigin(), transport.getDestination(),
+					transport.getObjectId(), transport.getAction(), transport.getName());
+				return new WalkLeg(transport.getOrigin(), 1, step, new ArrayList<>(tiles.subList(0, i + 1)), true);
 			}
 			boolean travel = TRAVEL_TRANSPORTS.contains(transport.getType());
 			int arrival = travel ? TRAVEL_ARRIVAL_TILES : TELEPORT_OBJECTS.contains(transport.getType()) ? TELEPORT_ARRIVAL_TILES : 1;
@@ -1611,6 +1623,79 @@ public final class Rs2Walker
 	}
 
 	/** Teleports with the grouping tab ({@link MinigameTeleports}), then waits to observe the landing. */
+	/**
+	 * A Wilderness obelisk, as upstream's {@code handleWildernessObelisk}: "Activate" it, then stand on
+	 * the square's tile ({@code step.origin}) until it teleports the player. Clicking the obelisk walks
+	 * the player beside it, which can be outside the square. The obelisk changes ID while active, so the
+	 * catalogued ID disappearing is the observed activation. The landing is random (any other obelisk);
+	 * the walk replans from wherever it lands.
+	 */
+	private static boolean useObelisk(ObjectTransports.Step step, long generation, long walkDeadline) throws InterruptedException
+	{
+		long deadline = Math.min(walkDeadline, System.currentTimeMillis() + OBELISK_MILLIS);
+		lastStatus = "Activating obelisk at " + step.origin;
+		long clickedAt = 0;
+		long lastStep = 0;
+		boolean activated = false;
+		int missingLookups = 0;
+		while (System.currentTimeMillis() < deadline && GENERATION.get() == generation
+			&& MobileActions.active() && !Thread.currentThread().isInterrupted())
+		{
+			MobileRoutePlanner.Scene scene = awaitSnapshot(generation, deadline);
+			if (scene == null)
+			{
+				lastStatus = "no collision snapshot, loading timed out or game state changed";
+				return false;
+			}
+			if (step.observedArrival(scene.player))
+			{
+				return true;
+			}
+			long now = System.currentTimeMillis();
+			Rs2TileObjectModel obelisk = idleObelisk(step);
+			if (clickedAt > 0 && obelisk == null)
+			{
+				activated = true;
+			}
+			if (!activated && (clickedAt == 0 || now - clickedAt >= OBELISK_RETRY_MILLIS))
+			{
+				if (obelisk == null)
+				{
+					if (++missingLookups >= 3)
+					{
+						lastStatus = STAIRS_UNAVAILABLE;
+						return false;
+					}
+				}
+				else if (MobileActions.objectAt(obelisk.getId(), obelisk.getWorldLocation(), step.action))
+				{
+					clickedAt = now;
+				}
+			}
+			else if (activated && !scene.player.equals(step.origin) && now - lastStep >= 1200)
+			{
+				lastStep = now;
+				lastStatus = "Stepping into the obelisk square at " + step.origin;
+				MobileActions.walk(step.origin);
+			}
+			long remaining = deadline - System.currentTimeMillis();
+			if (remaining > 0) { Thread.sleep(Math.min(300, remaining)); }
+		}
+		lastStatus = !MobileActions.active() || GENERATION.get() != generation
+			? "obelisk cancelled" : activated ? "obelisk teleport was not observed" : STAIRS_UNAVAILABLE;
+		return false;
+	}
+
+	/** The catalogued (not yet active) obelisk at a corner of {@code step}'s square, or null. */
+	private static Rs2TileObjectModel idleObelisk(ObjectTransports.Step step)
+	{
+		return MobileActions.read(() ->
+			MicrobotReadServices.require().getRs2TileObjectCache().query()
+				.where(object -> object.getId() == step.objectId
+					&& object.getWorldLocation().getPlane() == step.origin.getPlane()
+					&& object.getWorldLocation().distanceTo(step.origin) <= 3).nearest(), null);
+	}
+
 	private static boolean useMinigameTeleport(ObjectTransports.Step step, long generation, long walkDeadline) throws InterruptedException
 	{
 		long deadline = Math.min(walkDeadline, System.currentTimeMillis() + SPELL_TELEPORT_MILLIS);

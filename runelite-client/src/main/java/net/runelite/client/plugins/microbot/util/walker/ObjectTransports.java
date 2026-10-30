@@ -27,6 +27,8 @@ final class ObjectTransports
 {
 	/** Transports whose origin is farther than this from the player are not considered for a leg. */
 	static final int MAX_APPROACH_TILES = 64;
+	/** Obelisks are far apart; a player this far from the activated one has been teleported. */
+	static final int OBELISK_TELEPORTED_TILES = 20;
 	private static final int MAX_CANDIDATES = 8;
 
 	static final class Step
@@ -61,6 +63,11 @@ final class ObjectTransports
 		final net.runelite.client.plugins.microbot.shortestpath.PohDevice house;
 		/** A grouping-tab minigame teleport: {@link #destinationText} is the minigame's display name. */
 		final boolean minigame;
+		/**
+		 * A Wilderness obelisk: "Activate" on the obelisk, then stand inside its square. The landing is
+		 * one of the other obelisks at random, so arrival is any teleport away from {@link #origin}.
+		 */
+		final boolean obelisk;
 
 		Step(WorldPoint origin, WorldPoint arrival, int objectId, String action, String target)
 		{
@@ -121,6 +128,15 @@ final class ObjectTransports
 			boolean travel, String destinationText, boolean item, Set<Integer> itemIds, boolean spell, boolean fairyRing, boolean canoe,
 			boolean intoHouse, net.runelite.client.plugins.microbot.shortestpath.PohDevice house, boolean minigame)
 		{
+			this(origin, arrival, objectId, action, target, arrivalRadius, travel, destinationText, item, itemIds, spell, fairyRing,
+				canoe, intoHouse, house, minigame, false);
+		}
+
+		Step(WorldPoint origin, WorldPoint arrival, int objectId, String action, String target, int arrivalRadius,
+			boolean travel, String destinationText, boolean item, Set<Integer> itemIds, boolean spell, boolean fairyRing, boolean canoe,
+			boolean intoHouse, net.runelite.client.plugins.microbot.shortestpath.PohDevice house, boolean minigame, boolean obelisk)
+		{
+			this.obelisk = obelisk;
 			this.minigame = minigame;
 			this.intoHouse = intoHouse;
 			this.house = house;
@@ -159,6 +175,12 @@ final class ObjectTransports
 			{
 				return net.runelite.client.plugins.microbot.util.poh.PohPresence.isInHouse();
 			}
+			if (obelisk)
+			{
+				// Any obelisk landing counts: the walk replans from wherever it put the player.
+				return player != null && (player.getPlane() != origin.getPlane()
+					|| player.distanceTo(origin) > OBELISK_TELEPORTED_TILES);
+			}
 			return player != null && player.getPlane() == arrival.getPlane() && player.distanceTo(arrival) <= arrivalRadius;
 		}
 
@@ -166,7 +188,14 @@ final class ObjectTransports
 		Step toHouse()
 		{
 			return new Step(origin, arrival, objectId, action, target, arrivalRadius, travel, destinationText, item, itemIds, spell,
-				fairyRing, canoe, true, house, minigame);
+				fairyRing, canoe, true, house, minigame, obelisk);
+		}
+
+		/** A Wilderness obelisk at {@code origin} (a tile inside its square), catalogued to land at {@code arrival}. */
+		static Step obelisk(WorldPoint origin, WorldPoint arrival, int objectId, String action, String target)
+		{
+			return new Step(origin, arrival, objectId, action, target, 1, false, "", false, Set.of(), false,
+				false, false, false, null, false, true);
 		}
 
 		/** A minigame teleport from {@code origin} (where the route reaches it) to {@code arrival}. */
