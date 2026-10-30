@@ -1,19 +1,20 @@
 /*
  * GPU Zone B0.2/B0.3 — RLHD (117HD) Zone JNI delta forwarders. The iOS-bridge half of the gpu-zone/facade
- * delta (facade-delta.md): the GL/MemoryUtil calls RLHD makes BEYOND the base gpu plugin's 100-call surface.
+ * delta (facade-delta.txt): the GL/MemoryUtil calls RLHD makes BEYOND the base gpu plugin's 100-call surface.
  *
  * Registered ON TOP of the base RouteC_registerGLNatives (../gpu-routec/jni/routec_gl_jni.m) by
- * RouteC_registerZoneNatives(JNIEnv*) when booting in zone mode — the proven base bridge is untouched. All GL
+ * RouteC_registerZoneNatives(JNIEnv*) on every boot except the L1 kill-test; the base bridge is untouched. All GL
  * facade classes (GL33C/GL40/GL41C/GL43/GL43C/GL44/ARB*) are `extends GLALL {}` shims, so every GL native is
  * declared on org/lwjgl/opengl/GLALL and registered there; the off-heap ops are on org/lwjgl/system/MemoryUtil.
  *
  * HAND-WRITTEN (not gen/routec_jni_gen.py) because the delta has bespoke shapes the base generator doesn't cover:
  * 3D-texture NIO uploads, ES3 sync handles, off-heap malloc, the glTexBuffer->2D RGB32I repack (blocker #1), the
  * glDrawBuffer->plural shim (#11), and the bucket-B no-op stubs. The bucket-B calls (compute / indirect draw /
- * timer queries / KHR_debug) are caps-gated OFF on the iOS zone path (see B0-conformance-notes.md) so they never
+ * timer queries / KHR_debug) are caps-gated OFF on the iOS zone path so they never
  * fire — they exist only so the RegisterNatives table is complete and a stray call can't UnsatisfiedLinkError.
- * Several non-1:1 marshallings carry TODO(device): LWJGL sizes NIO buffers by remaining(); the device-correct
- * refinement is to size in the Java facade. DEVICE-ONLY runtime; this file is compile-checked for iOS arm64.
+ * NIO buffer arguments follow LWJGL's contract (data at position(), length remaining()); glGetProgramBinary still
+ * sizes its sink by capacity. Runs on the device and in the iOS Simulator; ../zone-bridge-compile-check.sh
+ * compile-checks it for iOS arm64.
  */
 #import <Foundation/Foundation.h>
 #import "RouteCBridge.h"
@@ -306,12 +307,39 @@ static void JNICALL z_glBindTexture(JNIEnv *e, jclass c, jint target, jint tex) 
     glBindTexture((GLenum)target == GL_TEXTURE_BUFFER ? GL_TEXTURE_2D : (GLenum)target, (GLuint)tex);
 }
 
+// ============================================================================================================
+//  RLHD v1.6.0.1 additions
+// ============================================================================================================
+
+// The shadow pass's depth bias (RenderState.polygonOffset) and the star field's instanced-quad fallback.
+static void JNICALL z_glPolygonOffset(JNIEnv *e, jclass c, jfloat factor, jfloat units) {
+    glPolygonOffset(factor, units);
+}
+static void JNICALL z_glDrawArraysInstanced(JNIEnv *e, jclass c, jint mode, jint first, jint count, jint instances) {
+    glDrawArraysInstanced((GLenum)mode, first, count, instances);
+}
+
+// OVERRIDE the base glEnable/glDisable (later-wins, like glBindTexture below). SkyRenderer toggles the desktop-only
+// GL_PROGRAM_POINT_SIZE around its point-sprite stars; GLES always takes gl_PointSize from the vertex shader and
+// rejects the enum with GL_INVALID_ENUM, so drop it. Every other cap passes straight through.
+#ifndef GL_PROGRAM_POINT_SIZE
+#define GL_PROGRAM_POINT_SIZE 0x8642
+#endif
+static void JNICALL z_glEnable(JNIEnv *e, jclass c, jint cap) {
+    if (cap != GL_PROGRAM_POINT_SIZE)
+        glEnable((GLenum)cap);
+}
+static void JNICALL z_glDisable(JNIEnv *e, jclass c, jint cap) {
+    if (cap != GL_PROGRAM_POINT_SIZE)
+        glDisable((GLenum)cap);
+}
+
 // #1 — glTexBuffer(GL_TEXTURE_BUFFER, internalformat, buffer) has no ES3 equivalent. Repack the buffer object's
 // bytes as a 2D texture (proven byte-exact in gpu-tbo2d) so the shader's `isampler2D textureFaces` +
 // texelFetch(ivec2(idx%W, idx/W)) (already emitted by the Z0 downport) reads identical data. RGB32I = 12 B/texel.
 // W = min(GL_MAX_TEXTURE_SIZE, N); the shader recovers W from textureSize(...).x, so any W is self-consistent.
-// TODO(device): the COMPANION glBindTexture(GL_TEXTURE_BUFFER,...) must be remapped to GL_TEXTURE_2D in the base
-// bridge so the upload + sampler land on the same 2D texture object (the only piece that touches the base path).
+// The COMPANION glBindTexture(GL_TEXTURE_BUFFER,...) -> GL_TEXTURE_2D remap is z_glBindTexture above (it overrides
+// the base entry), so the upload + sampler land on the same 2D texture object.
 static void JNICALL z_glTexBuffer(JNIEnv *e, jclass c, jint target, jint internalformat, jint buffer) {
     GLint bytes = 0;
     glBindBuffer(GL_COPY_READ_BUFFER, (GLuint)buffer);
@@ -389,6 +417,7 @@ static jlong JNICALL z_memAddress0(JNIEnv *e, jclass c, jobject buf) {
 //  RegisterNatives tables + entry point
 // ============================================================================================================
 
+// clang-format off
 static const JNINativeMethod kGLALLZone[] = {
     // bucket A
     {"glCullFace",                         "(I)V",                                    (void *)z_glCullFace},
@@ -431,6 +460,11 @@ static const JNINativeMethod kGLALLZone[] = {
     {"glTexBuffer",                        "(III)V",                                  (void *)z_glTexBuffer},
     // #1 companion — OVERRIDE base glBindTexture to remap GL_TEXTURE_BUFFER -> GL_TEXTURE_2D (later-wins).
     {"glBindTexture",                      "(II)V",                                   (void *)z_glBindTexture},
+    // RLHD v1.6.0.1 - glEnable/glDisable OVERRIDE the base pair to drop GL_PROGRAM_POINT_SIZE (later-wins).
+    {"glPolygonOffset",                    "(FF)V",                                   (void *)z_glPolygonOffset},
+    {"glDrawArraysInstanced",              "(IIII)V",                                 (void *)z_glDrawArraysInstanced},
+    {"glEnable",                           "(I)V",                                    (void *)z_glEnable},
+    {"glDisable",                          "(I)V",                                    (void *)z_glDisable},
     // bucket B — no-op stubs (caps-gated off)
     {"glDispatchCompute",                  "(III)V",                                  (void *)z_noop_III},
     {"glMemoryBarrier",                    "(I)V",                                    (void *)z_noop_I},
@@ -447,6 +481,7 @@ static const JNINativeMethod kGLALLZone[] = {
     {"glGetQueryObjectiv",                 "(II[I)V",                                 (void *)z_glGetQueryObjectiv},
     {"glGetQueryObjectui64",               "(II)J",                                   (void *)z_glGetQueryObjectui64},
 };
+// clang-format on
 
 static const JNINativeMethod kMemUtilZone[] = {
     {"nmemAllocChecked", "(J)J",                  (void *)z_nmemAllocChecked},

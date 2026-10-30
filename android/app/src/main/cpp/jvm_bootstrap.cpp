@@ -63,6 +63,8 @@ static jmethodID g_midWheel = nullptr, g_midClickPrecise = nullptr, g_midMove = 
 static jmethodID g_midText = nullptr, g_midKeyStroke = nullptr;
 // A1 polled read-surface: keyboard auto-raise, interact-tap haptic seq, finger snap radius.
 static jmethodID g_midTextInputOpen = nullptr, g_midInteractTapSeq = nullptr;
+// Keyboard kind for the open field (optional; an older jar omits it -> an open field means text).
+static jmethodID g_midTextInputKind = nullptr;
 // Tap-KIND truth (optional jar surface; older jars omit it -> the shell keeps the legacy ring).
 static jmethodID g_midTapKindSeq = nullptr, g_midLastTapKind = nullptr;
 // A2 press-and-peek: JavaBridge.selectMenuPoint commit + the separate MenuPeekBridge read-surface.
@@ -86,6 +88,10 @@ static jmethodID g_midInvokeMenuEntry = nullptr;
 // P2-1 dev panel: JavaBridge.heapStats()->String and devSimulateReconnect(int) — both optional (older jars lack
 // them; the native calls degrade to a no-op / empty string).
 static jmethodID g_midHeapStats = nullptr, g_midSimReconnect = nullptr;
+// FOLD-3 live canvas resize (JavaBridge.requestResize); optional, an older jar just keeps its boot size.
+static jmethodID g_midRequestResize = nullptr;
+// FOLD-4 per-screen zoom (JavaBridge.cameraZoom / setCameraZoom); optional, an older jar keeps one zoom.
+static jmethodID g_midCameraZoom = nullptr, g_midSetCameraZoom = nullptr;
 static jclass    g_menuPeekCls = nullptr;
 static jmethodID g_midMenuSnapshot = nullptr, g_midMenuPublishSeq = nullptr;
 
@@ -98,6 +104,8 @@ static jmethodID g_midGetPluginConfig = nullptr, g_midSetConfig = nullptr, g_mid
 // User-defined hotkey buttons: boundKeybindsJson() lists every bound plugin keybind; fireHotkey(group,key) fires
 // one by reading its live binding. Optional (older jars lack them) — the native Hotkeys screen no-ops without.
 static jmethodID g_midBoundKeybinds = nullptr, g_midFireHotkey = nullptr;
+// Native Game settings: frame-rate cap + idle logout, riding on the FPS Control / Logout Timer plugins (optional).
+static jmethodID g_midGameSettings = nullptr, g_midSetFpsCap = nullptr, g_midSetIdleLogout = nullptr;
 static jmethodID g_midFlushConfig = nullptr;   // A8: persist pending config writes when the app backgrounds
 static jmethodID g_midResetPluginConfig = nullptr;     // SC-2/CFG-10: whole-group reset to defaults
 static jmethodID g_midResetConfig = nullptr;           // P2-4: single-key reset to default
@@ -194,8 +202,12 @@ static jmethodID g_midSetStonesHidden = nullptr, g_midOpenTab = nullptr, g_midRe
 static jmethodID g_midRelocateChat = nullptr, g_midRelocateMinimap = nullptr;
 // Phase-3 overlay safe-insets (optional — absent on pre-world-map jars; facadeVoid* null-checks the id).
 static jmethodID g_midSetOverlayInsets = nullptr;
+static jmethodID g_midSetOverlayKeepOut = nullptr; // the shell's controls, kept clear of plugin overlays (optional)
+static jmethodID g_midSetHudStrip = nullptr;
 // Phase-4 chat pill (optional, same rule): collapse toggle + channel switch by op-script replay.
 static jmethodID g_midSetChatCollapsed = nullptr, g_midSwitchChatTab = nullptr;
+// The speech bubbles by the chat (optional): put the whole chat away, filter stones included.
+static jmethodID g_midSetChatPutAway = nullptr;
 // Phase-5 world map (optional): pan by finger deltas + the open-state/control-rect snapshot.
 static jmethodID g_midPanWorldMap = nullptr, g_midMapSnapshot = nullptr;
 // Phase 3 (Task B): content-diff publish seqs for the chat/orb/dialogue/map snapshots — gate the per-frame
@@ -277,7 +289,8 @@ static volatile bool   g_renderRun = false;
 // model. Two separate atomics suffice — the login canvas dims are fixed, so a torn {w,h} pair (which
 // would only matter mid-resize) can't arise in this scope.
 static std::atomic<int> g_lastFrameW{0};
-static std::atomic<int> g_lastFrameH{0};
+static std::atomic<int> g_lastFrameH{0};  // the rows shown (see g_shownRows)
+static std::atomic<int> g_lastCanvasH{0}; // the engine canvas's full height, any hidden strip included
 // Phase 3 (auto-GPU watchdog): resolved from librlawt via dlsym when direct present is armed; returns the count of
 // frames presented by the GPU/117HD renderer (0 if not armed / renderer never activated). Polled by Kotlin.
 static uint64_t (*g_routecFramesPresented)() = nullptr;
@@ -291,13 +304,26 @@ static bool g_cpuPresentProbe = false;
 // Present seam (cont.): in direct-present mode the CPU present thread no longer runs (it's where g_lastFrameW/H
 // were set), so librlawt publishes the live canvas dims here each frame — touch->game coordinate mapping
 // (JvmLauncher.frameWidth/Height) depends on them, else clicks map off-canvas.
+// Large portrait UI: the canvas runs taller than the screen shows (HudStrip keeps a strip below the game view for the
+// full-size chat and minimap, which the bridge copies back at the 765 size). Both present paths show only the top
+// rows and publish that height as the frame's, so touch maps over the shown canvas. 0 = show every row.
+static std::atomic<int> g_shownRows{0};
+static int shownRows(int h) {
+    const int rows = g_shownRows.load(std::memory_order_relaxed);
+    return rows > 0 && rows < h ? rows : h;
+}
 static void rcPresentSetFrameDims(int w, int h) {
-    if (w > 0 && h > 0) { g_lastFrameW.store(w, std::memory_order_relaxed); g_lastFrameH.store(h, std::memory_order_relaxed); }
+    if (w > 0 && h > 0) {
+        g_lastFrameW.store(w, std::memory_order_relaxed);
+        g_lastCanvasH.store(h, std::memory_order_relaxed);
+        g_lastFrameH.store(shownRows(h), std::memory_order_relaxed);
+    }
 }
 
 // A1 read-surface published by the render thread (the only HotSpot-attached caller) for the UI thread to read
 // without ever attaching to HotSpot — same pattern as the frame dims above.
 static std::atomic<int> g_textInputOpen{0};   // isTextInputOpen() -> raise/dismiss the soft keyboard
+static std::atomic<int> g_textInputKind{0};   // getTextInputKind() -> 0 none, 1 text, 2 number pad
 static std::atomic<int> g_interactTapSeq{0};  // getInteractTapSeq() -> fire a haptic when it advances
 // Tap-KIND truth (optional jar surface): the resolved left tap's kind, so the UI thread rings only for a real
 // scene tap. Published by the render thread each tick.
@@ -697,6 +723,7 @@ static bool publishBridge(JNIEnv *env) {
     g_midTextInputOpen  = midOpt(env, global, "isTextInputOpen", "()Z");
     g_midInteractTapSeq = midOpt(env, global, "getInteractTapSeq", "()I");
     g_midTapKindSeq     = midOpt(env, global, "getTapKindSeq", "()I");          // optional (older jar omits)
+    g_midTextInputKind = midOpt(env, global, "getTextInputKind", "()I");        // optional (older jar omits)
     g_midLastTapKind = midOpt(env, global, "getLastTapKind", "()I");
     g_midSelectMenuPoint = midOpt(env, global, "selectMenuPoint", "(II)V");   // A2 commit
     if (!g_midSeq || !g_midW || !g_midH || !g_midPixels || !g_midTouch || !g_midClick
@@ -724,6 +751,9 @@ static bool publishBridge(JNIEnv *env) {
     g_midScriptInputSuspended = midOpt(env, global, "setScriptInputSuspended", "(Z)V");
     g_midHeapStats = midOpt(env, global, "heapStats", "()Ljava/lang/String;"); // P2-1 dev panel (optional)
     g_midSimReconnect = midOpt(env, global, "devSimulateReconnect", "(I)V");   // P2-1 dev panel (optional)
+    g_midRequestResize = midOpt(env, global, "requestResize", "(II)V");        // FOLD-3 (optional)
+    g_midCameraZoom = midOpt(env, global, "cameraZoom", "()I");                // FOLD-4 (optional)
+    g_midSetCameraZoom = midOpt(env, global, "setCameraZoom", "(I)V");         // FOLD-4 (optional)
     g_bridgeCls = global;   // publish only once fully resolved
     LOGI("bridge: JavaBridge facade published (shiftHeld=%s)", g_midSetShiftHeld ? "on" : "off");
 
@@ -776,6 +806,9 @@ static bool publishBridge(JNIEnv *env) {
             g_midNotificationDefaults = midOpt(env, mug, "notificationDefaults", "()Ljava/lang/String;");                  // SC-1 defaults
             g_midBoundKeybinds        = midOpt(env, mug, "boundKeybindsJson", "()Ljava/lang/String;");                    // user-defined hotkeys (optional)
             g_midFireHotkey           = midOpt(env, mug, "fireHotkey", "(Ljava/lang/String;Ljava/lang/String;)V");        // fire one (optional)
+            g_midGameSettings = midOpt(env, mug, "gameSettings", "()Ljava/lang/String;");                                 // Game settings (optional)
+            g_midSetFpsCap = midOpt(env, mug, "setFpsCap", "(I)Ljava/lang/String;");
+            g_midSetIdleLogout = midOpt(env, mug, "setIdleLogoutMinutes", "(I)Ljava/lang/String;");
             if (!g_midGetPluginConfig || !g_midSetConfig || !g_midProcessedWriteId)
                 LOGE("bridge: MobileUiBridge config methods partial (plugin config read/write disabled)");
             // AP-2a: drain surfaces for native notification / link-out / hub-progress (each best-effort).
@@ -1066,7 +1099,10 @@ static bool publishBridge(JNIEnv *env) {
             // OPTIONAL (never in the all-or-nothing check — the snapRadius lesson): a jar predating the
             // world-map/insets surface simply loses overlay inset-avoidance, not the whole veneer.
             g_midSetOverlayInsets  = midOpt(env, hvg, "setOverlaySafeInsets", "(IIII)V");
+            g_midSetOverlayKeepOut = midOpt(env, hvg, "setOverlayKeepOut", "([I)V");
+            g_midSetHudStrip = midOpt(env, hvg, "setHudStrip", "(III)V"); // large portrait UI (optional)
             g_midSetChatCollapsed  = midOpt(env, hvg, "setChatCollapsed", "(Z)V");
+            g_midSetChatPutAway = midOpt(env, hvg, "setChatPutAway", "(Z)V");
             g_midSwitchChatTab     = midOpt(env, hvg, "switchChatTab", "(I)V");
             g_midPanWorldMap       = midOpt(env, hvg, "panWorldMap", "(II)V");
             g_midScrollMapPanel    = midOpt(env, hvg, "scrollMapPanel", "(I)V");   // optional (older jar omits it)
@@ -1317,6 +1353,8 @@ static void blitLatestFrame(JNIEnv *env, int &lastSeq, int &geomW, int &geomH, s
             w = h = 0;
         }
         if (w > 0 && h > 0 && w <= 16384 && h <= 16384) {
+            g_lastCanvasH.store(h, std::memory_order_relaxed);
+            h = shownRows(h); // the top rows; the copy below never reads the strip
             g_lastFrameW.store(w, std::memory_order_relaxed);
             g_lastFrameH.store(h, std::memory_order_relaxed);
             jintArray arr = (jintArray)env->CallStaticObjectMethod(g_bridgeCls, g_midPixels);
@@ -1407,6 +1445,16 @@ static void *renderLoop(void *) {
             jboolean tio = env->CallStaticBooleanMethod(g_bridgeCls, g_midTextInputOpen);
             if (env->ExceptionCheck()) { env->ExceptionClear(); }
             else { g_textInputOpen.store(tio ? 1 : 0, std::memory_order_relaxed); }
+            if (g_midTextInputKind) {
+                int tik = env->CallStaticIntMethod(g_bridgeCls, g_midTextInputKind);
+                if (env->ExceptionCheck()) {
+                    env->ExceptionClear();
+                } else {
+                    g_textInputKind.store(tik, std::memory_order_relaxed);
+                }
+            } else {
+                g_textInputKind.store(tio ? 1 : 0, std::memory_order_relaxed);
+            }
             int its = env->CallStaticIntMethod(g_bridgeCls, g_midInteractTapSeq);
             if (env->ExceptionCheck()) { env->ExceptionClear(); }
             else { g_interactTapSeq.store(its, std::memory_order_relaxed); }
@@ -1718,6 +1766,9 @@ static void *jvmThreadMain(void *argp) {
                     setcb(rcPresentAcquireWindow, rcPresentSurfaceGen, rcPresentReleaseWindow, rcPresentSetFrameDims);
                     g_directPresent.store(true, std::memory_order_release);
                     g_routecFramesPresented = (uint64_t (*)()) dlsym(rh, "RouteC_framesPresented");  // Phase 3 auto-GPU watchdog signal
+                    auto setRows = (void (*)(int (*)(int)))dlsym(rh, "RouteC_setShownRows");
+                    if (setRows)
+                        setRows(shownRows);
                     LOGI("%s: direct EGL present armed (CPU present thread stands down)", mode);
                 } else {
                     LOGE("%s: RouteC_setPresentCallbacks not found — using CPU readback present", mode);
@@ -2017,6 +2068,10 @@ Java_dev_audaro_runemobile_JvmLauncher_nativeIsTextInputOpen(JNIEnv *, jobject) 
     return g_textInputOpen.load(std::memory_order_relaxed) ? JNI_TRUE : JNI_FALSE;
 }
 extern "C" JNIEXPORT jint JNICALL
+Java_dev_audaro_runemobile_JvmLauncher_nativeTextInputKind(JNIEnv *, jobject) {
+    return g_textInputKind.load(std::memory_order_relaxed);
+}
+extern "C" JNIEXPORT jint JNICALL
 Java_dev_audaro_runemobile_JvmLauncher_nativeInteractTapSeq(JNIEnv *, jobject) {
     return g_interactTapSeq.load(std::memory_order_relaxed);
 }
@@ -2034,6 +2089,16 @@ extern "C" JNIEXPORT jint JNICALL
 Java_dev_audaro_runemobile_JvmLauncher_nativeFrameWidth(JNIEnv *, jobject) { return g_lastFrameW.load(std::memory_order_relaxed); }
 extern "C" JNIEXPORT jint JNICALL
 Java_dev_audaro_runemobile_JvmLauncher_nativeFrameHeight(JNIEnv *, jobject) { return g_lastFrameH.load(std::memory_order_relaxed); }
+// The full canvas height of the last frame, rows hidden under the screen included (a resize matches on it).
+extern "C" JNIEXPORT jint JNICALL
+Java_dev_audaro_runemobile_JvmLauncher_nativeCanvasHeight(JNIEnv *, jobject) {
+    return g_lastCanvasH.load(std::memory_order_relaxed);
+}
+// Large portrait UI: how many of the canvas's top rows to show (see g_shownRows); 0 shows them all.
+extern "C" JNIEXPORT void JNICALL
+Java_dev_audaro_runemobile_JvmLauncher_nativeSetShownRows(JNIEnv *, jobject, jint rows) {
+    g_shownRows.store(rows > 0 ? rows : 0, std::memory_order_relaxed);
+}
 // Phase 3 (auto-GPU watchdog): frames the GPU/117HD renderer has actually presented. 0 == not armed or renderer
 // never activated (failed/black/crashed); climbing == success. The Kotlin first-boot fallback polls this.
 extern "C" JNIEXPORT jlong JNICALL
@@ -2071,6 +2136,46 @@ Java_dev_audaro_runemobile_JvmLauncher_nativeSimulateReconnect(JNIEnv *, jobject
     if (!hs || !g_bridgeCls || !g_midSimReconnect)
         return;
     hs->CallStaticVoidMethod(g_bridgeCls, g_midSimReconnect, seconds);
+    if (hs->ExceptionCheck())
+        hs->ExceptionClear();
+}
+
+// FOLD-3: resize the game canvas mid-session when the window changes shape. Returns false when the bridge or the
+// jar's requestResize is missing, so the host keeps letterboxing the old canvas.
+extern "C" JNIEXPORT jboolean JNICALL
+Java_dev_audaro_runemobile_JvmLauncher_nativeRequestResize(JNIEnv *, jobject, jint w, jint h) {
+    JNIEnv *hs = bridgeEnvAttach();
+    if (!hs || !g_bridgeCls || !g_midRequestResize)
+        return JNI_FALSE;
+    hs->CallStaticVoidMethod(g_bridgeCls, g_midRequestResize, w, h);
+    if (hs->ExceptionCheck()) {
+        hs->ExceptionClear();
+        return JNI_FALSE;
+    }
+    return JNI_TRUE;
+}
+
+// FOLD-4: the camera zoom the game is drawing with; -1 while logged out, before the bridge is up, or on an older jar.
+extern "C" JNIEXPORT jint JNICALL
+Java_dev_audaro_runemobile_JvmLauncher_nativeCameraZoom(JNIEnv *, jobject) {
+    JNIEnv *hs = bridgeEnvAttach();
+    if (!hs || !g_bridgeCls || !g_midCameraZoom)
+        return -1;
+    jint zoom = hs->CallStaticIntMethod(g_bridgeCls, g_midCameraZoom);
+    if (hs->ExceptionCheck()) {
+        hs->ExceptionClear();
+        return -1;
+    }
+    return zoom;
+}
+
+// FOLD-4: set the camera zoom (applied on the client thread once logged in). No-op on an older jar.
+extern "C" JNIEXPORT void JNICALL
+Java_dev_audaro_runemobile_JvmLauncher_nativeSetCameraZoom(JNIEnv *, jobject, jint zoom) {
+    JNIEnv *hs = bridgeEnvAttach();
+    if (!hs || !g_bridgeCls || !g_midSetCameraZoom)
+        return;
+    hs->CallStaticVoidMethod(g_bridgeCls, g_midSetCameraZoom, zoom);
     if (hs->ExceptionCheck())
         hs->ExceptionClear();
 }
@@ -2233,6 +2338,38 @@ Java_dev_audaro_runemobile_JvmLauncher_nativeResetConfig(JNIEnv *artEnv, jobject
     if (r)
         hs->DeleteLocalRef(r);
     return artEnv->NewStringUTF(out.c_str());
+}
+// Native Game settings: {"fpsCap":N,"idleLogoutMinutes":M} (fpsCap 0 = no cap), or "" if unresolved.
+extern "C" JNIEXPORT jstring JNICALL
+Java_dev_audaro_runemobile_JvmLauncher_nativeGameSettings(JNIEnv *artEnv, jobject) {
+    if (!mobileUiReady() || !g_midGameSettings)
+        return artEnv->NewStringUTF("");
+    return mobileUiStr(artEnv, g_midGameSettings);
+}
+// Call a (I)String bridge method on g_mobileUiCls and return an ART string ("" on any failure).
+static jstring mobileUiStrInt(JNIEnv *artEnv, jmethodID m, jint v) {
+    JNIEnv *hs = bridgeEnvAttach();
+    if (!hs || !g_mobileUiCls || !m)
+        return artEnv->NewStringUTF("");
+    jstring r = (jstring)hs->CallStaticObjectMethod(g_mobileUiCls, m, v);
+    std::string out = (hs->ExceptionCheck()) ? (hs->ExceptionClear(), std::string()) : jstr(hs, r);
+    if (r)
+        hs->DeleteLocalRef(r);
+    return artEnv->NewStringUTF(out.c_str());
+}
+// Cap the frame rate (0 = no cap). Returns the bridge JSON ack.
+extern "C" JNIEXPORT jstring JNICALL
+Java_dev_audaro_runemobile_JvmLauncher_nativeSetFpsCap(JNIEnv *artEnv, jobject, jint fps) {
+    if (!mobileUiReady() || !g_midSetFpsCap)
+        return artEnv->NewStringUTF("");
+    return mobileUiStrInt(artEnv, g_midSetFpsCap, fps);
+}
+// Set the idle logout time in minutes. Returns the bridge JSON ack.
+extern "C" JNIEXPORT jstring JNICALL
+Java_dev_audaro_runemobile_JvmLauncher_nativeSetIdleLogoutMinutes(JNIEnv *artEnv, jobject, jint minutes) {
+    if (!mobileUiReady() || !g_midSetIdleLogout)
+        return artEnv->NewStringUTF("");
+    return mobileUiStrInt(artEnv, g_midSetIdleLogout, minutes);
 }
 // SC-1/NOTIF-2: the serialized default Notification seed JSON for the per-item editor (or "" if unresolved).
 extern "C" JNIEXPORT jstring JNICALL
@@ -2602,6 +2739,14 @@ static void facadeVoidIntLong(jclass cls, jmethodID m, jint a, jlong b) {
     if (hs->ExceptionCheck())
         hs->ExceptionClear();
 }
+static void facadeVoid3Int(jclass cls, jmethodID m, jint a, jint b, jint c) {
+    JNIEnv *hs = bridgeEnvAttach();
+    if (!hs || !cls || !m)
+        return;
+    hs->CallStaticVoidMethod(cls, m, a, b, c);
+    if (hs->ExceptionCheck())
+        hs->ExceptionClear();
+}
 static void facadeVoid4Int(jclass cls, jmethodID m, jint a, jint b, jint c, jint d) {
     JNIEnv *hs = bridgeEnvAttach();
     if (!hs || !cls || !m) return;
@@ -2963,12 +3108,52 @@ Java_dev_audaro_runemobile_JvmLauncher_nativeSetOverlayInsets(JNIEnv *, jobject,
     if (!hudReady()) return;
     facadeVoid4Int(g_hudCls, g_midSetOverlayInsets, l, t, r, b);
 }
+// The shell's own controls over the game, flat {x, y, w, h, ...} in CANVAS px: the shared OverlayRenderer keeps plugin
+// overlay boxes off them (HudVeneerBridge.setOverlayKeepOut). The ART array is copied into a HotSpot one.
+extern "C" JNIEXPORT void JNICALL
+Java_dev_audaro_runemobile_JvmLauncher_nativeSetOverlayKeepOut(JNIEnv *artEnv, jobject, jintArray rects) {
+    if (!hudReady() || !g_midSetOverlayKeepOut)
+        return;
+    const jsize n = rects ? artEnv->GetArrayLength(rects) : 0;
+    std::vector<jint> v(n);
+    if (n > 0)
+        artEnv->GetIntArrayRegion(rects, 0, n, v.data());
+    JNIEnv *hs = bridgeEnvAttach();
+    if (!hs || !g_hudCls)
+        return;
+    jintArray a = hs->NewIntArray(n);
+    if (!a) {
+        if (hs->ExceptionCheck())
+            hs->ExceptionClear();
+        return;
+    }
+    if (n > 0)
+        hs->SetIntArrayRegion(a, 0, n, v.data());
+    hs->CallStaticVoidMethod(g_hudCls, g_midSetOverlayKeepOut, a);
+    if (hs->ExceptionCheck())
+        hs->ExceptionClear();
+    hs->DeleteLocalRef(a);
+}
+// Large portrait UI: the canvas rows the screen shows (the hidden strip lies below them) and the band between the chat
+// and the inventory that windows are pinned into. 0 rows turns the strip off.
+extern "C" JNIEXPORT void JNICALL
+Java_dev_audaro_runemobile_JvmLauncher_nativeSetHudStrip(JNIEnv *, jobject, jint visibleRows, jint top, jint bottom) {
+    if (!hudReady())
+        return;
+    facadeVoid3Int(g_hudCls, g_midSetHudStrip, visibleRows, top, bottom);
+}
 // Phase-4 chat pill: collapse = the shared shove-off-canvas (widget stays alive, reopen instant); switch = the
 // engine tab's op-script replay (works while the button is off-canvas, unlike a proxy click).
 extern "C" JNIEXPORT void JNICALL
 Java_dev_audaro_runemobile_JvmLauncher_nativeSetChatCollapsed(JNIEnv *, jobject, jboolean collapsed) {
     if (!hudReady()) return;
     facadeVoidBool(g_hudCls, g_midSetChatCollapsed, collapsed);
+}
+extern "C" JNIEXPORT void JNICALL
+Java_dev_audaro_runemobile_JvmLauncher_nativeSetChatPutAway(JNIEnv *, jobject, jboolean putAway) {
+    if (!hudReady())
+        return;
+    facadeVoidBool(g_hudCls, g_midSetChatPutAway, putAway);
 }
 extern "C" JNIEXPORT void JNICALL
 Java_dev_audaro_runemobile_JvmLauncher_nativeSwitchChatTab(JNIEnv *, jobject, jint index) {

@@ -30,7 +30,7 @@ class DialogueView(
 ) : View(context) {
     companion object {
         private const val CHAT_W = 519 // engine chatbox width (canvas px)
-        private const val BOX_H_CANVAS = 40 + 142 // native tab row (ChatPillView.ROW_H_CANVAS) + content height
+        private const val BOX_H_CANVAS = 182 // the parchment's box: a 40-px title band + the 142-px content
         private const val PARCH = 0xFFD6C79E.toInt() // OSRS parchment tan (opaque) — iOS RGB(0.84,0.78,0.62)
         private const val BORDER = 0xFF5C4521.toInt() // iOS RGB(0.36,0.27,0.13)
         private const val NAME_COLOR = 0xFF800000.toInt() // dark red NPC/player name
@@ -125,6 +125,9 @@ class DialogueView(
         return true
     }
 
+    /** How much smaller than canvas px the chat shows (the large portrait UI shows it at 600/765); the box follows. */
+    var chatScale = 1f
+
     /** Drive each frame: [chatSnap] (for the dialogueActive/topLevel gate) + [dlg] + canvas→view scale. */
     fun update(
         chatSnap: String,
@@ -160,8 +163,8 @@ class DialogueView(
 
         boxX = cd.optInt("chatX", 0) * sx
         boxY = cd.optInt("chatY", 0) * sy
-        boxW = CHAT_W * sx
-        boxH = BOX_H_CANVAS * sy
+        boxW = CHAT_W * chatScale * sx
+        boxH = BOX_H_CANVAS * chatScale * sy
         active = true
 
         val cont = d.optJSONObject("cont")
@@ -327,6 +330,11 @@ class DialogueView(
         layout.draw(canvas)
         canvas.restore()
         return top + layout.height
+    }
+
+    /** Host: the parchment as drawn, in view px, for the engine to keep plugin overlay boxes off. */
+    fun keepOut(out: MutableList<RectF>) {
+        if (active && boxW > 0f && boxH > 0f) out.add(RectF(boxX, boxY, boxX + boxW, boxY + boxH))
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {

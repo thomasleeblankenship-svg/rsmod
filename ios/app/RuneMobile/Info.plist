@@ -17,17 +17,23 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.1</string>
+	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<!-- ProMotion: allow frame rates above 60fps on iPhone (the GPU path renders in ~3ms with huge headroom).
 	     Without this the CAEAGLLayer present is capped at 60Hz even on a 120Hz display. -->
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<!-- The system launch screen: the RuneMobile logo on the tap-to-play cover's colour (both in Assets.xcassets). -->
 	<key>UILaunchScreen</key>
-	<dict/>
+	<dict>
+		<key>UIColorName</key>
+		<string>LaunchBackground</string>
+		<key>UIImageName</key>
+		<string>Logo</string>
+	</dict>
 	<key>UIApplicationSupportsMultipleScenes</key>
 	<false/>
 	<key>UIRequiredDeviceCapabilities</key>

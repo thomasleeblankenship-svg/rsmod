@@ -14,6 +14,158 @@ as "What's new".
 
 ## [Unreleased]
 
+### Changed
+- **iOS:** the release IPA is built the same way as the rolling builds: ad-hoc sealed, with no developer
+  provisioning profile inside. SideStore and AltStore re-sign it at install, as before.
+
+## [0.6.0] - 2026-10-28
+
+### Added
+- **Play with the phone held upright.** Settings > Game settings > Screen picks Landscape, Portrait or Auto, and
+  the change applies at once. Portrait is the official mobile app's upright layout: the chat top left, the
+  minimap top right, and the tab buttons bottom right with the side panel beside them. On a phone the world, the
+  inventory and every window draw about a quarter bigger than the game's 765-pixel minimum layout would, while
+  the chat and the minimap keep their usual size. A window opens in the space between the chat and the tab
+  buttons, and the world map takes the whole screen.
+- **Screen: Auto turns the game with the phone.** The game lays itself out again for the new shape mid-game and
+  keeps a camera zoom for each way up. On iPhone, Auto reads the motion sensor, so it turns even with Portrait
+  Orientation Lock on, and Landscape and Portrait act as the in-game lock. On Android it follows the phone's own
+  auto-rotate setting.
+- **The official mobile app's chat and tab buttons.** The tab buttons use the official app's icons, order and
+  frame, and the arrow folds them to one column (kept across launches). Logout moves to a door left of the chat's
+  filter row. Beside the chat sit the official speech bubbles, which put the chat away and flash while a message
+  waits, and a keyboard button. A dialogue brings a put-away chat back while it lasts.
+- **A developer guide** in [`docs/dev/`](docs/dev/README.md): setting up a machine, the architecture and threading
+  model, the bridge API with a reference generated from the shared contract, each port, the three renderers,
+  every test and gate, debugging by symptom, upstream merges and releases, and the traps that cost real time.
+
+### Changed
+- **Plugin boxes keep off the chat, the minimap and the buttons.** A plugin's box, such as Quest Helper's current
+  step, an info box or a minigame panel, moves the shortest way to a clear spot when it would cover the chat and
+  its buttons, the minimap, the tab buttons or the app's own on-screen controls. That includes a box moved in the
+  overlay editor, which used to keep its saved spot over them.
+
+### Fixed
+- **The chat's typing line shows again.** The "name: *" line under the chat was cut off once the chat took the
+  official app's smaller size.
+- **Plugin Hub descriptions written in HTML show as plain text,** instead of raw markup such as `<html>`.
+- **iOS: plugin settings section headers work with VoiceOver,** which reads each one as a button that is collapsed
+  or expanded.
+- **iOS: About shows the real version** in builds made outside the release pipeline, which used to say 0.1.
+
+## [0.5.0] - 2026-10-26
+
+### Added
+- **iPad.** The iOS app runs on iPad, full screen and in landscape. The game's picture grows with the screen, so
+  the chat, minimap and buttons keep the size they have on a phone and cover less of the view: the game draws at
+  1390×913 on an iPad mini and 1689×1267 on a 13-inch iPad Pro. The plugin rail on the right edge keeps clear of
+  the minimap and the tab buttons, and they move up to the edge when the rail is turned off. Checked in the iPad
+  simulators only; speed on a real iPad isn't measured yet.
+- **Foldables and Android tablets.** On a foldable's inner screen or a tablet, the game's picture grows with the
+  screen and the chat, minimap and buttons stay at phone size, instead of a phone-sized picture being stretched to
+  fill it. Folding or unfolding mid-game resizes the game to the new screen, and each screen keeps its own camera
+  zoom. The game is never drawn narrower than its 765-pixel minimum layout, and a window of another shape gets
+  black bars instead of a stretched picture. Tested on a Pixel 7a set to the screen sizes of a Galaxy Z Fold 7 and
+  a 10-inch tablet, not yet on a real foldable. A bigger screen has more to draw, so the CPU renderer runs slower
+  there than on a phone screen.
+
+## [0.4.0] - 2026-10-26
+
+### Added
+- **Hold on the world map to open its menu.** A long press inside the open world map opens the same right-click
+  menu the desktop map has, so plugins that add map options now work on the phone. With Shortest Path, hold a spot
+  and choose Set Target, Set Start or Clear Path; hold a row of the map key for Find closest. Before, Android
+  ignored a hold on the map, and on iOS the menu opened away from the finger. Dragging, pinching and searching the
+  map work as before.
+- **Game settings.** One screen in Settings for long-press time, camera sensitivity, idle logout, frame-rate cap and
+  haptics. Idle logout and the frame-rate cap use RuneLite's Logout Timer and FPS Control plugins and turn them on
+  when set. A cap above about 50 fps only takes effect with Unlock FPS on in the GPU or 117 HD settings.
+- **A number pad for amounts.** Withdraw-X, Grand Exchange prices and quantities, and every other "Enter amount"
+  open the phone's number pad, with a Paste button for a copied number.
+- **Haptics for opening the menu and picking up an item,** next to the existing ones for menu rows and actions.
+  Each of the four can be switched off on its own, and a strength setting makes them lighter or stronger.
+- **Swipe to scroll the Grand Exchange item search.** A drag on the results scrolls them, and every result in view
+  can be picked. Before, only the first 24 had a tap target, wherever they had scrolled to.
+- **The screen stays awake in game.** The phone no longer dims and locks while you are logged in; on the login
+  screen it locks as normal.
+
+### Changed
+- **Items need a short hold before they drag.** Rest a finger on an item for a moment, then drag. A quick flick
+  across the inventory no longer moves an item or turns the camera, and in the bank, prayer book or spellbook a
+  quick swipe scrolls the list when it has more than fits. The hold is two-thirds of the long-press time, at most
+  150 ms.
+- **Rebuilt on RuneLite 1.13.5-SNAPSHOT,** the line following Release 1.13.4. It brings RuneLite's reworked
+  Party plugin and a fix for the Wiki DPS button. The Plugin Hub list moves up to the 1.13.4 release, so plugins
+  updated for it install.
+
+## [0.3.1] - 2026-10-23
+
+### Fixed
+- **Android 117 HD had no sun shadows** and looked flat and dark next to the iPhone at the same settings. 117 HD
+  asks for its shadow map in a format the Android graphics driver refuses, so the map was never made and the
+  whole scene was drawn as if in shadow. The app now asks for a format the driver accepts. Shadows cost frames:
+  on a Pixel 7a, about 38 fps with Detailed shadows against 47 with them off. Shadows are in the 117 HD settings.
+- **iOS: 117 HD's terrain shadows were missing** for the same reason. The fix for the main shadow map did not
+  cover the terrain map, which uses a different format.
+
+## [0.3.0] - 2026-10-23
+
+### Changed
+- 117 HD is updated on both phones from a June build to 1.6.0.1, the version the Plugin Hub serves. It brings
+  four months of 117 HD's own work: see-through and double-sided models drawn properly, a seasonal foliage
+  option, a ground-blending mode that blends only textures, reworked brick walls, new textures and lighting
+  across many areas and quests, and lights on sailing boats. 1.6's day & night cycle stays off on both phones
+  for now.
+- 117 HD settings that 1.6 renamed keep your choice. 1.6 itself reads the old values as unset and goes back to
+  its defaults, which on iOS turned tiled lighting back on for anyone who had switched it off.
+- The app has a logo. On iOS it is the app icon (there was none before) and the launch screen, and it heads
+  the tap-to-play cover and the About screen. On Android it is the launcher icon, the themed icon on Android 13
+  and later, the notification icon and the TV banner, and it heads the splash and About screens.
+
+### Fixed
+- After a dropped connection the app logged back in but left you on the "Click here to play" screen until the
+  game's idle logout. It now presses the button itself after a reconnect or a world hop. On Android it now
+  does this on the first login too; before, you had to tap it.
+- A dropped connection that lasted more than about 12 seconds ended on "Session expired" though your login
+  was still good: the app's five quick tries to log back in all failed before the network was back. It now
+  keeps trying for about two and a half minutes, at growing intervals, behind the "Reconnecting" screen.
+
+### Internal
+- `tools/shader-matrix/` checks every 117 HD shader the app builds, in 11 combinations of settings, against
+  each phone's shading language with glslang, so a 117 HD update or a shader change is checked without a
+  phone. See [its README](tools/shader-matrix/README.md).
+
+## [0.2.7] - 2026-10-23
+
+### Fixed
+- Since 0.2.0, the 117 HD settings screen showed Entity Hider's settings (Hide others, Hide NPCs, …) instead
+  of its own, and its "Reset all settings" reset Entity Hider. 117HD needs Entity Hider to load, and the app
+  took the settings Entity Hider shares with it for 117HD's own. The screen shows 117HD's settings again:
+  resolution, anti-aliasing, shadows, lights, normal mapping and draw distance.
+- The Notes plugin had a settings screen with nothing on it but "Reset all settings", and one tap of that
+  erased your notes. A plugin whose settings are all hidden no longer gets a settings screen; Notes keeps
+  its switch and its side panel.
+- The plugin side panels were drawn in Swing's default look instead of RuneLite's: a white border round
+  every scroll pane, and text that ignored its font and colour (the Info panel's "Sign in" line came out in
+  black serif). They now look as they do on desktop.
+
+### Changed
+- iOS: the XP Tracker screen reads the same once-a-second snapshot as Android's, built on the game's own
+  thread, instead of reading the plugin's state from the screen's thread.
+
+### Internal
+- The iOS app runs in the iOS Simulator on a Mac, with the full JIT and no phone, and
+  `ios/dev-tools/sim-gate.sh` checks each build there: every JNI lookup, the native screens against saved
+  screenshots, every plugin's settings screen and side panel, a boot on each renderer, and the logs. The
+  plugin sweep is what found the Notes screen above. It had passed the 117 HD screen, so it now also fails a
+  settings screen that another plugin's row opens too. See
+  [CONTRIBUTING.md](CONTRIBUTING.md#testing-in-the-ios-simulator).
+- iOS, 117HD: every start logged shader compile errors for 117HD's calibration and debug overlays, which the
+  app doesn't offer. Those shaders are now ported to the phone's shading language, as Android's already
+  were, so 117HD starts with none. On both phones, the calibration dots no longer depend on behaviour the
+  shading language leaves undefined.
+- `tools/port-drift/` reports where the iOS and Android apps have drifted apart.
+
 ## [0.2.6] - 2026-10-22
 
 ### Fixed
@@ -222,6 +374,11 @@ OAuth + RuneLite-account sync, native HUD/chat/tab-grid veneers, plugin panel.
 - Release signing: a dedicated key via `keystore.properties` when present, else
   the debug key (see `keystore.properties.example`).
 
-[Unreleased]: https://github.com/audaro/runemobile/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/audaro/runemobile/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/audaro/runemobile/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/audaro/runemobile/compare/v0.3.1...v0.4.0
+[0.3.1]: https://github.com/audaro/runemobile/compare/v0.3.0...v0.3.1
+[0.3.0]: https://github.com/audaro/runemobile/compare/v0.2.7...v0.3.0
+[0.2.7]: https://github.com/audaro/runemobile/compare/v0.2.6...v0.2.7
 [0.2.0]: https://github.com/audaro/runemobile/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/audaro/runemobile/releases/tag/v0.1.0

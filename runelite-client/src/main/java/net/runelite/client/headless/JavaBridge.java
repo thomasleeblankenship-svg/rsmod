@@ -67,7 +67,7 @@ import net.runelite.client.plugins.microbot.MicrobotRuntime;
 import net.runelite.client.ui.overlay.outline.ModelOutlineRenderer;
 
 /**
- * Phase-4 (W3) sub-goal B: the native&lt;-&gt;Java facade for a <em>real interactive</em> client on iOS.
+ * Phase-4 (W3) sub-goal B: the native&lt;-&gt;Java facade for a <em>real interactive</em> client on both ports.
  *
  * <p>This is the one class the native shell calls into via reverse JNI. It exposes two seams:
  * <ul>
@@ -75,7 +75,7 @@ import net.runelite.client.ui.overlay.outline.ModelOutlineRenderer;
  *       {@link #getFramePixels()} hand the engine's composited {@code mainBufferProvider} pixels straight
  *       to the native side each screen refresh. This replaces the §6.2 PNG-capture-to-disk display path
  *       (which was choppy, disk-bound and budget-capped) with a direct, smooth blit.</li>
- *   <li><b>Touch ingress</b> — {@link #onTouch(int, int, int, int)} turns a UIKit touch (already mapped to
+ *   <li><b>Touch ingress</b> — {@link #onTouch(int, int, int, int)} turns a native touch (already mapped to
  *       game coordinates by the native side) into AWT {@link MouseEvent}s posted to the toolkit
  *       {@link EventQueue} with the gamepack {@link Canvas} as source. Sub-goal A proved the on-device CTC
  *       EventQueue accepts off-window posts, so this is the same proven path HeadlessLogin uses, now driven
@@ -87,10 +87,14 @@ import net.runelite.client.ui.overlay.outline.ModelOutlineRenderer;
  * Entirely inert unless {@code -Drunelite.bridge=true}, so it adds nothing to the stock desktop client.
  *
  * <p>Thread model: {@code register} runs on the engine/AWT thread; the native side calls the getters,
- * {@link #onTouch} and {@link #onClick} from the UI thread (JNI-attached). {@code onTouch} hands its posts
- * to the client thread so a drag's events stay in order behind the tap work queued there before them.
- * {@code EventQueue.postEvent} is thread-safe, and the pixel array is the buffer's live backing store —
- * reading it off-thread can momentarily tear, which is acceptable for a display.
+ * {@link #onTouch} and {@link #onClick} from its own JNI-attached threads (iOS: the UI thread, plus the
+ * Picture-in-Picture feed for the getters; Android: the render thread, which drains the touches the UI thread
+ * queues). {@code onTouch} hands its posts to the client thread so a drag's events stay in order behind the
+ * tap work queued there before them. {@code EventQueue.postEvent} is thread-safe. {@link #getFramePixels()}
+ * is not the buffer's live backing store: {@link #snapshot} (CPU) and the GPU readback
+ * ({@link #gpuFrameBackBuffer}/{@link #gpuPublish}) fill one of two buffers per complete frame and publish it,
+ * and a published buffer is not rewritten until two frames later, so a reader that copies it out within one
+ * engine frame of fetching it never sees a torn frame.
  *
  * <p><b>Input contract (Phase 5).</b> The native side owns gesture <em>recognition</em> (UIKit gesture
  * recognizers: tap, long-press, pan, pinch) and this facade exposes only the raw AWT primitives:
@@ -303,9 +307,32 @@ public final class JavaBridge
 	private static final int SCENE_WARMUP = 6;
 
 	/** Hooks.drawScene &rarr; count a rendered 3D frame. */
-	public static void noteSceneDraw() { sceneDrawCount++; }
+	public static void noteSceneDraw()
+	{
+		final int n = ++sceneDrawCount;
+		if (n == 1)
+		{
+			log.info("[gpuhold] first scene draw");
+		}
+		else if (n == SCENE_WARMUP)
+		{
+			log.info("[gpuhold] world warmed up after {} scene draws: present ready", SCENE_WARMUP);
+		}
+	}
 	/** Hooks.draw on a non-world game state &rarr; re-arm the load-in hold. */
-	public static void armSceneHold() { sceneDrawCount = 0; }
+	public static void armSceneHold()
+	{
+		final int n = sceneDrawCount;
+		if (n >= SCENE_WARMUP)
+		{
+			log.info("[gpuhold] re-armed: left the world");
+		}
+		else if (n > 0)
+		{
+			log.info("[gpuhold] re-armed after {} of {} scene draws: left the world before it warmed up", n, SCENE_WARMUP);
+		}
+		sceneDrawCount = 0;
+	}
 
 	// The login screens draw no scene, so there is no sky to hide, and they are where the game says what it is
 	// doing: connecting, a refused login, Try Again. Held, they froze the screen on the boot frame, and a refused
@@ -380,6 +407,14 @@ public final class JavaBridge
 	// INPUT_TYPE snapshot taken on the client thread in tapTick; isTextInputOpen() reads this volatile instead of
 	// the live varc array off-thread (which the engine can reallocate under the reader).
 	private static volatile boolean textInputOpen;
+	// What the open field takes (TEXT_INPUT_*), snapshotted alongside textInputOpen so the shells can pick a keyboard.
+	private static volatile int textInputKind;
+	static final int TEXT_INPUT_NONE = 0;
+	static final int TEXT_INPUT_TEXT = 1;
+	static final int TEXT_INPUT_NUMBER = 2;
+	// INPUT_TYPE values whose chatbox prompt takes a number (the "Enter amount" prompts). Every other non-zero
+	// INPUT_TYPE is free text.
+	private static final int[] NUMERIC_INPUT_TYPES = {7, 16, 19, 30};
 
 	// Key timing. iOS hands us committed TEXT -- a UITextField change callback -- and never a key down or up,
 	// so there is no dwell and no cadence of the user's to report. What we CAN stop doing is reporting one
@@ -646,8 +681,37 @@ public final class JavaBridge
 	}
 
 	/**
-	 * The latest <em>complete</em> composited frame as packed {@code 0xAARRGGBB} ints (a stable snapshot,
-	 * not the live back buffer). Returns {@code null} before the first frame.
+	 * Resize the game canvas to {@code w x h} mid-session, for a host window that changed shape (a foldable opened
+	 * or closed), so the game shows more or less of the world instead of being stretched. Any thread; the client
+	 * thread applies it on its next draw. See {@link HeadlessResize#requestResize}.
+	 */
+	public static void requestResize(int w, int h)
+	{
+		HeadlessResize.requestResize(w, h);
+	}
+
+	/**
+	 * The camera zoom the game is drawing with, or -1 while logged out (or with the canvas resize off). A host
+	 * reads it to remember a zoom per screen of a foldable. Any thread. See {@link HeadlessResize#cameraZoom}.
+	 */
+	public static int cameraZoom()
+	{
+		return HeadlessResize.cameraZoom();
+	}
+
+	/**
+	 * Set the camera zoom, clamped to the game's zoom limits, as the scroll wheel would. Any thread; the client thread
+	 * applies it once logged in. See {@link HeadlessResize#requestZoom}.
+	 */
+	public static void setCameraZoom(int zoom)
+	{
+		HeadlessResize.requestZoom(zoom);
+	}
+
+	/**
+	 * The latest <em>complete</em> composited frame as packed {@code 0x00RRGGBB} ints (a stable snapshot,
+	 * not the live back buffer; the top byte is not alpha, and both native readers draw the frame opaque).
+	 * Returns {@code null} before the first frame.
 	 */
 	public static int[] getFramePixels()
 	{
@@ -847,9 +911,12 @@ public final class JavaBridge
 	 * is read back from {@code MenuOptionClicked} (the consumed entry) — feedback comes from that truth, not
 	 * from a pre-click geometric guess.
 	 */
-	public static void onClick(int x, int y, int button)
+	public static void onClick(int shownX, int shownY, int button)
 	{
 		ScriptInputSession.manualInput();
+		// Large portrait: a point on the chat or minimap copy goes to the real one in the hidden strip.
+		final long at = HudStrip.toEngine(shownX, shownY);
+		final int x = HudStrip.x(at), y = HudStrip.y(at);
 		final Canvas canvas = liveCanvas();
 		if (canvas == null)
 		{
@@ -1321,9 +1388,12 @@ public final class JavaBridge
 	 * moves the pointer, which performs no action, and no button goes down before the lift, so an arm nobody
 	 * commits is simply dropped by {@link #cancelArmedTap()}, by the next tap, or by {@link #ARMED_TIMEOUT}.
 	 */
-	public static void armTap(int x, int y)
+	public static void armTap(int shownX, int shownY)
 	{
 		ScriptInputSession.manualInput();
+		// Large portrait: a point on the chat or minimap copy goes to the real one in the hidden strip.
+		final long at = HudStrip.toEngine(shownX, shownY);
+		final int x = HudStrip.x(at), y = HudStrip.y(at);
 		final Canvas canvas = liveCanvas();
 		final ClientThread ct = clientThread;
 		final Client c = client;
@@ -1821,13 +1891,15 @@ public final class JavaBridge
 	{
 		if (kind == TAP_KIND_WIDGET)
 		{
-			final java.awt.Rectangle b = tightWidgetBounds(entry);
-			if (b != null && b.width > 0 && b.height > 0)
+			final java.awt.Rectangle r = tightWidgetBounds(entry);
+			if (r != null && r.width > 0 && r.height > 0)
 			{
-				wbX = b.x;
-				wbY = b.y;
-				wbW = b.width;
-				wbH = b.height;
+				// Where the shell draws the border: on the copy, for a widget on the chat or the minimap.
+				final int[] b = HudStrip.toShown(new int[]{r.x, r.y, r.width, r.height});
+				wbX = b[0];
+				wbY = b[1];
+				wbW = b[2];
+				wbH = b[3];
 			}
 			else
 			{
@@ -2380,9 +2452,12 @@ public final class JavaBridge
 	 * tab-stone click onto a nearby world entity. Keeps the two-cycle move→click (so the engine re-targets the
 	 * widget before the click) but feeds the literal point.
 	 */
-	public static void onClickPrecise(int x, int y, int button)
+	public static void onClickPrecise(int shownX, int shownY, int button)
 	{
 		ScriptInputSession.manualInput();
+		// Large portrait: a point on the chat or minimap copy goes to the real one in the hidden strip.
+		final long at = HudStrip.toEngine(shownX, shownY);
+		final int x = HudStrip.x(at), y = HudStrip.y(at);
 		final Canvas canvas = liveCanvas();
 		if (canvas == null)
 		{
@@ -2411,9 +2486,12 @@ public final class JavaBridge
 	 * invoke→invokeLater chain guarantees the park lands after the press/release/click, never before (which
 	 * would cancel the selection). Used by the native menu's commit and cancel.
 	 */
-	public static void selectMenuPoint(int x, int y)
+	public static void selectMenuPoint(int shownX, int shownY)
 	{
 		ScriptInputSession.manualInput();
+		// Large portrait: a menu opened on a copy shows shifted up out of the hidden strip; undo that shift.
+		final long at = HudStrip.menuToEngine(shownX, shownY);
+		final int x = HudStrip.x(at), y = HudStrip.y(at);
 		final Canvas canvas = liveCanvas();
 		final ClientThread ct = clientThread;
 		if (canvas == null || ct == null)
@@ -2635,9 +2713,12 @@ public final class JavaBridge
 	 * highlights the entry under the finger as it slides. Distinct from a drag (which holds a button and
 	 * posts {@code MOUSE_DRAGGED} via {@link #onTouch}) so the menu-track gesture can't be confused for one.
 	 */
-	public static void onMove(int x, int y)
+	public static void onMove(int shownX, int shownY)
 	{
 		ScriptInputSession.manualInput();
+		// Large portrait: a point on the chat or minimap copy goes to the real one in the hidden strip.
+		final long at = HudStrip.toEngine(shownX, shownY);
+		final int x = HudStrip.x(at), y = HudStrip.y(at);
 		final Canvas canvas = liveCanvas();
 		if (canvas == null)
 		{
@@ -2695,12 +2776,15 @@ public final class JavaBridge
 	 * Pinch-zoom maps to this: negative {@code rotation} = wheel up = zoom in. {@code (x,y)} is the pinch
 	 * centroid so the gamepack zooms about it.
 	 */
-	public static void onWheel(int x, int y, int rotation)
+	public static void onWheel(int shownX, int shownY, int rotation)
 	{
 		if (rotation != 0)
 		{
 			ScriptInputSession.manualInput();
 		}
+		// Large portrait: a point on the chat or minimap copy goes to the real one in the hidden strip.
+		final long at = HudStrip.toEngine(shownX, shownY);
+		final int x = HudStrip.x(at), y = HudStrip.y(at);
 		final Canvas canvas = liveCanvas();
 		if (canvas == null || rotation == 0)
 		{
@@ -3059,12 +3143,49 @@ public final class JavaBridge
 		return ENABLED && textInputOpen;   // snapshotted on the client thread (snapshotTextInputOpen), read here off-thread
 	}
 
+	/**
+	 * What kind of keyboard the open game field wants: {@code 0} none, {@code 1} text, {@code 2} a number (an
+	 * "Enter amount" prompt or the Grand Exchange quantity/price entry). Non-zero exactly when
+	 * {@link #isTextInputOpen()} is true. The shells show a number pad for {@code 2}.
+	 */
+	public static int getTextInputKind()
+	{
+		return ENABLED ? textInputKind : TEXT_INPUT_NONE;
+	}
+
+	/**
+	 * The keyboard kind for one snapshot. {@code focusedGroup} is the interface group of the focused input-field
+	 * widget, or -1 when none is focused; {@code loginField} is true on the login screen's credential forms.
+	 */
+	static int classifyTextInput(int inputType, int focusedGroup, boolean loginField)
+	{
+		if (inputType != 0)
+		{
+			for (int t : NUMERIC_INPUT_TYPES)
+			{
+				if (t == inputType)
+				{
+					return TEXT_INPUT_NUMBER;
+				}
+			}
+			return TEXT_INPUT_TEXT;
+		}
+		if (focusedGroup >= 0)
+		{
+			return focusedGroup == InterfaceID.GE_OFFERS ? TEXT_INPUT_NUMBER : TEXT_INPUT_TEXT;
+		}
+		return loginField ? TEXT_INPUT_TEXT : TEXT_INPUT_NONE;
+	}
+
 	/** Snapshot INPUT_TYPE on the client thread (from tapTick) so isTextInputOpen() never reads the live varc off-thread. */
 	private static void snapshotTextInputOpen(Client c)
 	{
 		try
 		{
-			boolean want = c.getVarcIntValue(VarClientInt.INPUT_TYPE) != 0;
+			final int inputType = c.getVarcIntValue(VarClientInt.INPUT_TYPE);
+			int focusedGroup = -1;
+			boolean loginField = false;
+			boolean want = inputType != 0;
 			if (!want)
 			{
 				// Some engine inputs focus an input-field WIDGET without flipping INPUT_TYPE — notably the Grand
@@ -3072,7 +3193,12 @@ public final class JavaBridge
 				// type a GE amount the same way they type a bank "Enter amount".
 				try
 				{
-					want = c.getFocusedInputFieldWidget() != null;
+					final Widget focused = c.getFocusedInputFieldWidget();
+					if (focused != null)
+					{
+						want = true;
+						focusedGroup = focused.getId() >>> 16;
+					}
 				}
 				catch (RuntimeException ignore)
 				{
@@ -3093,7 +3219,8 @@ public final class JavaBridge
 					if (gs == GameState.LOGIN_SCREEN || gs == GameState.LOGIN_SCREEN_AUTHENTICATOR)
 					{
 						int li = c.getLoginIndex();
-						want = li == 2 || li == 4;
+						loginField = li == 2 || li == 4;
+						want = loginField;
 					}
 				}
 				catch (RuntimeException ignore)
@@ -3101,6 +3228,7 @@ public final class JavaBridge
 					BridgeFaults.note("JavaBridge.snapshotTextInputOpen", ignore);
 				}
 			}
+			textInputKind = classifyTextInput(inputType, focusedGroup, loginField);
 			textInputOpen = want;
 		}
 		catch (RuntimeException ex)
@@ -3269,6 +3397,15 @@ public final class JavaBridge
 					}
 				}
 			}
+			if (out != null)
+			{
+				// The shells hit-test these against shown points, so a rect on a large-portrait copy moves to it.
+				for (int i = 0; i + 3 < n[0]; i += 4)
+				{
+					final int[] b = HudStrip.toShown(java.util.Arrays.copyOfRange(out, i, i + 4));
+					System.arraycopy(b, 0, out, i, 4);
+				}
+			}
 			scrollableRects = (out == null || n[0] == 0) ? EMPTY_BOUNDS
 				: (n[0] == out.length ? out : java.util.Arrays.copyOf(out, n[0]));
 		}
@@ -3347,8 +3484,11 @@ public final class JavaBridge
 	 * production path would snapshot the scrollable rects on the client thread each frame (cf.
 	 * {@link #snapshotInventoryBounds}) and hit-test them lock-free here.
 	 */
-	public static boolean isEngineScrollableAt(int x, int y)
+	public static boolean isEngineScrollableAt(int shownX, int shownY)
 	{
+		// Large portrait: a point on the chat or minimap copy goes to the real one in the hidden strip.
+		final long at = HudStrip.toEngine(shownX, shownY);
+		final int x = HudStrip.x(at), y = HudStrip.y(at);
 		final Client c = client;
 		if (c == null)
 		{
@@ -3598,9 +3738,12 @@ public final class JavaBridge
 	 * own "middle mouse button" setting (opens-menu / camera). No client-thread aim-assist (unlike a left/right
 	 * tap) — middle-click is a deliberate, literal-point action.
 	 */
-	public static void onMiddleClick(int x, int y)
+	public static void onMiddleClick(int shownX, int shownY)
 	{
 		ScriptInputSession.manualInput();
+		// Large portrait: a point on the chat or minimap copy goes to the real one in the hidden strip.
+		final long at = HudStrip.toEngine(shownX, shownY);
+		final int x = HudStrip.x(at), y = HudStrip.y(at);
 		final Canvas canvas = liveCanvas();
 		if (canvas == null)
 		{
@@ -3620,9 +3763,14 @@ public final class JavaBridge
 	 * shells drop right before this DOWN ({@link #cancelArmedTap}) and only the lift ends it. The cost is at
 	 * most one frame on the drag samples, which the engine reads once per frame anyway.
 	 */
-	public static void onTouch(int type, int x, int y, int button)
+	public static void onTouch(int type, int shownX, int shownY, int button)
 	{
 		ScriptInputSession.manualInput();
+		// Large portrait: a stream that starts on the chat or minimap copy runs on the real one in the hidden strip,
+		// all the way to the lift.
+		final long at = type == TOUCH_DOWN ? HudStrip.dragStart(shownX, shownY)
+			: HudStrip.dragTo(shownX, shownY, type == TOUCH_UP);
+		final int x = HudStrip.x(at), y = HudStrip.y(at);
 		final ClientThread ct = clientThread;
 		if (ct == null)
 		{

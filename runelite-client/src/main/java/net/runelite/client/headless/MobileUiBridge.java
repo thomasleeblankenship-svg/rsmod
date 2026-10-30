@@ -38,10 +38,13 @@ import java.lang.reflect.Type;
 import java.util.ArrayDeque;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import javax.swing.JPanel;
 import javax.swing.JWindow;
 import javax.swing.SwingUtilities;
@@ -410,7 +413,8 @@ public final class MobileUiBridge
 	 * write has completed — callers that must persist before the process goes away (e.g. the Android logout path,
 	 * which calls this then {@code exit(0)}) depend on that guarantee, so do NOT make this asynchronous (QA-P1-03).
 	 * Because it does a synchronous EventBus post + a blocking fsync, callers on a UI/main thread should instead
-	 * use {@link #flushConfigQueued()} (fire-and-forget; enqueues {@code sendConfig} on the client thread).
+	 * use {@link #flushConfigQueued()} (enqueues {@code sendConfig} on the client thread; poll its write id if the
+	 * caller needs to know the file is written).
 	 */
 	public static String flushConfig()
 	{
@@ -494,8 +498,8 @@ public final class MobileUiBridge
 		return out.end().toString();
 	}
 
-	/** A nav button's icon as a base64 PNG (or null). ImageIO PNG encode works headless under CACIO. */
-	private static String iconPngBase64(BufferedImage icon)
+	/** An icon as a base64 PNG (or null). ImageIO PNG encode works headless under CACIO. Also XpTrackerBridge's. */
+	static String iconPngBase64(BufferedImage icon)
 	{
 		if (icon == null)
 		{
@@ -513,15 +517,6 @@ public final class MobileUiBridge
 			return null;
 		}
 	}
-
-	// ---- Native XP Tracker panel (§3.4 Tier-1) ---------------------------------------------------------
-	// Instead of the supersampled Swing screenshot, the native shell draws the XP Tracker in RuneLite's own
-	// charcoal style. We REUSE the plugin's own per-skill session computation (XpState.getSkillSnapshot) via
-	// reflection — no reimplementation — and only enumerate the ALREADY-tracked skills (the xpSkills map keys),
-	// never probing untracked ones (getSkillSnapshot computeIfAbsent's, which would pollute the plugin state).
-	private static volatile String lastXpJson = "{}";
-	private static volatile Object skillIconMgr;
-	private static final java.util.Map<net.runelite.api.Skill, String> SKILL_ICON_CACHE = new java.util.concurrent.ConcurrentHashMap<>();
 
 	private static Object findLoadedPlugin(String simpleName)
 	{
@@ -544,97 +539,6 @@ public final class MobileUiBridge
 			BridgeFaults.note("MobileUiBridge.findLoadedPlugin", ignore);
 		}
 		return null;
-	}
-
-	/** True if the XP Tracker plugin is loaded — the native shell forks to its RuneLite-styled panel. */
-	public static boolean xpTrackerAvailable()
-	{
-		return findLoadedPlugin("XpTrackerPlugin") != null;
-	}
-
-	/**
-	 * The XP Tracker's live per-skill session data for the native panel: {@code {available, totalGained, totalHr,
-	 * skills:[{skill,gained,hr,left,actions,startLevel,endLevel,progress,icon}]}} (icon = base64 PNG). Only skills
-	 * with session XP &gt; 0 are emitted (matching the desktop panel). Safe to call off the client thread (the
-	 * snapshot is immutable by design); on a transient reflection/concurrency hiccup the last-good JSON is returned.
-	 */
-	public static String xpTrackerJson()
-	{
-		try
-		{
-			final Object plugin = findLoadedPlugin("XpTrackerPlugin");
-			if (plugin == null)
-			{
-				return "{}";
-			}
-			final Object xpState = readField(plugin, "xpState");
-			if (xpState == null)
-			{
-				return "{}";
-			}
-			final java.util.Map<?, ?> xpSkills = (java.util.Map<?, ?>) readField(xpState, "xpSkills");
-			if (xpSkills == null)
-			{
-				return "{}";
-			}
-			final java.lang.reflect.Method snap = xpState.getClass().getDeclaredMethod("getSkillSnapshot", net.runelite.api.Skill.class);
-			snap.setAccessible(true);
-			final java.lang.reflect.Method total = xpState.getClass().getDeclaredMethod("getTotalSnapshot");
-			total.setAccessible(true);
-			final Object tot = total.invoke(xpState);
-			final StringBuilder sb = new StringBuilder(768);
-			sb.append("{\"available\":true")
-				.append(",\"totalGained\":").append(snapInt(tot, "xpGainedInSession"))
-				.append(",\"totalHr\":").append(snapInt(tot, "xpPerHour"))
-				.append(",\"skills\":[");
-			boolean first = true;
-			for (Object key : new java.util.ArrayList<>(xpSkills.keySet()))
-			{
-				if (!(key instanceof net.runelite.api.Skill))
-				{
-					continue;
-				}
-				final net.runelite.api.Skill skill = (net.runelite.api.Skill) key;
-				final Object s = snap.invoke(xpState, skill);
-				final int gained = snapInt(s, "xpGainedInSession");
-				if (gained <= 0)
-				{
-					continue;
-				}
-				if (!first)
-				{
-					sb.append(',');
-				}
-				first = false;
-				sb.append("{\"skill\":\"").append(skill.name()).append('"')
-					.append(",\"gained\":").append(gained)
-					.append(",\"hr\":").append(snapInt(s, "xpPerHour"))
-					.append(",\"left\":").append(snapInt(s, "xpRemainingToGoal"))
-					.append(",\"actions\":").append(snapInt(s, "actionsInSession"))
-					// P1-9: actions-left / actions-hr / time-to-level so iOS matches Android's XP panel. timeToLevelSec
-					// reuses XpTrackerBridge.parseDuration (same source of truth) so the two facades can't diverge.
-					.append(",\"actionsLeft\":").append(snapInt(s, "actionsRemainingToGoal"))
-					.append(",\"actionsHr\":").append(snapInt(s, "actionsPerHour"))
-					.append(",\"timeToLevelSec\":").append(XpTrackerBridge.parseDuration(snapString(s, "timeTillGoalShort")))
-					.append(",\"startLevel\":").append(snapInt(s, "startLevel"))
-					.append(",\"endLevel\":").append(snapInt(s, "endLevel"))
-					.append(",\"progress\":").append((int) Math.round(snapDouble(s, "skillProgressToGoal")));
-				final String icon = skillIconBase64(skill);
-				if (icon != null)
-				{
-					sb.append(",\"icon\":\"").append(icon).append('"');
-				}
-				sb.append('}');
-			}
-			sb.append("]}");
-			lastXpJson = sb.toString();
-			return lastXpJson;
-		}
-		catch (Throwable e)
-		{
-			BridgeFaults.note("MobileUiBridge.xpTrackerJson", e);
-			return lastXpJson;
-		}
 	}
 
 	// ---- Native Grand Exchange panel (§3.4 Tier-1) -----------------------------------------------------
@@ -696,90 +600,6 @@ public final class MobileUiBridge
 		{
 			BridgeFaults.note("MobileUiBridge.geSearch", e);
 			return "{\"results\":[]}";
-		}
-	}
-
-	private static Object readField(Object obj, String name) throws Exception
-	{
-		final java.lang.reflect.Field f = obj.getClass().getDeclaredField(name);
-		f.setAccessible(true);
-		return f.get(obj);
-	}
-
-	private static int snapInt(Object snap, String field)
-	{
-		try
-		{
-			final java.lang.reflect.Field f = snap.getClass().getDeclaredField(field);
-			f.setAccessible(true);
-			return f.getInt(snap);
-		}
-		catch (Exception e)
-		{
-			return 0;
-		}
-	}
-
-	private static double snapDouble(Object snap, String field)
-	{
-		try
-		{
-			final java.lang.reflect.Field f = snap.getClass().getDeclaredField(field);
-			f.setAccessible(true);
-			return f.getDouble(snap);
-		}
-		catch (Exception e)
-		{
-			return 0;
-		}
-	}
-
-	private static String snapString(Object snap, String field)
-	{
-		try
-		{
-			final java.lang.reflect.Field f = snap.getClass().getDeclaredField(field);
-			f.setAccessible(true);
-			final Object v = f.get(snap);
-			return v == null ? null : v.toString();
-		}
-		catch (Exception e)
-		{
-			return null;
-		}
-	}
-
-	/** A skill's icon as a base64 PNG (cached; empty string cached = known-absent). Via SkillIconManager. */
-	private static String skillIconBase64(net.runelite.api.Skill skill)
-	{
-		final String cached = SKILL_ICON_CACHE.get(skill);
-		if (cached != null)
-		{
-			return cached.isEmpty() ? null : cached;
-		}
-		try
-		{
-			if (skillIconMgr == null)
-			{
-				final com.google.inject.Injector inj = net.runelite.client.RuneLite.getInjector();
-				if (inj != null)
-				{
-					skillIconMgr = inj.getInstance(net.runelite.client.game.SkillIconManager.class);
-				}
-			}
-			if (skillIconMgr == null)
-			{
-				return null;
-			}
-			final BufferedImage img = ((net.runelite.client.game.SkillIconManager) skillIconMgr).getSkillImage(skill, true);
-			final String b64 = iconPngBase64(img);
-			SKILL_ICON_CACHE.put(skill, b64 == null ? "" : b64);
-			return b64;
-		}
-		catch (Throwable e)
-		{
-			SKILL_ICON_CACHE.put(skill, "");
-			return null;
 		}
 	}
 
@@ -1351,13 +1171,54 @@ public final class MobileUiBridge
 				.kv("internalName", d.getInternalName())
 				.kv("displayName", d.getDisplayName())
 				.kvNullable("author", d.getAuthor())
-				.kvNullable("description", d.getDescription())
+				.kvNullable("description", hubDescription(d.getDescription()))
 				.kvNullable("version", d.getVersion())
 				.kvNullable("unavailable", d.getUnavailableReason())
 				.kb("installed", installed.contains(d.getInternalName()))
 				.end();
 		}
 		return out.end().end().toString();
+	}
+
+	/**
+	 * A hub description as plain text for the native rows. Desktop's PluginHubPanel shows one that starts with
+	 * {@code <html>} as HTML in a JLabel and escapes the rest, so only those need their markup taken out.
+	 */
+	static String hubDescription(String desc)
+	{
+		if (desc == null || !desc.startsWith("<html>"))
+		{
+			return desc;
+		}
+		// A line or block break becomes a space so its words don't run together; inline tags just go.
+		final String text = desc.replaceAll("(?i)</?(br|p|div|li|ul|ol|tr|td|h[1-6])\\b[^>]*>", " ")
+			.replaceAll("<[^>]*>", "");
+		return decodeEntities(text).replaceAll("[\\s\\u00A0]+", " ").trim();
+	}
+
+	private static final Pattern HTML_ENTITY = Pattern.compile("&(#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6}|[a-zA-Z]+);");
+	private static final Map<String, String> NAMED_ENTITIES = Map.of(
+		"nbsp", " ", "lt", "<", "gt", ">", "quot", "\"", "apos", "'", "amp", "&");
+
+	/** Numeric entities and the common named ones, in one pass so "&amp;lt;" stays "&lt;"; any other stays as written. */
+	private static String decodeEntities(String text)
+	{
+		final Matcher m = HTML_ENTITY.matcher(text);
+		final StringBuilder out = new StringBuilder();
+		while (m.find())
+		{
+			final String e = m.group(1);
+			String to = NAMED_ENTITIES.get(e);
+			if (e.charAt(0) == '#')
+			{
+				final boolean hex = e.length() > 1 && (e.charAt(1) == 'x' || e.charAt(1) == 'X');
+				final int cp = Integer.parseInt(e.substring(hex ? 2 : 1), hex ? 16 : 10);
+				to = Character.isValidCodePoint(cp) ? new String(Character.toChars(cp)) : null;
+			}
+			m.appendReplacement(out, Matcher.quoteReplacement(to != null ? to : m.group()));
+		}
+		m.appendTail(out);
+		return out.toString();
 	}
 
 	/** Install a hub plugin by internal name (config write + flush so it persists; load happens async). */
@@ -1533,7 +1394,7 @@ public final class MobileUiBridge
 				{
 					final ConfigDescriptor cd = configManager.getConfigDescriptor(proxy);
 					group = cd.getGroup().value();
-					hasConfig = !cd.getItems().isEmpty();
+					hasConfig = hasShownItems(cd);
 				}
 			}
 			catch (RuntimeException ex)
@@ -1657,6 +1518,28 @@ public final class MobileUiBridge
 		return RuneLiteConfig.GROUP_NAME.equals(group) && RUNELITE_HIDDEN_KEYS.contains(key);
 	}
 
+	/**
+	 * True for an item the native config editor shows. Desktop ConfigPanel skips hidden() items, and the window-chrome
+	 * / hardware-input items in the RuneLite core group are N/A on a fullscreen touch app (opacity, tray,
+	 * always-on-top, window resize, sidebar/panel keybinds, extra mouse buttons). listPlugins' hasConfig uses the same
+	 * test, so a plugin gets a settings screen only when there is something on it.
+	 */
+	private static boolean isShownItem(String group, ConfigItemDescriptor item)
+	{
+		return !item.getItem().hidden() && !isMobileHiddenItem(group, item.key());
+	}
+
+	/**
+	 * listPlugins' hasConfig: the config editor would show at least one item. Counting every item gave Notes, whose
+	 * one item (the notes text) is hidden, a settings screen holding nothing but "Reset all settings", which wipes
+	 * the notes.
+	 */
+	static boolean hasShownItems(ConfigDescriptor cd)
+	{
+		final String group = cd.getGroup().value();
+		return cd.getItems().stream().anyMatch(item -> isShownItem(group, item));
+	}
+
 	/** The set of pinned (favourite) plugin display names, comma-stripped — the shared desktop {@code pinnedPlugins} CSV. */
 	private static Set<String> pinnedNames()
 	{
@@ -1731,22 +1614,15 @@ public final class MobileUiBridge
 		final Json out = new Json().obj().kv("group", group).key("items").arr();
 		for (ConfigItemDescriptor item : cd.getItems())
 		{
-			final ConfigItem ci = item.getItem();
-			if (ci.hidden())
+			if (!isShownItem(group, item))
 			{
-				// Desktop ConfigPanel skips hidden() items; match that so the native panel never shows them.
 				continue;
 			}
+			final ConfigItem ci = item.getItem();
 			final String key = item.key();
 			if (!isShownForSelectedScript(cm, group, ci.section()))
 			{
 				// Microbot Mobile: only the selected script's settings (plus the shared controls) are shown.
-				continue;
-			}
-			if (isMobileHiddenItem(group, key))
-			{
-				// Window-chrome / hardware-input items in the RuneLite core group are N/A on a fullscreen touch
-				// app (opacity, tray, always-on-top, window resize, sidebar/panel keybinds, extra mouse buttons).
 				continue;
 			}
 			final Type type = item.getType();
@@ -2136,6 +2012,22 @@ public final class MobileUiBridge
 		return "{\"ok\":true,\"writeId\":" + id + "}";
 	}
 
+	/**
+	 * Write one config value synchronously, on the calling thread. Client thread only. {@link #setConfig} queues
+	 * its write, so a plugin load queued on the EDT in the meantime can read the old value first; this is for the
+	 * one-time migrations that must land before that read ({@link RLHDStarter#migrateRlhd16Config}).
+	 */
+	static boolean setConfigNow(String group, String key, String value)
+	{
+		final ConfigManager cm = configManager;
+		if (!ENABLED || cm == null)
+		{
+			return false;
+		}
+		cm.setConfiguration(group, key, value);
+		return true;
+	}
+
 	/** Raw read of a stored config value (null if unset). Used by RLHDStarter's first-launch defaults sentinel. */
 	public static String getConfig(String group, String key)
 	{
@@ -2148,7 +2040,8 @@ public final class MobileUiBridge
 	}
 
 	/** Persist the dirty config, but QUEUED on the client thread so it runs AFTER any setConfig writes enqueued
-	 * just before it (sendConfig itself is immediate; ordering matters when seeding defaults then flushing). */
+	 * just before it (sendConfig itself is immediate; ordering matters when seeding defaults then flushing).
+	 * Returns a write id: once {@link #getProcessedWriteId()} reaches it, the file is written. */
 	public static String flushConfigQueued()
 	{
 		final ConfigManager cm = configManager;
@@ -2157,8 +2050,8 @@ public final class MobileUiBridge
 		{
 			return "{\"ok\":false,\"reason\":\"not-ready\"}";
 		}
-		enqueueClientWrite(ct, cm::sendConfig);
-		return "{\"ok\":true}";
+		final long id = enqueueClientWrite(ct, cm::sendConfig);
+		return "{\"ok\":true,\"writeId\":" + id + "}";
 	}
 
 	/**
@@ -2188,6 +2081,144 @@ public final class MobileUiBridge
 			}
 		});
 		return "{\"ok\":true,\"writeId\":" + id + "}";
+	}
+
+	// ---- Game settings: the phone settings that ride on stock plugins -----------------------------------------
+
+	static final String FPS_PLUGIN = "net.runelite.client.plugins.fps.FpsPlugin";
+	static final String FPS_GROUP = "fpscontrol";
+	static final String IDLE_PLUGIN = "net.runelite.client.plugins.logouttimer.LogoutTimerPlugin";
+	static final String IDLE_GROUP = "logouttimer";
+	static final int FPS_CAP_MAX = 360;      // the FPS Control plugin's own range
+	static final int FPS_CAP_DEFAULT = 50;   // its default target
+	static final int IDLE_MIN_MINUTES = 5;   // the Logout Timer plugin's own range; 5 is also the game's default
+	static final int IDLE_MAX_MINUTES = 30;
+
+	/**
+	 * The frame-rate cap and idle logout time the native Game settings screen shows, read from the FPS Control and
+	 * Logout Timer plugins: {@code {"fpsCap":N,"idleLogoutMinutes":M}}, where fpsCap 0 means no cap. "" when the
+	 * facade is off.
+	 */
+	public static String gameSettings()
+	{
+		final ConfigManager cm = configManager;
+		if (!ENABLED || pluginManager == null || cm == null)
+		{
+			return "";
+		}
+		final int fps = fpsCapFrom(pluginOn(FPS_PLUGIN), cm.getConfiguration(FPS_GROUP, "limitFps"),
+			cm.getConfiguration(FPS_GROUP, "maxFps"));
+		final int idle = idleMinutesFrom(pluginOn(IDLE_PLUGIN), cm.getConfiguration(IDLE_GROUP, "idleTimeout"));
+		return new Json().obj().ki("fpsCap", fps).ki("idleLogoutMinutes", idle).end().toString();
+	}
+
+	/** Cap the frame rate through the FPS Control plugin, turning the plugin on if it is off. 0 removes the cap. */
+	public static String setFpsCap(int fps)
+	{
+		if (!ENABLED || pluginManager == null || configManager == null)
+		{
+			return "{\"ok\":false,\"reason\":\"facade-off\"}";
+		}
+		return applyGameSetting(FPS_PLUGIN, fpsCapWrites(fps, pluginOn(FPS_PLUGIN)), fps > 0);
+	}
+
+	/** Set the idle logout time through the Logout Timer plugin, turning the plugin on if it is off. In minutes. */
+	public static String setIdleLogoutMinutes(int minutes)
+	{
+		if (!ENABLED || pluginManager == null || configManager == null)
+		{
+			return "{\"ok\":false,\"reason\":\"facade-off\"}";
+		}
+		return applyGameSetting(IDLE_PLUGIN, idleWrites(minutes), true);
+	}
+
+	/** The cap FPS Control is applying: its target while the plugin is on and limiting, else 0 (no cap). */
+	static int fpsCapFrom(boolean pluginOn, String limitFps, String maxFps)
+	{
+		if (!pluginOn || !Boolean.parseBoolean(limitFps))
+		{
+			return 0;
+		}
+		return clampInt(parseIntOr(maxFps, FPS_CAP_DEFAULT), 1, FPS_CAP_MAX);
+	}
+
+	/** The idle logout time in force: Logout Timer's setting while the plugin is on, else the game's 5 minutes. */
+	static int idleMinutesFrom(boolean pluginOn, String idleTimeout)
+	{
+		if (!pluginOn)
+		{
+			return IDLE_MIN_MINUTES;
+		}
+		return clampInt(parseIntOr(idleTimeout, IDLE_MIN_MINUTES), IDLE_MIN_MINUTES, IDLE_MAX_MINUTES);
+	}
+
+	/**
+	 * The config writes for a frame-rate cap, as {group, key, value}. FPS Control shows an FPS counter by default,
+	 * so when the cap is what turns the plugin on, the counter is switched off with it.
+	 */
+	static String[][] fpsCapWrites(int fps, boolean pluginOn)
+	{
+		if (fps <= 0)
+		{
+			return new String[][]{{FPS_GROUP, "limitFps", "false"}};
+		}
+		final String target = Integer.toString(clampInt(fps, 1, FPS_CAP_MAX));
+		if (pluginOn)
+		{
+			return new String[][]{{FPS_GROUP, "limitFps", "true"}, {FPS_GROUP, "maxFps", target}};
+		}
+		return new String[][]{{FPS_GROUP, "limitFps", "true"}, {FPS_GROUP, "maxFps", target}, {FPS_GROUP, "drawFps", "false"}};
+	}
+
+	/** The config write for an idle logout time, as {group, key, value}, clamped to the plugin's range. */
+	static String[][] idleWrites(int minutes)
+	{
+		return new String[][]{{IDLE_GROUP, "idleTimeout", Integer.toString(clampInt(minutes, IDLE_MIN_MINUTES, IDLE_MAX_MINUTES))}};
+	}
+
+	private static String applyGameSetting(String pluginClass, String[][] writes, boolean needsPlugin)
+	{
+		for (String[] w : writes)
+		{
+			final String ack = setConfig(w[0], w[1], w[2]);
+			if (!ack.startsWith("{\"ok\":true"))
+			{
+				return ack;
+			}
+		}
+		if (needsPlugin && !pluginOn(pluginClass))
+		{
+			setPluginEnabled(pluginClass, true);
+		}
+		return flushConfigQueued();
+	}
+
+	private static boolean pluginOn(String className)
+	{
+		final PluginManager pm = pluginManager;
+		final Plugin p = pluginByClassName(className);
+		return pm != null && p != null && pm.isPluginEnabled(p);
+	}
+
+	private static int parseIntOr(String s, int fallback)
+	{
+		if (s == null)
+		{
+			return fallback;
+		}
+		try
+		{
+			return Integer.parseInt(s.trim());
+		}
+		catch (NumberFormatException ex)
+		{
+			return fallback;
+		}
+	}
+
+	private static int clampInt(int v, int lo, int hi)
+	{
+		return Math.max(lo, Math.min(hi, v));
 	}
 
 	/**
@@ -2578,7 +2609,7 @@ public final class MobileUiBridge
 	public static int[] getChatInputBounds()
 	{
 		return chatInputVisible
-			? new int[]{chatInputX, chatInputY, chatInputW, chatInputH}
+			? HudStrip.toShown(new int[]{chatInputX, chatInputY, chatInputW, chatInputH})
 			: new int[]{0, 0, 0, 0};
 	}
 

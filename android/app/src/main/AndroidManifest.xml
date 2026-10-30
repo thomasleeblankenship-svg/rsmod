@@ -36,10 +36,12 @@
         android:extractNativeLibs="true"
         android:theme="@style/Theme.AppCompat.NoActionBar">
 
+        <!-- configChanges: the activity rides out display changes instead of being recreated over the running VM.
+             screenLayout matters on foldables: switching panels flips the size class, which would recreate it. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:configChanges="orientation|screenSize|keyboardHidden|uiMode|locale|density|smallestScreenSize"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode|locale|density|smallestScreenSize"
             android:screenOrientation="sensorLandscape">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -55,11 +57,11 @@
 
         <!-- A3 on-device Jagex login: consent flow runs in a Chrome Custom Tab (real Chrome clears Cloudflare;
              the embedded WebView is bot-blocked at the auth step), the http://localhost redirect link is brought
-             back via clipboard/paste. Not exported; landscape to match the shell. -->
+             back via clipboard/paste. Not exported; onCreate turns it to the game's side (Game settings > Screen). -->
         <activity
             android:name=".LoginActivity"
             android:exported="false"
-            android:configChanges="orientation|screenSize|keyboardHidden|uiMode|locale|density|smallestScreenSize"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode|locale|density|smallestScreenSize"
             android:screenOrientation="sensorLandscape" />
 
         <!-- PARITY-P0-1: background-session keepalive foreground service (started/stopped by MainActivity's

@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/brand/runemobile-logo.png" width="160" height="160" alt="RuneMobile logo">
+</p>
+
 > Mobile Microbot integration is in progress. See [BUILD_REPORT.md](BUILD_REPORT.md),
 > [API_SUPPORTED.md](API_SUPPORTED.md), and [SCRIPT_COMPATIBILITY.md](SCRIPT_COMPATIBILITY.md).
 > Real client compilation and 9 focused client-interface tests pass. Upstream desktop script compatibility is not yet implemented.
@@ -19,6 +23,10 @@
 > Service and carries a real risk of an account ban** — use a **throwaway account
 > you can afford to lose, never your main.** Provided **as-is, without warranty, at
 > your own risk.** See [Legal notice](#legal-notice) and [Risk & disclaimer](#risk--disclaimer).
+
+<p align="center">
+  <img src="docs/screenshots/hero.jpg" alt="RuneMobile on a Pixel 7a held sideways, in the 117 HD renderer, and on an iPhone held upright: the game by the Lumbridge river, with the chat, minimap and tab buttons laid out like the official mobile app">
+</p>
 
 ## Get it
 
@@ -63,11 +71,31 @@ the official Jagex OSRS Mobile app.
 This is **not** a re-implementation, emulator, or skin. It is the authentic RuneLite
 engine and its plugins, with a native mobile UI layered on top.
 
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/quest-helper.jpg" alt="Quest Helper on iPhone, held sideways: the current step in a box under the chat, and the route to it drawn on the ground and the minimap"></td>
+    <td width="50%"><img src="docs/screenshots/shortest-path.jpg" alt="Shortest Path on iPhone, held upright: a red route drawn on the ground over the hill and on the minimap"></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/plugin-hub.jpg" alt="The Plugin Hub on iPhone, held upright: thousands of community plugins, with the installed ones first"></td>
+    <td width="50%"><img src="docs/screenshots/117hd.jpg" alt="The 117 HD renderer on a Pixel 7a, held sideways: autumn trees and haze over the river gorge by the Lumbridge bridge, with the chat and tab buttons"></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/menu.jpg" alt="Holding a quest in the quest list on iPhone: the full option menu, with Start Quest Helper added by the plugin"></td>
+    <td width="50%"><img src="docs/screenshots/menu-entry-swapper.jpg" alt="Menu Entry Swapper's native settings on iPhone, held upright, with the NPC swaps section open"></td>
+  </tr>
+</table>
+
+To rebuild them from new captures, see [`tools/brand/make-showcase.py`](tools/brand/make-showcase.py).
+
 ---
 
 ## Contents
 
 - [Get it](#get-it)
+- [Screenshots](#screenshots)
 - [How it works](#how-it-works)
 - [Feature overview](#feature-overview)
 - [Platform status & supported devices](#platform-status--supported-devices)
@@ -126,7 +154,7 @@ the other as parity is closed.
 - **Precise engine-resolved touch targeting.** A literal-point tap routes to the
   exact pixel you touch; the engine's own model clickbox resolves the hit and a
   settle gate confirms the real outcome (red ring = interact, yellow = walk, item
-  border = inventory). Long-press opens the authentic left-click menu.
+  border = inventory). Long-press opens the game's own right-click menu.
 - **Full RuneLite plugin ecosystem + native config panel.** The unmodified plugin
   set, with a searchable, touch-friendly bottom sheet: per-plugin toggles, pins,
   config screens, and an on-device **Plugin Hub** browser to install community plugins.
@@ -140,6 +168,9 @@ the other as parity is closed.
 - **Native HUD veneers.** Minimap, and HP / Prayer / Run / Spec orbs as enlarged
   one-tap touch targets; a top-relocated chat with channel pills
   (All / Game / Public / Private / Channel / Clan / Trade) and a real soft keyboard.
+- **Overlay editor.** Drag RuneLite's overlays, the chat and the minimap where you
+  want them, or snap an overlay to a screen corner. The minimap keeps its place
+  through a rotation or a notch.
 - **Native tab grid.** Open any interface tab (Inventory / Prayer / Combat /
   Spellbook / Clan / …) through the genuine menu action.
 - **Native info screens.** XP tracker, infoboxes, Grand Exchange, Loot Tracker, time
@@ -154,10 +185,11 @@ the other as parity is closed.
 
 ## Platform status & supported devices
 
-This is an early **`0.1.0` pre-release**, tracking upstream RuneLite
-**`1.13.2-SNAPSHOT`** (latest release tag `runelite-parent-1.13.1`) with **`rev241`**
-(2026-10-07) game data. It is playable, but it is a single-maintainer, best-effort
-build and may break after an OSRS weekly update until a new build is published.
+This is a **pre-release** (`0.x`). The [latest release](../../releases/latest) has the
+current version, and [`CHANGELOG.md`](CHANGELOG.md) says what each one changed. Every
+build tracks upstream RuneLite's development line and the game data current when it was
+built. It is playable, but it is a single-maintainer, best-effort build and may break
+after an OSRS weekly update until a new build is published.
 
 ### Android
 
@@ -175,7 +207,7 @@ build and may break after an OSRS weekly update until a new build is published.
 | **OS** | **iOS 17.4 or newer**, arm64 device, **passcode required** |
 | **JIT** | Per-launch debugger attach via **StikDebug** |
 | **Signing** | Free Apple ID = app expires every **7 days**, one-tap refresh (no charge, no jailbreak) |
-| **Verified on** | iPhone 17 Pro Max (iOS 26.5) |
+| **Verified on** | iPhone 17 Pro Max (iOS 27.2) |
 
 > On iOS the installed app icon is labelled **RuneMobile** — that is the name to look
 > for on your Home Screen and in StikDebug's app list.
@@ -194,9 +226,13 @@ A few things this build does deliberately that you might otherwise mistake for b
   at a slow tick to save battery, and Android/Jagex may cut the connection;
   foregrounding triggers the automatic re-login above. (iOS keeps the session alive
   in the background.)
-- **117HD may reduce resolution when the phone runs hot (iOS).** Under sustained
+- **117HD may reduce resolution when the phone runs hot (both ports).** Under sustained
   thermal pressure the HD renderer temporarily lowers its internal resolution scale
   and restores it once the device cools. This is intentional.
+- **The native HUD needs Resizable - Modern.** An account saved in Resizable - Classic
+  or Fixed gets the game's own HUD instead, with a **Switch to Resizable - Modern**
+  button at the top of the screen. One tap changes the game's own display setting,
+  and the game saves it to your account.
 
 ---
 
@@ -275,7 +311,7 @@ JIT step each time you play.** No jailbreak is required.
 1. Turn on the **LocalDevVPN** toggle.
 2. Open **StikDebug**, pick **RuneMobile** (with `runelite-jit.js` assigned), and let
    it **attach** (its log shows `[rl-jit]` lines as JIT switches on).
-3. Open **RuneMobile** and tap **Start JVM** — it boots into the game.
+3. Open **RuneMobile** and tap the **Tap to Play** button — it boots into the game.
 
 > Opening RuneMobile *without* attaching StikDebug first will simply wait — that is
 > expected. Attach, and it continues.
@@ -333,7 +369,8 @@ installed.
 
 - StikDebug's log prints `[rl-jit] attached …`, then one or more
   `[rl-jit] #<n> brk#0x69 size=… -> RX 0x…` lines (one per code-cache reservation).
-- RuneMobile reaches the game after you tap **Start JVM**.
+- RuneMobile's **Tap to Play** button turns active ("Ready to play"), and the game loads
+  after you tap it.
 
 If you see **no `[rl-jit]` lines**, the script was not assigned — redo the assignment
 step. If StikDebug **won't list or select the script at all**, or the attach aborts
@@ -398,7 +435,7 @@ When asking for help, **never paste `tokens.json`, an `access_token`, a
 
 | Symptom | Cause / fix |
 |---|---|
-| App won't launch / just waits | JIT not enabled. Turn on LocalDevVPN, attach StikDebug, then tap **Start JVM**. |
+| App won't launch / just waits | JIT not enabled. Turn on LocalDevVPN, attach StikDebug, then tap the **Tap to Play** button. |
 | Attaches but crashes, no `[rl-jit]` log lines, or StikDebug won't list/select the script | Script not assigned, or the file is corrupted/malformed — delete it from `StikDebug/scripts/` and re-import a fresh `runelite-jit.js`, then re-assign it to RuneMobile. |
 | "Unable to install" in SideStore | SideStore's VPN must be on and you must be signed into your Apple ID. |
 | Can't enable Developer Mode | Set a device passcode first, then Settings → Privacy & Security. |
@@ -416,6 +453,9 @@ When asking for help, **never paste `tokens.json`, an `access_token`, a
 ---
 
 ## Build from source
+
+> Developing on RuneMobile? The [developer guide](docs/dev/README.md) covers setup, architecture, the bridge
+> API, each port, testing, debugging and releases in full. This section is the short version.
 
 A fresh clone does **not** contain the embedded JRE or the client jars — they are
 gitignored and regenerated by tracked, SHA-pinned staging scripts. The native
@@ -453,6 +493,10 @@ as Android's (`:client:shadowJar` and `build-probes.sh`) but go through iOS's ow
 (gitignored — `export DEVELOPMENT_TEAM=XXXXXXXXXX`); the build scripts source it and
 `xcodegen` expands `${DEVELOPMENT_TEAM}` into the project.
 
+**Without a phone:** on an Apple silicon Mac the iOS app also runs in the iOS Simulator,
+with the full JIT and no StikDebug, and a single command checks a build there. See
+[Testing in the iOS Simulator](CONTRIBUTING.md#testing-in-the-ios-simulator).
+
 ---
 
 ## Architecture
@@ -460,22 +504,25 @@ as Android's (`:client:shadowJar` and `build-probes.sh`) but go through iOS's ow
 ```
  ART / iOS process
    └─ native shell (Kotlin+Compose / ObjC+UIKit) ── SurfaceView / CAEAGL host
-        └─ C++ bootstrap: dlopen libjvm → JNI_CreateJavaVM
+        └─ bootstrap (C++ / ObjC): dlopen libjvm → JNI_CreateJavaVM
              └─ embedded OpenJDK 21 (HotSpot, JIT)
                   └─ stock RuneLite (headless) + Caciocavallo AWT
                        └─ headless/* bridge ──► shared verbatim across both ports
 ```
 
-The native UI thread is attached to the embedded JVM (as a daemon, like every thread that
-calls into it) but **never** touches engine state: input goes in as queued intents that the
-client thread drains, and the UI reads immutable snapshots the client thread publishes. The
-rule is spelled out in `headless/package-info.java`. R8 / minification is intentionally off.
-[`PORTS.md`](PORTS.md) is the repo map: what the ports share, what each bundles, and how the
-shared edge is kept. The mobile project lives under `ios/`, `android/`, and the shared
+Every thread that calls into the embedded JVM attaches itself as a daemon, and none of them
+**ever** touches engine state: input goes in as queued intents that the client thread
+drains, and the native side reads immutable snapshots the client thread publishes. Which
+threads attach differs by port. On iOS the UI thread attaches and calls the bridge directly.
+On Android it never attaches: touches go onto a native queue that the (attached) render thread
+drains into the bridge, and requests from the plugin and settings screens run on a dedicated
+`rl-bridge` thread. The rule is spelled out in `headless/package-info.java`. R8 / minification
+is intentionally off. [`PORTS.md`](PORTS.md) is the repo map: what the ports share, what each
+bundles, and how the shared edge is kept. The mobile project lives under `ios/`, `android/`, and the shared
 `runelite-client/.../headless/` bridge package; the rest of the tree
 (`runelite-client/`, `runelite-api/`, …) is upstream RuneLite, updated by merging
 `runelite/runelite` and carried with a deliberately small set of additive fork seams
-(the headless boot/UI override, bridge hooks in about a dozen upstream files, and the
+(the headless boot/UI override, bridge hooks in about fifteen upstream files, and the
 mobile privacy gates described in [`PRIVACY.md`](PRIVACY.md)).
 
 ---

@@ -183,6 +183,9 @@ object JvmLauncher {
     /** Does the engine currently have a text field focused? Poll to auto-raise/dismiss the soft keyboard. */
     external fun nativeIsTextInputOpen(): Boolean
 
+    /** What the focused field takes: 0 none, 1 text, 2 a number (amount prompts, Grand Exchange quantity/price). */
+    external fun nativeTextInputKind(): Int
+
     /** Monotonic counter the engine bumps on each committed interact-tap — advance => fire a haptic. */
     external fun nativeInteractTapSeq(): Int
 
@@ -220,7 +223,23 @@ object JvmLauncher {
     /** Latest composited frame dimensions (game-canvas pixels), or 0 before the first frame. */
     external fun nativeFrameWidth(): Int
 
+    /** The height counts only the rows the screen shows ([nativeSetShownRows]). */
     external fun nativeFrameHeight(): Int
+
+    /** The last frame's full canvas height, rows hidden under the screen included; 0 before the first frame. */
+    external fun nativeCanvasHeight(): Int
+
+    /** Large portrait UI: show only the canvas's top [rows] rows (0 = all); the strip below holds the full-size chat
+     *  and minimap. Any thread. */
+    external fun nativeSetShownRows(rows: Int)
+
+    /** Large portrait UI: tell the bridge the shown rows and the band (canvas px) windows are pinned into
+     *  (HudVeneerBridge.setHudStrip); 0 rows turns the strip off. Off the UI thread (via [onBridge]). */
+    external fun nativeSetHudStrip(
+        visibleRows: Int,
+        top: Int,
+        bottom: Int,
+    )
 
     /** Phase 3 (auto-GPU watchdog): frames the GPU/117HD renderer has actually presented. 0 == renderer not armed or
      *  never activated (failed/black/crashed); a climbing value == it activated and is presenting. */
@@ -236,6 +255,21 @@ object JvmLauncher {
     /** P2-1 dev panel: exercise the auto-reconnect path for [seconds] so the Reconnecting overlay can be verified
      *  without a real network drop. No-op on an older jar. Call OFF the UI thread (via [onBridge]). */
     external fun nativeSimulateReconnect(seconds: Int)
+
+    /** FOLD-3: resize the game canvas to [w]x[h] mid-session (the window changed shape). False on an older jar or
+     *  before the bridge is up. Call OFF the UI thread (via [onBridge]). */
+    external fun nativeRequestResize(
+        w: Int,
+        h: Int,
+    ): Boolean
+
+    /** FOLD-4: the camera zoom the game is drawing with; -1 while logged out, before the bridge is up, or on an older
+     *  jar. Call OFF the UI thread (via [onBridge]). */
+    external fun nativeCameraZoom(): Int
+
+    /** FOLD-4: set the camera zoom (clamped to the game's limits, applied once logged in). No-op on an older jar.
+     *  Call OFF the UI thread (via [onBridge]). */
+    external fun nativeSetCameraZoom(zoom: Int)
 
     // AP-2b Finding 5 (screenshot): the latest composited CPU frame as 0x00RRGGBB ints (alpha unset; the consumer
     // ORs 0xFF for an opaque PNG). null before the first frame / bridge off. Pull OFF the UI thread (via [onBridge])
@@ -283,6 +317,15 @@ object JvmLauncher {
 
     // SC-1/NOTIF-2: the serialized default Notification seed for the per-item editor. Off the UI thread.
     external fun nativeNotificationDefaults(): String
+
+    // Game settings: {"fpsCap":N,"idleLogoutMinutes":M} (fpsCap 0 = no cap), or "" if unavailable. Off the UI thread.
+    external fun nativeGameSettings(): String
+
+    // Cap the frame rate through the FPS Control plugin; 0 removes the cap. Off the UI thread.
+    external fun nativeSetFpsCap(fps: Int): String
+
+    // Set the idle logout time through the Logout Timer plugin, in minutes. Off the UI thread.
+    external fun nativeSetIdleLogoutMinutes(minutes: Int): String
 
     // AP-2a bridge-amortized drain surfaces (off the UI thread via [onBridge]); "" = nothing pending / unresolved.
     external fun nativeNextNotification(): String // Finding 9:  "titlebody" or ""
@@ -516,8 +559,14 @@ object JvmLauncher {
         b: Int,
     )
 
+    /** The shell's own controls over the game, flat {x, y, w, h, ...} in CANVAS px: plugin overlay boxes keep off them. */
+    external fun nativeSetOverlayKeepOut(rects: IntArray)
+
     /** Phase-4 chat pill: collapse the chat (shared shove-off-canvas) / switch channel (op-script replay). */
     external fun nativeSetChatCollapsed(collapsed: Boolean)
+
+    /** The speech bubbles: put the whole chat away, filter stones included (HudVeneerBridge.setChatPutAway). */
+    external fun nativeSetChatPutAway(putAway: Boolean)
 
     external fun nativeSwitchChatTab(index: Int)
 
@@ -672,6 +721,8 @@ object JvmLauncher {
 
     fun isTextInputOpen() = nativeIsTextInputOpen()
 
+    fun textInputKind() = nativeTextInputKind()
+
     fun interactTapSeq() = nativeInteractTapSeq()
 
     fun tapKindSeq() = nativeTapKindSeq()
@@ -700,6 +751,16 @@ object JvmLauncher {
     fun frameWidth() = nativeFrameWidth()
 
     fun frameHeight() = nativeFrameHeight()
+
+    fun canvasHeight() = nativeCanvasHeight()
+
+    fun setShownRows(rows: Int) = nativeSetShownRows(rows)
+
+    fun setHudStrip(
+        visibleRows: Int,
+        top: Int,
+        bottom: Int,
+    ) = nativeSetHudStrip(visibleRows, top, bottom)
 
     fun framePixels(): IntArray? = nativeFramePixels()
 
@@ -742,6 +803,15 @@ object JvmLauncher {
     fun heapStats() = nativeHeapStats()
 
     fun simulateReconnect(seconds: Int) = nativeSimulateReconnect(seconds)
+
+    fun requestResize(
+        w: Int,
+        h: Int,
+    ) = nativeRequestResize(w, h)
+
+    fun cameraZoom() = nativeCameraZoom()
+
+    fun setCameraZoom(zoom: Int) = nativeSetCameraZoom(zoom)
 
     // ---- A3.5 bridge request/response thread --------------------------------------------------------
     // A single dedicated background thread the UI posts plugin-plane requests to, so the ART UI thread NEVER
@@ -804,6 +874,12 @@ object JvmLauncher {
     ) = nativeResetConfig(group, key)
 
     fun notificationDefaults() = nativeNotificationDefaults()
+
+    fun gameSettings() = nativeGameSettings()
+
+    fun setFpsCap(fps: Int) = nativeSetFpsCap(fps)
+
+    fun setIdleLogoutMinutes(minutes: Int) = nativeSetIdleLogoutMinutes(minutes)
 
     fun nextNotification() = nativeNextNotification()
 
@@ -1008,7 +1084,11 @@ object JvmLauncher {
         b: Int,
     ) = nativeSetOverlayInsets(l, t, r, b)
 
+    fun setOverlayKeepOut(rects: IntArray) = nativeSetOverlayKeepOut(rects)
+
     fun setChatCollapsed(collapsed: Boolean) = nativeSetChatCollapsed(collapsed)
+
+    fun setChatPutAway(putAway: Boolean) = nativeSetChatPutAway(putAway)
 
     fun switchChatTab(index: Int) = nativeSwitchChatTab(index)
 

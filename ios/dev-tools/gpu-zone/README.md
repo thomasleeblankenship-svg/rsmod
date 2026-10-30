@@ -1,9 +1,18 @@
 # gpu-zone — iOS Zone Z0 conformance harness (RLHD zone shaders → ES 3.00 on EAGL)
 
-> Branch `gpu`. Phase **Z0** of `ios/archive/HD-ZONE-B0-SCOPE.md` / `ios/HD-PORT-BLUEPRINT.md` §5: a fail-closed gate that
-> proves the **entire RLHD zone-path shader surface compiles on native EAGL GLES 3.0** before any renderer work.
+> Phase **Z0** of the 117 HD (RLHD) port to iOS: a fail-closed gate that proves the **entire RLHD zone-path shader
+> surface compiles on native EAGL GLES 3.0** before any renderer work.
 > Clones the proven `gpu-b1` pattern (xcodegen + EAGL offscreen compile + md5-sealed verdict). Backend = **EAGL**
 > (the 2026-06-09 device A/B locked EAGL + `gl_FragDepth`; ANGLE is not used).
+
+> **Current shader gate (RLHD v1.6.0.1 on):** `tools/shader-matrix/run-matrix.sh ios` (verdict `SHADER_MATRIX_GREEN`;
+> `android` runs the same matrix against Android's overlay and `librlawt.cpp` downport). It
+> assembles every program the zone renderer builds through the real `HdPlugin.getShaderIncludes()`, in 11 config
+> variants. Then it applies the `RouteCBridge` downport (the tables are parsed out of the bridge) and validates every stage
+> with glslang. It also flags ES 3.1+ built-ins and samplers left at the default precision. Run it after any change
+> to `ios-overrides/`, the bridge's downport tables or the RLHD pin; the simulator (`../sim-gate.sh`) and the phone
+> remain the authority. The Z0 harness below is the B0 bring-up record: its assembler, its fixed define map and
+> the tracked `rlhd-src/shaders/` subset stay at `7dded59` and are not maintained.
 
 ## Layout
 
@@ -11,8 +20,7 @@
   unresolved) + `java/…/shader/{ShaderIncludes,ShaderTemplate,ShaderException}.java` (the assembler) + `LICENSE` +
   `PROVENANCE.md`.
 - `app/` — the probe app: `ZoneDownport.{h,m}` (GLSL→ES 3.00 rewriter), `ZoneProbe.{h,m}` (compile loop), `main.m`.
-- `assembled/` — RLHD-Template-assembled shaders, bundled flat as `<name>.<stage>.assembled.glsl`. **Empty until the
-  assemble step exists** (see Status).
+- `assembled/` — RLHD-Template-assembled shaders, bundled flat as `<name>.<stage>.assembled.glsl` (see Status).
 - `project.yml` — xcodegen (`xcodegen generate` → `GpuZone.xcodeproj`).
 - `gpu-zone-z0-verdict.sh` — md5-gated verdict over the pulled `gpu-zone-z0-verdict.log`.
 
@@ -27,14 +35,14 @@ RLHD .glsl (#include/#define)  ──assemble──►  flat desktop GLSL (#vers
 
 ## ZoneDownport — what's implemented (`app/ZoneDownport.m`)
 
-Superset of the base-gpu B1 downporter. Per the blueprint §5 blocker list:
+Superset of the base-gpu B1 downporter. The `#N` tags are the port's numbered ES 3.0 blockers:
 1. `#version <any>` (RLHD injects **420/430**, not 330) → `#version 300 es`  *(#7)*
 2. inject `precision …` qualifiers (float/int/sampler2DArray/sampler2D/**isampler2D/usampler2D**)
 3. drop `noperspective`
 4. strip float-literal `f`/`F` suffixes
 5. **`textureFaces` texture-buffer → 2D `isampler2D` repack** (3 rules, proven byte-exact in `gpu-tbo2d`)  *(#1)*
 6. explicit int↔float casts — **site set discovered from Z0 compile errors** (empty until the compile loop runs;
-   prefer hand-maintained variants for the cast-heavy files per the blueprint).
+   prefer hand-maintained variants for the cast-heavy files).
 
 ## Status — done / in progress / remaining
 
@@ -45,7 +53,9 @@ minimal-config define map AND applies the **GLSL 330→ES 3.00 downport** (the s
 as-is). The `MAX_SIMULTANEOUS_WORLD_VIEWS`/`WORLD_VIEW_GETTER` overrides `ZoneRenderer.addShaderIncludes()` does and
 the `MATERIAL_CONSTANTS` named-material defines are replicated in the config. **`ios-overrides/`** shadow-dir
 (resolved before `rlhd-src/`) holds hand-maintained ES3 copies of pervasively cast-heavy files
-(`utils/color_utils.glsl`). **`glslang-check.sh`** = an offline fast-filter (glslang at `#version 310 es` to suppress
+(`utils/color_utils.glsl`), and since 2026-10-22 the five `overlays/` shaders, copied from Android's
+`android/dev-tools/gpu/shader-overlay/` ports. Without them the gamma-calibration overlay, the one 117HD compiles at
+startup, failed every launch (`smoothstep(int, float, float)`). **`glslang-check.sh`** = an offline fast-filter (glslang at `#version 310 es` to suppress
 its interface-block false-positives) that reports many #13 sites per pass — works for shadow/ui, but **not scene**
 (glslang bails at scene's in/out interface blocks, which Apple's EAGL accepts).
 
@@ -53,7 +63,7 @@ its interface-block false-positives) that reports many #13 sites per pass — wo
 "Uniform interface block UBOMaterials too large (57120 exceeds max 16384)"` — Apple's GLES-on-Metal caps uniform
 blocks at 16 KB; the real material set is 595 × 96 B std140) is fixed by **texture-backing the material data**:
 `ios-overrides/uniforms/materials.glsl` drops the UBO block and rebuilds `getMaterial(i)` from 6×RGBA32I
-`texelFetch`es per material (same std140 bytes, `materialStore` isampler2D on unit 6), and the **`java-overrides/`**
+`texelFetch`es per material (same std140 bytes, `materialStore` isampler2D on unit 8), and the **`java-overrides/`**
 overlay (new: laid over `rlhd-src` at stage time, same pattern as `ios-overrides`) makes `MaterialManager` upload
 the UBO's serialized ByteBuffer verbatim into that texture + wires the sampler in `SceneShaderProgram` /
 `ShadowShaderProgram`. Gates: assembler now uses the REAL `MATERIAL_COUNT 595` — the **negative control**
@@ -75,10 +85,10 @@ MAT_*-constants, the shadows-off `sampleShadowMap` int-`0` stub macro, the full 
 `utils/color_utils.glsl`, `utils/water.glsl`, `utils/fog.glsl`; everything else via targeted CAST rules. Also fixed a
 real downport bug (the `f`-suffix strip corrupting `material1.flowMap`→`lowMap`).
 
-## Phase B0 — renderer bring-up (`ios/archive/HD-ZONE-B0-SCOPE.md`)
+## Phase B0 — renderer bring-up
 
 **B0.1 GREEN (host, no device).** `stage-ios-zone-jar.sh` stages the iOS-variant RLHD jar: it compiles the
-RLHD source — pristine (`rlhd-src/src/`, full tree @ `7dded59`, gitignored — see `rlhd-src/PROVENANCE.md`)
+RLHD source — pristine (`rlhd-src/src/`, full tree @ `f5be256` = v1.6.0.1, gitignored — see `rlhd-src/PROVENANCE.md`)
 except the committed **`java-overrides/`** laid over it at stage time (B0.5: the materials subsystem) —
 against `[facade/ : lwjgl-stripped client jar]` with lombok as an annotation processor, then re-zips
 `rs117/**` classes + RLHD shader/JSON resources (no `org/lwjgl`/`rlawt` — facade ships in the gpu jar). Verdict

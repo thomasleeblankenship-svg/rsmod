@@ -259,6 +259,9 @@ static BOOL rcBuildFbo(int w, int h)
 	}
 }
 
++ (void)presentLayerResized {
+}
+
 + (void)setPresentLayer:(id)layer
 {
 	sPresentLayer = (__bridge void *) layer;   // a CAMetalLayer (passed before createGLContext)
@@ -268,6 +271,9 @@ static BOOL rcBuildFbo(int w, int h)
 // ANGLE TU cannot import CoreVideo anyway — it pulls the conflicting OpenGLES module). No-op stubs.
 + (void)setPipPresentLayer:(id)layer { (void) layer; }
 + (void)setPipPresentEnabled:(BOOL)on { (void) on; }
++ (void)setPipShownRows:(int)rows {
+    (void)rows;
+}
 
 + (BOOL)isPresenting
 {
@@ -312,6 +318,7 @@ static volatile BOOL sPipEnqueueOn = NO;              // flipped by the shell at
 static CVOpenGLESTextureCacheRef sPipTexCache = NULL; // EAGL-context texture cache (lazy, render thread)
 static CVPixelBufferPoolRef sPipPool = NULL;          // IOSurface-backed 32BGRA buffers (recycled by the display)
 static int sPipPoolW = 0, sPipPoolH = 0;
+static volatile int sPipShownRows = 0;                // top canvas rows blitted (0 = all; setPipShownRows:)
 static GLuint sPipFbo = 0;                            // blit-destination FBO (color = the frame's pixel-buffer texture)
 static CMVideoFormatDescriptionRef sPipFmt = NULL;
 
@@ -332,6 +339,8 @@ static void rcPipPresent(void)
 	{
 		return;
 	}
+	// The shown rows are the canvas's top ones: in GL's bottom-left origin, the FBO's top `rows` rows.
+	const int rows = (sPipShownRows > 0 && sPipShownRows < sFboH) ? sPipShownRows : sFboH;
 	if (!sPipTexCache)
 	{
 		if (CVOpenGLESTextureCacheCreate(kCFAllocatorDefault, NULL, sCtx, NULL, &sPipTexCache) != kCVReturnSuccess)
@@ -340,14 +349,14 @@ static void rcPipPresent(void)
 			return;
 		}
 	}
-	if (!sPipPool || sPipPoolW != sFboW || sPipPoolH != sFboH)
+	if (!sPipPool || sPipPoolW != sFboW || sPipPoolH != rows)
 	{
 		if (sPipPool) { CVPixelBufferPoolRelease(sPipPool); sPipPool = NULL; }
 		if (sPipFmt)  { CFRelease(sPipFmt); sPipFmt = NULL; }
 		NSDictionary *attrs = @{
 			(id) kCVPixelBufferPixelFormatTypeKey : @(kCVPixelFormatType_32BGRA),
 			(id) kCVPixelBufferWidthKey : @(sFboW),
-			(id) kCVPixelBufferHeightKey : @(sFboH),
+			(id) kCVPixelBufferHeightKey : @(rows),
 			(id) kCVPixelBufferIOSurfacePropertiesKey : @{},
 			(id) kCVPixelBufferOpenGLESCompatibilityKey : @YES,
 		};
@@ -356,7 +365,7 @@ static void rcPipPresent(void)
 			sPipPool = NULL;
 			return;
 		}
-		sPipPoolW = sFboW; sPipPoolH = sFboH;
+		sPipPoolW = sFboW; sPipPoolH = rows;
 	}
 
 	// Cap in-flight buffers: the display pipeline holds ~2; if it ever hoards the whole pool, skip this
@@ -370,7 +379,7 @@ static void rcPipPresent(void)
 	}
 	CVOpenGLESTextureRef tex = NULL;
 	if (CVOpenGLESTextureCacheCreateTextureFromImage(kCFAllocatorDefault, sPipTexCache, pb, NULL,
-			GL_TEXTURE_2D, GL_RGBA, sFboW, sFboH, GL_BGRA_EXT, GL_UNSIGNED_BYTE, 0, &tex) != kCVReturnSuccess || !tex)
+			GL_TEXTURE_2D, GL_RGBA, sFboW, rows, GL_BGRA_EXT, GL_UNSIGNED_BYTE, 0, &tex) != kCVReturnSuccess || !tex)
 	{
 		CVPixelBufferRelease(pb);
 		return;
@@ -394,7 +403,7 @@ static void rcPipPresent(void)
 	glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texName, 0);
 	glBindFramebuffer(GL_READ_FRAMEBUFFER, sFbo);
 	glReadBuffer(GL_COLOR_ATTACHMENT0);
-	glBlitFramebuffer(0, 0, sFboW, sFboH, 0, sFboH, sFboW, 0, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+	glBlitFramebuffer(0, sFboH - rows, sFboW, sFboH, 0, rows, sFboW, 0, GL_COLOR_BUFFER_BIT, GL_NEAREST);
 	glFlush();   // order the blit before the video pipeline samples the IOSurface
 
 	if (scissor) glEnable(GL_SCISSOR_TEST);
@@ -493,14 +502,28 @@ static BOOL rcBuildFbo(int w, int h)
 + (int)fbWidth  { return sFboW; }
 + (int)fbHeight { return sFboH; }
 
+// Set on main by presentLayerResized, taken on the GL thread by ensureSize.
+static volatile BOOL sPresentLayerResized = NO;
+
 + (void)ensureSizeWidth:(int)w height:(int)h
 {
-	if (sPresentLayer) return;
-	if (w > 0 && h > 0 && (w != sFboW || h != sFboH) && sCtx)
-	{
-		[EAGLContext setCurrentContext:sCtx];
-		rcBuildFbo(w, h);
-	}
+    if (sPresentLayer) {
+        // The drawable follows the layer, which the shell resizes once the game draws at the new canvas.
+        if (sPresentLayerResized && sCtx) {
+            sPresentLayerResized = NO;
+            [EAGLContext setCurrentContext:sCtx];
+            rcBuildFbo(w, h);
+        }
+        return;
+    }
+    if (w > 0 && h > 0 && (w != sFboW || h != sFboH) && sCtx) {
+        [EAGLContext setCurrentContext:sCtx];
+        rcBuildFbo(w, h);
+    }
+}
+
++ (void)presentLayerResized {
+    sPresentLayerResized = YES;
 }
 
 + (void)setPresentLayer:(id)caEaglLayer { sPresentLayer = (__bridge void *) caEaglLayer; }
@@ -508,6 +531,10 @@ static BOOL rcBuildFbo(int w, int h)
 + (void)setPipPresentLayer:(id)layer { sPipLayer = (AVSampleBufferDisplayLayer *) layer; }
 
 + (void)setPipPresentEnabled:(BOOL)on { sPipEnqueueOn = on; }
+
++ (void)setPipShownRows:(int)rows {
+    sPipShownRows = rows > 0 ? rows : 0;
+}
 
 + (BOOL)prepareWindowSurfaceOnMain { return NO; }   // ANGLE-only; EAGL builds its drawable RBO in rcBuildFbo
 
@@ -651,6 +678,8 @@ static BOOL rcBuildFbo(int w, int h)
 
 // ---- shader downport (Route C 2E) — desktop GLSL 330 -> GLSL ES 3.00 (the 5 B1 edits, proven to compile+link
 // +render on GLES 3.00). Applied at glShaderSource time on the unmodified base `gpu` plugin's shaders. ----
+// Fenced so the formatter keeps this file's tab style and the rlhdCasts table shape tools/shader-matrix parses.
+// clang-format off
 + (NSString *)downportShaderSource:(NSString *)src fragment:(BOOL)fragment
 {
 	if (!src)
@@ -670,12 +699,12 @@ static BOOL rcBuildFbo(int w, int h)
 	NSRegularExpression *ver = [NSRegularExpression regularExpressionWithPattern:@"(?m)^[ \\t]*#version[^\\n]*\\n?"
 		options:0 error:&err];
 	[ver replaceMatchesInString:s options:0 range:NSMakeRange(0, s.length) withTemplate:@""];
-	// Precision: the full sampler set RLHD declares (usampler/isampler 2D + 2DArray + sampler2DShadow). ES 3.0
-	// requires a precision qualifier for EVERY sampler type used; declaring unused ones is harmless for the base
-	// plugin's shaders. (Z0 gate: dev-tools/gpu-zone/assemble/ZoneShaderAssemble.java.)
+	// Precision: the full sampler set RLHD declares (usampler/isampler 2D + 2DArray + sampler2DShadow, and v1.6's
+	// samplerCube for the sky). ES 3.0 requires a precision qualifier for EVERY sampler type used except sampler2D
+	// and samplerCube, which default to lowp; declaring unused ones is harmless for the base plugin's shaders. (Z0 gate: dev-tools/gpu-zone/assemble/ZoneShaderAssemble.java.)
 	NSString *header = fragment
-		? @"#version 300 es\nprecision highp float;\nprecision highp int;\nprecision highp sampler2D;\nprecision highp sampler2DArray;\nprecision highp isampler2D;\nprecision highp isampler2DArray;\nprecision highp usampler2D;\nprecision highp usampler2DArray;\nprecision highp sampler2DShadow;\n"
-		: @"#version 300 es\nprecision highp float;\nprecision highp int;\nprecision highp sampler2D;\nprecision highp sampler2DArray;\nprecision highp isampler2D;\nprecision highp isampler2DArray;\nprecision highp usampler2D;\nprecision highp usampler2DArray;\n";
+		? @"#version 300 es\nprecision highp float;\nprecision highp int;\nprecision highp sampler2D;\nprecision highp sampler2DArray;\nprecision highp isampler2D;\nprecision highp isampler2DArray;\nprecision highp usampler2D;\nprecision highp usampler2DArray;\nprecision highp sampler2DShadow;\nprecision highp samplerCube;\n"
+		: @"#version 300 es\nprecision highp float;\nprecision highp int;\nprecision highp sampler2D;\nprecision highp sampler2DArray;\nprecision highp isampler2D;\nprecision highp isampler2DArray;\nprecision highp usampler2D;\nprecision highp usampler2DArray;\nprecision highp samplerCube;\n";
 	[s insertString:header atIndex:0];
 
 	// 3) drop `noperspective` (not in ES).
@@ -727,13 +756,15 @@ static BOOL rcBuildFbo(int w, int h)
 	if ([s containsString:@"textureFaces"])
 	{
 		NSRegularExpression *tfDecl = [NSRegularExpression regularExpressionWithPattern:@"uniform\\s+isamplerBuffer\\s+textureFaces\\s*;" options:0 error:&err];
-		[tfDecl replaceMatchesInString:s options:0 range:NSMakeRange(0, s.length) withTemplate:@"uniform highp isampler2D textureFaces;"];
+		// RC_TEXTURE_FACES marks the declaration, so the width local below exists only where the uniform does
+		// (RLHD v1.6's terrain-shadow pass compiles shadow_vert with the declaration under #if !TERRAIN_ONLY_PASS).
+		[tfDecl replaceMatchesInString:s options:0 range:NSMakeRange(0, s.length) withTemplate:@"uniform highp isampler2D textureFaces;\n#define RC_TEXTURE_FACES 1"];
 		NSRange mainR = [s rangeOfString:@"void main()"];
 		if (mainR.location != NSNotFound)
 		{
 			NSRange brace = [s rangeOfString:@"{" options:0 range:NSMakeRange(mainR.location, s.length - mainR.location)];
 			if (brace.location != NSNotFound)
-				[s insertString:@"\n  int tfW = textureSize(textureFaces, 0).x;" atIndex:brace.location + 1];
+				[s insertString:@"\n#ifdef RC_TEXTURE_FACES\n  int tfW = textureSize(textureFaces, 0).x;\n#endif" atIndex:brace.location + 1];
 		}
 		NSRegularExpression *tfFetch = [NSRegularExpression regularExpressionWithPattern:@"texelFetch\\(\\s*textureFaces\\s*,\\s*([^(),]+?)\\s*\\)" options:0 error:&err];
 		[tfFetch replaceMatchesInString:s options:0 range:NSMakeRange(0, s.length) withTemplate:@"texelFetch(textureFaces, ivec2(($1)%tfW,($1)/tfW), 0)"];
@@ -819,6 +850,30 @@ static BOOL rcBuildFbo(int w, int h)
 			@[@"float lighten = max(0, lightness - IGNORE_LOW_LIGHTNESS);", @"float lighten = float(max(0, lightness - IGNORE_LOW_LIGHTNESS));"],
 			@[@"int(127 - 72 * pow(saturation / 7., .05))", @"int(127.0 - 72.0 * pow(float(saturation) / 7., .05))"],
 			@[@"(lighten * LIGHTNESS_MULTIPLIER + BASE_LIGHTEN - lightness) * vanillaLightDotNormals", @"(lighten * float(LIGHTNESS_MULTIPLIER) + float(BASE_LIGHTEN) - float(lightness)) * vanillaLightDotNormals"],
+			// RLHD v1.6.0.1: scattered sites in the un-overridden programs (scene, shadow, ui, sky, star, nebula
+			// bake). The cast-heavy includes are ios-overrides instead. PI is a float `f` literal, so TAU's int 2
+			// is the one int<->float site behind most starfield / sky / PCSS errors.
+			@[@"#define TAU (2*PI)", @"#define TAU (2.0*PI)"],
+			@[@"vec2 pos = vec2((gl_VertexID & 1) * 4.0 - 1.0, (gl_VertexID & 2) * 2.0 - 1.0);", @"vec2 pos = vec2(float(gl_VertexID & 1) * 4.0 - 1.0, float(gl_VertexID & 2) * 2.0 - 1.0);"],  // sky_vert, sky_nebula_bake_vert
+			@[@"ivec2 cam = ivec2(uboGlobal.cameraPos.xz / CHUNK_SIZE)", @"ivec2 cam = ivec2(uboGlobal.cameraPos.xz / float(CHUNK_SIZE))"],  // scene_vert water clamp
+			@[@"ivec2 d = ivec2(abs(worldPosition.xz - cam) / TILE_SIZE);", @"ivec2 d = ivec2(abs(worldPosition.xz - vec2(cam)) / float(TILE_SIZE));"],
+			@[@"int(uboGlobal.drawDistance / 8) * 8 + 3", @"int(uboGlobal.drawDistance / 8.0) * 8 + 3"],
+			@[@"worldPosition.y -= waterDepth;", @"worldPosition.y -= float(waterDepth);"],
+			@[@"worldPosition += vNormal.xyz * 0.0002 * (windingReversed ? 1 : -1);", @"worldPosition += vNormal.xyz * 0.0002 * (windingReversed ? 1.0 : -1.0);"],  // shadow_vert
+			@[@"return -(uboGlobal.sceneBase + IN.position.xz) / (128 * scale);", @"return -(vec2(uboGlobal.sceneBase) + IN.position.xz) / (128.0 * scale);"],  // scene_frag worldUvs
+			@[@"waterDepth1 * fTexBlend.x", @"float(waterDepth1) * fTexBlend.x"],
+			@[@"waterDepth2 * fTexBlend.y", @"float(waterDepth2) * fTexBlend.y"],
+			@[@"waterDepth3 * fTexBlend.z", @"float(waterDepth3) * fTexBlend.z"],
+			@[@"vec3 underlayBlend = fTexBlend * isUnderlay;", @"vec3 underlayBlend = fTexBlend * vec3(isUnderlay);"],
+			@[@"vec3 overlayBlend = fTexBlend * isOverlay;", @"vec3 overlayBlend = fTexBlend * vec3(isOverlay);"],
+			@[@"float result = dot(fTexBlend, isPrimary);", @"float result = dot(fTexBlend, vec3(isPrimary));"],
+			@[@"outputColor.b = floor(outputColor.b * 127) / 127;", @"outputColor.b = floor(outputColor.b * 127.0) / 127.0;"],
+			@[@"ceil(1.0 * uboUi.targetDimensions.x / uboUi.sourceDimensions.x)", @"ceil(1.0 * float(uboUi.targetDimensions.x) / float(uboUi.sourceDimensions.x))"],  // ui_frag xBR
+			@[@"float dx = (1.0/sourceDimensions.x);", @"float dx = (1.0/float(sourceDimensions.x));"],  // RLHD scaling/xbr_lv2_vert
+			@[@"float dy = (1.0/sourceDimensions.y);", @"float dy = (1.0/float(sourceDimensions.y));"],
+			@[@"uv *= uboUi.sourceDimensions;", @"uv *= vec2(uboUi.sourceDimensions);"],  // scaling/hybrid
+			@[@"interpolationAmount) / uboUi.sourceDimensions);", @"interpolationAmount) / vec2(uboUi.sourceDimensions));"],
+			@[@"0.65 * tuning.b * 2 * altitudeScale", @"0.65 * tuning.b * 2.0 * altitudeScale"],  // star_vert
 	];
 	for (NSArray<NSString *> *c in rlhdCasts)
 		[s replaceOccurrencesOfString:c[0] withString:c[1] options:0 range:NSMakeRange(0, s.length)];
@@ -929,5 +984,6 @@ static BOOL rcBuildFbo(int w, int h)
 
 	return [s copy];
 }
+// clang-format on
 
 @end

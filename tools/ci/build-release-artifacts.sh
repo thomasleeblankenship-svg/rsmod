@@ -1,20 +1,23 @@
 #!/usr/bin/env bash
 # build-release-artifacts.sh — build the shippable RuneMobile APK + IPA in one pass, ready to publish.
 #
-# This script IS the build (the CI workflow, .github/workflows/runemobile-release.yml, is a thin wrapper that
+# This script IS the build (the CI workflow, .github/workflows/release-hosted.yml, supplies its inputs and
 # calls it — same "script is the source of truth" convention as android/dev-tools/ci/release-gate.sh). It is
 # fully runnable on a developer Mac, so the pipeline has real, reproducible evidence outside GitHub Actions.
 #
 # What it produces (into $DIST, default dist/ci):
 #   RuneMobile-<version>.apk   release-signed APK (real 45:E3 keystore when configured, else debug key)
-#   RuneMobile-<version>.ipa   Payload IPA. Self-hosted: real dev provisioning profile. Hosted (IOS_ADHOC=1):
-#                              built unsigned then ad-hoc-sealed with the codesign tool (--deep) + app
-#                              entitlements applied from source. Either way SideStore/AltStore re-sign the whole
-#                              bundle on install, so the CI signature is disposable.
+#   RuneMobile-<version>.ipa   Payload IPA. Default (IOS_ADHOC=1): built unsigned then ad-hoc-sealed with the
+#                              codesign tool + app entitlements applied from source. SideStore/AltStore re-sign
+#                              the whole bundle on install, so this signature is disposable. IOS_ADHOC=0
+#                              team-signs instead, which embeds the developer's provisioning profile (name,
+#                              Apple ID email, team, device UDIDs): never publish that one; both publish
+#                              scripts refuse it.
 #   runelite-jit.js            the StikDebug JIT launch template, copied verbatim
 #   manifest.env              version / sha / apk fingerprint, sourced by publish-rolling-release.sh
 #
-# Secrets stay in $HOME, never in the repo or in GitHub secrets. Config is read from $CI_CONFIG_DIR
+# Secrets never live in the repo: on a Mac they stay in $HOME, and in CI the release-hosted workflow writes them
+# from its GitHub secrets. Config is read from $CI_CONFIG_DIR
 # (default ~/.runemobile-ci): keystore.properties, signing.env (DEVELOPMENT_TEAM), keychain.pw.
 # See tools/ci/README.md for the one-time setup.
 #
@@ -29,6 +32,7 @@
 #   BUILD_NUMBER   monotonic build number (default: 0 for a local build; CI passes github.run_number)
 #   GIT_SHA        short commit sha for the version-name suffix (default: `git rev-parse --short HEAD`)
 #   REUSE_JARS     1 = reuse already-staged ios/app/jvm-resources jars instead of rebuilding them
+#   IOS_ADHOC      1 = ad-hoc-seal the IPA (default); 0 = team-sign it with DEVELOPMENT_TEAM (local use only)
 #   DIST           output directory (default: <repo>/dist/ci)
 #   CI_CONFIG_DIR  signing/config dir (default: ~/.runemobile-ci)
 set -euo pipefail
@@ -41,6 +45,7 @@ CI_CONFIG_DIR="${CI_CONFIG_DIR:-$HOME/.runemobile-ci}"
 BUILD_NUMBER="${BUILD_NUMBER:-0}"
 GIT_SHA="${GIT_SHA:-$(git rev-parse --short HEAD 2>/dev/null || echo unknown)}"
 REUSE_JARS="${REUSE_JARS:-0}"
+IOS_ADHOC="${IOS_ADHOC:-1}"
 
 # Default platform set: iOS needs Xcode, so only attempt it on macOS.
 if [ -z "${PLATFORMS:-}" ]; then
@@ -116,9 +121,10 @@ if wants ios; then
 	have xcodegen  || die "xcodegen not found (brew install xcodegen)"
 	have xcodebuild || die "xcodebuild not found (install Xcode)"
 	[ -f "$CI_CONFIG_DIR/signing.env" ] && . "$CI_CONFIG_DIR/signing.env" || { [ -f ios/dev-tools/signing.env ] && . ios/dev-tools/signing.env; }
-	# IOS_ADHOC=1 (the hosted pipeline) ad-hoc-signs instead of team-signing: the IPA is re-signed on-device by
-	# AltStore/SideStore at install, so CI needs no Apple account/cert/team — it only emits a valid bundle.
-	if [ "${IOS_ADHOC:-0}" != 1 ]; then
+	# IOS_ADHOC=1 (the default, and what every published build uses) ad-hoc-signs instead of team-signing: the IPA
+	# is re-signed on-device by AltStore/SideStore at install, so the build needs no Apple account/cert/team — it
+	# only emits a valid bundle.
+	if [ "$IOS_ADHOC" != 1 ]; then
 		[ -n "${DEVELOPMENT_TEAM:-}" ] || die "DEVELOPMENT_TEAM unset — add it to $CI_CONFIG_DIR/signing.env"
 	fi
 
@@ -126,7 +132,7 @@ if wants ios; then
 	# 0) The embedded JRE (ios/dev-tools/jre) is verified + patched local state (patch-jre-txm.sh) — NOT
 	#    reproducible from a URL, so a fresh workspace seeds it from the CI config dir.
 	#    One-time seed:  cp -R <dev-checkout>/ios/dev-tools/jre ~/.runemobile-ci/ios-jre
-	if [ ! -f ios/dev-tools/jre/lib/libjvm.dylib ]; then
+	if [ ! -f ios/dev-tools/jre/lib/server/libjvm.dylib ]; then
 		[ -d "$CI_CONFIG_DIR/ios-jre" ] || die "ios/dev-tools/jre missing and no seed at $CI_CONFIG_DIR/ios-jre (see tools/ci/README.md)"
 		log "Seed ios/dev-tools/jre from $CI_CONFIG_DIR/ios-jre"
 		rm -rf ios/dev-tools/jre
@@ -176,7 +182,7 @@ if wants ios; then
 	# CFBundleVersion floors to 1: a semver build has BUILD_NUMBER=0, but 0 reads as a build-number regression
 	# vs any prior release (and `${BUILD_NUMBER:-1}` yields 0 since 0 is set, not empty). Rolling builds keep run #.
 	IOS_BUILD="$BUILD_NUMBER"; [ "$IOS_BUILD" -gt 0 ] 2>/dev/null || IOS_BUILD=1
-	if [ "${IOS_ADHOC:-0}" = 1 ]; then
+	if [ "$IOS_ADHOC" = 1 ]; then
 		# Build UNSIGNED: the iOS SDK rejects ad-hoc ("-") code signing at xcodebuild time
 		# ("Ad Hoc code signing is not allowed with SDK 'iOS NN'") — that guard is xcodebuild's, not the
 		# codesign tool's. So emit an unsigned bundle here (no Apple cert/keychain/team needed) and ad-hoc-seal
@@ -193,8 +199,9 @@ if wants ios; then
 	APP="$DD/Build/Products/Release-iphoneos/RuneMobile.app"
 	[ -d "$APP" ] || die "no .app produced at $APP"
 
-	# 4) Package Payload/*.app -> IPA and stamp the version (Info.plist hardcodes it, so xcodebuild's
-	#    MARKETING_VERSION is ignored — SideStore re-signs on install, so touching the bundle is harmless).
+	# 4) Package Payload/*.app -> IPA and stamp the version. xcodebuild already took MARKETING_VERSION (Info.plist
+	#    reads it); the stamp pins the packaged plist whatever the build settings did. SideStore re-signs on
+	#    install, so touching the bundle is harmless.
 	log "package IPA"
 	WORK="$DIST/ipa-work"; rm -rf "$WORK"; mkdir -p "$WORK/Payload"
 	cp -R "$APP" "$WORK/Payload/"
@@ -208,8 +215,8 @@ if wants ios; then
 	# wrapper WITH entitlements — the same nested-first contract the self-hosted path's resign-jre.sh follows.
 	# SideStore reads the app-executable entitlements to request increased-memory-limit when it re-signs
 	# on-device (its dev profile injects get-task-allow); this also replaces the seal the plist stamp broke.
-	# (Guarded to IOS_ADHOC so the live self-hosted signed path is untouched.)
-	if [ "${IOS_ADHOC:-0}" = 1 ]; then
+	# (Guarded to IOS_ADHOC so the team-signed IOS_ADHOC=0 path keeps Xcode's signature untouched.)
+	if [ "$IOS_ADHOC" = 1 ]; then
 		ENTS="$APPDIR/RuneMobile/RuneMobile.entitlements"
 		[ -f "$ENTS" ] || die "entitlements file missing: $ENTS"
 		APPB="$WORK/Payload/RuneMobile.app"
@@ -260,8 +267,9 @@ if wants android; then
 	# A missing keystore.properties makes gradle silently fall back to the debug key. That is fine for a local
 	# keyless build, but a PUBLISHED build MUST carry the documented release cert (README apksigner fingerprint) —
 	# a debug-signed APK breaks user `apksigner verify` trust AND can't upgrade a release-signed install. So when
-	# REQUIRE_RELEASE_KEY=1 (the CI/publish path sets it), refuse to proceed unless the cert matches. Same
-	# constant as android/dev-tools/ci/release-gate.sh Stage 2b.
+	# REQUIRE_RELEASE_KEY=1 (a local stable build sets it), refuse to proceed unless the cert matches. The hosted
+	# pipeline builds with the debug key on purpose and re-signs in a separate job, which checks the same
+	# constant (.github/workflows/release-hosted.yml, also android/dev-tools/ci/release-gate.sh Stage 2b).
 	EXPECTED_RELEASE_FP="45e305844d53a6265dc86eb399be997ab3fa2776f90f18b16fd4ec90f43d3c9e"
 	if [ "${REQUIRE_RELEASE_KEY:-0}" = 1 ]; then
 		[ -n "$APKSIGNER" ] || die "REQUIRE_RELEASE_KEY=1 but apksigner not found — cannot verify the signing cert"
