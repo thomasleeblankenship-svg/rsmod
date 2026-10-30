@@ -70,8 +70,9 @@ Claude 1 acts (every click, tap, key and transport interaction).**
 - Claude 2 owns `microbot/shortestpath/**`; Claude 1 owns `util/walker/**`. Neither edits the
   other's files without a claim approved in `COORDINATION.md`.
 - `PathResult` is the contract. A change to it is a request in `COORDINATION.md` first.
-- No anti-detection behaviour in either half: no humanised paths, randomised click offsets or
-  deliberate pauses.
+- The pathfinder and walker add no humanised paths or deliberate pauses of their own. Walk taps
+  land on a randomised point of the target tile (scene) or up to a pixel off its centre (minimap),
+  in `JavaBridge.onScriptWalk`/`onScriptMinimapWalk`.
 
 ## Done means
 
@@ -99,8 +100,8 @@ Claude 1 acts (every click, tap, key and transport interaction).**
 - Done (step 10): the Lovakengj minecarts, whose destination list (947:9) is answered like the
   spirit tree menu (the entry by name, else its shortcut key).
 - Next: quetzals and magic mushtrees (each needs its destination interface), canoes, then POH (routing is off on Claude 2's side
-  until then). Wilderness obelisks are not planned: their destinations are random and in the
-  Wilderness.
+  until then). Wilderness obelisks are not implemented yet (their destinations are random and in
+  the Wilderness).
 - None of these transports has been tried on a phone yet.
 
 ## Finishing split (user request 2026-10-24: "the walker is almost complete delegate the work between both of you")
@@ -131,6 +132,6 @@ and executor).** Hub use counts are calls across the Hub sources.
 | C1-7 | **Done (walker batch W1)** — **Minigame teleports** run from where the route reaches them (`MinigameTeleports`: grouping tab, dropdown select, Teleport, rat pit option; Clan Wars and Last Man Standing at Ferox, and any Wilderness landing, are refused and fall back). **Stronghold of Security** doors (Gate of War, Rickety door, Oozing barrier, Portal of Death) are opened by the route door recovery, which now clicks off the client thread and answers the door's question (`StrongholdDoors`, `StrongholdAnswer`). **Draynor Manor basement**: `walkTo`/`walkWithState` to a basement tile first enter the basement and set its levers (`puzzles/DraynorBasementSolver`); the puzzle doors are varbit-gated transports. **`Rs2PathApi`**: upstream's facade for scripts, mobile subset (legacy delegations, the running walk's route as `Rs2RouteResult`, `plan` over `MobilePathfinder`, collision/policy queries, catalogue `Rs2TransportEdge`s); the shadow planner, canary stats and executor lifecycle have no mobile counterpart. `Rs2Walker` gains the transport-edge queries (`getTransportEdgesForDestination`, `getMissingTransportEdges`, `getMissingTransportEdgeItemIdsWithQuantities`, `getMissingTransportEdgeLoadout`) | Needs phone results like C1-5 |
 | C1-8 | **Done (walker batch W2)** — Upstream's pure helpers `door/Rs2DoorClassifier`, `door/Rs2DoorGeometry`, `geometry/WalkerPathGeometry` (verbatim, with upstream's tests) and `TransportRouteAnalysis` (style fixes only). Route door recovery picks the action by the classifier's door priority and rules (trapdoors and Close/Shut never; game objects need a door-like name or a traversal verb), but never Pay-toll, Pick-lock, Force, Exit or a climb-over (those stay transports). `banking/Rs2WalkerBankingPlanner` (mobile: direct route vs. nearest bank, each a `Rs2PathApi.plan` search) behind `Rs2Walker.compareRoutes`; `Rs2Walker.getPointWithWallDistance` (wall nudge, client-thread collision read) and `getLastRouteClearReason`/`getLastRouteClearAtMs` | Needs phone results like C1-5 |
 
-Wilderness obelisks stay out (random Wilderness destinations), as does any transport that lands
-in the Wilderness unless the goal is there.
+Wilderness obelisks are not implemented yet (random Wilderness destinations). Any transport that lands
+in the Wilderness is skipped unless the goal is there.
 

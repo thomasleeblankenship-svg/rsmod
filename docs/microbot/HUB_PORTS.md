@@ -57,7 +57,7 @@ human-like behavior"). Errors were measured the same way, after the shared base.
 | aiofighter | 2026-10-21 | 5,258 | 385 |
 | slayer | 2026-10-20 | 7,164 | 408 |
 
-`mke_wintertodt`'s "human-like behavior" is anti-detection and falls under the policy below.
+`mke_wintertodt`'s "human-like behavior" is anti-ban; see *Anti-ban features* below.
 Batch 2 is ported after batch 1, in order of fewest errors; ports that share APIs with batch 1
 come almost for free.
 
@@ -103,7 +103,7 @@ withdraw, equip and check actions from Claude 1 over the new `Rs2Bank` actions. 
 not ported.
 
 World hopping is done (2026-10-23): `Microbot.hopToWorld` and `Login.getRandomWorld`/`getNextWorld`.
-`new Login(...)` (auto-login with stored credentials) is not ported.
+`new Login(...)` (auto-login with stored credentials) is not ported yet; open to implement.
 
 ## Free-to-play test set (2026-10-23)
 
@@ -139,10 +139,10 @@ by `HubPluginHost` and disabled by default.
 
 On mobile:
 
-- **No breaks and no mule.** `KspBreakService`, `KspBreakConfig` and `kspmule/**` are inert
-  RuneMobile stand-ins: KSP's randomized logout breaks with automatic re-login are scheduled-break
-  anti-detection behaviour, and its mule hands items to another account, so neither is ported.
-  The plugin's "Break Handler" and "Local Mule" config sections are therefore empty.
+- **No KSP breaks and no mule.** `KspBreakService`, `KspBreakConfig` and `kspmule/**` are inert
+  RuneMobile stand-ins: KSP's own break service is not ported yet (the Microbot Mobile "Break
+  handler" settings take scheduled breaks for any script), and its mule hands items to another
+  account. The plugin's "Break Handler" and "Local Mule" config sections are therefore empty.
 - **Mouse clicks are taps.** The Forestry leprechaun step taps the target's minimap point
   directly (`Microbot.getMouse().click`), without the walker's safe-disc check, so a point near
   the minimap edge could hit an orb.
@@ -172,25 +172,40 @@ Known differences from desktop:
 - **Overlay-heavy plugins** (theatre, zulrah, parts of others) draw desktop overlays, which may not
   suit the phone screen.
 - **Inventory setups** match by item totals, not slot order; the rune pouch is checked, not filled.
-- **Anti-ban settings** are inert. **Walking** (with the pathfinder setting on) executes stairs,
+- **Anti-ban settings** are active (see *Anti-ban features*). **Walking** (with the pathfinder setting on) executes stairs,
   doors, shortcuts, boats, ships, travel NPCs, charter ships, teleport items, teleport spells,
   fairy rings, spirit trees, levers, portals, minecarts (including Lovakengj's list), magic carpets,
   gnome gliders, hot air balloons, quetzals, magic mushtrees, canoes and the player-owned house (house teleports, then its portals, nexus, jewellery box, mounted items, fairy ring or spirit tree). It never
   takes a transport into the Wilderness unless the goal is there. None of the transports has been
   tried on a phone.
 
-## Policy for anti-detection features (applies to every port)
+## Anti-ban features (status)
 
-User asked (2026-10-23) to keep anti-ban "for measure". Kept as the inert compatibility layer: scripts
-compile, and the activity, play style and settings they request are recorded and readable. The active
-behaviour stays unported.
+Implemented 2026-10-30, following each script's own anti-ban setup, behind the Microbot Mobile
+"Anti-ban" switch (default on; off turns every action below off and releases any pause it holds):
 
-Claude 1 does **not** port anti-ban or "human-like input" machinery: the `Rs2Antiban`
-behaviour settings (fatigue, attention span, mistakes, play-style), natural-mouse, mouse-motion
-humanisers (for example geflipper's `GeflipperMouseMotion`), or session fatigue. These exist to
-evade the game's bot detection. Where a plugin references them, the port removes or neutralises
-those calls in a clearly marked adaptation, and the plugin is listed as **adapted**, not
-unchanged.
+- **Engine** (`util/antiban/AntibanPlugin`, a static engine fed by `MobileMicrobotPlugin`):
+  upstream's action cooldowns (pause scripts for a play-style tick interval, counted down while the
+  activity is not busy), dynamic activity and intensity from XP drops, attention-span play-style
+  switching, `isIdleTooLong`, and the upstream `Rs2Antiban`, `Rs2AntibanSettings`, `MouseFatigue`,
+  `SessionFatigue`, setup templates and enums, copied verbatim apart from the switch.
+- **Breaks** (`breakhandler/BreakHandlerScript`, upstream's states): micro-breaks a script asks for
+  pause it in game for `microBreakDurationLow`..`High` minutes, whether or not scheduled breaks are
+  on. Scheduled breaks ("Break handler" settings, default off): random play time (counted only while
+  logged in with a script running), then a random break, logged out when set, then a Play Now back
+  to the same world. The lock and combat or interaction hold a break off; a stopped script ends it.
+- **Mouse** (`util/mouse/naturalmouse`, upstream's library): `moveMouseRandomly` and
+  `moveMouseOffScreen` move the game's pointer along curved paths (`JavaBridge.onScriptPointerMove`);
+  a touch on the screen stops the path. Script clicks are still taps and travel no path.
+- **Click points**: clicking a rectangle (`Mouse.click(Rectangle)`, `Rs2UiHelper.getClickingPoint`
+  with randomise, `Microbot.drag`) picks a skewed gaussian point inside it (`Rs2Random.randomPointEx`,
+  upstream's session click force), and walk taps vary within the tile. Menu-entry interactions
+  (most object, NPC, item and widget actions) send no pixel at all.
+- Per-plugin notes in the tables below that call a plugin's anti-ban, natural-mouse or
+  break-handler flags "inert" predate this: those flags now take effect.
+- Not ported: the Swing panel and overlay, BreakHandler V2, play schedules, client shutdown on
+  break, Discord and window-title notices, and mouse-motion humanisers such as geflipper's
+  `GeflipperMouseMotion`.
 
 ## Ownership split (see `COORDINATION.md`)
 

@@ -4,6 +4,15 @@ This is the single shared channel between the two Claude sessions. Neither sessi
 message the other, so this file is the only place where claims and changes become
 visible. **The user's rule: update after every change, never overlap.**
 
+## Open features (user, 2026-10-30)
+
+Auto-login with stored credentials (`LoginManager`), the world-hopping helpers in `util/world/**`,
+anti-ban timing and mouse simulation (natural mouse, fatigue, breaks), and Wilderness obelisks are
+**open to implement**. Earlier entries below that call them excluded, out by policy or not planned
+are superseded by this note. **Done 2026-10-30** (uncommitted at the time of writing, local clone):
+all four, plus randomised click points; see HUB_PORTS.md *Anti-ban features*, UTIL_GAP.md and the
+Microbot Mobile settings (Auto-login, Auto-login world, Anti-ban, Break handler).
+
 ## Protocol (every session — Claude 1, Claude 2, Codex — every time)
 
 1. **Before any work:** `git pull --no-rebase origin feat/android-microbot-compat`, then

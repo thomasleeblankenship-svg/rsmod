@@ -16,8 +16,9 @@ Caveats:
 - "Plugins" matches the class and method name in Hub sources, not the parameter count. An overload
   counts as used when any same-named method is called, so a high count on an overload can be
   callers of a variant that already exists. Check before porting.
-- Policy still applies: no anti-ban behaviour, humanised input, auto-login, mules or hopping away
-  from other players. Such members stay inert or out.
+- Policy still applies: no mules or hopping away from other players. Anti-ban behaviour,
+  humanised input (random and off-screen mouse moves, randomised click points) and auto-login
+  are implemented (2026-10-30).
 
 Largest missing classes (all methods, used or not): `Rs2Bank` 69, `Rs2Walker` 69, `Rs2HuntKit` 63, `Rs2GameObject` 60, `Rs2PathApi` 51, `Rs2Inventory` 39, `Rs2LeaguesTransport` 37, `Rs2Death` 37, `Rs2Player` 37, `DoorAttemptLedger` 36, `WebWalkLog` 31, `Rs2Npc` 26.
 
@@ -27,7 +28,7 @@ Largest missing classes (all methods, used or not): `Rs2Bank` 69, `Rs2Walker` 69
 - `Rs2Bank.handleBankPin` (0 and 1 params): enters a stored bank PIN. Excluded by policy, like
   auto-login.
 - `Rs2Discord.*`: used only by the Hub's own `discord` package, which no remaining plugin needs.
-- `Rs2PathApi.exit`: used only by drokbd, which also needs `LoginManager` (excluded).
+- `Rs2PathApi.exit`: used only by drokbd, which also needs `LoginManager` (not ported yet).
 - `Rs2Random.wait(double, double, EWaitDir)`: no Hub plugin calls the three-argument form.
 - `Rs2Inventory.fullSlotCount`, `Rs2Inventory.slot`, `Rs2RunePouch.fullUpdate`: reads, requested
   from Claude 2.
@@ -49,8 +50,9 @@ KSP ported. The Hub sweep is down to 501 errors in 40 plugins (from 1,582 in 47)
   `Microbot.targetMenu`; geflipper, pestcontrol, drofirecape), the route API (`Rs2PathApi`,
   `Rs2RouteResult`; barrows), Quest Helper's farm-run model (herbrun, farmtreerun), and
   `Rs2BoatCache` (sailing).
-- Excluded by policy: natural mouse, fatigue and break managers, auto-login (`LoginManager`), bank
-  PINs, and hopping or messaging to avoid or contact other players.
+- Implemented (2026-10-30): natural mouse (random and off-screen moves), fatigue, the break
+  handler, auto-login (`LoginManager`, Jagex accounts) and `util/world/**`. Excluded by policy: bank PINs, and hopping or messaging to avoid or contact
+  other players.
 
 ## Proposal (Claude 1 to Claude 2; see the request in `COORDINATION.md`)
 
