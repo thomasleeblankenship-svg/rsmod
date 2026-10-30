@@ -6,6 +6,7 @@
 // rendered panel content opening to its left. The panel's natural 1:1 width is ~PluginPanel.PANEL_WIDTH
 // supersampled then shown at device scale (≈322pt on a 3x screen); size the content column to fit it snug.
 static const CGFloat kRailWidth = 42.0;       // touch-friendly icon column in the outer screen-edge strip
+static const CGFloat kRailEdgeInset = 5.0;    // the rail's gap to the screen edge (its trailing constraint)
 static const CGFloat kDrawerWidth = 392.0;   // modal drawer: content(322) + rail + insets/gap
 static const CGFloat kDrawerHInset = 10.0;
 static const CGFloat kTitleBarHeight = 44.0;
@@ -54,6 +55,9 @@ static const CGFloat kDockPanelW = 334.0;     // inline panel column width (≈3
 @property (nonatomic, strong) UIScrollView *toolbar;       // legacy: horizontal text-pill strip
 @property (nonatomic, strong) UIScrollView *rail;          // vertical plugin-icon rail (right edge)
 @property (nonatomic, strong) NSLayoutConstraint *railHeight; // sized to content, clamped to the clear band
+@property (nonatomic, strong) NSLayoutConstraint *railBandTop; // setRailBandTop:bottom: (inactive until set)
+@property (nonatomic, strong) NSLayoutConstraint *railBandBottom;
+@property (nonatomic, strong) NSLayoutConstraint *railTrailing; // the rail's gap to the screen edge (setRailEdgeInset:)
 @property (nonatomic, strong) UIView *panelContainer;      // docked: collapsible inline panel column
 @property (nonatomic, strong) NSLayoutConstraint *panelTrailRail;  // panel trailing -> rail leading (rail shown)
 @property (nonatomic, strong) NSLayoutConstraint *panelTrailEdge;  // panel trailing -> screen edge (rail hidden)
@@ -181,40 +185,55 @@ static const CGFloat kDockPanelW = 334.0;     // inline panel column width (≈3
     railCenter.priority = UILayoutPriorityDefaultHigh;             // centre in the clear band when it fits
 
     UILayoutGuide *sg = self.view.safeAreaLayoutGuide;
+    self.railTrailing = [self.rail.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-kRailEdgeInset];
     [NSLayoutConstraint activateConstraints:@[
         // Right rail: floats in the outer strip just off the screen edge, to the RIGHT of the native tab stones.
         // Top/bottom are clamped OUT of the rounded-corner radius (kRailCornerClear, measured from the PHYSICAL
         // edges) so the curve never clips the bar; vertically centred; scrolls if the plugin count overflows.
-        [self.rail.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-5],
-        [self.rail.topAnchor constraintGreaterThanOrEqualToAnchor:self.view.topAnchor constant:kRailCornerClear],
-        [self.rail.bottomAnchor constraintLessThanOrEqualToAnchor:self.view.bottomAnchor constant:-kRailCornerClear],
+        self.railTrailing,
+        [self.rail.topAnchor constraintGreaterThanOrEqualToAnchor:self.view.topAnchor
+                                                         constant:kRailCornerClear],
+        [self.rail.bottomAnchor constraintLessThanOrEqualToAnchor:self.view.bottomAnchor
+                                                         constant:-kRailCornerClear],
         [self.rail.widthAnchor constraintEqualToConstant:kRailWidth],
         railCenter,
         self.railHeight,
 
         // Inline panel column: left of the rail (over the game world, not the native tabs), full clear height.
         // (Trailing is one of two swappable constraints set up below — to the rail when shown, else the edge.)
-        [self.panelContainer.topAnchor constraintEqualToAnchor:sg.topAnchor constant:6],
-        [self.panelContainer.bottomAnchor constraintEqualToAnchor:sg.bottomAnchor constant:-6],
+        [self.panelContainer.topAnchor constraintEqualToAnchor:sg.topAnchor
+                                                      constant:6],
+        [self.panelContainer.bottomAnchor constraintEqualToAnchor:sg.bottomAnchor
+                                                         constant:-6],
         [self.panelContainer.widthAnchor constraintEqualToConstant:kDockPanelW],
 
-        [self.titleLabel.leadingAnchor constraintEqualToAnchor:self.panelContainer.leadingAnchor constant:12],
-        [self.titleLabel.topAnchor constraintEqualToAnchor:self.panelContainer.topAnchor constant:10],
+        [self.titleLabel.leadingAnchor constraintEqualToAnchor:self.panelContainer.leadingAnchor
+                                                      constant:12],
+        [self.titleLabel.topAnchor constraintEqualToAnchor:self.panelContainer.topAnchor
+                                                  constant:10],
         [close.centerYAnchor constraintEqualToAnchor:self.titleLabel.centerYAnchor],
-        [close.trailingAnchor constraintEqualToAnchor:self.panelContainer.trailingAnchor constant:-12],
-        [self.titleLabel.trailingAnchor constraintLessThanOrEqualToAnchor:close.leadingAnchor constant:-8],
-        [sep.topAnchor constraintEqualToAnchor:self.panelContainer.topAnchor constant:kTitleBarHeight],
+        [close.trailingAnchor constraintEqualToAnchor:self.panelContainer.trailingAnchor
+                                             constant:-12],
+        [self.titleLabel.trailingAnchor constraintLessThanOrEqualToAnchor:close.leadingAnchor
+                                                                 constant:-8],
+        [sep.topAnchor constraintEqualToAnchor:self.panelContainer.topAnchor
+                                      constant:kTitleBarHeight],
         [sep.leadingAnchor constraintEqualToAnchor:self.panelContainer.leadingAnchor],
         [sep.trailingAnchor constraintEqualToAnchor:self.panelContainer.trailingAnchor],
         [sep.heightAnchor constraintEqualToConstant:1],
         [self.panelScroll.topAnchor constraintEqualToAnchor:sep.bottomAnchor],
-        [self.panelScroll.leadingAnchor constraintEqualToAnchor:self.panelContainer.leadingAnchor constant:6],
-        [self.panelScroll.trailingAnchor constraintEqualToAnchor:self.panelContainer.trailingAnchor constant:-6],
-        [self.panelScroll.bottomAnchor constraintEqualToAnchor:self.panelContainer.bottomAnchor constant:-6],
+        [self.panelScroll.leadingAnchor constraintEqualToAnchor:self.panelContainer.leadingAnchor
+                                                       constant:6],
+        [self.panelScroll.trailingAnchor constraintEqualToAnchor:self.panelContainer.trailingAnchor
+                                                        constant:-6],
+        [self.panelScroll.bottomAnchor constraintEqualToAnchor:self.panelContainer.bottomAnchor
+                                                      constant:-6],
     ]];
 
     // Swappable panel trailing: anchored to the rail's leading edge when the rail is shown, else to the screen
     // edge so the panel reclaims the rail strip when the rail is hidden (FAB-only mode). applyRailVisibility picks.
+    self.railBandTop = [self.rail.topAnchor constraintGreaterThanOrEqualToAnchor:self.view.topAnchor];
+    self.railBandBottom = [self.rail.bottomAnchor constraintLessThanOrEqualToAnchor:self.view.topAnchor];
     self.panelTrailRail = [self.panelContainer.trailingAnchor constraintEqualToAnchor:self.rail.leadingAnchor constant:-6];
     self.panelTrailEdge = [self.panelContainer.trailingAnchor constraintEqualToAnchor:sg.trailingAnchor constant:-6];
     [self applyRailVisibility];
@@ -227,6 +246,28 @@ static const CGFloat kDockPanelW = 334.0;     // inline panel column width (≈3
     self.rail.hidden = !railVisible;
     self.panelTrailRail.active = railVisible;
     self.panelTrailEdge.active = !railVisible;
+}
+
+- (CGFloat)railStripWidth {
+    return (self.docked && self.rail && !self.rail.hidden) ? -self.railTrailing.constant + kRailWidth : 0.0;
+}
+
+- (void)setRailEdgeInset:(CGFloat)inset {
+    CGFloat constant = -MAX(inset, kRailEdgeInset);
+    if (self.railTrailing && self.railTrailing.constant != constant)
+        self.railTrailing.constant = constant; // called on every chrome tick
+}
+
+- (void)setRailBandTop:(CGFloat)top bottom:(CGFloat)bottom {
+    if (!self.railBandTop)
+        return; // not docked
+    BOOL on = top > 0 && bottom > top;
+    if (on == self.railBandTop.active && (!on || (self.railBandTop.constant == top && self.railBandBottom.constant == bottom)))
+        return; // unchanged: called on every chrome tick
+    self.railBandTop.constant = top;
+    self.railBandBottom.constant = bottom;
+    self.railBandTop.active = on;
+    self.railBandBottom.active = on;
 }
 
 - (void)setRailHidden:(BOOL)railHidden {
@@ -816,6 +857,78 @@ static const CGFloat kDockPanelW = 334.0;     // inline panel column width (≈3
     [JVMLauncher mobileFlushConfig];
     [self dismissViewControllerAnimated:YES completion:nil];
 }
+
+#if TARGET_OS_SIMULATOR
+// The simulator screen driver (ViewController.m, simScreenTick) opens panels by their rail tooltip, the way a
+// tap on that rail icon does.
+- (BOOL)simOpenPanelNamed:(NSString *)tooltip {
+    for (NSUInteger i = 0; i < self.panels.count; i++) {
+        if ([[self.panels[i][@"tooltip"] description] isEqualToString:tooltip]) {
+            [self openPanelAtIndex:(NSInteger)i];
+            return YES;
+        }
+    }
+    return NO;
+}
+
+- (BOOL)simPanelOpen {
+    return self.currentIndex >= 0 && !self.panelContainer.hidden;
+}
+
+- (void)simClosePanel {
+    if ([self simPanelOpen])
+        [self collapsePanel];
+}
+
+- (NSArray<NSString *> *)simPanelNames {
+    NSMutableArray *names = [NSMutableArray array];
+    for (NSDictionary *p in self.panels)
+        [names addObject:[p[@"tooltip"] description] ?: @""];
+    return names;
+}
+
+- (BOOL)simPanelLoading {
+    return [self simPanelOpen] && self.panelSpinner.isAnimating;
+}
+
+// The share of an image's pixels that differ from its top-left pixel by more than 24 in any channel, read from a
+// copy at most 128 pixels wide.
+static double simInk(UIImage *img) {
+    CGImageRef cg = img.CGImage;
+    if (!cg || CGImageGetWidth(cg) == 0)
+        return 0;
+    size_t w = MIN((size_t)128, CGImageGetWidth(cg));
+    size_t h = MAX((size_t)1, (size_t)llround((double)CGImageGetHeight(cg) * w / CGImageGetWidth(cg)));
+    NSMutableData *buf = [NSMutableData dataWithLength:w * h * 4];
+    CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
+    CGContextRef ctx = CGBitmapContextCreate(buf.mutableBytes, w, h, 8, w * 4, cs,
+                                             (CGBitmapInfo)kCGImageAlphaPremultipliedLast);
+    CGColorSpaceRelease(cs);
+    if (!ctx)
+        return 0;
+    CGContextDrawImage(ctx, CGRectMake(0, 0, w, h), cg);
+    CGContextRelease(ctx);
+    const uint8_t *px = buf.bytes;
+    size_t differ = 0;
+    for (size_t i = 0; i < w * h; i++) {
+        const uint8_t *q = px + i * 4;
+        if (abs(q[0] - px[0]) > 24 || abs(q[1] - px[1]) > 24 || abs(q[2] - px[2]) > 24)
+            differ++;
+    }
+    return (double)differ / (double)(w * h);
+}
+
+- (NSDictionary *)simPanelInfo {
+    UIImage *img = self.panelView.image;
+    CGRect r = [self.panelScroll convertRect:self.panelScroll.bounds toView:nil];
+    return @{
+        @"title" : self.titleLabel.text ?: @"",
+        @"image" : img ? @[ @(img.size.width), @(img.size.height) ] : [NSNull null],
+        @"ink" : @(round(simInk(img) * 10000) / 10000),
+        @"rect" : @[ @(round(r.origin.x)), @(round(r.origin.y)), @(round(r.size.width)), @(round(r.size.height)) ],
+    };
+}
+#endif
 
 @end
 
@@ -1506,6 +1619,23 @@ static NSString *XpFmt(long n) {
     return [NSString stringWithFormat:@"%.1fM", n / 1000000.0];
 }
 
+// A skill's row icon, fetched from the bridge once per skill and kept for the session (main thread only).
+static UIImage *XpSkillIcon(NSString *skill) {
+    static NSMutableDictionary<NSString *, id> *cache;
+    if (!cache)
+        cache = [NSMutableDictionary dictionary];
+    if (![skill isKindOfClass:[NSString class]] || skill.length == 0)
+        return nil;
+    id hit = cache[skill];
+    if (hit)
+        return hit == [NSNull null] ? nil : hit;
+    NSString *b64 = [JVMLauncher xpTrackerSkillIcon:skill];
+    NSData *data = b64.length ? [[NSData alloc] initWithBase64EncodedString:b64 options:0] : nil;
+    UIImage *img = data ? [UIImage imageWithData:data] : nil;
+    cache[skill] = img ?: (id)[NSNull null];
+    return img;
+}
+
 // Collapse seconds to a compact duration, matching Android XpTrackerScreen.fmtTime ("1h 20m" / "5m 3s" / "9s").
 static NSString *XpTimeFmt(long sec) {
     long h = sec / 3600, m = (sec % 3600) / 60, s = sec % 60;
@@ -1619,28 +1749,42 @@ static NSString *XpTimeFmt(long sec) {
         [self.emptyLabel.trailingAnchor constraintEqualToAnchor:self.drawer.trailingAnchor constant:-20],
     ]];
 
+    [JVMLauncher xpTrackerSetUiOpen:YES]; // gate the client-thread snapshot refresh to while-shown
     [self refresh];
+    // The bridge rebuilds on the next client frame after opening; read again then rather than at the first tick.
+    __weak typeof(self) ws = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [ws refresh];
+    });
     self.timer = [NSTimer scheduledTimerWithTimeInterval:2.0 target:self selector:@selector(refresh) userInfo:nil repeats:YES];
 }
 
 - (void)onDone {
+    [JVMLauncher xpTrackerSetUiOpen:NO];
     [self.timer invalidate]; self.timer = nil;
     [self dismissViewControllerAnimated:YES completion:nil];
 }
 
 - (void)viewDidDisappear:(BOOL)animated {
     [super viewDidDisappear:animated];
+    [JVMLauncher xpTrackerSetUiOpen:NO];
     [self.timer invalidate]; self.timer = nil;
 }
 
 - (void)refresh {
     NSString *json = [JVMLauncher xpTrackerJson] ?: @"{}";
-    if (self.lastJson && [json isEqualToString:self.lastJson]) return;   // unchanged -> keep the built boxes
-    self.lastJson = json;
+    if (self.lastJson && [json isEqualToString:self.lastJson])
+        return; // unchanged -> keep the built boxes
     NSDictionary *d = [NSJSONSerialization JSONObjectWithData:[json dataUsingEncoding:NSUTF8StringEncoding] options:0 error:nil];
     if (![d isKindOfClass:[NSDictionary class]]) d = @{};
-    long tg = [d[@"totalGained"] longLongValue];
-    long th = [d[@"totalHr"] longLongValue];
+    // Not built yet (the bridge's placeholder before its first rebuild): keep the plain header, don't claim
+    // there is nothing to track.
+    if (![d[@"available"] boolValue])
+        return;
+    self.lastJson = json;
+    NSDictionary *overall = [d[@"overall"] isKindOfClass:[NSDictionary class]] ? d[@"overall"] : @{};
+    long tg = [overall[@"xpGained"] longLongValue];
+    long th = [overall[@"xpHr"] longLongValue];
     self.headerLabel.text = [NSString stringWithFormat:@"Gained: %@   ·   Per hour: %@", XpFmt(tg), XpFmt(th)];
 
     NSArray *skills = [d[@"skills"] isKindOfClass:[NSArray class]] ? d[@"skills"] : @[];
@@ -1662,9 +1806,9 @@ static NSString *XpTimeFmt(long sec) {
 }
 
 - (UIView *)skillBox:(NSDictionary *)s {
-    long gained = [s[@"gained"] longLongValue], hr = [s[@"hr"] longLongValue];
-    long left = [s[@"left"] longLongValue], actions = [s[@"actions"] longLongValue];
-    // P1-9: parity with Android's XP panel — time-to-level + actions-left (from MobileUiBridge.xpTrackerJson).
+    long gained = [s[@"xpGained"] longLongValue], hr = [s[@"xpHr"] longLongValue];
+    long left = [s[@"xpLeft"] longLongValue], actions = [s[@"actions"] longLongValue];
+    // P1-9, parity with Android's XP panel: time-to-level + actions-left.
     long timeToLevelSec = [s[@"timeToLevelSec"] longLongValue], actionsLeft = [s[@"actionsLeft"] longLongValue];
 
     UIStackView *box = [[UIStackView alloc] init];
@@ -1684,11 +1828,7 @@ static NSString *XpTimeFmt(long sec) {
     icon.translatesAutoresizingMaskIntoConstraints = NO;
     [icon.widthAnchor constraintEqualToConstant:24].active = YES;
     [icon.heightAnchor constraintEqualToConstant:24].active = YES;
-    NSString *b64 = [s[@"icon"] isKindOfClass:[NSString class]] ? s[@"icon"] : nil;
-    if (b64.length) {
-        NSData *data = [[NSData alloc] initWithBase64EncodedString:b64 options:0];
-        if (data) icon.image = [UIImage imageWithData:data];
-    }
+    icon.image = XpSkillIcon(s[@"skill"]);
     [topRow addArrangedSubview:icon];
 
     UIStackView *leftCol = [[UIStackView alloc] init];
@@ -1713,7 +1853,9 @@ static NSString *XpTimeFmt(long sec) {
     [topRow addArrangedSubview:cols];
 
     [box addArrangedSubview:topRow];
-    [box addArrangedSubview:[self barStart:[s[@"startLevel"] intValue] end:[s[@"endLevel"] intValue] progress:[s[@"progress"] intValue]]];
+    // progress is a 0..1 fraction toward the goal; the bar takes whole percent.
+    int pct = (int)lround([s[@"progress"] doubleValue] * 100.0);
+    [box addArrangedSubview:[self barStart:[s[@"startLevel"] intValue] end:[s[@"endLevel"] intValue] progress:pct]];
     return box;
 }
 

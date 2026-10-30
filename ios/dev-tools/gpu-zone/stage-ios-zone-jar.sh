@@ -2,7 +2,7 @@
 # Phase B0.1 — stage the iOS-variant 117HD (RLHD) Zone jar. iOS analogue of the base-gpu
 # `gpu-routec/stage-ios-gpu-jar.sh` and the Android `gpu/stage-rlhd-zone-jar.sh`.
 #
-# RLHD is an EXTERNAL hub plugin (vendored, gitignored, at rlhd-src/src/, rev 7dded59, targets RuneLite 1.12.+),
+# RLHD is an EXTERNAL hub plugin (vendored, gitignored, at rlhd-src/src/, rev f5be256 = v1.6.0.1, targets RuneLite 1.13.+),
 # so unlike the base gpu plugin it is NOT inside the client jar. This script compiles the RLHD source — pristine
 # except the committed java-overrides/ files laid over it (step 2b; today = the materials subsystem, working
 # around Apple's 16 KB uniform-block cap with an RGBA32I material-store texture) —
@@ -56,7 +56,7 @@ EXPECT_MD5="${1:-}"
 # was bumped but a persistent runner/dev workspace still holds the old sources) so a rev bump can't silently
 # compile against stale sources. rlhd-src is pristine vendored state (overlays are layered in $WORK, never
 # here), so re-fetching identical bytes is a safe no-op.
-RLHD_REV=7dded591a21d4c17c2d8c077c8ac0ecfbbd7313f
+RLHD_REV=f5be256078b5e398089aa73e48116c7f95dc329f
 if [ ! -d "$RLHD/src/main/java" ] || [ "$(cat "$RLHD/src/.rev" 2>/dev/null)" != "$RLHD_REV" ]; then
   echo "== rlhd-src/src absent or != pinned rev — (re)fetching 117HD/RLHD @ $RLHD_REV =="
   T="$(mktemp -d)"
@@ -131,6 +131,8 @@ cp -R "$WORK/rlhd_out/." "$WORK/jar/"
 #     scene/shadow shaders match the Z0 assembled ES300 (which compiled+linked on device). The targeted per-site
 #     casts + textureFaces TBO repack are applied at glShaderSource time by RouteCBridge downportShaderSource.
 #     ios-overrides/utils/foo.glsl -> rs117/hd/utils/foo.glsl. Keeps rlhd-src untouched (committed + reproducible).
+#     ios-overrides/overlays/ holds the ShaderOverlay shaders (gamma calibration + the debug overlays), copied from
+#     Android's shader-overlay ports.
 OVERLAY="$(pwd)/ios-overrides"
 if [ -d "$OVERLAY" ]; then
 	mkdir -p "$WORK/jar/rs117/hd"

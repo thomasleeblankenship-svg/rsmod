@@ -13,13 +13,13 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
+import android.graphics.RectF
 import android.graphics.Typeface
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.os.SystemClock
-import android.os.VibrationEffect
 import android.os.Vibrator
 import android.provider.MediaStore
 import android.util.Log
@@ -62,6 +62,7 @@ import java.io.File
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
+import kotlin.math.abs
 import kotlin.math.hypot
 
 /**
@@ -147,6 +148,7 @@ class MainActivity : AppCompatActivity() {
     // closes the engine WidgetDrag (no stuck held item).
     private var invRectCanvas: IntArray? = null
     private var itemDragging = false
+    private var paneSwiping = false // a quick swipe from the inventory or a reorder pane: ignored until the lift
     private var itemDragLastX = 0
     private var itemDragLastY = 0
 
@@ -209,11 +211,22 @@ class MainActivity : AppCompatActivity() {
     private var touchStrayed = 0f // the FURTHEST it ever got from there, not where it ended up
     private var touchMulti = false // a second finger joined: this sequence belongs to the pinch, never a tap
     private var touchPastSlop = false // it left the radius: a drag now, and no click is coming for it
+
+    // The long-press is timed here rather than by the GestureDetector, whose hold is the system-wide one: the
+    // player sets it in Game settings. Armed at the landing, dropped by a lift, a second finger or a drag.
+    private val holdRunnable = Runnable { onHoldElapsed() }
+    private var cameraAccX = 0f // sub-px remainders of the camera drag, so a low sensitivity still turns it
+    private var cameraAccY = 0f
+    private var cameraGain = 1f // GameSettings.cameraGain, read when the camera drag starts
     private var tapArmed = false // armTap was posted for this sequence and nothing has dropped it yet
     private var keyboardShown = false
     private var imeWasShown = false // last frame's ACTUAL ime visibility — to spot a user-driven dismiss
     private var manualKeyboard = false // ⌨ toggle: hold the soft keyboard up with no engine text field open
     private var keyboardToggleBtn: Button? = null // the ⌨ button, so a dismiss can reset its on/off alpha
+    private var imeNumeric = false // the open game field takes a number: GameInputView offers the number pad
+    private var imeConnNumeric = false // what the live input connection was created with (restart on mismatch)
+    private var pasteButton: Button? = null // "Paste" pill, held just above the soft keyboard while it's up for the game
+    private var pasteShownBottom = -1 // the pill's applied bottom margin (-1 = hidden), so layout changes only on change
 
     // FIX-11: a rendered Swing panel's text field is focused and its OWN Compose mirror field owns the soft
     // keyboard — the per-frame poll must NOT raise GameInputView (steals focus) or dismiss the IME (kills it).
@@ -247,6 +260,21 @@ class MainActivity : AppCompatActivity() {
     // pref is off, so a non-dev build/session pays nothing (no views, no timer). rootContainer is the frame the
     // chip/panel attach to; the ticker samples fps (native present-count delta), heap (bridge), and thermal ~1 Hz.
     private var rootContainer: FrameLayout? = null
+
+    // FOLD-2: the frame holding the SurfaceView and every view that maps canvas px through its size; see fitGameStage.
+    private var gameStage: FrameLayout? = null
+
+    // FOLD-3: the canvas size the bridge last accepted, until a frame of that size is drawn and the host adopts it.
+    private var pendingCanvas: Pair<Int, Int>? = null
+    private var resizeRefusals = 0 // FOLD-3: refused requests in a row (RESIZE_RETRIES)
+
+    // FOLD-4: the laid-out window's screen class for its zoom (see swapZoom); null until the first layout.
+    private var zoomScreen: String? = null
+
+    // Whether the chat's and the minimap's dragged offsets in use are portrait's (see hudKey): the setting until the
+    // window is laid out, then the window's own shape.
+    private var hudPortrait = false
+    private var portraitListener: android.content.SharedPreferences.OnSharedPreferenceChangeListener? = null
     private var perfChip: TextView? = null
     private var devPanel: LinearLayout? = null
     private var devDiag: TextView? = null
@@ -261,6 +289,7 @@ class MainActivity : AppCompatActivity() {
     private var hotkeyBaseLeft = 0
     private var hotkeyBaseBottom = 0
     private var handleBaseBottom = 0
+    private var handleInsetBottom = 0 // the bottom inset applyHudControlInsets last gave the ≡ Plugins handle
 
     // AP-2a Findings 9/25: a low-frequency daemon that drains the shared notification + link queues (off the UI
     // thread — these calls daemon-attach to HotSpot). nextNotification → system shade; nextLink → browser.
@@ -296,14 +325,23 @@ class MainActivity : AppCompatActivity() {
     private var sawLoginScreen = false
     private var loginTransitionUntilMs = 0L
 
+    // Keep the display awake while in game. updateChrome records the loggedIn edge; the frame callback applies
+    // FLAG_KEEP_SCREEN_ON. A loading/teleport blip reports loggedIn=false for a moment, so the flag is only
+    // dropped after KEEP_AWAKE_GRACE_MS out of game.
+    private var awakeInGame = false
+    private var awakeLeftGameAtMs = 0L
+    private var awakeFlagOn = false
+
     // PERF-FRAME-PACING-01: signature of every dynamic input updateChrome() reads; an identical signature (with no
     // timed transition pending) lets the whole per-frame parse + native-veneer cascade short-circuit. The two buffers
     // swap on each run, so the per-vsync check allocates nothing; the MIN_VALUE fill forces the first frame through.
     private var chromeSig = LongArray(CHROME_SIG_LEN)
     private var lastChromeSig = LongArray(CHROME_SIG_LEN) { Long.MIN_VALUE }
     private var lastStonesHidden: Boolean? = null // desired HudVeneer hide-stones state (send only on change)
+    private var tabGridCollapsed = false // the expand stone's choice, kept in PREFS_CHAT
     private var lastSideX = Int.MIN_VALUE // last side-panel relocation sent (send only on change)
     private var lastSideY = Int.MIN_VALUE
+    private var lastHudStrip: IntArray? = null // large portrait UI: the last setHudStrip sent (send only on change)
     private var lastChatX = Int.MIN_VALUE // last chat-at-top relocation sent (send only on change)
     private var lastChatY = Int.MIN_VALUE
 
@@ -382,12 +420,16 @@ class MainActivity : AppCompatActivity() {
     // mirrors what we last asked for — the engine never collapses on its own).
     private var chatCollapsed = false
 
-    // Auto-open: while an engine-rendered dialogue is up we un-collapse the chat (a collapsed chat hides the engine
-    // tabs, which suppresses the dialogue raster); these track the edge + whether WE forced it open so we can restore.
+    // The speech bubbles put the whole chat away, filter stones included (the official app's "Toggle Chatbox").
+    private var chatPutAway = false
+
+    // Auto-open: while an engine-rendered dialogue is up we open a collapsed or put-away chat (the dialogue draws
+    // in it); these track the edge + whether WE forced it open so we can restore.
     private var dialogueWasActive = false
     private var savedCollapsedForDialogue = false
+    private var savedPutAwayForDialogue = false
+    private var chatUnread = false // a filter stone shows new messages: the bubbles flash while the chat is put away
     private var chatTabsLogged = false
-    private var lastChatRowH = Int.MIN_VALUE // last setChatTabRowHeight sent (send only on change)
     private var lastMmX = Int.MIN_VALUE // last minimap relocation sent (send only on change)
     private var lastMmY = Int.MIN_VALUE
 
@@ -444,6 +486,53 @@ class MainActivity : AppCompatActivity() {
         // map is magnified to fullscreen); >1 covers more ground per swipe. Tune to taste.
         private const val MAP_PAN_SPEED = 2.5f
 
+        // FOLD-1: the game's fixed-mode width, the narrowest canvas its resizable layout is built for.
+        private const val MIN_CANVAS_W = 765
+
+        // Large portrait UI (HudStrip): a phone's portrait canvas is this wide, so the world, the inventory and the
+        // windows draw 765/600 bigger, and STRIP_CANVAS_H rows taller than the screen shows. The bridge draws the
+        // chat and the minimap full size in those hidden rows and copies them back at the 765 size. iOS
+        // kStripCanvasW/kStripCanvasH; STRIP_CANVAS_H is HudStrip.STRIP_H.
+        private const val STRIP_CANVAS_W = 600
+        private const val STRIP_CANVAS_H = 400
+
+        // The relocated chat's height (the filter row plus the message area), canvas px at the 765 size.
+        private const val CHAT_H_CANVAS = 145
+
+        // FOLD-2: how far the window's shape may drift from the canvas's before the stage letterboxes instead of
+        // stretching. A phone's canvas matches its screen exactly; a book foldable changing panels drifts ~2x.
+        // FOLD-3 uses the same slack for when a window change is worth a canvas resize.
+        private const val STAGE_ASPECT_SLACK = 0.10f
+
+        // UI-2: a phone's canvas is this tall in landscape (its short side).
+        private const val PHONE_CANVAS_SHORT = 540
+
+        // FOLD-3: a screen at least this wide on its short side (in dp) is a tablet or an unfolded book foldable,
+        // Android's own large-screen line. There the canvas grows with the screen's physical size instead.
+        private const val LARGE_SCREEN_DP = 600
+
+        // FOLD-3: the short side (dp) of the phones the 540 canvas was tuned on (Pixel 7a, a Fold's cover screen).
+        // A large screen keeps their canvas pixels per dp, so the HUD stays phone-sized and more of the world shows.
+        private const val PHONE_SHORT_DP = 411f
+
+        // FOLD-3: wait this long after the window's last size change before resizing the canvas, so a dragged
+        // split-screen divider resizes once at the end rather than on every frame.
+        private const val RESIZE_SETTLE_MS = 300L
+
+        // FOLD-3: a resize the bridge refuses while the VM boots (under Auto the window turns at launch) is asked again
+        // this often, up to RESIZE_RETRIES times; an older jar without the call refuses every time.
+        private const val RESIZE_RETRY_MS = 500L
+        private const val RESIZE_RETRIES = 120
+
+        // FOLD-3: how often to look for the first frame at a requested canvas size, and how long to wait for it. A
+        // request made at the login screen applies only at login, so the wait gives up and adopts the size anyway.
+        private const val CANVAS_POLL_MS = 16L
+        private const val CANVAS_WAIT_MS = 2000L
+
+        // FOLD-4: on reaching the game the zoom is published from a following draw: look for it this often, this many times.
+        private const val ZOOM_POLL_MS = 250L
+        private const val ZOOM_POLL_TRIES = 20
+
         // The VM's maximum heap; an xms marker above it would stop the VM starting.
         private const val MAX_HEAP_MB = 512L
         private const val MB_PER_GB = 1024L
@@ -456,6 +545,10 @@ class MainActivity : AppCompatActivity() {
         @Volatile var canvasW = 0
 
         @Volatile var canvasH = 0
+
+        // Large portrait UI: the canvas rows below the shown canvasH (STRIP_CANVAS_H while the strip is on, else 0).
+        // The engine draws canvasW x (canvasH + canvasStripH); everything the host maps lives in the shown rows.
+        @Volatile var canvasStripH = 0
 
         // ENH-B06: a static hook the native World Switcher Composable (in PluginPanel's Compose tree, with no
         // back-reference to the activity) calls to arm the "Hopping…" scrim from its row-tap / Prev-Next hop. The
@@ -472,6 +565,12 @@ class MainActivity : AppCompatActivity() {
         // widgets are reliably built (cf. MobileChromeBridge.VERDICT_FRAME=60); 1500ms gives a little headroom.
         private const val LOGIN_TRANSITION_MS = 1500L
 
+        // A paste types at most one chat line.
+        private const val PASTE_MAX_CHARS = 80
+
+        // How long the screen stays awake after leaving the game (covers region-load blips and the logout screen).
+        private const val KEEP_AWAKE_GRACE_MS = 10_000L
+
         // The layout-switch pill waits this far into a run of unsupported-layout frames before it shows, so a
         // varbit that syncs late after login, or a one-frame blip, never flashes it over a Modern account.
         private const val LAYOUT_SWITCH_SETTLE_MS = 3_000L
@@ -481,7 +580,7 @@ class MainActivity : AppCompatActivity() {
         private const val LAYOUT_SWITCH_LABEL = "Switch to Resizable - Modern"
 
         // updateChrome's signature slots: the native change counter, five toggles, two view/frame sizes, four insets.
-        private const val CHROME_SIG_LEN = 14
+        private const val CHROME_SIG_LEN = 16
 
         // UX-ONBOARD-01: hard cap on the cold-start splash. Generous — first-install unpack (~30 s) + JVM boot +
         // first frame; the splash normally dismisses on the first frame well before this. Failsafe only.
@@ -501,6 +600,12 @@ class MainActivity : AppCompatActivity() {
         private const val KEY_CHAT_DY = "chatOverrideY"
         private const val KEY_MINIMAP_DX = "minimapOverrideX"
         private const val KEY_MINIMAP_DY = "minimapOverrideY"
+        private const val KEY_TAB_GRID_COLLAPSED = "tabGridCollapsed" // the expand stone's choice (ChromeOverlayView)
+
+        // The column left of the chat (601's SIDE_LEFT_CHAT: the logout door, the speech bubbles, the keyboard) is 58
+        // canvas px wide. The chat's base anchor steps right by it, as the official chat sits right of it (iOS
+        // kDoorCanvasW).
+        private const val DOOR_W_CANVAS = 58
         private const val KEEPALIVE_IDLE_STOP_MS = 600_000L
 
         // AWT virtual-key codes (java.awt.event.KeyEvent) the engine's onKeyStroke expects.
@@ -524,6 +629,10 @@ class MainActivity : AppCompatActivity() {
         // UX-ONBOARD-02: one-time launch notices (currently just the layout hint).
         private const val PREFS_NOTICES = "notices"
         private const val KEY_LAYOUT_NOTICE_OFF = "layoutNoticeSuppressed"
+
+        // FOLD-4: the camera zoom kept per screen class ("phone" / "large"), and the class the game's saved zoom is for.
+        private const val PREFS_ZOOM = "zoom"
+        private const val KEY_ZOOM_OWNER = "owner"
         const val PREF_HOTKEYS_ACTIVE = "active"
 
         // Bug 4: the WorldHopper quick-hop keybinds. These mirror RuneLite's WorldHopperConfig @ConfigGroup
@@ -584,6 +693,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Game settings > Screen: the root's layout listener resizes the canvas to the turned window (FOLD-3).
+        hudPortrait = ScreenSetting.portraitNow(this)
+        requestedOrientation = ScreenSetting.screenOrientation(this)
+        portraitListener =
+            ScreenSetting.onChanged(this) { runOnUiThread { requestedOrientation = ScreenSetting.screenOrientation(this) } }
 
         vibrator = getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
 
@@ -740,8 +854,8 @@ class MainActivity : AppCompatActivity() {
                     chatUserDY = 0
                     getSharedPreferences(PREFS_CHAT, MODE_PRIVATE)
                         .edit()
-                        .remove(KEY_CHAT_DX)
-                        .remove(KEY_CHAT_DY)
+                        .remove(hudKey(KEY_CHAT_DX))
+                        .remove(hudKey(KEY_CHAT_DY))
                         .apply()
                     lastChatX = Int.MIN_VALUE
                     lastChatY = Int.MIN_VALUE
@@ -763,8 +877,8 @@ class MainActivity : AppCompatActivity() {
                 onChatCommit = {
                     getSharedPreferences(PREFS_CHAT, MODE_PRIVATE)
                         .edit()
-                        .putInt(KEY_CHAT_DX, chatUserDX)
-                        .putInt(KEY_CHAT_DY, chatUserDY)
+                        .putInt(hudKey(KEY_CHAT_DX), chatUserDX)
+                        .putInt(hudKey(KEY_CHAT_DY), chatUserDY)
                         .apply()
                     Log.i(TAG, "chat-edit: moved -> offset ($chatUserDX,$chatUserDY)")
                 }
@@ -780,24 +894,32 @@ class MainActivity : AppCompatActivity() {
                 onMinimapCommit = {
                     getSharedPreferences(PREFS_CHAT, MODE_PRIVATE)
                         .edit()
-                        .putInt(KEY_MINIMAP_DX, minimapUserDX)
-                        .putInt(KEY_MINIMAP_DY, minimapUserDY)
+                        .putInt(hudKey(KEY_MINIMAP_DX), minimapUserDX)
+                        .putInt(hudKey(KEY_MINIMAP_DY), minimapUserDY)
                         .apply()
                     Log.i(TAG, "minimap-edit: moved -> offset ($minimapUserDX,$minimapUserDY)")
                 }
                 onDone = { exitOverlayEditMode() }
             }
         // Restore any persisted chat-at-top and minimap overrides so the first frame honours them.
-        getSharedPreferences(PREFS_CHAT, MODE_PRIVATE).let {
-            chatUserDX = it.getInt(KEY_CHAT_DX, 0)
-            chatUserDY = it.getInt(KEY_CHAT_DY, 0)
-            minimapUserDX = it.getInt(KEY_MINIMAP_DX, 0)
-            minimapUserDY = it.getInt(KEY_MINIMAP_DY, 0)
-        }
+        loadHudOffsets()
         chromeOverlay = ChromeOverlayView(this)
         chromeOverlay.onTabTap = { idx ->
             Log.i(TAG, "a6: native tab $idx tap -> openTab")
             JvmLauncher.onBridgeTouch { JvmLauncher.openTab(idx) } // off the UI thread (daemon-attaches to HotSpot)
+        }
+        tabGridCollapsed = getSharedPreferences(PREFS_CHAT, MODE_PRIVATE).getBoolean(KEY_TAB_GRID_COLLAPSED, false)
+        chromeOverlay.setCollapsed(tabGridCollapsed)
+        chromeOverlay.onCollapseToggle = { collapsed ->
+            // In the chrome signature, so the next frame moves the side panel after the column.
+            tabGridCollapsed = collapsed
+            getSharedPreferences(PREFS_CHAT, MODE_PRIVATE).edit().putBoolean(KEY_TAB_GRID_COLLAPSED, collapsed).apply()
+            Log.i(TAG, "a6: tab grid ${if (collapsed) "collapsed" else "expanded"}")
+        }
+        chromeOverlay.onChatToggle = {
+            savedPutAwayForDialogue = false // the player's own choice from here on
+            setChatPutAway(!chatPutAway)
+            Log.i(TAG, "chat: ${if (chatPutAway) "put away" else "brought back"}")
         }
         // Phase-4 chat channel PILL (replaces the A3 enlarged tab row as the chat control; iOS parity).
         // Quick tap = collapse/expand (shared shove-off-canvas); hold 0.15s = chips fan out; drag + lift =
@@ -806,9 +928,8 @@ class MainActivity : AppCompatActivity() {
         chatTabOverlay = ChatPillView(this)
         // Apply a cached runtime sprite set immediately (later boots) so the grid/chat show real art before the
         // post-login capture lands; the live capture in updateChrome refreshes + re-caches it.
-        TabSprites.parse(TabSprites.cached(filesDir))?.let {
+        TabSprites.parse(TabSprites.cached(filesDir))?.takeIf { it.version >= TabSprites.VERSION }?.let {
             chromeOverlay.setSprites(it)
-            chatTabOverlay.setSprites(it)
         }
         chatTabOverlay.onTabTap = { k ->
             // UI-3 (iOS onChatTabButton): tap the ACTIVE tab to collapse the message area; tap any other to
@@ -832,15 +953,8 @@ class MainActivity : AppCompatActivity() {
             }
         }
         chatTabOverlay.onFilterOpen = { _, ecx, ecy, vx, vy ->
-            if (chatCollapsed) {
-                // The collapsed chat's filter button sits off-canvas (y≈3000) — a right-click there opens
-                // nothing. Expand first; the engine restores the widget next tick, the snapshot follows, and a
-                // later move (finger still below the chip) passes the on-canvas gate below. iOS 69ed4cf9e.
-                chatCollapsed = false
-                JvmLauncher.onBridgeTouch { JvmLauncher.setChatCollapsed(false) }
-                Log.i(TAG, "p4: pull-down on collapsed chat -> expand first")
-                false
-            } else if (ecx >= 0 && ecy in 0 until JvmLauncher.frameHeight()) {
+            // A collapsed chat keeps its filter stones up, so the menu opens on the stone either way.
+            if (ecx >= 0 && ecy in 0 until JvmLauncher.frameHeight()) {
                 beginChatFilterMenu(ecx, ecy, vx, vy)
                 true
             } else {
@@ -860,7 +974,7 @@ class MainActivity : AppCompatActivity() {
                 commitMenuSelection()
             }
         }
-        chatTabOverlay.onHaptic = { vibrateTick() }
+        chatTabOverlay.onHaptic = { haptic(GameSettings.Haptic.MENU_OPEN) } // fires as the filter menu opens
         // UI-4: the opaque dialogue parchment. Both taps go through the engine's own WIDGET_CONTINUE handler.
         // The two routes this used to take were each wrong on device, and neither says so:
         //   * a precise click on the CONTINUE widget WALKS THE PLAYER. The component carries no op listener and
@@ -1108,6 +1222,8 @@ class MainActivity : AppCompatActivity() {
             setModActive(kbButton, manualKeyboard)
             Log.i(TAG, "ap0: manual keyboard ${if (manualKeyboard) "ON" else "OFF"}")
         }
+        // The keyboard stone in the column by the chat is the same toggle; ⌨ stands down while the column shows.
+        chromeOverlay.onKeyboard = { kbButton.performClick() }
         // AP-2a (Finding 12): sticky-Shift latch. The engine's shift-gated surface — "Mark" on objects/NPCs/
         // tiles, Menu Entry Swapper shift-to-customize, overlay "Configure" — only injects while shift is held.
         // Touch has no hardware shift, so this latch posts a synthetic held VK_SHIFT (shared JavaBridge.
@@ -1158,6 +1274,31 @@ class MainActivity : AppCompatActivity() {
         val hdButton = devButton("HD")
         hdButton.contentDescription = "Switch to 117HD renderer"
         hdButton.setOnClickListener { restartIntoRlhd() }
+        // Paste: types the clipboard's first line into the open game field. The soft keyboard covers the HUD, so the
+        // pill rides just above it (updatePasteButton) and only while the keyboard is up for the game.
+        val paste =
+            Button(this).apply {
+                text = "Paste"
+                contentDescription = "Paste into the game"
+                textSize = 13f
+                isAllCaps = false
+                minWidth = 0
+                minimumWidth = 0
+                val d = resources.displayMetrics.density
+                minHeight = 0
+                minimumHeight = (40 * d).toInt()
+                setPadding((16 * d).toInt(), (6 * d).toInt(), (16 * d).toInt(), (6 * d).toInt())
+                setTextColor(0xFFFFFFFF.toInt())
+                background =
+                    android.graphics.drawable.GradientDrawable().apply {
+                        cornerRadius = 100f
+                        setColor(0xE6202020.toInt())
+                        setStroke((1 * d).toInt(), 0x88FFFFFF.toInt())
+                    }
+                visibility = View.GONE
+                setOnClickListener { pasteClipboard() }
+            }
+        pasteButton = paste
         // Group the dev affordances into one discreet cluster pinned to the BOTTOM-LEFT — clear of the relocated
         // HUD (chat top-left, minimap top-right, tab grid + side panel bottom-right) so they don't obscure the UI.
         val devBar =
@@ -1181,7 +1322,9 @@ class MainActivity : AppCompatActivity() {
         // User-defined hotkey buttons: a HUD strip the user fills from the Hotkeys screen; GONE until populated.
         val hotkeyStripView = buildHotkeyStrip()
         hotkeyStrip = hotkeyStripView
-        val root =
+        // FOLD-2: everything that maps canvas px through the surface's size shares this stage, so a letterboxed stage
+        // (fitGameStage) moves them together and their view-local math holds. Window-anchored controls stay in root.
+        val stage =
             FrameLayout(this).apply {
                 val mp = FrameLayout.LayoutParams.MATCH_PARENT
                 addView(surfaceView, FrameLayout.LayoutParams(mp, mp))
@@ -1192,6 +1335,12 @@ class MainActivity : AppCompatActivity() {
                 addView(keyboardView, FrameLayout.LayoutParams(1, 1))
                 addView(menuOverlay, FrameLayout.LayoutParams(mp, mp)) // drawn on top of the live frame + chrome
                 addView(overlayEditView, FrameLayout.LayoutParams(mp, mp)) // on-screen overlay-layout editor (GONE unless editing)
+            }
+        val root =
+            FrameLayout(this).apply {
+                val mp = FrameLayout.LayoutParams.MATCH_PARENT
+                setBackgroundColor(Color.BLACK) // the letterbox bars (the SurfaceView punches through it in the stage)
+                addView(stage, FrameLayout.LayoutParams(mp, mp, Gravity.CENTER))
                 addView(
                     layoutSwitchButton,
                     FrameLayout
@@ -1268,6 +1417,15 @@ class MainActivity : AppCompatActivity() {
                             bottomMargin = devBarBaseBottom
                         },
                 )
+                addView(
+                    paste,
+                    FrameLayout
+                        .LayoutParams(
+                            FrameLayout.LayoutParams.WRAP_CONTENT,
+                            FrameLayout.LayoutParams.WRAP_CONTENT,
+                            Gravity.BOTTOM or Gravity.END,
+                        ).apply { rightMargin = (12 * resources.displayMetrics.density).toInt() },
+                )
                 // User-defined hotkey buttons: bottom-left, stacked above the devBar; below the launcher sheet.
                 hotkeyBaseLeft = (8 * resources.displayMetrics.density).toInt()
                 hotkeyBaseBottom = (64 * resources.displayMetrics.density).toInt()
@@ -1293,6 +1451,17 @@ class MainActivity : AppCompatActivity() {
             }
         setContentView(root)
         rootContainer = root // P2-1: the frame the developer-mode chip/panel attach to when enabled
+        gameStage = stage
+        // FOLD-2: refit on every window size change (a fold/unfold, a split-screen resize). Posted: changing the
+        // stage's layout params inside this layout pass would be dropped until the next one.
+        // FOLD-3: then, once the size settles, resize the canvas itself to suit the new window.
+        root.addOnLayoutChangeListener { _, l, t, r, b, oldL, oldT, oldR, oldB ->
+            if (r - l != oldR - oldL || b - t != oldB - oldT) {
+                root.post { fitGameStage() }
+                root.removeCallbacks(resizeCanvasToWindow)
+                root.postDelayed(resizeCanvasToWindow, RESIZE_SETTLE_MS)
+            }
+        }
         // UX-XCUT-01: keep the only release HUD controls (⌨/⇧ devBar, hotkey strip, ≡ Plugins handle) out of the
         // landscape display cutout + the bottom gesture inset. SHORT_EDGES draws the notch UNDER the frame, so
         // these fixed bottom-START / bottom-CENTER views would otherwise sit beneath it in landscape-right. A root
@@ -1302,6 +1471,19 @@ class MainActivity : AppCompatActivity() {
         this.devBar = devBar
         this.launcherHandle = launcherHandle
         this.microbotButton = microbotButton
+        // Lift the ≡ Plugins handle off the devBar and the hotkey strip when they reach under it (placeLauncherHandle).
+        // Posted: it changes a layout param, which this pass would drop.
+        val placeHandle =
+            View.OnLayoutChangeListener { _, l, t, r, b, oldL, oldT, oldR, oldB ->
+                if (r - l != oldR - oldL || b - t != oldB - oldT) root.post { placeLauncherHandle() }
+            }
+        root.addOnLayoutChangeListener(placeHandle)
+        devBar.addOnLayoutChangeListener(placeHandle)
+        hotkeyStripView.addOnLayoutChangeListener(placeHandle)
+        launcherHandle.addOnLayoutChangeListener(placeHandle)
+        // After every layout pass, so a control moving, showing or going GONE all reach the tab group. It only
+        // invalidates the group, which lays nothing out again.
+        root.viewTreeObserver.addOnGlobalLayoutListener { placeTabGroupFloor() }
         ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
             applyHudControlInsets(insets)
             insets
@@ -1387,6 +1569,7 @@ class MainActivity : AppCompatActivity() {
         )
 
         gestures = GestureDetector(this, GestureListener())
+        gestures.setIsLongpressEnabled(false) // timed by holdRunnable instead (see its comment)
         scaleGestures = ScaleGestureDetector(this, ScaleListener())
         // Drive gestures from the SurfaceView itself so event coords are view-local: the screen->game
         // mapping is then correct wherever the view sits in the window (status-bar inset, display cutout,
@@ -1395,8 +1578,13 @@ class MainActivity : AppCompatActivity() {
             // Once a long-press has opened the menu, this gesture belongs to menu-peek: track the finger for the
             // row highlight and commit on release — do NOT feed the tap/camera/pinch detectors.
             if (menuActive) {
-                menuCurX = event.x
-                menuCurY = event.y
+                // The native menu is hit-tested in the overlay's space; the degraded engine menu is driven in
+                // this view's, since toGameX/Y take surface-local points.
+                surfaceToOverlay(event.x, event.y)
+                val mx = overlayPt[0]
+                val my = overlayPt[1]
+                menuCurX = mx
+                menuCurY = my
                 // Degraded mode (native overlay build timed out): drive the engine's own raw menu directly. Preempts
                 // the native-overlay tap/drag handling below (which would no-op — menuOverlay.isActive is false here).
                 if (menuDegraded) {
@@ -1423,7 +1611,7 @@ class MainActivity : AppCompatActivity() {
                 if (menuTapMode) {
                     when (event.actionMasked) {
                         MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
-                            if (menuTapArmed) updateMenuHighlight(event.x, event.y)
+                            if (menuTapArmed) updateMenuHighlight(mx, my)
                         }
 
                         MotionEvent.ACTION_UP -> {
@@ -1432,7 +1620,7 @@ class MainActivity : AppCompatActivity() {
                                 menuTapArmed = true
                                 menuOverlay.setHighlight(-1)
                             } else {
-                                onMenuTap(event.x, event.y)
+                                onMenuTap(mx, my)
                             }
                         }
                     }
@@ -1440,7 +1628,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 when (event.actionMasked) {
                     MotionEvent.ACTION_MOVE -> {
-                        updateMenuHighlight(event.x, event.y)
+                        updateMenuHighlight(mx, my)
                     }
 
                     MotionEvent.ACTION_UP -> {
@@ -1465,11 +1653,18 @@ class MainActivity : AppCompatActivity() {
                     touchStrayed = 0f
                     touchMulti = false
                     touchPastSlop = false
+                    surfaceView.removeCallbacks(holdRunnable)
+                    surfaceView.postDelayed(holdRunnable, GameSettings.longPressMs(this))
                 }
 
                 MotionEvent.ACTION_POINTER_DOWN -> {
                     touchMulti = true
+                    surfaceView.removeCallbacks(holdRunnable)
                     dropTapArm() // a pinch, not a tap: the first finger's arm goes with it
+                }
+
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    surfaceView.removeCallbacks(holdRunnable)
                 }
 
                 MotionEvent.ACTION_MOVE -> {
@@ -1480,6 +1675,7 @@ class MainActivity : AppCompatActivity() {
                         if (d > touchStrayed) touchStrayed = d
                         if (!touchPastSlop && touchStrayed > sceneDragSlopPx) {
                             touchPastSlop = true
+                            surfaceView.removeCallbacks(holdRunnable)
                             dropTapArm() // this touch is a drag now (iOS does this at the pan's Began)
                         }
                         // A tap is not one point: the finger lands, rolls a few pixels and lifts, and all of
@@ -1533,6 +1729,7 @@ class MainActivity : AppCompatActivity() {
                 mapPanning = false
                 mapScrolling = false
                 ifaceScrolling = false // DRAG-2: end the interface drag-to-scroll gesture
+                paneSwiping = false
                 // Whatever this touch did, it is finished with its arm. Cancelling here rather than at each of
                 // the router's exits is both shorter and safer: it cannot be missed when a branch is added. It
                 // reads as a no-op when the click DID happen, because the two reach the bridge in the order
@@ -1978,8 +2175,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** AP-0 logout: flush pending config (the restart kills the process), delete tokens.json, purge the
-     *  WebView cookie store (so the IdP can't silently re-auth the old account), then restart into the
-     *  login-first boot gate. Cookie removal is async — chain the restart off its callback. */
+     *  app's WebView cookie store, then restart into the login-first boot gate. (The login itself runs in a
+     *  Chrome Custom Tab, whose cookies this can't reach; the consent URL's prompt=login is what stops Jagex
+     *  silently re-authorising the old account.) Cookie removal is async — chain the restart off its callback. */
     private fun doLogout() {
         val purgeAndRestart = {
             val clean = JagexTokens.deleteAll(applicationContext)
@@ -2028,13 +2226,14 @@ class MainActivity : AppCompatActivity() {
                 runOnUiThread { Toast.makeText(this, "Screenshot unavailable", Toast.LENGTH_SHORT).show() }
                 return@onBridge
             }
-            val h = px.size / w
+            // Only the shown rows: a large portrait canvas keeps a strip below them that the screen never shows.
+            val h = minOf(px.size / w, JvmLauncher.frameHeight().let { if (it > 0) it else Int.MAX_VALUE })
             // Source is 0x00RRGGBB (alpha unset). Force opaque; channel order already matches Android's ARGB int
             // (0xAARRGGBB) — NO R<->B swizzle here (unlike the SurfaceView blit, which swizzles for RGBA_8888).
             for (i in px.indices) px[i] = px[i] or 0xFF000000.toInt()
             val savedUri =
                 try {
-                    val bmp = Bitmap.createBitmap(px, w, h, Bitmap.Config.ARGB_8888)
+                    val bmp = Bitmap.createBitmap(px, 0, w, w, h, Bitmap.Config.ARGB_8888)
                     val u = writePngToGallery(bmp)
                     bmp.recycle()
                     u
@@ -2373,16 +2572,33 @@ class MainActivity : AppCompatActivity() {
         return (viewY * fh / vh).toInt().coerceIn(0, fh - 1)
     }
 
-    private fun scaleX(px: Float): Int {
+    private fun scaleXf(px: Float): Float {
         val fw = JvmLauncher.frameWidth()
         val vw = surfaceView.width
-        return if (fw <= 0 || vw <= 0) px.toInt() else (px * fw / vw).toInt()
+        return if (fw <= 0 || vw <= 0) px else px * fw / vw
     }
 
-    private fun scaleY(px: Float): Int {
+    private fun scaleYf(px: Float): Float {
         val fh = JvmLauncher.frameHeight()
         val vh = surfaceView.height
-        return if (fh <= 0 || vh <= 0) px.toInt() else (px * fh / vh).toInt()
+        return if (fh <= 0 || vh <= 0) px else px * fh / vh
+    }
+
+    /** The finger stayed put for the long-press time: open the menu at the landing point. */
+    private fun onHoldElapsed() {
+        if (touchMulti || touchPastSlop || menuActive) return
+        // A hold is never a tap. The detector's own long-press guaranteed that; with it off, cancel the tap it is
+        // still holding so the lift can't click — even when no menu opens below, or the menu is dropped mid-touch.
+        val now = SystemClock.uptimeMillis()
+        val cancel = MotionEvent.obtain(now, now, MotionEvent.ACTION_CANCEL, touchOriginX, touchOriginY, 0)
+        gestures.onTouchEvent(cancel)
+        cancel.recycle()
+        // The map owns the whole screen while open. A hold inside its window opens the engine menu there, the
+        // desktop's right-click on the map, which is where plugins put their map entries (Shortest Path's Set
+        // Target / Set Start / Clear Path; Find closest on a key row). Outside the window, or before its rect
+        // is published, a hold opens nothing: that point is the scene behind the map.
+        if (mapOpen && !inCanvasRect(mapWindowCanvas, toGameX(touchOriginX), toGameY(touchOriginY))) return
+        beginMenuPeek(touchOriginX, touchOriginY)
     }
 
     private class OrbHit(
@@ -2563,7 +2779,7 @@ class MainActivity : AppCompatActivity() {
                 val orb = nearestOrb(gx, gy)
                 if (orb != null) {
                     JvmLauncher.clickPrecise(orb.cx, orb.cy, 1)
-                    vibrateTick()
+                    haptic(GameSettings.Haptic.OP)
                     Log.i(TAG, "orb-veneer: tap ($gx,$gy) -> ${orb.name} @(${orb.cx},${orb.cy})")
                     return true
                 }
@@ -2612,12 +2828,6 @@ class MainActivity : AppCompatActivity() {
             return true
         }
 
-        override fun onLongPress(e: MotionEvent) {
-            // The map owns the whole screen while open — no right-click menu peek into the scene behind it.
-            if (mapOpen) return
-            beginMenuPeek(e.x, e.y)
-        }
-
         override fun onScroll(
             e1: MotionEvent?,
             e2: MotionEvent,
@@ -2628,6 +2838,7 @@ class MainActivity : AppCompatActivity() {
             if (pinchActive || scaleGestures.isInProgress || e2.pointerCount > 1) {
                 return false
             }
+            if (paneSwiping) return true
             // Context routing, decided once at gesture start from the DOWN point (same rule as iOS):
             // inside the open world-map window = pan the MAP; inside the live chat box = scroll the chat;
             // anywhere else = rotate the camera.
@@ -2650,7 +2861,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 if (!mapPanning && !mapScrolling) {
                     val r = chatRectCanvas
-                    if (r != null && e1 != null && !mapOpen) {
+                    if (r != null && e1 != null && chatScrollable) {
                         val gx = toGameX(e1.x)
                         val gy = toGameY(e1.y)
                         if (gx >= r[0] && gx < r[0] + r[2] && gy >= r[1] && gy < r[1] + r[3]) {
@@ -2669,13 +2880,18 @@ class MainActivity : AppCompatActivity() {
                         val inDraggablePane =
                             !mapOpen && e1 != null &&
                                 (inCanvasRect(invRectCanvas, sx, sy) || reorderRectsCanvas.any { inCanvasRect(it, sx, sy) })
-                        if (inDraggablePane) {
+                        // The drag only picks the item up once the finger has rested on it for the drag hold (Game
+                        // settings); a quicker swipe from the pane scrolls it if it scrolls and otherwise does
+                        // nothing, so a flick across the inventory can't move an item or swing the camera.
+                        val heldForDrag = e2.eventTime - e2.downTime >= GameSettings.dragHoldMs(this@MainActivity)
+                        if (inDraggablePane && heldForDrag) {
                             itemDragging = true
                             itemDragLastX = sx
                             itemDragLastY = sy
                             // onTouch(0) primes focus + MOVED + PRESSED on the slot — no clearHover (that would
                             // park the cursor off-canvas; iOS doesn't either).
                             JvmLauncher.touch(0, sx, sy, 1) // MOUSE_PRESSED on the source widget
+                            haptic(GameSettings.Haptic.DRAG) // once per drag, as it lifts off the slot
                             Log.i(TAG, "drag-1: widget drag begin game=($sx,$sy)")
                         } else if (e1 != null && !mapOpen && scrollRectsCanvas.any { inCanvasRect(it, sx, sy) }) {
                             // DRAG-2: a drag that STARTS over an open scrollable interface (bank/GE/quest-list/
@@ -2686,8 +2902,14 @@ class MainActivity : AppCompatActivity() {
                             ifaceWheelY = sy
                             ifaceScrollAccum = 0f
                             Log.i(TAG, "drag-2: iface scroll begin game=($sx,$sy)")
+                        } else if (inDraggablePane) {
+                            paneSwiping = true
+                            Log.i(TAG, "drag-1: quick pane swipe ignored (nothing to scroll) game=($sx,$sy)")
                         } else {
                             cameraGestureActive = true
+                            cameraAccX = 0f
+                            cameraAccY = 0f
+                            cameraGain = GameSettings.cameraGain(this@MainActivity)
                             JvmLauncher.clearHover()
                         }
                     }
@@ -2746,7 +2968,7 @@ class MainActivity : AppCompatActivity() {
                 // direction mapping as iOS (kChatScrollDir = -1, i.e. send -dy).
                 val fh = JvmLauncher.frameHeight()
                 val vh = surfaceView.height
-                val k = if (fh > 0 && vh > 0) fh.toFloat() / vh else 1f
+                val k = if (fh > 0 && vh > 0) fh.toFloat() / vh / hudScale else 1f
                 chatScrollAccum += -distanceY * k
                 val whole = chatScrollAccum.toInt()
                 if (whole != 0) {
@@ -2775,7 +2997,17 @@ class MainActivity : AppCompatActivity() {
             // GestureDetector.onScroll distanceX/Y = old - new, which already equals what iOS sends the bridge
             // (postCameraDx passes -translation, i.e. old - new). Pass it through un-negated so the camera
             // yaws/pitches the same direction as iOS (grab-the-scene feel); negating double-inverts -> reversed.
-            JvmLauncher.camera(scaleX(distanceX).toInt(), scaleY(distanceY).toInt())
+            // Camera sensitivity (Game settings) scales the canvas-px delta; the remainder carries to the next move,
+            // the way iOS accumulates, so small moves at a low setting add up instead of each rounding to zero.
+            cameraAccX += scaleXf(distanceX) * cameraGain
+            cameraAccY += scaleYf(distanceY) * cameraGain
+            val cdx = cameraAccX.toInt()
+            val cdy = cameraAccY.toInt()
+            if (cdx != 0 || cdy != 0) {
+                cameraAccX -= cdx
+                cameraAccY -= cdy
+                JvmLauncher.camera(cdx, cdy)
+            }
             return true
         }
     }
@@ -2829,7 +3061,13 @@ class MainActivity : AppCompatActivity() {
         override fun onCheckIsTextEditor(): Boolean = true
 
         override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection {
-            outAttrs.inputType = EditorInfo.TYPE_CLASS_TEXT or EditorInfo.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            imeConnNumeric = imeNumeric
+            outAttrs.inputType =
+                if (imeNumeric) {
+                    EditorInfo.TYPE_CLASS_NUMBER
+                } else {
+                    EditorInfo.TYPE_CLASS_TEXT or EditorInfo.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+                }
             outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_FULLSCREEN or
                 EditorInfo.IME_FLAG_NO_EXTRACT_UI or EditorInfo.IME_ACTION_DONE
             return object : BaseInputConnection(this, false) {
@@ -2850,6 +3088,14 @@ class MainActivity : AppCompatActivity() {
                 ): Boolean {
                     repeat(beforeLength.coerceAtLeast(0)) { JvmLauncher.keyStroke(VK_BACK_SPACE) }
                     return true
+                }
+
+                override fun performContextMenuAction(id: Int): Boolean {
+                    if (id == android.R.id.paste || id == android.R.id.pasteAsPlainText) {
+                        pasteClipboard()
+                        return true
+                    }
+                    return super.performContextMenuAction(id)
                 }
 
                 override fun sendKeyEvent(event: KeyEvent): Boolean {
@@ -2958,7 +3204,7 @@ class MainActivity : AppCompatActivity() {
                                 JvmLauncher.fireHotkey(group, key)
                             }
                         }
-                        vibrateTick()
+                        haptic(GameSettings.Haptic.OP)
                         Log.i(
                             TAG,
                             if (quickHop) {
@@ -2977,6 +3223,7 @@ class MainActivity : AppCompatActivity() {
             )
         }
         strip.visibility = if (row.childCount > 0) View.VISIBLE else View.GONE
+        strip.post { placeLauncherHandle() } // a strip gone isn't laid out, so its layout listener misses it
     }
 
     /** UX-ONBOARD-02: the whole native chrome — the chat veneer, the tab row, the dialogue tap routing — is laid
@@ -3252,6 +3499,14 @@ class MainActivity : AppCompatActivity() {
                         }
                         imeWasShown = imeShown
                         val want = manualKeyboard || mapSearchKeyboard || JvmLauncher.isTextInputOpen()
+                        // Amount prompts get the number pad. The IME re-reads the input type only on a restart; do
+                        // it only while a field wants the keyboard, so a closing prompt drops it without a flash.
+                        imeNumeric = JvmLauncher.textInputKind() == 2
+                        if (want && imeNumeric != imeConnNumeric) {
+                            imeConnNumeric = imeNumeric
+                            (getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).restartInput(keyboardView)
+                            Log.i(TAG, "a1: keyboard -> ${if (imeNumeric) "number pad" else "text"}")
+                        }
                         if (want != imeShown) {
                             if (want != keyboardShown) {
                                 keyboardShown = want
@@ -3268,11 +3523,12 @@ class MainActivity : AppCompatActivity() {
                             keyboardShown = want // converged without a request (e.g. user-raised IME matches want)
                         }
                     }
+                    updatePasteButton(imeShown && !textActivePanel && keyboardShown)
                     val seq = JvmLauncher.interactTapSeq()
                     if (seq != lastTapSeq) {
                         lastTapSeq = seq
                         Log.i(TAG, "a1: interactTapSeq -> $seq (haptic)")
-                        vibrateTick()
+                        haptic(GameSettings.Haptic.OP)
                     }
                     // Phase-1 tap feedback, resolved from ENGINE TRUTH (tap-kind seq advanced past the tap-time
                     // baseline). Ring ONLY for a real scene tap — SCENE → red, WALK → yellow; a WIDGET op draws a
@@ -3286,13 +3542,68 @@ class MainActivity : AppCompatActivity() {
                         tryBuildNativeMenu()
                     }
                     updateChrome()
-                    applyOverlayInsets()
+                    updateKeepAwake()
+                    applyOverlayAvoid()
                     updateWorldMap()
                     Choreographer.getInstance().postFrameCallback(this)
                 }
             }
         frameCallback = cb
         Choreographer.getInstance().postFrameCallback(cb)
+    }
+
+    /** Shows the Paste pill just above the soft keyboard while it is up for the game; touches layout only on change. */
+    private fun updatePasteButton(show: Boolean) {
+        val btn = pasteButton ?: return
+        val imeBottom =
+            if (show && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                surfaceView.rootWindowInsets?.getInsets(WindowInsets.Type.ime())?.bottom ?: 0
+            } else {
+                0
+            }
+        val bottom = if (imeBottom > 0) imeBottom + (8 * resources.displayMetrics.density).toInt() else -1
+        if (bottom == pasteShownBottom) return
+        pasteShownBottom = bottom
+        if (bottom >= 0) {
+            (btn.layoutParams as? FrameLayout.LayoutParams)?.let {
+                it.bottomMargin = bottom
+                btn.layoutParams = it
+            }
+        }
+        btn.visibility = if (bottom >= 0) View.VISIBLE else View.GONE
+    }
+
+    /** Types the clipboard's first line (trimmed, at most a chat line's 80 characters) into the open game field. */
+    private fun pasteClipboard() {
+        val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        val raw =
+            cm.primaryClip
+                ?.takeIf { it.itemCount > 0 }
+                ?.getItemAt(0)
+                ?.coerceToText(this)
+                ?.toString()
+                .orEmpty()
+        val firstLine = raw.lineSequence().firstOrNull() ?: ""
+        var line = firstLine.trim()
+        if (line.codePointCount(0, line.length) > PASTE_MAX_CHARS) {
+            line = line.substring(0, line.offsetByCodePoints(0, PASTE_MAX_CHARS))
+        }
+        if (line.isEmpty()) return
+        JvmLauncher.text(line)
+        Log.i(TAG, "a1: paste len=${line.length}") // length only, never the content
+    }
+
+    /** Holds FLAG_KEEP_SCREEN_ON while in game (plus a short grace after leaving it); touches the window only on change. */
+    private fun updateKeepAwake() {
+        val want = awakeInGame || SystemClock.uptimeMillis() - awakeLeftGameAtMs < KEEP_AWAKE_GRACE_MS
+        if (want == awakeFlagOn) return
+        awakeFlagOn = want
+        if (want) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+        Log.i(TAG, "keep-awake -> $want")
     }
 
     /** AP-2a Finding 9: create the notification channel + request POST_NOTIFICATIONS (API 33+). */
@@ -3489,7 +3800,6 @@ class MainActivity : AppCompatActivity() {
             if (sprJson.isNotEmpty()) {
                 TabSprites.parse(sprJson)?.let { set ->
                     chromeOverlay.setSprites(set)
-                    chatTabOverlay.setSprites(set)
                     // Only persist a COMPLETE set — a deadline-partial would otherwise show glyphless tiles on every
                     // later boot. A fresh process re-captures from the cache (usually complete within a few ticks).
                     if (set.complete) TabSprites.cache(filesDir, sprJson)
@@ -3507,7 +3817,7 @@ class MainActivity : AppCompatActivity() {
         //    as the native change counter, which advances whenever one of those published strings changes, so an
         //    idle vsync fetches none of them. It is read BEFORE any of the strings: a publish that lands in between
         //    just makes the next frame run the body again, it can never be missed;
-        //  - the non-snapshot toggles railsShown / mapOpen / reconnectTestOverride;
+        //  - the non-snapshot toggles railsShown / mapOpen / reconnectTestOverride / tabGridCollapsed / chatPutAway;
         //  - the frame + view geometry and safe insets (every relocate scales/positions by these). A pre-layout /
         //    detached 0x0 view is just another captured value: its 0↔nonzero transitions flip the signature (so the
         //    body re-runs and relocates settle), every geometry helper already early-returns while a dimension is 0,
@@ -3535,6 +3845,9 @@ class MainActivity : AppCompatActivity() {
         sig[8] = JvmLauncher.frameWidth().toLong()
         sig[9] = JvmLauncher.frameHeight().toLong()
         for (i in 0..3) sig[10 + i] = ins[i].toLong()
+        sig[14] = sigFlag(tabGridCollapsed)
+        // Put away changes no snapshot the engine publishes, but the column's art and the stone targets follow it.
+        sig[15] = sigFlag(chatPutAway)
         // Splash + hop are NOT in the signature: each is a state flag the body itself clears (on first frame /
         // loggedIn edge / its own timeout), so while either is up we must run the body every frame to do that
         // clearing — a stable signature must not be allowed to freeze them.
@@ -3555,6 +3868,11 @@ class MainActivity : AppCompatActivity() {
                 null
             }
         val loggedIn = o?.optBoolean("loggedIn") == true
+        if (awakeInGame && !loggedIn) awakeLeftGameAtMs = SystemClock.uptimeMillis()
+        // FOLD-4: on reaching the game, and after each load, match the zoom to the window: the app may have last run on
+        // the foldable's other screen, or been folded at the login screen.
+        if (loggedIn && !awakeInGame) syncZoom(ZOOM_POLL_TRIES)
+        awakeInGame = loggedIn
         // Bug 8: arm the login-transition latch off a genuine LOGIN_SCREEN→LOGGED_IN edge. While logged out we note
         // that we saw the login screen (the snapshot's loginScreen flag); on the next logged-in frame that consumes
         // the flag and opens a bounded suppression window. An in-game LOADING/teleport blip reports loggedIn=false
@@ -3720,6 +4038,7 @@ class MainActivity : AppCompatActivity() {
             applySidePanel(o)
             applyChatAtTop()
             applyMinimap(o)
+            applyWindowBand()
             if (!chromeUiLogged && chromeOverlay.gridLeftPx > 0f) {
                 chromeUiLogged = true
                 Log.i(
@@ -3769,9 +4088,17 @@ class MainActivity : AppCompatActivity() {
             } else {
                 null
             }
-        // The row's own enable gate from here on: the dialogue owns the chatbox region for as long as it is open.
+        // The row's own enable gate from here on: the dialogue owns the chatbox region for as long as it is open, and
+        // a chat put away has no filter stones.
         val tabsOn = on && !chatDialogueActive
-        val n = chatTabOverlay.update(chatSnap, sx, sy, tabsOn)
+        chatTabOverlay.chatScale = hudScale
+        val n = chatTabOverlay.update(chatSnap, sx, sy, tabsOn && !chatPutAway)
+        // Read from the snapshot, not the stone targets: those are gone while the chat is put away, which is when the
+        // bubbles need it. The engine reports all seven stones either way.
+        chatUnread =
+            cs?.optJSONArray("tabs")?.let { arr ->
+                (0 until minOf(ChatPillView.TAB_COUNT, arr.length())).any { arr.optJSONObject(it)?.optBoolean("new") == true }
+            } == true
         // Path B: when the engine renders its own opaque dialogue (engineDialogue), SUPPRESS the native parchment so
         // the engine's dialogue + full 3D head shows through. Otherwise (make-X/reward boxes, or Path-B off) draw the
         // native parchment as before.
@@ -3785,38 +4112,49 @@ class MainActivity : AppCompatActivity() {
         // engine owns the dialogue and the parchment is suppressed, yet the tap guard still needs its rows.
         val dlg = if (on) DialoguePublish.fromNative(JvmLauncher.dialoguePublishRaw()) else DialoguePublish(-1L, "{}")
         if (chatDialogueActive) updateDialogueTapTargets(dlg.json, dlg.seq) else clearDialogueTapTargets()
+        dialogueOverlay.chatScale = hudScale
         dialogueOverlay.update(chatSnap, if (show) dlg else DialoguePublish(-1L, "{}"), sx, sy, show)
-        // Auto-open/close: a collapsed chat hides the engine tabs -> the dialogue raster is suppressed. So when an
-        // engine dialogue opens while collapsed, un-collapse for its duration and restore the collapsed state when it
-        // ends (official-mobile behaviour). Native is the single owner of chatCollapsed (no bridge writer / no race).
-        if (on) {
-            if (engineDlg && !dialogueWasActive && chatCollapsed) {
-                savedCollapsedForDialogue = true
-                chatCollapsed = false
-                JvmLauncher.onBridgeTouch { JvmLauncher.setChatCollapsed(false) }
-                Log.i(TAG, "dlg: auto-opened chat for dialogue")
-            } else if (!engineDlg && dialogueWasActive && savedCollapsedForDialogue) {
-                savedCollapsedForDialogue = false
-                chatCollapsed = true
-                JvmLauncher.onBridgeTouch { JvmLauncher.setChatCollapsed(true) }
-                Log.i(TAG, "dlg: restored collapsed chat after dialogue")
-            }
-            dialogueWasActive = engineDlg
-        }
+        if (on) followDialogue(engineDlg)
         if (tabsOn && n > 0 && !chatTabsLogged) {
             chatTabsLogged = true
-            Log.i(TAG, "ANDROID_A3_CHATTABS_GREEN enlarged native chat-tab row drawn ($n tabs) sx=$sx sy=$sy")
+            Log.i(TAG, "ANDROID_A3_CHATTABS_GREEN chat filter-stone targets laid ($n tabs) sx=$sx sy=$sy")
         }
-        // Follows the native row: with it hidden, give the engine its own 23px CONTROLS row back, exactly as
-        // iOS's hideChatTabs does (setEngineChatTabRowHeight:0).
-        val wantRowH = if (tabsOn) ChatPillView.ROW_H_CANVAS else 0
-        if (wantRowH != lastChatRowH) {
-            lastChatRowH = wantRowH
-            JvmLauncher.onBridge {
-                JvmLauncher.setChatTabRowHeight(wantRowH)
-                JvmLauncher.setChatAreaWidth(0)
-            }
+    }
+
+    /** Open a collapsed or put-away chat when an engine dialogue opens ([engineDlg] goes true), and restore it when
+     *  the dialogue ends (official-mobile behaviour). Native is the single owner of both states (no bridge writer /
+     *  no race). */
+    private fun followDialogue(engineDlg: Boolean) {
+        if (engineDlg && !dialogueWasActive && chatCollapsed) {
+            savedCollapsedForDialogue = true
+            chatCollapsed = false
+            JvmLauncher.onBridgeTouch { JvmLauncher.setChatCollapsed(false) }
+            Log.i(TAG, "dlg: auto-opened chat for dialogue")
+        } else if (!engineDlg && dialogueWasActive && savedCollapsedForDialogue) {
+            savedCollapsedForDialogue = false
+            chatCollapsed = true
+            JvmLauncher.onBridgeTouch { JvmLauncher.setChatCollapsed(true) }
+            Log.i(TAG, "dlg: restored collapsed chat after dialogue")
         }
+        if (engineDlg && !dialogueWasActive && chatPutAway) {
+            savedPutAwayForDialogue = true
+            setChatPutAway(false)
+            Log.i(TAG, "dlg: brought the chat back for dialogue")
+        } else if (!engineDlg && dialogueWasActive && savedPutAwayForDialogue) {
+            savedPutAwayForDialogue = false
+            setChatPutAway(true)
+            Log.i(TAG, "dlg: put the chat away again after dialogue")
+        }
+        dialogueWasActive = engineDlg
+    }
+
+    /** Only an open chat scrolls: collapsed or put away, a drag over it turns the camera (iOS chatScrollable). */
+    private val chatScrollable: Boolean get() = !mapOpen && !chatCollapsed && !chatPutAway
+
+    /** Put the whole chat away (the speech bubbles), or bring it back; the engine hides or shows its filter row. */
+    private fun setChatPutAway(putAway: Boolean) {
+        chatPutAway = putAway
+        JvmLauncher.onBridgeTouch { JvmLauncher.setChatPutAway(putAway) }
     }
 
     /** Send the desired engine-stone hide state to HudVeneerBridge, only when it changes (off the UI thread). */
@@ -3826,14 +4164,19 @@ class MainActivity : AppCompatActivity() {
         JvmLauncher.onBridge { JvmLauncher.setStonesHidden(hide) }
     }
 
-    /** Relocate the engine side panel flush-left of the native grid (the iOS arrangement). The grid's left/top
-     *  edge is in view px; convert to game-canvas px (k = frameW/viewW) and subtract the panel width. Sent only
-     *  when it changes. No-op until the grid has laid out (gridLeftPx>0) and a frame size is known. */
+    /** Relocate the engine side panel flush-left of the native grid's visible column and centred on it (601 puts
+     *  both on the one anchor). The grid's edges are in view px; convert to game-canvas px (k = frameW/viewW,
+     *  ky = frameH/viewH) and subtract the panel width. Sent only when it changes. No-op until the grid has laid
+     *  out (gridLeftPx>0) and a frame size is known. */
     private fun applySidePanel(o: JSONObject?) {
         val fw = JvmLauncher.frameWidth()
+        val fh = JvmLauncher.frameHeight()
         val vw = surfaceView.width
+        val vh = surfaceView.height
         if (fw <= 0 || vw <= 0) return
+        if (fh <= 0 || vh <= 0) return
         val k = fw.toFloat() / vw.toFloat()
+        val ky = fh.toFloat() / vh.toFloat()
         var sideW = 204 // fallback until the panel is open + reports its width
         var sideHc = 275 // the SIDE_CONTAINER is a fixed 204x275 canvas raster
         val sc = o?.optJSONArray("sideContainer")
@@ -3841,24 +4184,62 @@ class MainActivity : AppCompatActivity() {
             if (sc.optInt(2) > 0) sideW = sc.getInt(2)
             if (sc.optInt(3) > 0) sideHc = sc.getInt(3)
         }
-        // UI-1: the panel is a fixed engine raster we can't grow, so shrink the native grid to the panel height
-        // (constant 275 canvas px) — they then share both the top and bottom edge. Do this BEFORE reading the
-        // grid edges below so the relocate uses the post-shrink geometry (setTargetGridHeight recomputes it).
-        chromeOverlay.setTargetGridHeight(sideHc / k)
+        // The group is the official 85x280 canvas px whatever the panel's size; set the scale BEFORE reading its
+        // edges below so the relocate uses the current geometry (setCanvasScale recomputes it).
+        chromeOverlay.setCanvasScale(k, ky)
         val gx0 = chromeOverlay.gridLeftPx
         val gy0 = chromeOverlay.gridTopPx
         if (gx0 <= 0f) return
         val sideX = maxOf(0, Math.round(gx0 * k) - sideW) // right edge flush against the grid's left edge
-        val sideY = maxOf(0, Math.round(gy0 * k)) // stones hidden, so top-align with the grid
+        val sideY = maxOf(0, Math.round((gy0 + chromeOverlay.gridHeightPx / 2f) * ky) - sideHc / 2)
         if (sideX == lastSideX && sideY == lastSideY) return
         lastSideX = sideX
         lastSideY = sideY
         JvmLauncher.onBridge { JvmLauncher.relocateSidePanel(sideX, sideY) }
     }
 
+    /** Large portrait UI: pin the game's windows (the bank, the GE, the settings) into the band between the chat and the
+     *  minimap above and the side panel and the tab group below, so none opens under the HUD. Canvas px, 6 px clear of
+     *  each, measured from where the chat sits whether or not it is collapsed, so opening it never moves a window. */
+    private fun applyWindowBand() {
+        if (canvasStripH <= 0 || pendingCanvas != null || lastChatY < 0) return
+        val fh = JvmLauncher.frameHeight()
+        val vh = surfaceView.height
+        val gy0 = chromeOverlay.gridTopPx
+        if (fh <= 0 || vh <= 0 || gy0 <= 0f) return
+        var top = lastChatY + hudPx(CHAT_H_CANVAS)
+        minimapRectCanvas?.let { top = maxOf(top, it[1] + it[3]) }
+        var bottom = Math.round(gy0 * fh / vh)
+        if (lastSideY >= 0) bottom = minOf(bottom, lastSideY)
+        // The first ticks after login can read the side panel before it settles; an empty band would only flash the
+        // windows to the whole screen and back.
+        if (bottom - 6 > top + 6) sendHudStrip(canvasH, top + 6, bottom - 6)
+    }
+
+    /** Large portrait UI: give the bridge the shown rows and the window band (HudVeneerBridge.setHudStrip), when they
+     *  change; 0 rows turns the strip off. UI-thread only. */
+    private fun sendHudStrip(
+        rows: Int,
+        top: Int,
+        bottom: Int,
+    ) {
+        val v = intArrayOf(rows, top, bottom)
+        if (lastHudStrip?.contentEquals(v) == true) return
+        lastHudStrip = v
+        Log.i(TAG, "[strip] shown $rows rows, windows $top..$bottom")
+        JvmLauncher.onBridge { JvmLauncher.setHudStrip(rows, top, bottom) }
+    }
+
+    /** Large portrait UI: a refused resize leaves the old canvas, so it gets back its own shown rows and the strip state
+     *  sent before ([before]; null = never sent, i.e. off). UI-thread only. */
+    private fun restoreHudStrip(before: IntArray?) {
+        JvmLauncher.setShownRows(if (canvasStripH > 0) canvasH else 0)
+        val v = before ?: intArrayOf(0, 0, 0)
+        sendHudStrip(v[0], v[1], v[2])
+    }
+
     /** Stop relocating the engine side panel (let it return to its native position) when the grid disengages. */
     private fun releaseSidePanel() {
-        chromeOverlay.setTargetGridHeight(0f) // UI-1: grid back to its natural size when the chrome disengages
         if (lastSideX == -1 && lastSideY == -1) return
         lastSideX = -1
         lastSideY = -1
@@ -3877,16 +4258,29 @@ class MainActivity : AppCompatActivity() {
         val kx = fw.toFloat() / vw
         val ky = fh.toFloat() / vh
         val ins = safeInsetsLTR()
-        val margin = 8 // canvas-px breathing room from the safe edge
-        chatBaseX = Math.round(ins[0] * kx) + margin
-        chatBaseY = Math.round(ins[1] * ky) + margin
+        // The column takes the safe area's top-left corner, flush, as the official one does, and the chat sits right
+        // of it.
+        val door = hudPx(DOOR_W_CANVAS)
+        chatBaseX = Math.round(ins[0] * kx) + door
+        chatBaseY = Math.round(ins[1] * ky)
         // Honour the user's edit-mode override (P2-3); clamp the WHOLE chatbox on-frame (against frame − chat size,
         // from the last reported bounds) so a stale offset from a since-changed dimension can't push it off-screen.
         val cr = chatRectCanvas
         val chatW = cr?.getOrNull(2) ?: 0
         val chatH = cr?.getOrNull(3) ?: 0
-        val chatX = (chatBaseX + chatUserDX).coerceIn(0, (fw - chatW).coerceAtLeast(0))
+        // Never so far left that the column would leave the canvas.
+        val chatX = (chatBaseX + chatUserDX).coerceIn(door, (fw - chatW).coerceAtLeast(door))
         val chatY = (chatBaseY + chatUserDY).coerceIn(0, (fh - chatH).coerceAtLeast(0))
+        // The column moves with the chat (overlay edit included), so it is placed even when the chat hasn't moved. Its
+        // keyboard stands in for the ⌨ button while it shows; the map hides the whole overlay, so ⌨ comes back there.
+        chromeOverlay.setChatColumn(
+            (chatX - door) / kx,
+            chatY / ky,
+            chatPutAway,
+            chatPutAway && chatUnread,
+            hudScale,
+        )
+        keyboardToggleBtn?.visibility = if (mapOpen) View.VISIBLE else View.GONE
         if (chatX == lastChatX && chatY == lastChatY) return
         lastChatX = chatX
         lastChatY = chatY
@@ -3894,20 +4288,32 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Stop relocating the chat (let it return to its native bottom position) when the chrome disengages.
-     *  Also un-collapse: with the pill gone there'd be no way to expand a shoved-off-canvas chat. */
+     *  Also open it: with the stones and the column gone there'd be no way to bring back a collapsed or put-away
+     *  chat. */
     private fun releaseChat() {
+        chromeOverlay.setChatColumn(Float.NaN, Float.NaN, false, false)
+        keyboardToggleBtn?.visibility = View.VISIBLE
         if (lastChatX == -1 && lastChatY == -1) return
         lastChatX = -1
         lastChatY = -1
         chatCollapsed = false
+        chatPutAway = false
+        savedPutAwayForDialogue = false
         JvmLauncher.onBridge {
             JvmLauncher.relocateChat(-1, -1, false)
             JvmLauncher.setChatCollapsed(false)
+            JvmLauncher.setChatPutAway(false)
         }
     }
 
     // Phase-3: last overlay-insets values sent to the shared OverlayRenderer (send only on change).
     private var lastOverlayInsets: IntArray? = null
+
+    /** Tells the engine what plugin overlay boxes keep clear of: the safe area and the shell's own controls. */
+    private fun applyOverlayAvoid() {
+        applyOverlayInsets()
+        applyOverlayKeepOut()
+    }
 
     /** Phase-3 overlay safe-insets: convert the full safe-area insets (view px, all four edges) to CANVAS px
      *  and push them to HudVeneerBridge.setOverlaySafeInsets — the shared OverlayRenderer then keeps every
@@ -3919,20 +4325,79 @@ class MainActivity : AppCompatActivity() {
         val vw = surfaceView.width
         val vh = surfaceView.height
         if (fw <= 0 || fh <= 0 || vw <= 0 || vh <= 0) return
-        val wi = surfaceView.rootWindowInsets ?: return
-        val (l, t, r, b) =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                val i = wi.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
-                listOf(i.left, i.top, i.right, i.bottom)
-            } else {
-                @Suppress("DEPRECATION")
-                listOf(wi.stableInsetLeft, wi.stableInsetTop, wi.stableInsetRight, wi.stableInsetBottom)
-            }
-        val canvas = intArrayOf(l * fw / vw, t * fh / vh, r * fw / vw, b * fh / vh)
+        if (surfaceView.rootWindowInsets == null) return
+        val ins = safeInsetsLTR()
+        val canvas = intArrayOf(ins[0] * fw / vw, ins[1] * fh / vh, ins[2] * fw / vw, ins[3] * fh / vh)
         if (lastOverlayInsets?.contentEquals(canvas) == true) return
         lastOverlayInsets = canvas
         Log.i(TAG, "p3: overlay safe-insets -> canvas(${canvas[0]},${canvas[1]},${canvas[2]},${canvas[3]})")
         JvmLauncher.onBridge { JvmLauncher.setOverlayInsets(canvas[0], canvas[1], canvas[2], canvas[3]) }
+    }
+
+    // The shell's controls last sent to the engine (applyOverlayKeepOut), and the frames since the last look.
+    private var lastOverlayKeepOut: IntArray? = null
+    private var keepOutFrames = 0
+
+    /** The shell's own controls over the game, sent to the engine so plugin overlay boxes keep off them
+     *  (HudVeneerBridge.setOverlayKeepOut), in CANVAS px: the tab grid and the column, the chat's tab row, the
+     *  dialogue box, and every other clickable view that shows and covers less than a quarter of the game. The engine
+     *  adds its own HUD (the chat, the minimap, the side panel). Every 6th frame; sent only when the list changes. */
+    private fun applyOverlayKeepOut() {
+        if (++keepOutFrames < 6) return
+        keepOutFrames = 0
+        val out = overlayKeepOut()
+        if (out == null || lastOverlayKeepOut?.contentEquals(out) == true) return
+        lastOverlayKeepOut = out
+        Log.i(TAG, "overlay keep-out: ${out.size / 4} control(s)")
+        JvmLauncher.onBridge { JvmLauncher.setOverlayKeepOut(out) }
+    }
+
+    /** The shell's controls for [applyOverlayKeepOut], flat {x, y, w, h, ...} in CANVAS px; null before the game has
+     *  a size. */
+    private fun overlayKeepOut(): IntArray? {
+        val fw = JvmLauncher.frameWidth()
+        val fh = JvmLauncher.frameHeight()
+        val vw = surfaceView.width
+        val vh = surfaceView.height
+        if (fw <= 0 || fh <= 0 || vw <= 0 || vh <= 0) return null
+        val views = ArrayList<RectF>()
+        chromeOverlay.keepOut(views)
+        chatTabOverlay.keepOut(views)
+        dialogueOverlay.keepOut(views)
+        val origin = IntArray(2).also { surfaceView.getLocationInWindow(it) }
+        rootContainer?.let { collectClickable(it, views, origin, vw.toFloat() * vh / 4f) }
+        val kx = fw.toFloat() / vw
+        val ky = fh.toFloat() / vh
+        val out = IntArray(views.size * 4)
+        views.forEachIndexed { i, r ->
+            out[i * 4] = Math.floor((r.left * kx).toDouble()).toInt()
+            out[i * 4 + 1] = Math.floor((r.top * ky).toDouble()).toInt()
+            out[i * 4 + 2] = Math.ceil((r.width() * kx).toDouble()).toInt()
+            out[i * 4 + 3] = Math.ceil((r.height() * ky).toDouble()).toInt()
+        }
+        return out
+    }
+
+    /** Adds each clickable view under [v] that shows and covers less than [maxArea] view px², whole, in the game's
+     *  view px ([origin] is the game's corner in the window). The hold menu and the overlay editor are passed over:
+     *  a box moving off either would chase it. */
+    private fun collectClickable(
+        v: View,
+        out: MutableList<RectF>,
+        origin: IntArray,
+        maxArea: Float,
+    ) {
+        if (v === menuOverlay || v === overlayEditView) return
+        if (v.visibility != View.VISIBLE || v.alpha < 0.01f) return
+        if (v.isClickable && v.width.toFloat() * v.height < maxArea) {
+            val r = android.graphics.Rect()
+            val min = 4 * resources.displayMetrics.density
+            if (v.getGlobalVisibleRect(r) && r.width() >= min && r.height() >= min) {
+                out.add(RectF(r).apply { offset(-origin[0].toFloat(), -origin[1].toFloat()) })
+            }
+        } else if (v is android.view.ViewGroup) {
+            for (i in 0 until v.childCount) collectClickable(v.getChildAt(i), out, origin, maxArea)
+        }
     }
 
     /** Phase-5: parse the published world-map snapshot (per frame, cheap — skipped when the string is
@@ -4001,6 +4466,245 @@ class MainActivity : AppCompatActivity() {
             if (win != null && win[2] > 0 && win[3] > 0 && !win.contentEquals(lastMapWindowApplied)) {
                 applyMapFullscreen(win)
             }
+        }
+    }
+
+    /** FOLD-2: fit the game stage to the canvas's shape. The canvas is sized at boot from the screen, so it
+     *  matches the window until the window changes shape under it (a foldable folded or unfolded mid-session, a
+     *  split-screen resize); stretched, a book foldable's frame would distort ~2x, so the stage letterboxes (centred,
+     *  black bars) instead, until FOLD-3 resizes the canvas to match. Within STAGE_ASPECT_SLACK it fills the window
+     *  as before. Touch, chrome and overlay mapping all read the surface's own size, so they follow the stage;
+     *  safeInsetsIn trims the window's safe insets by the bars, so a cutout the bars already clear stops shoving
+     *  the HUD inward. UI-thread only. */
+    private fun fitGameStage() {
+        val root = rootContainer
+        val stage = gameStage
+        if (root == null || stage == null) return
+        val (w, h) = stageSize(root.width, root.height, canvasW, canvasH)
+        val lp = stage.layoutParams as FrameLayout.LayoutParams
+        if (lp.width != w || lp.height != h) {
+            lp.width = w
+            lp.height = h
+            stage.layoutParams = lp
+            val fit = if (w == FrameLayout.LayoutParams.MATCH_PARENT) "fills the window" else "letterboxed to ${w}x$h"
+            Log.i(TAG, "fold: game stage $fit (window ${root.width}x${root.height}, canvas ${canvasW}x$canvasH)")
+        }
+    }
+
+    /** FOLD-3: resize the canvas to suit the window once its size has settled, so a foldable opened mid-session
+     *  shows more of the world instead of a letterboxed copy of the cover screen's view. Only a change past
+     *  STAGE_ASPECT_SLACK resizes, so a phone, whose window matches the boot canvas, never does. Until the engine
+     *  draws at the new size the stage keeps letterboxing the old canvas; a VM still booting refuses the request, so
+     *  it is asked again (RESIZE_RETRY_MS), and an older jar that always refuses keeps the old canvas for good.
+     *  UI-thread only. */
+    private val resizeCanvasToWindow: Runnable =
+        Runnable {
+            val root = rootContainer
+            if (root != null && minOf(root.width, root.height) > 0) {
+                val portrait = root.height > root.width
+                if (portrait != hudPortrait) {
+                    hudPortrait = portrait
+                    loadHudOffsets()
+                }
+                val large = isLargeScreen(root.width, root.height, resources.displayMetrics.density)
+                val screen = (if (large) "large" else "phone") + (if (portrait) "-portrait" else "")
+                if (screen != zoomScreen) {
+                    zoomScreen = screen
+                    syncZoom(0) // logged out, it waits for the login check
+                }
+            }
+            val (w, h) = if (root == null) 0 to 0 else canvasFor(root.width, root.height, resources.displayMetrics.density)
+            val strip = if (root == null) 0 else stripFor(root.width, root.height, resources.displayMetrics.density)
+            val oldW = canvasW
+            val oldH = canvasH
+            val worth = abs(w.toFloat() / oldW - 1f) > STAGE_ASPECT_SLACK || abs(h.toFloat() / oldH - 1f) > STAGE_ASPECT_SLACK
+            if (minOf(w, h, oldW, oldH) > 0 && worth) {
+                // A strip turning on crops from the first frame drawn at the new size (an older, shorter frame shows
+                // whole either way); one turning off waits for adoption, so the old frame's strip never shows. A retry
+                // runs while the VM boots, before login, when no resize applies yet, so its strip waits for acceptance.
+                val stripBefore = lastHudStrip
+                val retry = resizeRefusals > 0
+                if (strip > 0 && !retry) {
+                    JvmLauncher.setShownRows(h)
+                    sendHudStrip(h, 0, 0)
+                }
+                JvmLauncher.onBridge {
+                    val ok = JvmLauncher.requestResize(w, h + strip)
+                    if (ok || resizeRefusals == 0) { // a retried refusal is logged once
+                        Log.i(
+                            TAG,
+                            "fold: canvas resize ${oldW}x$oldH -> ${w}x$h (+$strip hidden) ${if (ok) "requested" else "refused (bridge not ready)"}",
+                        )
+                    }
+                    runOnUiThread {
+                        if (ok) {
+                            resizeRefusals = 0
+                            if (strip > 0 && retry) {
+                                JvmLauncher.setShownRows(h)
+                                sendHudStrip(h, 0, 0)
+                            }
+                            pendingCanvas = w to h
+                            adoptCanvasWhenDrawn(w, h, strip, SystemClock.uptimeMillis() + CANVAS_WAIT_MS)
+                        } else {
+                            if (strip > 0 && !retry) restoreHudStrip(stripBefore)
+                            if (++resizeRefusals <= RESIZE_RETRIES) rootContainer?.postDelayed(resizeCanvasToWindow, RESIZE_RETRY_MS)
+                        }
+                    }
+                }
+            }
+        }
+
+    /** FOLD-3: the engine applies an accepted resize on its next draw or two. Until a frame of the new size is
+     *  presented the stage keeps letterboxing the old one, so neither size is ever shown stretched to the other's
+     *  shape; then the host adopts the new size (stage fit, world-map scaling). A newer request supersedes this
+     *  one. Touch mapping reads the live frame size, so it is right throughout. UI-thread only. */
+    private fun adoptCanvasWhenDrawn(
+        w: Int,
+        h: Int,
+        strip: Int,
+        deadline: Long,
+    ) {
+        if (pendingCanvas == w to h) {
+            // The full canvas height, not the shown rows: a strip turning off leaves the old crop in place until here.
+            val drawn = JvmLauncher.frameWidth() == w && JvmLauncher.canvasHeight() == h + strip
+            if (drawn || SystemClock.uptimeMillis() >= deadline) {
+                pendingCanvas = null
+                canvasW = w
+                canvasH = h
+                canvasStripH = strip
+                if (strip == 0) {
+                    JvmLauncher.setShownRows(0)
+                    sendHudStrip(0, 0, 0)
+                }
+                fitGameStage()
+            } else {
+                rootContainer?.postDelayed({ adoptCanvasWhenDrawn(w, h, strip, deadline) }, CANVAS_POLL_MS)
+            }
+        }
+    }
+
+    /** FOLD-4: on the rl-bridge thread, give the game the zoom kept for the window's screen class (see [swapZoom]).
+     *  While the zoom is still unknown, the first draws after login, it tries again up to [tries] more times.
+     *  UI-thread only. */
+    private fun syncZoom(tries: Int) {
+        val screen = zoomScreen ?: return
+        JvmLauncher.onBridge {
+            if (!swapZoom(screen) && tries > 0) {
+                runOnUiThread { rootContainer?.postDelayed({ syncZoom(tries - 1) }, ZOOM_POLL_MS) }
+            }
+        }
+    }
+
+    /** FOLD-4: keep a camera zoom per screen class, so a foldable has one zoom folded and another unfolded, as two
+     *  desktop windows of those shapes would want, instead of the player re-pinching at every fold. Portrait windows
+     *  are classes of their own ("phone-portrait", "large-portrait"): the 3D view scales with the canvas's height, so a
+     *  landscape zoom looks nearly three times closer on a portrait canvas. Nothing is chosen
+     *  for the player: a class keeps the game's zoom as it is until the player has left it once, and from then on
+     *  gets back the zoom it had then.
+     *  The game saves a single zoom, so the owner pref records which class that zoom is for. When the window's class
+     *  is not the owner, the game's zoom is stored for the owner and the window's stored zoom, if any, is set. A
+     *  device that never changes class (a phone, a tablet) only ever writes the owner once. Returns false while the
+     *  zoom is unknown (logged out, or an older jar). rl-bridge thread only, so the prefs have one writer. */
+    private fun swapZoom(screen: String): Boolean {
+        val prefs = getSharedPreferences(PREFS_ZOOM, MODE_PRIVATE)
+        val owner = prefs.getString(KEY_ZOOM_OWNER, null)
+        if (owner == null) prefs.edit().putString(KEY_ZOOM_OWNER, screen).apply()
+        if (owner == null || owner == screen) return true
+        val zoom = JvmLauncher.cameraZoom()
+        if (zoom >= 0) {
+            val saved = prefs.getInt(screen, -1)
+            prefs
+                .edit()
+                .putInt(owner, zoom)
+                .putString(KEY_ZOOM_OWNER, screen)
+                .apply()
+            if (saved >= 0 && saved != zoom) JvmLauncher.setCameraZoom(saved)
+            val given = if (saved >= 0) "gets $saved back" else "keeps it"
+            Log.i(TAG, "fold: zoom $zoom kept for the $owner screen; the $screen screen $given")
+        }
+        return zoom >= 0
+    }
+
+    /** FOLD-3: whether a [w]x[h] px window at [density] is a large screen: at least LARGE_SCREEN_DP on its short side,
+     *  a tablet or an unfolded book foldable. */
+    private fun isLargeScreen(
+        w: Int,
+        h: Int,
+        density: Float,
+    ) = minOf(w, h) / density >= LARGE_SCREEN_DP
+
+    /** Large portrait UI: the hidden rows a [w]x[h] px window's canvas gets below the shown ones: STRIP_CANVAS_H for a
+     *  phone held portrait, else none. */
+    private fun stripFor(
+        w: Int,
+        h: Int,
+        density: Float,
+    ) = if (h > w && !isLargeScreen(w, h, density)) STRIP_CANVAS_H else 0
+
+    /** How much smaller than the engine draws them the chat and the minimap show: 600/765 while the strip is on, else
+     *  1. Their native chrome (the column, the filter stones, the dialogue box) scales with them; the tab group and
+     *  the side panel stay canvas-sized, as big as the inventory they hold. */
+    private val hudScale: Float get() = if (canvasStripH > 0 && canvasW > 0) canvasW.toFloat() / MIN_CANVAS_W else 1f
+
+    private fun hudPx(px: Int) = Math.round(px * hudScale)
+
+    /** The canvas size for a [w]x[h] px window (or screen) at [density], in the window's orientation, counting only the
+     *  rows the screen shows (see [stripFor]).
+     *  UI-2: a phone's canvas is 540 tall. A lower engine canvas blits up to a physically BIGGER HUD (minimap, orbs,
+     *  chat, side panel, tab grid all scale together) — the only working way to enlarge the minimap (the per-widget
+     *  MINIMAP-scale path overlaps the orbs / blanks terrain). 540 is iOS-proven safe; below ~480 the minimap column
+     *  collides with the tab grid.
+     *  FOLD-3: a large screen (a book foldable's inner panel, a tablet) keeps the phone's canvas pixels per dp
+     *  instead, so the HUD stays phone-sized and the extra screen shows more of the world (1093x985 on a Fold 7's
+     *  2184x1968 inner panel), capped at the screen's own pixels.
+     *  FOLD-1: the canvas is never narrower than MIN_CANVAS_W, the narrowest layout the game is built for (a split-
+     *  screen half, a near-square screen).
+     *  Phones keep the exact integer maths of the original fixed-540 sizing, so their canvas doesn't move. In portrait
+     *  a phone's canvas is STRIP_CANVAS_W wide instead (the large portrait UI). */
+    private fun canvasFor(
+        w: Int,
+        h: Int,
+        density: Float,
+    ): Pair<Int, Int> {
+        if (minOf(w, h) <= 0) return 0 to 0
+        val longEdge = maxOf(w, h)
+        val shortEdge = minOf(w, h)
+        val shortDp = shortEdge / density
+        var renderShort =
+            if (isLargeScreen(w, h, density)) {
+                maxOf(PHONE_CANVAS_SHORT, minOf(shortEdge, Math.round(shortDp * PHONE_CANVAS_SHORT / PHONE_SHORT_DP)))
+            } else {
+                PHONE_CANVAS_SHORT
+            }
+        // FOLD-1 on the canvas's width: the long side in landscape, the short side in portrait.
+        renderShort =
+            if (w >= h) {
+                maxOf(renderShort, ((MIN_CANVAS_W.toLong() * shortEdge + longEdge - 1) / longEdge).toInt())
+            } else if (stripFor(w, h, density) > 0) {
+                STRIP_CANVAS_W
+            } else {
+                maxOf(renderShort, MIN_CANVAS_W)
+            }
+        val renderLong = (renderShort.toLong() * longEdge / shortEdge).toInt()
+        return if (w >= h) renderLong to renderShort else renderShort to renderLong
+    }
+
+    /** FOLD-2: the stage's layout size in a [rw]x[rh] window for a [cw]x[ch] canvas: MATCH_PARENT both ways while
+     *  the shapes agree (or either size is unknown yet), else the largest centred box of the canvas's shape. */
+    private fun stageSize(
+        rw: Int,
+        rh: Int,
+        cw: Int,
+        ch: Int,
+    ): Pair<Int, Int> {
+        val mp = FrameLayout.LayoutParams.MATCH_PARENT
+        if (minOf(minOf(rw, rh), minOf(cw, ch)) <= 0) return mp to mp
+        val canvasAspect = cw.toFloat() / ch
+        val windowAspect = rw.toFloat() / rh
+        return when {
+            abs(canvasAspect / windowAspect - 1f) <= STAGE_ASPECT_SLACK -> mp to mp
+            canvasAspect > windowAspect -> rw to Math.round(rw / canvasAspect)
+            else -> Math.round(rh * canvasAspect) to rh
         }
     }
 
@@ -4168,16 +4872,7 @@ class MainActivity : AppCompatActivity() {
     /** [left, top, right, bottom] safe-area insets in VIEW px (display cutout + system bars), so the relocated HUD
      *  clears a landscape notch / nav bar. 0 on the full-bleed emulator. (Existing callers index 0..2 = L/T/R; the
      *  bottom element was added for UX-XCUT-01's HUD-control inset.) */
-    private fun safeInsetsLTR(): IntArray {
-        val wi = surfaceView.rootWindowInsets ?: return intArrayOf(0, 0, 0, 0)
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val i = wi.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
-            intArrayOf(i.left, i.top, i.right, i.bottom)
-        } else {
-            @Suppress("DEPRECATION")
-            intArrayOf(wi.stableInsetLeft, wi.stableInsetTop, wi.stableInsetRight, wi.stableInsetBottom)
-        }
-    }
+    private fun safeInsetsLTR(): IntArray = safeInsetsIn(gameStage ?: surfaceView) // the stage: the surface may be map-transformed
 
     /** UX-XCUT-01: bump the release HUD controls' margins by the safe-area insets so none sit under the landscape
      *  cutout or the bottom gesture bar. The bottom-START devBar + hotkey strip take the LEFT inset (a landscape
@@ -4200,12 +4895,6 @@ class MainActivity : AppCompatActivity() {
                 v.layoutParams = lp
             }
         }
-        launcherHandle?.let { v ->
-            (v.layoutParams as? FrameLayout.LayoutParams)?.let { lp ->
-                lp.bottomMargin = handleBaseBottom + i.bottom
-                v.layoutParams = lp
-            }
-        }
         microbotButton?.let { v ->
             (v.layoutParams as? FrameLayout.LayoutParams)?.let { lp ->
                 lp.leftMargin = microbotBaseLeft + i.left
@@ -4213,6 +4902,50 @@ class MainActivity : AppCompatActivity() {
                 v.layoutParams = lp
             }
         }
+        handleInsetBottom = i.bottom
+        placeLauncherHandle()
+    }
+
+    /** The ≡ Plugins handle's bottom margin: the base plus the bottom inset, and on a screen too narrow for it beside the
+     *  devBar and the hotkey strip (a phone in portrait), high enough to clear whichever reaches under it. */
+    private fun placeLauncherHandle() {
+        val v = launcherHandle
+        val lp = v?.layoutParams as? FrameLayout.LayoutParams
+        val host = v?.parent as? View
+        if (v == null || lp == null || host == null) return
+        var margin = handleBaseBottom + handleInsetBottom
+        val left = (host.width - v.width) / 2
+        val right = left + v.width
+        val gap = (8 * resources.displayMetrics.density).toInt()
+        for (w in listOf<View?>(devBar, hotkeyStrip)) {
+            if (w == null || w.visibility != View.VISIBLE || w.width == 0) continue
+            if (w.left < right + gap && w.right + gap > left) margin = maxOf(margin, host.height - w.top + gap)
+        }
+        if (lp.bottomMargin != margin) {
+            lp.bottomMargin = margin
+            v.layoutParams = lp
+        }
+    }
+
+    /** Hand the tab group the bottom controls (the button row, the hotkey strip, the ≡ Plugins handle) in its own px,
+     *  each grown by the controls' gap, so it and the side panel left of it keep above whichever reach under them (in
+     *  portrait the panel spans half the screen). The stage only letterboxes, so an offset maps root px to its own. */
+    private fun placeTabGroupFloor() {
+        val stage = gameStage ?: return
+        val gap = 8 * resources.displayMetrics.density
+        val rects = ArrayList<RectF>(3)
+        for (v in listOf<View?>(devBar, hotkeyStrip, launcherHandle)) {
+            if (v == null || v.visibility != View.VISIBLE || v.width == 0) continue
+            rects.add(
+                RectF(
+                    (v.left - stage.left).toFloat(),
+                    v.top - stage.top - gap,
+                    (v.right - stage.left).toFloat(),
+                    (v.bottom - stage.top).toFloat(),
+                ),
+            )
+        }
+        chromeOverlay.setBottomControls(rects)
     }
 
     /** A7 edge-to-edge: pull the engine minimap+orbs cluster (MAP_CONTAINER) into the top-right safe area — flush
@@ -4228,9 +4961,9 @@ class MainActivity : AppCompatActivity() {
         val kx = fw.toFloat() / vw
         val ky = fh.toFloat() / vh
         val ins = safeInsetsLTR()
-        val margin = 8
-        var mapW = 211 // fallback cluster width until the snapshot reports it
-        var mapH = 340 // fallback cluster height until the snapshot reports it
+        val margin = hudPx(8)
+        var mapW = hudPx(211) // fallback cluster width until the snapshot reports it
+        var mapH = hudPx(340) // fallback cluster height until the snapshot reports it
         val mc = o?.optJSONArray("mapContainer")
         if (mc != null && mc.length() >= 4 && mc.optInt(2) > 0) {
             mapW = mc.getInt(2)
@@ -4248,14 +4981,33 @@ class MainActivity : AppCompatActivity() {
         JvmLauncher.onBridge { JvmLauncher.relocateMinimap(mmX, mmY) }
     }
 
+    /** The chat's and the minimap's dragged offsets are kept apart for each orientation (Game settings > Screen): an
+     *  offset dragged on the wide landscape canvas can land the minimap on the chat in portrait. */
+    private fun hudKey(key: String) = if (hudPortrait) "$key.portrait" else key
+
+    /** Load the dragged offsets for [hudPortrait]'s orientation; the next chrome tick places the chat and the minimap
+     *  with them. UI-thread only. */
+    private fun loadHudOffsets() {
+        getSharedPreferences(PREFS_CHAT, MODE_PRIVATE).let {
+            chatUserDX = it.getInt(hudKey(KEY_CHAT_DX), 0)
+            chatUserDY = it.getInt(hudKey(KEY_CHAT_DY), 0)
+            minimapUserDX = it.getInt(hudKey(KEY_MINIMAP_DX), 0)
+            minimapUserDY = it.getInt(hudKey(KEY_MINIMAP_DY), 0)
+        }
+        lastChatX = Int.MIN_VALUE
+        lastChatY = Int.MIN_VALUE
+        lastMmX = Int.MIN_VALUE
+        lastMmY = Int.MIN_VALUE
+    }
+
     /** Drop the minimap's edit-mode offset; the next chrome tick re-applies the automatic top-right placement. */
     private fun resetMinimapOverride() {
         minimapUserDX = 0
         minimapUserDY = 0
         getSharedPreferences(PREFS_CHAT, MODE_PRIVATE)
             .edit()
-            .remove(KEY_MINIMAP_DX)
-            .remove(KEY_MINIMAP_DY)
+            .remove(hudKey(KEY_MINIMAP_DX))
+            .remove(hudKey(KEY_MINIMAP_DY))
             .apply()
         lastMmX = Int.MIN_VALUE
         lastMmY = Int.MIN_VALUE
@@ -4271,20 +5023,32 @@ class MainActivity : AppCompatActivity() {
         JvmLauncher.onBridge { JvmLauncher.relocateMinimap(-1, -1) }
     }
 
-    private fun vibrateTick() {
-        val v = vibrator ?: return
-        // Guard the vibrate: it needs the VIBRATE permission and some devices restrict the vibrator outright — a
-        // SecurityException here must never take down the UI thread (it once did, on the menu-highlight haptic).
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                v.vibrate(VibrationEffect.createOneShot(18, VibrationEffect.DEFAULT_AMPLITUDE))
-            }
-        } catch (e: Exception) {
-            // haptics are best-effort; ignore
-        }
+    /** One haptic buzz for [trigger], if the player has that trigger on (Game settings), at the chosen strength. */
+    private fun haptic(trigger: GameSettings.Haptic) {
+        if (GameSettings.hapticOn(this, trigger)) GameSettings.buzz(this, vibrator)
     }
 
     // ---- A2 press-and-peek menu state machine -------------------------------------------------------
+
+    // surfaceToOverlay's result, reused because it runs per touch event.
+    private val overlayPt = FloatArray(2)
+
+    /**
+     * A surface-local point (what the surface's touch listener and toGameX/Y use) in the space of the views
+     * stacked over it, written to overlayPt. The two only differ while the open world map stretches the surface
+     * (applyMapFullscreen); unmapped, a menu held open on the map would draw away from the finger and its rows
+     * would hit-test against the wrong place.
+     */
+    private fun surfaceToOverlay(
+        x: Float,
+        y: Float,
+    ) {
+        overlayPt[0] = x
+        overlayPt[1] = y
+        surfaceView.matrix.mapPoints(overlayPt)
+        overlayPt[0] += surfaceView.left - menuOverlay.left
+        overlayPt[1] += surfaceView.top - menuOverlay.top
+    }
 
     /** Long-press: open the engine right-click menu at the finger and start polling for it to land. */
     private fun beginMenuPeek(
@@ -4298,11 +5062,12 @@ class MainActivity : AppCompatActivity() {
         dropTapArm()
         val gx = toGameX(viewX)
         val gy = toGameY(viewY)
-        menuAnchorX = viewX
-        menuAnchorY = viewY
-        menuCurX = viewX
-        menuCurY = viewY
-        menuHandRight = viewX > surfaceView.width * 0.5f
+        surfaceToOverlay(viewX, viewY)
+        menuAnchorX = overlayPt[0]
+        menuAnchorY = overlayPt[1]
+        menuCurX = menuAnchorX
+        menuCurY = menuAnchorY
+        menuHandRight = menuAnchorX > menuOverlay.width * 0.5f
         menuActive = true
         menuBuilding = true
         menuTouchActive = true
@@ -4313,6 +5078,7 @@ class MainActivity : AppCompatActivity() {
         menuDegraded = false // a new long-press always starts un-degraded
         menuOpenAtNanos = System.nanoTime()
         JvmLauncher.click(gx, gy, 3) // open the engine right-click menu at the finger
+        haptic(GameSettings.Haptic.MENU_OPEN)
         Log.i(TAG, "a2: long-press -> menu open game=($gx,$gy) hand=${if (menuHandRight) "R" else "L"}")
     }
 
@@ -4575,7 +5341,7 @@ class MainActivity : AppCompatActivity() {
             MenuOverlayView.Role.PARENT -> {
                 menuDrillParent = e.engineIndex
                 menuOverlay.setHighlight(-1)
-                vibrateTick()
+                haptic(GameSettings.Haptic.MENU_OPEN) // a submenu opening
                 buildTapMenu(e.sub ?: emptyList(), drilled = true)
             }
 
@@ -4607,7 +5373,7 @@ class MainActivity : AppCompatActivity() {
         val row = menuOverlay.rowAt(x, y)
         if (menuOverlay.setHighlight(row)) {
             menuHighlight = row
-            vibrateTick()
+            if (row >= 0) haptic(GameSettings.Haptic.MENU_HOVER)
         }
     }
 
@@ -5124,18 +5890,27 @@ class MainActivity : AppCompatActivity() {
             val dm = app.resources.displayMetrics
             val longEdge = maxOf(dm.widthPixels, dm.heightPixels)
             val shortEdge = maxOf(1, minOf(dm.widthPixels, dm.heightPixels))
-            // UI-2: match iOS's render height (540). A lower engine canvas blits up to a physically BIGGER HUD
-            // (minimap, orbs, chat, side panel, tab grid all scale together) — the only working way to enlarge the
-            // minimap (the per-widget MINIMAP-scale path overlaps the orbs / blanks terrain). 540 is iOS-proven
-            // safe; below ~480 the minimap column collides with the tab grid.
-            val renderH = 540
-            val renderW = (renderH.toLong() * longEdge / shortEdge).toInt()
+            // UI-2 / FOLD-1 / FOLD-3: see canvasFor. The boot canvas takes the orientation Game settings > Screen holds
+            // the activity to, whatever the screen reads mid-rotation (under Auto, the way it stands); a window that
+            // later changes shape gets a FOLD-3 resize.
+            val portrait = ScreenSetting.portraitNow(app)
+            val (renderW, renderH) =
+                if (portrait) {
+                    canvasFor(shortEdge, longEdge, dm.density)
+                } else {
+                    canvasFor(longEdge, shortEdge, dm.density)
+                }
+            val strip = if (portrait) stripFor(shortEdge, longEdge, dm.density) else 0
             canvasW = renderW
             canvasH = renderH // for the overlay free-drag pad → canvas-pixel mapping
-            opts.add("-Drunelite.headless.resize=${renderW}x$renderH")
+            canvasStripH = strip
+            JvmLauncher.setShownRows(if (strip > 0) renderH else 0)
+            runOnUiThread { fitGameStage() } // FOLD-2: a window already off this shape (split screen) letterboxes now
+            opts.add("-Drunelite.headless.resize=${renderW}x${renderH + strip}")
             Log.i(
                 TAG,
-                "A7 resize armed: ${renderW}x$renderH (screen ${longEdge}x$shortEdge; resizable iff account in resizable display mode)",
+                "A7 resize armed: ${renderW}x${renderH + strip}, shown ${renderW}x$renderH (screen ${longEdge}x$shortEdge; " +
+                    "resizable iff account in resizable display mode)",
             )
         }
         // 117HD auto-login: on a real home-network device login works, so autologin straight in-world (RLHDStarter

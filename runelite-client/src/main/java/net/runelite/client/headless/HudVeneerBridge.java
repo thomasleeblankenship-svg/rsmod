@@ -38,6 +38,7 @@ import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.HashTable;
+import net.runelite.api.MainBufferProvider;
 import net.runelite.api.MessageNode;
 import net.runelite.api.Player;
 import net.runelite.api.ScriptID;
@@ -73,8 +74,6 @@ public final class HudVeneerBridge
 {
 	private static final boolean ENABLED = Boolean.getBoolean("runelite.hudveneer");
 
-	private static final int CONTROLS_H = 23;   // the chat tab-row (CONTROLS) height, from the layout dump
-
 	// W3 A3 (native chat tabs): the 7 chat tab buttons of the CONTROLS row in display order. The gamepack lays
 	// each button out as a parent widget whose children are GRAPHIC = id+1 (the tab-background sprite), TEXT =
 	// id+2 (the channel label) and FILTER = id+3 (the live "On"/"Off"/"Filter"/"Hide" sub-label) — except CHAT_ALL
@@ -90,28 +89,65 @@ public final class HudVeneerBridge
 	private static final int SPR_CHATBTN_SELECTED = 3053;   // SpriteID.CHATBOX_BUTTON_SELECTED — active tab
 	private static final int SPR_CHATBTN_NEW = 3055;        // SpriteID.CHATBOX_BUTTON_NEW_MESSAGES — unread tab
 	private static final int SPR_CHATBTN_IDLE = 3051;       // SpriteID.CHATBOX_BUTTON — idle tab
+	// The desktop chat stones' hover variants: 3052 over an idle tab, 3054 over the selected one.
+	private static final int SPR_CHATBTN_HOVER = 3052;
+	private static final int SPR_CHATBTN_SELECTED_HOVER = 3054;
+	// What script 178 draws instead when the toplevel is 601 (the official mobile layout): 58x24 stones, with no
+	// hover state of their own (a hovered tab gets the selected stone, which a touch screen never wants).
+	private static final int SPR_MCHATBTN_IDLE = 5779;
+	private static final int SPR_MCHATBTN_SELECTED = 5780;
+	private static final int SPR_MCHATBTN_NEW = 5781;
 
 	// Native-chrome tab sprite set, loaded ONCE from the live cache after login and handed to the native shell so
-	// the 2-col grid + chat-tab veneer composite the real OSRS art with NOTHING committed to the repo (the same
-	// sprites the engine already draws — see captureTabSprites). stone 1180/1181 = RESIZEABLE_MODE_TAB_STONE_MIDDLE
-	// [_SELECTED]; 774+tabIndex = the 14 tab glyphs; 3051/3053/3055 = the chat-tab backgrounds.
-	private static final int SPR_STONE_INACTIVE = 1180;
-	private static final int SPR_STONE_ACTIVE = 1181;
-	private static final int SPR_TAB_ICON_BASE = 774;       // 774 + tabIndex, 14 glyphs (combat..music)
+	// the 2-col grid + chat column composite the real OSRS art with NOTHING committed to the repo (the same sprites
+	// the engine draws — see captureTabSprites). The stones are 601's 40x40 mobile ones (STONEn_BACKGROUND, and the
+	// red STONEn shown over the selected tab); SPR_TAB_ICONS = the 14 tab glyphs; 5779/5780/5781 = the chat stones.
+	private static final int SPR_STONE_INACTIVE = 5767;
+	private static final int SPR_STONE_ACTIVE = 5769;
+	// The glyph for each engine tab index: what 164's own ICON0..ICON13 widgets draw, and 601 (the official mobile
+	// layout) draws the same ones. The old 774+index set is the pre-2018 one, whose 8 and 9 are the friends smiley
+	// and the ignore-list face, so account management showed the smiley and friends showed the red face. 164 draws a
+	// close X for 10 (logout); the shells show logout as a door by the chat instead, so 10 is 601's door (ICON10).
+	static final int[] SPR_TAB_ICONS = {168, 898, 899, 900, 901, 902, 903, 904, 1709, 905, 3560, 908, 909, 910};
+	// 601's controls the shells copy: the logout door's stone (STONE10_BACKGROUND, 58x40) and its selected stone
+	// (STONE10), and the arrow on the 7th inner stone, which script 7615 sets to 4795 ("Show Less") while both
+	// columns show and to 4796 ("Show More") once collapsed to one.
+	private static final int SPR_DOOR_STONE = 5773;
+	private static final int SPR_DOOR_STONE_ACTIVE = 5775;
+	private static final int SPR_SHOW_LESS = 4795;
+	private static final int SPR_SHOW_MORE = 4796;
+	// The rest of 601's chat column (script 7608): the lighter stone under the speech bubbles while the chat shows
+	// and under the keyboard, the bubbles that toggle the chat, and the keyboard that starts typing. A hidden chat
+	// puts the bubbles on the door's stone, flashing to its red one while a message waits (script 178).
+	private static final int SPR_CHAT_STONE_OPEN = 5774;
+	private static final int SPR_CHAT_TOGGLE = 664;
+	private static final int SPR_KEYBOARD = 4794;
+	// The frame behind the tab grid (SIDE_RIGHT_TABS_BACKGROUND): corners, edges and middle, row by row.
+	static final int[] SPR_TAB_FRAME = {5814, 5815, 5816, 5817, 5818, 5819, 5820, 5821, 5822};
+	// Bumped whenever the payload's art changes, so a shell drops a set it cached from an older jar instead of
+	// showing it until the next capture lands (v1 = the 774+index glyphs, no door or arrow; v2 = desktop stones,
+	// no chat column, frame or sprite offsets).
+	static final int TAB_SPRITES_VERSION = 3;
 	private static volatile String tabSpritesJson = "";     // one-shot ARGB payload (see captureTabSprites); "" until ready
 	private static boolean tabSpritesCaptured = false;      // client-thread guard
 	// Sprites load lazily — an archive the engine hasn't rendered (our tab stones are HIDDEN) isn't in the cache yet,
 	// so a single tick returns a partial set. We accumulate across ticks (nudging missing archives via loadData) and
 	// only latch when the grid set is complete, or at a deadline. Index: 0=stoneInactive,1=stoneActive,2..15=icons,
-	// 16=chatbtn,17=chatbtnSelected,18=chatbtnNew.
-	private static final int TAB_SPRITE_COUNT = 19;
+	// 16=chatbtn,17=chatbtnSelected,18=chatbtnNew,19=doorStone,20=doorStoneActive,21=showLess,22=showMore,
+	// 23=chatStoneOpen,24=chatToggle,25=keyboard,26..34=frame.
+	private static final int TAB_SPRITE_COUNT = 35;
+	private static final int SLOT_FRAME = 26;
 	private static final String[] TAB_SPRITE_KEYS = {
 		"stoneInactive", "stoneActive",
 		"i0", "i1", "i2", "i3", "i4", "i5", "i6", "i7", "i8", "i9", "i10", "i11", "i12", "i13",
 		"chatbtn", "chatbtnSelected", "chatbtnNew",
+		"doorStone", "doorStoneActive", "showLess", "showMore",
+		"chatStoneOpen", "chatToggle", "keyboard",
 	};
 	private static final String[] tabSpriteB64 = new String[TAB_SPRITE_COUNT];
-	private static final int[][] tabSpriteDim = new int[TAB_SPRITE_COUNT][2];
+	// Per slot: the pixels' width and height, their offset into the sprite's full box, and that box's size. The
+	// engine draws a sprite at its offset inside a widget the box's size, so a shell needs all six to place one.
+	private static final int[][] tabSpriteDim = new int[TAB_SPRITE_COUNT][6];
 	private static int tabCaptureTicks = 0;
 	private static final int TAB_CAPTURE_DEADLINE = 600;    // generous safety valve before shipping a partial set
 
@@ -205,12 +241,8 @@ public final class HudVeneerBridge
 	// has already run is answered by the next one, and that is the normal path, not a stale tap.
 	private static final int MAX_TAP_AGE_TICKS = 1;
 
-	// Native chat-tab veneer (A3 bigger buttons). chatTabRowH = the canvas-px height the native (enlarged) tab row
-	// occupies; the message area (CHATAREA) is pushed down past it instead of the engine's 23px CONTROLS row. 0 =
-	// fall back to CONTROLS_H. chatAreaW = the canvas-px width the native row spans, so the message area is widened
-	// to ALIGN with the bigger buttons (0 = the engine default 519). chatSnapshotJson = the per-frame chat-tab
-	// geometry/state the native side reads.
-	private static volatile int chatTabRowH;
+	// chatAreaW = the canvas-px width of the chat right of the shells' column (0 = the official 461).
+	// chatSnapshotJson = the per-frame chat-tab geometry/state the native side reads.
 	private static volatile int chatAreaW;
 	private static volatile String chatSnapshotJson = "{\"loggedIn\":false}";
 	// True while an NPC/options/level-up/message/make-X dialogue interface is open. Those interfaces render INTO
@@ -293,8 +325,17 @@ public final class HudVeneerBridge
 	// (the message CONTENT is hidden AND the engine tab row is hidden, which suppresses the whole raster) so nothing
 	// renders behind the always-shown native tab row; reopening shows the tabs again + rebuilds the message list.
 	private static volatile boolean chatCollapsed;
-	// Last collapsed state APPLIED on the client thread — so the tick can detect the collapsed->open edge and rebuild.
+	// Chat PUT AWAY: the speech-bubble stone by the door (601's CHAT_TOGGLE) puts the whole chat away, filter
+	// stones and all, where a collapse leaves the stones up. Driven from native (setChatPutAway).
+	private static volatile boolean chatPutAway;
+	// Last collapsed-or-hidden state APPLIED on the client thread, so the tick can detect the closed->open edge and
+	// rebuild.
 	private static boolean chatCollapsedApplied;
+	// The canvas size and large-portrait state the chat's lines were last built for (0 = not yet). The build script
+	// wraps and stacks the lines for the chat it finds, and re-laying the chat afterwards moves them as they are, so
+	// after the phone turned they kept the old layout's wrapping, ran past the chat's edge and lost the last line.
+	// Client thread.
+	private static long chatLinesLayout;
 
 	// True while a forefront window (bank / GE / shop / …) is open OVER the relocated chat region — the chat is
 	// hidden so it sits BEHIND the window. Computed each tick; published as windowOpen in buildChatSnapshot so the
@@ -310,12 +351,11 @@ public final class HudVeneerBridge
 	// Collapse = shove the live chatbox this far below its anchor (off-canvas) instead of hiding it, so its
 	// history + selected channel survive and reopening is instant. Far enough to clear any stretched canvas.
 	private static final int CHAT_COLLAPSE_OFFSCREEN_DY = 3000;
-	static final int ORIG_CHAT_CONTENT_H = 142;  // the natural message-area height (container 165 − CONTROLS 23)
 
 	// Desktop off-device test harness: when -Drunelite.hudveneer.test=true, auto-apply the same chat veneer the
 	// native shell drives (relocate + enlarged-tab geometry) once logged in, so the headless capture renders the
 	// real chatbox geometry to PNG on the Mac (no device / StikDebug). Values default to the device's (render
-	// 1304x600 → chat at 93,8, 32px tab row, natural width); overridable via -Drunelite.hudveneer.test.* props.
+	// 1304x600 → chat at 93,8, the official width); overridable via -Drunelite.hudveneer.test.* props.
 	private static final boolean TEST_APPLY = Boolean.getBoolean("runelite.hudveneer.test");
 	private static boolean testApplied;
 
@@ -447,7 +487,8 @@ public final class HudVeneerBridge
 		// A prompt stamps the chatbox group itself: its widgets are the chatbox's own, so no sub-interface names
 		// it. No sub-interface can collide with that id — they are the groups attached TO the chatbox.
 		final int stamp = chatPromptOpen ? InterfaceID.CHATBOX : lastEngineOwnedDialogueGroup;
-		pendingDialogueTap.set(packTap(tickGen, stamp, canvasX, canvasY));
+		final long p = HudStrip.toEngine(canvasX, canvasY);
+		pendingDialogueTap.set(packTap(tickGen, stamp, HudStrip.x(p), HudStrip.y(p)));
 	}
 
 	private static long packTap(int gen, int group, int x, int y)
@@ -470,18 +511,29 @@ public final class HudVeneerBridge
 		return (tickGen - (int) ((tap >> 48) & 0x7fff)) & 0x7fff;
 	}
 
-	/** Native: the canvas-px height the enlarged native chat-tab row occupies, so the message area is pushed down
-	 *  past it (the engine's own CONTROLS row is only 23px). {@code 0} restores the default 23px offset. */
+	/** Native, and no longer read: the engine now draws the filter row itself at the official app's fixed 30 px
+	 *  (OFFICIAL_ROW_BOTTOM), so there is no taller native row to clear. Kept because both shells bind it. */
 	public static void setChatTabRowHeight(int canvasPx)
 	{
-		chatTabRowH = canvasPx;
 	}
 
-	/** Native: the canvas-px width the enlarged native chat-tab row spans, so the message area is widened to ALIGN
-	 *  with the bigger buttons (the engine chatbox is fixed at 519). {@code 0} restores the default 519 width. */
+	/** Native: the canvas-px width of the chat right of the shells' column. {@code 0} gives the official 461. */
 	public static void setChatAreaWidth(int canvasPx)
 	{
 		chatAreaW = canvasPx;
+	}
+
+	/**
+	 * Native: large portrait. The canvas runs {@code 400} px past the bottom of the screen and only its top
+	 * {@code visibleHeight} rows show; the chat and the minimap draw full size in the hidden rows and are copied back,
+	 * scaled by {@code canvasWidth/765}, to the shown corners {@link #relocateChat} and {@link #relocateMinimap} ask
+	 * for. The game's windows (bank, Grand Exchange, Settings, ...) open full width between {@code windowTop} and
+	 * {@code windowBottom}. Every canvas point a shell sends and every rect the bridge publishes stays in shown
+	 * coordinates. {@code visibleHeight <= 0} turns it off. See {@code HudStrip}.
+	 */
+	public static void setHudStrip(int visibleHeight, int windowTop, int windowBottom)
+	{
+		HudStrip.set(visibleHeight, windowTop, windowBottom);
 	}
 
 	/** Native: the live chat-tab geometry/state snapshot (escaped JSON) for the enlarged native tab veneer —
@@ -564,6 +616,13 @@ public final class HudVeneerBridge
 		chatCollapsed = collapsed;
 	}
 
+	/** Native: put the whole chat away, filter stones included, or bring it back (the speech-bubble stone by the
+	 *  door, 601's "Toggle Chatbox"). */
+	public static void setChatPutAway(boolean putAway)
+	{
+		chatPutAway = putAway;
+	}
+
 	// ---- Overlay snap-corner safe frame ----------------------------------------------------------------
 	// The native shell renders the canvas EDGE-TO-EDGE, so the canvas corners sit under the iPhone's curved
 	// bezel/notch, and the veneer relocates the chat to the canvas TOP-LEFT — both land on top of the default
@@ -589,6 +648,25 @@ public final class HudVeneerBridge
 		return new int[]{overlayInsetL, overlayInsetT, overlayInsetR, overlayInsetB};
 	}
 
+	// The shell's own controls drawn over the game (its tab grid, the column by the chat, its buttons, the plugin
+	// rail), flat {x,y,w,h,...} in shown canvas px. OverlayKeepOut keeps plugin overlay boxes off them.
+	private static volatile int[] overlayKeepOut = new int[0];
+
+	/**
+	 * Native: the shell's own controls over the game, as a flat {@code {x, y, w, h, ...}} list in shown canvas px.
+	 * Replaces the last list; null or empty clears it. Any thread.
+	 */
+	public static void setOverlayKeepOut(int[] rects)
+	{
+		overlayKeepOut = rects == null ? new int[0] : rects.clone();
+	}
+
+	/** The controls native last sent, flat {@code {x, y, w, h, ...}}. Any thread. */
+	static int[] overlayKeepOut()
+	{
+		return overlayKeepOut;
+	}
+
 	/**
 	 * The relocated chat's occupied canvas rect {x,y,w,h} for snap-corner avoidance — the native tab row only
 	 * while collapsed, the full chat box while open — or null when the veneer isn't relocating the chat.
@@ -599,10 +677,28 @@ public final class HudVeneerBridge
 		{
 			return null;
 		}
-		final int rowH = chatTabRowH > 0 ? chatTabRowH : CONTROLS_H;
-		final int w = chatAreaW > 0 ? chatAreaW : CHAT_DEFAULT_W;
-		final int h = chatCollapsed ? rowH : rowH + ORIG_CHAT_CONTENT_H + 2;
-		return new int[]{chatX, chatY, w, h};
+		// The column left of the chat runs deeper than a collapsed chat's row, so it sets the depth then.
+		final int h = chatPutAway ? OFFICIAL_COLUMN_Y + OFFICIAL_COLUMN_H_HIDDEN
+			: chatCollapsed ? OFFICIAL_COLUMN_Y + OFFICIAL_COLUMN_H : OFFICIAL_CHAT_H;
+		// In large portrait the chat shows smaller than the engine draws it.
+		final float k = HudStrip.shownScale();
+		return new int[]{chatX, chatY, Math.round(chatWidth() * k), Math.round(h * k)};
+	}
+
+	/**
+	 * The minimap copy's canvas rect {x,y,w,h} while large portrait draws the windows' layer full width, so the
+	 * top-right snap corner drops below it; null otherwise (the layer then ends left of the minimap by itself).
+	 */
+	public static int[] getOverlayMinimapAvoid()
+	{
+		final HudStrip.Layout l = HudStrip.layout();
+		return ENABLED && l != null && l.mapDst != null ? l.mapDst.clone() : null;
+	}
+
+	/** The chat's width right of the shells' column: what native set, or the official 461. */
+	private static int chatWidth()
+	{
+		return chatAreaW > 0 ? chatAreaW : OFFICIAL_ROW_W;
 	}
 
 	/**
@@ -619,15 +715,22 @@ public final class HudVeneerBridge
 	{
 		if (!ENABLED || c == null || c.getGameState() != GameState.LOGGED_IN)
 		{
+			if (ENABLED)
+			{
+				HudStrip.loggedOut();
+			}
 			return;
 		}
 		try
 		{
 			if (!c.isResized())
 			{
+				HudStrip.pin(c, false, false);
 				return;
 			}
 			final boolean preEoc = c.getVarbitValue(VarbitID.RESIZABLE_STONE_ARRANGEMENT) == 1;
+			// Large portrait: hold the game view to the screen and the windows to their band, before raster.
+			HudStrip.pin(c, preEoc, isWorldMapOpen(c));
 			if (!HOVER_TEXT)
 			{
 				// Asserted every frame, not once at boot: the flag is the engine's and a relog or a world hop
@@ -665,11 +768,10 @@ public final class HudVeneerBridge
 			}
 			if (chatX >= 0 && !isWorldMapOpen(c))
 			{
-				// Engine tabs drive the WHOLE chat raster: shown -> the engine draws its chat (tabs + messages +
-				// scrollbar) and the native row lays its enlarged buttons ON TOP; hidden -> the engine draws NOTHING
-				// (proven off-device). So while collapsed we hide them too, which blanks the engine chat entirely (the
-				// content-hide alone leaves the tab row rasterising behind the native row as a leftover 'border').
-				setEngineChatTabsHidden(c, chatCollapsed);
+				// The engine draws the filter stones itself, in the official mobile layout, and the shells lay bare
+				// tap targets over them. Laid here as well as in tick(): a chatbox rebuild in the client tick (every
+				// new message) re-runs the desktop layout, and this is the last word before that frame rasters.
+				layOfficialChat(c);
 				// Path B (final word before raster): SHOW the chat brown box while a dialogue is open (the dialogue
 				// draws onto it -> opaque dialogue), HIDE it otherwise (transparent message veneer). Must mirror tick()
 				// or this re-hide would blank the dialogue box every frame. CONTROLS backgrounds stay hidden.
@@ -727,6 +829,25 @@ public final class HudVeneerBridge
 		}
 	}
 
+	/**
+	 * Large portrait's copy of the chat and the minimap out of the hidden strip, from {@code postComposite}: after the
+	 * overlays, before the CPU frame snapshot and before GPU or 117HD uploads this buffer as its interface layer.
+	 */
+	static void postComposite(Client c, MainBufferProvider b)
+	{
+		if (!ENABLED || c == null || b == null)
+		{
+			return;
+		}
+		if (c.getGameState() != GameState.LOGGED_IN || !c.isResized())
+		{
+			HudStrip.composite(c, null, 0, 0, -1, -1, -1, -1, false);
+			return;
+		}
+		HudStrip.composite(c, b.getPixels(), b.getWidth(), b.getHeight(), chatX, chatY, minimapX, minimapY,
+			isWorldMapOpen(c));
+	}
+
 	/** Re-apply the requested chatbox state each frame. Client thread. */
 	public static void tick(Client c)
 	{
@@ -764,7 +885,6 @@ public final class HudVeneerBridge
 				relocateChat(Integer.getInteger("runelite.hudveneer.test.chatX", 93),
 					Integer.getInteger("runelite.hudveneer.test.chatY", 8),
 					!"false".equals(System.getProperty("runelite.hudveneer.test.transparent")));
-				setChatTabRowHeight(Integer.getInteger("runelite.hudveneer.test.rowH", 32));
 				setChatAreaWidth(Integer.getInteger("runelite.hudveneer.test.areaW", 0));
 			}
 			final boolean preEoc = c.getVarbitValue(VarbitID.RESIZABLE_STONE_ARRANGEMENT) == 1;
@@ -858,8 +978,7 @@ public final class HudVeneerBridge
 			// (so it doesn't overlap the dialogue) and routes taps over the chatbox region to a precise click.
 			if (chatX >= 0 && !mapOpenNow)
 			{
-				final int rowH = chatTabRowH > 0 ? chatTabRowH : CONTROLS_H;
-				final int rowW = chatAreaW > 0 ? chatAreaW : CHAT_DEFAULT_W;
+				final int rowW = chatWidth();
 				// A forefront window (bank / GE / shop / …) open: hide the chat so it sits BEHIND the window (the
 				// native shell also hides its tab row from the published windowOpen flag).
 				//
@@ -906,34 +1025,30 @@ public final class HudVeneerBridge
 						}
 						// Re-laid on the un-hide edge as well: the chat comes back from a window or the world map
 						// laid out the way the old every-frame revalidate left it.
-						CHAT_PIN.apply(w, chatX, chatY, widened || unhidden);
+						// Large portrait draws it in the strip and HudStrip copies it to (chatX, chatY).
+						if (HudStrip.isOn())
+						{
+							CHAT_PIN.apply(w, HudStrip.slotX(), HudStrip.chatSlotY(), widened || unhidden);
+						}
+						else
+						{
+							CHAT_PIN.apply(w, chatX, chatY, widened || unhidden);
+						}
 					}
 				}
-				// OSRS-Mobile tabs-on-top: the desktop chat stacks the tab row (CONTROLS, 23px) UNDER the message
-				// area (CHATAREA, 142px). Flip it — force the tab row to the chat's top and push the messages down
-				// by the tab height — so the layout reads tabs -> messages -> input like the mobile reference. When
-				// the native veneer enlarges the tabs it reports its taller row height; push CHATAREA past THAT so
-				// the scrollback clears the bigger buttons (the engine's own 23px CONTROLS stays put underneath,
-				// covered by the native row, so a native tab tap can still proxy a precise click onto it).
-				// setForcedPosition is RELATIVE TO THE PARENT, and the chat container is already at (chatX,chatY),
-				// so position the children at (0, …) — using (chatX,chatY) double-offsets them right+down (the
-				// misalignment + bottom clip). CONTROLS at the container's top-left.
-				forcePos(c, CONTROLS_PIN, InterfaceID.Chatbox.CONTROLS, 0, 0);
-				// Engine tabs drive the WHOLE chat raster: hiding ANY tab widget suppresses it (the engine draws
-				// nothing — proven off-device). When OPEN we WANT that raster (tabs + messages + scrollbar = the
-				// desktop look) with the native row laid ON TOP (same sprite, no peeking) and a native tap proxying
-				// the engine tab's op-script. When COLLAPSED we hide the tabs too so the engine draws NOTHING — the
-				// content-hide below alone leaves the engine tab row rasterising behind the native row as a leftover
-				// 'border'. Rebuild the chatbox on the collapsed->open edge so the messages repopulate (not an empty box).
-				setEngineChatTabsHidden(c, chatCollapsed);
-				// Repopulate the messages on the collapsed->open edge — UNLESS a dialogue is open (auto-open un-collapses
+				// OSRS-Mobile tabs-on-top: the desktop chat stacks the tab row (CONTROLS) UNDER the message area
+				// (CHATAREA, 142px). layOfficialChat puts the row along the chat's top, in the official app's layout,
+				// and the engine draws it; the shells only lay tap targets over the stones.
+				layOfficialChat(c);
+				// Repopulate the messages on the closed->open edge — UNLESS a dialogue is open (auto-open un-collapses
 				// the chat to show the dialogue; rebuilding would briefly repopulate the message lines, which then bleed
 				// over the opaque dialogue box). The dialogue replaces the messages anyway, so skip the rebuild.
-				if (chatCollapsedApplied && !chatCollapsed && !dlgOpen)
+				final boolean chatClosed = chatCollapsed || chatPutAway;
+				if (chatCollapsedApplied && !chatClosed && !dlgOpen)
 				{
 					try { c.runScript(ScriptID.BUILD_CHATBOX); } catch (RuntimeException ignore) { BridgeFaults.note("HudVeneerBridge.buildChatbox", ignore); }
 				}
-				chatCollapsedApplied = chatCollapsed;
+				chatCollapsedApplied = chatClosed;
 				// Apply a pending tab switch (op-replay sets the channel; switchChatTabNow rebuilds the lines).
 				final int switchTab = pendingChatTab;
 				if (switchTab >= 0)
@@ -941,14 +1056,23 @@ public final class HudVeneerBridge
 					pendingChatTab = -1;
 					switchChatTabNow(c, switchTab);
 				}
-				// Resize + reposition the message area so it ALIGNS with the bigger native row (width = rowW) and
-				// FITS below it without clipping the newest line. Deterministic: read the chat container's real
-				// height, then pin CHATAREA to ABSOLUTE width=rowW and height=(containerH - rowH - margin) at
-				// container-relative (0, rowH). The display/scroll children are revalidated so they widen too.
+				// Size + place the message area below the filter row, as the official app does (sizeChatArea).
 				// Skip during a dialogue: sizeChatArea force-SHOWS the message widgets (CHATAREA/CHATDISPLAY/
 				// SCROLLAREA/INPUT) every frame, which re-shows the chat lines over the opaque dialogue box. The
 				// dialogue replaces the messages, so leave the area alone while one is open.
-				if (!dlgOpen) sizeChatArea(c, chatId, rowW, rowH);
+				if (!dlgOpen) sizeChatArea(c, chatId, rowW, promptOpen);
+				// Rebuild the lines once the layout under them changes (a turn, a fold, the strip going on or off; the
+				// strip settles a frame after the canvas, which can take a second rebuild). Not while the chat is
+				// closed, where the reopen edge rebuilds, or under a dialogue, which the lines would bleed over.
+				final long layout = (long) c.getCanvasWidth() << 32 | c.getCanvasHeight() << 1 | (HudStrip.isOn() ? 1 : 0);
+				if (layout != chatLinesLayout && !chatClosed && !dlgOpen)
+				{
+					if (chatLinesLayout != 0)
+					{
+						try { c.runScript(ScriptID.BUILD_CHATBOX); } catch (RuntimeException ignore) { BridgeFaults.note("HudVeneerBridge.buildChatbox", ignore); }
+					}
+					chatLinesLayout = layout;
+				}
 				// Path B: in classic OSRS the dialogue draws its head + text ONTO the chatbox brown box. So while a
 				// dialogue is open SHOW CHAT_BACKGROUND (opaque dialogue box); otherwise HIDE it so chat messages draw
 				// transparent over the scene. CONTROLS backgrounds stay hidden (the native tab row covers that strip).
@@ -971,7 +1095,7 @@ public final class HudVeneerBridge
 				// ... but NOT while a prompt is open. The prompt is drawn INTO the chat area, so hiding its parent
 				// hides the prompt — the same mistake as the forefront-window rule above, one level down. A
 				// collapsed chat yields to it too: the player just asked the game for this input.
-				final boolean hideMsgArea = (chatCollapsed || dlgOpen) && !promptOpen;
+				final boolean hideMsgArea = (chatClosed || dlgOpen) && !promptOpen;
 				setHidden(c, InterfaceID.Chatbox.CHATAREA, hideMsgArea);
 				setHidden(c, InterfaceID.Chatbox.INPUT, hideMsgArea);
 				setHidden(c, InterfaceID.Chatbox.INPUT_CLICKAREA, hideMsgArea);
@@ -996,7 +1120,7 @@ public final class HudVeneerBridge
 				final int scrollDelta = pendingChatScroll.getAndSet(0);
 				if (scrollDelta != 0)
 				{
-					applyChatScroll(c, scrollDelta);
+					applyChatScroll(c, scrollDelta, promptOpen);
 				}
 				dumpChatLayoutOnce(c, chatId);
 			}
@@ -1018,7 +1142,14 @@ public final class HudVeneerBridge
 				final Widget w = c.getWidget(containerId);
 				if (w != null)
 				{
-					MAP_PIN.apply(w, minimapX, minimapY, false);
+					if (HudStrip.isOn())
+					{
+						MAP_PIN.apply(w, HudStrip.slotX(), HudStrip.mapSlotY(), false);
+					}
+					else
+					{
+						MAP_PIN.apply(w, minimapX, minimapY, false);
+					}
 				}
 			}
 
@@ -2288,12 +2419,12 @@ public final class HudVeneerBridge
 	 *  is not achievable by editing the engine widgets: the engine hard-pins every orb/icon each frame (so they can't
 	 *  be rearranged to wrap a bigger globe) and the globe draw-area can only be resized, not repositioned (re-anchoring
 	 *  it desyncs the minimap raster and the terrain stops drawing), so resizing alone grows the globe into the fixed
-	 *  orbs. The size-only path is kept here for reference. Native-HUD layout is Classic (PreEoc 164) only. */
+	 *  orbs. The size-only path is kept here for reference. Native-HUD layout is Resizable - Modern (PreEoc 164) only. */
 	private static void applyMinimapScale(Client c, boolean preEoc, int scalePct)
 	{
 		if (!preEoc)
 		{
-			return;   // the native HUD veneer only supports the Classic resizable layout
+			return;   // the native HUD veneer only supports the Resizable - Modern layout
 		}
 		try
 		{
@@ -2346,27 +2477,40 @@ public final class HudVeneerBridge
 	/** Scroll the chat message layer by {@code delta} canvas px (clamped), driving the chatbox's own scroll layer
 	 *  ({@code SCROLLAREA}, the parent of the message lines) + scrollbar ({@code CHATSCROLLBAR}) via the engine's
 	 *  {@code UPDATE_SCROLLBAR} script — the same path the scrollbar arrows use. No mouse-wheel event, so the camera
-	 *  doesn't also zoom. Client thread. */
-	private static void applyChatScroll(Client c, int delta)
+	 *  doesn't also zoom. While a prompt lists its results (the GE item search) the finger is on that list, so it
+	 *  is the list that scrolls, through its own scrollbar the same way. Client thread. */
+	static void applyChatScroll(Client c, int delta, boolean promptOpen)
 	{
 		try
 		{
-			final Widget area = c.getWidget(InterfaceID.Chatbox.SCROLLAREA);
-			if (area == null)
+			if (promptOpen && promptListsResults(c))
 			{
+				scrollLayerBy(c, InterfaceID.Chatbox.MES_LAYER_SCROLLBAR, InterfaceID.Chatbox.MES_LAYER_SCROLLCONTENTS,
+					delta);
 				return;
 			}
-			final int max = Math.max(0, area.getScrollHeight() - area.getHeight());
-			final int cur = area.getScrollY();
-			final int next = Math.max(0, Math.min(max, cur + delta));
-			if (next != cur)
-			{
-				c.runScript(ScriptID.UPDATE_SCROLLBAR, InterfaceID.Chatbox.CHATSCROLLBAR, InterfaceID.Chatbox.SCROLLAREA, next);
-			}
+			scrollLayerBy(c, InterfaceID.Chatbox.CHATSCROLLBAR, InterfaceID.Chatbox.SCROLLAREA, delta);
 		}
 		catch (RuntimeException ignore)
 		{
 			BridgeFaults.note("HudVeneerBridge.applyChatScroll", ignore);
+		}
+	}
+
+	/** Move one scroll layer by {@code delta} canvas px, clamped to its content, through its scrollbar. */
+	private static void scrollLayerBy(Client c, int barId, int areaId, int delta)
+	{
+		final Widget area = c.getWidget(areaId);
+		if (area == null)
+		{
+			return;
+		}
+		final int max = Math.max(0, area.getScrollHeight() - area.getHeight());
+		final int cur = area.getScrollY();
+		final int next = Math.max(0, Math.min(max, cur + delta));
+		if (next != cur)
+		{
+			c.runScript(ScriptID.UPDATE_SCROLLBAR, barId, areaId, next);
 		}
 	}
 
@@ -2413,7 +2557,7 @@ public final class HudVeneerBridge
 			sb.append("{\"loggedIn\":true")
 				.append(",\"chatX\":").append(chatX)
 				.append(",\"chatY\":").append(chatY)
-				.append(",\"rowH\":").append(chatTabRowH > 0 ? chatTabRowH : CONTROLS_H);
+				.append(",\"rowH\":").append(OFFICIAL_ROW_BOTTOM);
 			int view = -1;
 			try
 			{
@@ -2446,7 +2590,7 @@ public final class HudVeneerBridge
 			{
 				// Canvas-px bounds of the open dialogue so the native shell can route a tap there through a PRECISE
 				// click (resolving the dialogue's Continue/option) instead of walking the world behind it.
-				final int[] dr = dialogueBounds(c);
+				final int[] dr = HudStrip.toShown(dialogueBounds(c));
 				if (dr != null)
 				{
 					sb.append(",\"dlgX\":").append(dr[0]).append(",\"dlgY\":").append(dr[1])
@@ -2481,14 +2625,28 @@ public final class HudVeneerBridge
 	 * and read by the native side via {@link #tabSprites()}. Pixels are sent as raw big-endian ARGB bytes (Base64) — no
 	 * ImageIO/PNG dependency, which may be absent in the embedded JRE.
 	 */
-	private static int tabSpriteId(int slot)
+	static int tabSpriteId(int slot)
 	{
 		if (slot == 0) return SPR_STONE_INACTIVE;
 		if (slot == 1) return SPR_STONE_ACTIVE;
-		if (slot >= 2 && slot <= 15) return SPR_TAB_ICON_BASE + (slot - 2);
-		if (slot == 16) return SPR_CHATBTN_IDLE;
-		if (slot == 17) return SPR_CHATBTN_SELECTED;
-		return SPR_CHATBTN_NEW;   // slot 18
+		if (slot >= 2 && slot <= 15) return SPR_TAB_ICONS[slot - 2];
+		if (slot == 16) return SPR_MCHATBTN_IDLE;
+		if (slot == 17) return SPR_MCHATBTN_SELECTED;
+		if (slot == 18) return SPR_MCHATBTN_NEW;
+		if (slot == 19) return SPR_DOOR_STONE;
+		if (slot == 20) return SPR_DOOR_STONE_ACTIVE;
+		if (slot == 21) return SPR_SHOW_LESS;
+		if (slot == 22) return SPR_SHOW_MORE;
+		if (slot == 23) return SPR_CHAT_STONE_OPEN;
+		if (slot == 24) return SPR_CHAT_TOGGLE;
+		if (slot == 25) return SPR_KEYBOARD;
+		return SPR_TAB_FRAME[slot - SLOT_FRAME];   // slots 26..34
+	}
+
+	/** The sprites the chrome can't draw without: everything but the chat stones, which the engine draws itself. */
+	private static boolean gridSlot(int slot)
+	{
+		return slot <= 15 || slot >= 19;
 	}
 
 	private static void captureTabSprites(Client c)
@@ -2516,12 +2674,12 @@ public final class HudVeneerBridge
 				}
 			}
 			tabCaptureTicks++;
-			// Grid needs both stones + all 14 glyphs; chat (16/17) is secondary. Ship at the deadline regardless so a
-			// sprite that genuinely never resolves can't stall the chrome forever.
+			// Grid needs every gridSlot; chat (16..18) is secondary. Ship at the deadline regardless so a sprite that
+			// genuinely never resolves can't stall the chrome forever.
 			boolean gridComplete = true;
-			for (int slot = 0; slot <= 15; slot++)
+			for (int slot = 0; slot < TAB_SPRITE_COUNT; slot++)
 			{
-				if (tabSpriteB64[slot] == null)
+				if (gridSlot(slot) && tabSpriteB64[slot] == null)
 				{
 					gridComplete = false;
 					break;
@@ -2535,6 +2693,7 @@ public final class HudVeneerBridge
 			sb.append('{');
 			// gridComplete=false means we hit the deadline with a missing slot — the consumer must NOT persist a
 			// partial set to its boot cache (a fresh process re-captures and usually completes in a few ticks).
+			sb.append("\"v\":").append(TAB_SPRITES_VERSION).append(',');
 			sb.append("\"complete\":").append(gridComplete).append(',');
 			appendSpriteSlot(sb, "stoneInactive", 0);
 			sb.append(',');
@@ -2555,7 +2714,21 @@ public final class HudVeneerBridge
 			appendSpriteSlot(sb, "chatbtnSelected", 17);
 			sb.append(',');
 			appendSpriteSlot(sb, "chatbtnNew", 18);
-			sb.append('}');
+			for (int slot = 19; slot < SLOT_FRAME; slot++)
+			{
+				sb.append(',');
+				appendSpriteSlot(sb, TAB_SPRITE_KEYS[slot], slot);
+			}
+			sb.append(",\"frame\":[");
+			for (int slot = SLOT_FRAME; slot < TAB_SPRITE_COUNT; slot++)
+			{
+				if (slot > SLOT_FRAME)
+				{
+					sb.append(',');
+				}
+				appendSpriteObjSlot(sb, slot);
+			}
+			sb.append("]}");
 			tabSpritesJson = sb.toString();
 			tabSpritesCaptured = true;
 			log.info("[veneer] tab sprites captured ({}/{} sprites, {} bytes, ticks={})",
@@ -2587,7 +2760,8 @@ public final class HudVeneerBridge
 		appendSpriteObjSlot(sb, slot);
 	}
 
-	/** {@code {"w":W,"h":H,"px":"<base64 ARGB>"}} (or {@code null}) from an accumulated slot. */
+	/** {@code {"w":W,"h":H,"ox":X,"oy":Y,"bw":BW,"bh":BH,"px":"<base64 ARGB>"}} (or {@code null}) from an
+	 *  accumulated slot: the pixels are W x H and sit at (X, Y) in the sprite's BW x BH box. */
 	private static void appendSpriteObjSlot(StringBuilder sb, int slot)
 	{
 		final String px = tabSpriteB64[slot];
@@ -2596,11 +2770,15 @@ public final class HudVeneerBridge
 			sb.append("null");
 			return;
 		}
-		sb.append("{\"w\":").append(tabSpriteDim[slot][0]).append(",\"h\":").append(tabSpriteDim[slot][1])
+		final int[] d = tabSpriteDim[slot];
+		sb.append("{\"w\":").append(d[0]).append(",\"h\":").append(d[1])
+			.append(",\"ox\":").append(d[2]).append(",\"oy\":").append(d[3])
+			.append(",\"bw\":").append(d[4]).append(",\"bh\":").append(d[5])
 			.append(",\"px\":\"").append(px).append("\"}");
 	}
 
-	/** Base64 of {@code spriteId}'s pixels as big-endian ARGB bytes; sets {@code dim=[w,h]}. {@code null} if absent. */
+	/** Base64 of {@code spriteId}'s pixels as big-endian ARGB bytes; sets {@code dim=[w,h,offsetX,offsetY,boxW,boxH]}.
+	 *  {@code null} if absent. */
 	private static String spriteArgbB64(Client c, int spriteId, int[] dim)
 	{
 		final SpritePixels[] sp = c.getSprites(c.getIndexSprites(), spriteId, 0);
@@ -2627,6 +2805,10 @@ public final class HudVeneerBridge
 		}
 		dim[0] = w;
 		dim[1] = h;
+		dim[2] = sp[0].getOffsetX();
+		dim[3] = sp[0].getOffsetY();
+		dim[4] = Math.max(sp[0].getMaxWidth(), w);
+		dim[5] = Math.max(sp[0].getMaxHeight(), h);
 		return Base64.getEncoder().encodeToString(bytes);
 	}
 
@@ -2644,7 +2826,7 @@ public final class HudVeneerBridge
 		final Widget gfx = safeWidget(c, base + 1);
 		final Widget txt = safeWidget(c, base + 2);
 		final Widget flt = hasFilter ? safeWidget(c, base + 3) : null;
-		final int[] b = canvasBounds(btn);
+		final int[] b = HudStrip.toShown(canvasBounds(btn));
 		final int spr = gfx == null ? -1 : safeSpriteId(gfx);
 		sb.append("{\"name\":\"").append(name).append('"')
 			.append(",\"x\":").append(b == null ? -1 : b[0])
@@ -2652,8 +2834,8 @@ public final class HudVeneerBridge
 			.append(",\"w\":").append(b == null ? 0 : b[2])
 			.append(",\"h\":").append(b == null ? 0 : b[3])
 			.append(",\"sprite\":").append(spr)
-			.append(",\"selected\":").append(spr == SPR_CHATBTN_SELECTED)
-			.append(",\"new\":").append(spr == SPR_CHATBTN_NEW)
+			.append(",\"selected\":").append(spr == SPR_CHATBTN_SELECTED || spr == SPR_MCHATBTN_SELECTED)
+			.append(",\"new\":").append(spr == SPR_CHATBTN_NEW || spr == SPR_MCHATBTN_NEW)
 			.append(",\"labelColor\":").append(txt == null ? -1 : safeTextColor(txt))
 			.append(",\"filter\":\"").append(flt == null ? "" : BridgeJson.escapedDropControls(stripTags(flt.getText())))
 			.append('"')
@@ -3150,17 +3332,155 @@ public final class HudVeneerBridge
 		}
 	}
 
-	/** Hide (or show) the engine chat-tab buttons' VISUALS — the per-tab sprite (base+1), channel name (base+2) and
-	 *  filter sub-label (base+3) — while leaving the base button widget shown so it stays a valid proxy-click target.
-	 *  Used to stop the engine's 8 tabs peeking out from under the native 7-tab veneer. */
-	private static void setEngineChatTabsHidden(Client c, boolean hidden)
+	// The chat as the official mobile app lays it out (scripts 113, 178 and 923 when the toplevel is 601), in px
+	// relative to the chat container, which sits right of the shells' 58-px column (door, speech bubbles, keyboard).
+	// The filter row is the 519-px chat less that column, 2 px down; its seven 58x24 stones are 65 px apart from 7 px
+	// in, and Report has no stone (the speech bubbles carry its options). The message display is 457 px wide, 2 px
+	// in, with its scrollbar on the left: 923's layout with CHATBOX_SCROLLBARSIDE set, which is what the official
+	// app shows. The scroll area is 16 px narrower than the display and right-aligned 1 px in.
+	static final int OFFICIAL_ROW_W = 461;
+	static final int OFFICIAL_ROW_Y = 2;
+	static final int OFFICIAL_ROW_H = 28;
+	// The whole chat is 145 px tall (the desktop's 165 less 20), and the message area fills it below the row.
+	static final int OFFICIAL_CHAT_H = 145;
+	static final int OFFICIAL_ROW_BOTTOM = OFFICIAL_ROW_Y + OFFICIAL_ROW_H;
+	// The shells' column left of the chat (601's SIDE_LEFT_CHAT): 4 px down, 118 px tall with the keyboard stone,
+	// 79 without it (the chat is hidden).
+	static final int OFFICIAL_COLUMN_Y = 4;
+	static final int OFFICIAL_COLUMN_W = 58;
+	static final int OFFICIAL_COLUMN_H = 118;
+	static final int OFFICIAL_COLUMN_H_HIDDEN = 79;
+	static final int OFFICIAL_TAB_X = 7;
+	static final int OFFICIAL_TAB_PITCH = 65;
+	static final int OFFICIAL_TAB_W = 58;
+	private static final int OFFICIAL_TAB_GFX_H = 24;
+	private static final int OFFICIAL_DISPLAY_X = 2;
+	private static final int OFFICIAL_DISPLAY_INSET = 4;   // 457 of the 461
+	private static final int OFFICIAL_SCROLLAREA_X = 15;   // right-aligned 1 px in, 16 px narrower than the display
+	// A pixel left of the display. A forced position can't say -1 (it means "none"), so this one is the widget's own.
+	static final int OFFICIAL_SCROLLBAR_X = -1;
+	private static final int CHAT_FILTER_TABS = 7;   // CHAT_TAB_IDS less Report
+	private static final Pin[] CHAT_TAB_PINS = new Pin[CHAT_FILTER_TABS];
+	private static final Pin CHATDISPLAY_PIN = new Pin("chat display");
+	private static final Pin SCROLLAREA_PIN = new Pin("chat scroll area");
+
+	static
 	{
-		for (final int base : CHAT_TAB_IDS)
+		for (int i = 0; i < CHAT_FILTER_TABS; i++)
 		{
-			setHidden(c, base + 1, hidden);   // GRAPHIC — the tab-background sprite
-			setHidden(c, base + 2, hidden);   // TEXT — the channel name
-			setHidden(c, base + 3, hidden);   // FILTER — the live "On"/"Off"/… sub-label (absent on some tabs)
+			CHAT_TAB_PINS[i] = new Pin("chat tab " + i);
 		}
+	}
+
+	/** The mobile stone script 178 would draw for a desktop chat stone; {@code spriteId} itself if it isn't one. */
+	static int officialChatStone(int spriteId)
+	{
+		switch (spriteId)
+		{
+			case SPR_CHATBTN_IDLE:
+			case SPR_CHATBTN_HOVER:
+				return SPR_MCHATBTN_IDLE;
+			case SPR_CHATBTN_SELECTED:
+			case SPR_CHATBTN_SELECTED_HOVER:
+				return SPR_MCHATBTN_SELECTED;
+			case SPR_CHATBTN_NEW:
+				return SPR_MCHATBTN_NEW;
+			default:
+				return spriteId;
+		}
+	}
+
+	/**
+	 * Lay the engine chat out the way the official mobile app does (see OFFICIAL_ROW_W). The desktop scripts re-lay
+	 * it on every chatbox rebuild, so this runs every frame: each write is skipped when the widget already has it.
+	 * A chat put away (setChatPutAway) loses its filter row too; a collapsed one keeps it. Client thread.
+	 */
+	static void layOfficialChat(Client c)
+	{
+		try
+		{
+			final Widget row = c.getWidget(InterfaceID.Chatbox.CONTROLS);
+			if (row == null)
+			{
+				return;
+			}
+			if (row.isHidden() != chatPutAway)
+			{
+				row.setHidden(chatPutAway);
+			}
+			CONTROLS_PIN.apply(row, 0, OFFICIAL_ROW_Y, sizeAbsolute(row, OFFICIAL_ROW_W, OFFICIAL_ROW_H));
+			for (int i = 0; i < CHAT_FILTER_TABS; i++)
+			{
+				final int base = CHAT_TAB_IDS[i];
+				final Widget tab = c.getWidget(base);
+				final Widget gfx = c.getWidget(base + 1);
+				if (tab == null || gfx == null)
+				{
+					continue;
+				}
+				boolean relayout = sizeAbsolute(tab, OFFICIAL_TAB_W, OFFICIAL_ROW_H);
+				if (sizeAbsolute(gfx, OFFICIAL_TAB_W, OFFICIAL_TAB_GFX_H))
+				{
+					relayout = true;
+				}
+				final int stone = officialChatStone(gfx.getSpriteId());
+				if (stone != gfx.getSpriteId())
+				{
+					gfx.setSpriteId(stone);
+				}
+				CHAT_TAB_PINS[i].apply(tab, OFFICIAL_TAB_X + i * OFFICIAL_TAB_PITCH, 0, relayout);
+			}
+			hide(c, InterfaceID.Chatbox.REPORTABUSE);
+			final Widget display = c.getWidget(InterfaceID.Chatbox.CHATDISPLAY);
+			if (display != null)
+			{
+				final int displayW = chatWidth() - OFFICIAL_DISPLAY_INSET;
+				final boolean resized = display.getWidthMode() != WidgetSizeMode.ABSOLUTE
+					|| display.getOriginalWidth() != displayW
+					|| display.getHeightMode() != WidgetSizeMode.MINUS || display.getOriginalHeight() != 0;
+				if (resized)
+				{
+					display.setWidthMode(WidgetSizeMode.ABSOLUTE);
+					display.setOriginalWidth(displayW);
+					display.setHeightMode(WidgetSizeMode.MINUS);
+					display.setOriginalHeight(0);
+				}
+				CHATDISPLAY_PIN.apply(display, OFFICIAL_DISPLAY_X, 0, resized);
+				if (resized)
+				{
+					// Its input line and scroll area are sized from it, and the pin re-lays only the display.
+					display.revalidateScroll();
+				}
+			}
+			forcePos(c, SCROLLAREA_PIN, InterfaceID.Chatbox.SCROLLAREA, OFFICIAL_SCROLLAREA_X, 0);
+			final Widget bar = c.getWidget(InterfaceID.Chatbox.CHATSCROLLBAR);
+			if (bar != null && (bar.getXPositionMode() != WidgetPositionMode.ABSOLUTE_LEFT
+				|| bar.getOriginalX() != OFFICIAL_SCROLLBAR_X))
+			{
+				bar.setXPositionMode(WidgetPositionMode.ABSOLUTE_LEFT);
+				bar.setOriginalX(OFFICIAL_SCROLLBAR_X);
+				bar.revalidate();
+			}
+		}
+		catch (RuntimeException ignore)
+		{
+			BridgeFaults.note("HudVeneerBridge.layOfficialChat", ignore);
+		}
+	}
+
+	/** Give {@code w} an absolute {@code width} x {@code height} unless it has one; true if it changed. */
+	private static boolean sizeAbsolute(Widget w, int width, int height)
+	{
+		if (w.getWidthMode() == WidgetSizeMode.ABSOLUTE && w.getOriginalWidth() == width
+			&& w.getHeightMode() == WidgetSizeMode.ABSOLUTE && w.getOriginalHeight() == height)
+		{
+			return false;
+		}
+		w.setWidthMode(WidgetSizeMode.ABSOLUTE);
+		w.setOriginalWidth(width);
+		w.setHeightMode(WidgetSizeMode.ABSOLUTE);
+		w.setOriginalHeight(height);
+		return true;
 	}
 
 	private static void setHidden(Client c, int id, boolean hidden)
@@ -3274,6 +3594,9 @@ public final class HudVeneerBridge
 			{
 				c.setVarbit(VarbitID.CHATBOX_TRANSPARENCY, val);
 				try { c.runScript(ScriptID.BUILD_CHATBOX); } catch (RuntimeException ignore) { BridgeFaults.note("HudVeneerBridge.buildChatbox", ignore); }
+				// The "<player>: <typed>*" line has its own build script, which picks its colours (light with a shadow
+				// over the scene) only when it runs: on the next keystroke, otherwise.
+				try { c.runScript(ScriptID.CHAT_PROMPT_INIT); } catch (RuntimeException ignore) { BridgeFaults.note("HudVeneerBridge.chatPromptInit", ignore); }
 			}
 		}
 		catch (RuntimeException ignore)
@@ -3570,8 +3893,9 @@ public final class HudVeneerBridge
 	/** "Select an Option" — the title (child 0) + the option rows (children 1..n), each tagged with its digit key. */
 	/**
 	 * How many search results to publish. These are TAP TARGETS, not drawn rows — the engine draws the list
-	 * itself — so the limit is the engine's own visible grid (three columns) plus room for a scroll, not what
-	 * a panel could hold. Each row's bounds are republished every tick, so they follow the list as it scrolls.
+	 * itself — and only the rows inside the list's window are published, so the limit is the engine's own
+	 * visible grid (three columns) with room to spare, not what a panel could hold. Each row's bounds are
+	 * republished every tick, so they follow the list as it scrolls.
 	 */
 	private static final int MAX_PROMPT_ROWS = 24;
 
@@ -3611,29 +3935,39 @@ public final class HudVeneerBridge
 		{
 			sb.append(",\"title\":\"").append(BridgeJson.escapedDropControls(second)).append('"');
 		}
-		sb.append(",\"options\":[");
 		int rows = 0;
 		Widget[] kids = null;
+		int[] window = null;
 		try
 		{
 			final Widget sc = c.getWidget(InterfaceID.Chatbox.MES_LAYER_SCROLLCONTENTS);
 			kids = sc == null ? null : sc.getDynamicChildren();
+			// The list's window: the rows the engine draws are the ones inside it. Published as "list" only while
+			// the list holds more than fits, which is when a drag on it should scroll it.
+			window = canvasBounds(sc);
+			if (window != null && sc.getScrollHeight() > sc.getHeight())
+			{
+				appendBounds(sb, "list", window);
+			}
 		}
 		catch (RuntimeException ignore)
 		{
 			BridgeFaults.note("HudVeneerBridge.dlgPrompt.rows", ignore);
 		}
+		sb.append(",\"options\":[");
 		if (kids != null)
 		{
 			// Three children a row (upstream's GE search reads this same widget the same way); the middle one
 			// carries the name. Its raw text keeps the fuzzy-match underline tags, which the runs render.
 			// Complete triplets only, as upstream does with length/3: a trailing partial row has no name child
-			// to read, and whatever sits at that index is not one.
+			// to read, and whatever sits at that index is not one. A row scrolled out of the window is skipped
+			// and one half out is cut to the part on screen: the engine clips them there, so a target left
+			// standing outside it would sit over the title and pick a result nobody can see.
 			for (int i = 0; i + 2 < kids.length && rows < MAX_PROMPT_ROWS; i += 3)
 			{
 				final Widget nameW = kids[i + 1];
 				final String txt = wText(nameW);
-				final int[] b = canvasBounds(nameW);
+				final int[] b = visiblePart(canvasBounds(nameW), window);
 				if (txt.isEmpty() || b == null)
 				{
 					continue;
@@ -3713,12 +4047,28 @@ public final class HudVeneerBridge
 	}
 
 	/** Append {@code ,"key":{"x":,"y":,"w":,"h":}} for a canvas-px rect, or nothing when {@code b} is null. */
+	/** The part of {@code b} inside {@code window}, or null when none of it is; {@code b} as-is with no window. */
+	static int[] visiblePart(int[] b, int[] window)
+	{
+		if (b == null || window == null)
+		{
+			return b;
+		}
+		final int x0 = Math.max(b[0], window[0]);
+		final int y0 = Math.max(b[1], window[1]);
+		final int x1 = Math.min(b[0] + b[2], window[0] + window[2]);
+		final int y1 = Math.min(b[1] + b[3], window[1] + window[3]);
+		return x1 > x0 && y1 > y0 ? new int[]{x0, y0, x1 - x0, y1 - y0} : null;
+	}
+
 	private static void appendBounds(StringBuilder sb, String key, int[] b)
 	{
 		if (b == null)
 		{
 			return;
 		}
+		// Every rect published this way is one a shell draws or hit-tests in shown coordinates.
+		b = HudStrip.toShown(b);
 		sb.append(",\"").append(key).append("\":{\"x\":").append(b[0]).append(",\"y\":").append(b[1])
 			.append(",\"w\":").append(b[2]).append(",\"h\":").append(b[3]).append('}');
 	}
@@ -3738,14 +4088,11 @@ public final class HudVeneerBridge
 		}
 	}
 
-	/** Position + size the chatbox message area ({@code CHATAREA}) so it aligns with + fits under the enlarged
-	 *  native tab row. Key: the chat CONTENT (the message display + the bottom input prompt) is fixed-height and
-	 *  does NOT shrink to a smaller area — shrinking CHATAREA clips the input line (the "username cut off until I
-	 *  send a message" report). So instead of shrinking the content, GROW the chat container by the extra tab-row
-	 *  height and keep CHATAREA at its full natural content height ({@code ORIG_CHAT_CONTENT_H}) below the tab row.
-	 *  The display/input/line children then keep their natural sizes and fit. Width is the native row width (the
-	 *  display children only need explicit widening when widened beyond the engine's default 519). */
-	static void sizeChatArea(Client c, int containerId, int rowW, int rowH)
+	/** Position + size the chatbox message area ({@code CHATAREA}) the way the official mobile app does (script
+	 *  2581): the chat container is {@code OFFICIAL_CHAT_H} tall, and the area fills it below the filter row, or
+	 *  all of it while a prompt is up (the prompt's box then covers the row, as it does there). Width is the native
+	 *  chat width; the display inside it is laid by {@link #layOfficialChat}. */
+	static void sizeChatArea(Client c, int containerId, int rowW, boolean promptOpen)
 	{
 		try
 		{
@@ -3766,43 +4113,42 @@ public final class HudVeneerBridge
 			// why it was missing from the relocated chat. The official mobile chat shows this prompt at the bottom.
 			setHidden(c, InterfaceID.Chatbox.INPUT, false);
 			setHidden(c, InterfaceID.Chatbox.INPUT_CLICKAREA, false);
-			// Grow the container so the full-height content sits BELOW the taller native tab row instead of being
-			// squeezed into the original 165px box. +2 breathing room so the bottom input line never edge-clips.
 			final Widget cont = c.getWidget(containerId);
-			final int wantContainerH = rowH + ORIG_CHAT_CONTENT_H + 2;
-			if (cont != null && (cont.getHeightMode() != WidgetSizeMode.ABSOLUTE || cont.getOriginalHeight() != wantContainerH))
+			if (cont != null && (cont.getHeightMode() != WidgetSizeMode.ABSOLUTE || cont.getOriginalHeight() != OFFICIAL_CHAT_H))
 			{
 				cont.setHeightMode(WidgetSizeMode.ABSOLUTE);
-				cont.setOriginalHeight(wantContainerH);
+				cont.setOriginalHeight(OFFICIAL_CHAT_H);
 				cont.revalidate();
 			}
-			// Message area: positioned at the ENGINE'S natural CONTROLS height (23), NOT the taller native row height
-			// (rowH ~40). The engine renders the relocated chatbox to its natural ~165px viewport (CONTROLS_H +
-			// ORIG_CHAT_CONTENT_H), NOT to our grown container — so offsetting CHATAREA by the full native row pushed
-			// its bottom (and the input line) past the viewport and clipped it. Offsetting by CONTROLS_H keeps the
-			// 142px area inside the viewport; the taller native tab row simply OVERLAYS the message area's top strip
-			// (those top rows sit behind the opaque native row, like the engine CONTROLS did).
+			final int areaY = promptOpen ? 0 : OFFICIAL_ROW_BOTTOM;
+			final int areaH = OFFICIAL_CHAT_H - areaY;
 			final boolean resized = area.getWidthMode() != WidgetSizeMode.ABSOLUTE || area.getOriginalWidth() != rowW
-				|| area.getHeightMode() != WidgetSizeMode.ABSOLUTE || area.getOriginalHeight() != ORIG_CHAT_CONTENT_H;
+				|| area.getHeightMode() != WidgetSizeMode.ABSOLUTE || area.getOriginalHeight() != areaH;
 			if (resized)
 			{
 				area.setWidthMode(WidgetSizeMode.ABSOLUTE);
 				area.setOriginalWidth(rowW);
 				area.setHeightMode(WidgetSizeMode.ABSOLUTE);
-				area.setOriginalHeight(ORIG_CHAT_CONTENT_H);
+				area.setOriginalHeight(areaH);
 			}
 			final boolean rebuilt = chatRebuilt;
 			chatRebuilt = false;
-			CHATAREA_PIN.apply(area, 0, CONTROLS_H, resized || rebuilt);
-			// Only when the row is WIDER than the engine default do the display/scroll children need explicit
-			// widening (they don't cascade); at the default 519 width they keep their natural, already-aligned
-			// size + position, and their natural height fits the full-height area — so leave them untouched.
-			// After a rebuild too: forceWidth writes only a width the rebuild reset.
+			if (CHATAREA_PIN.apply(area, 0, areaY, resized || rebuilt))
+			{
+				// The pin re-lays only the area. The message display inside it (the lines, the "<player>: <typed>*"
+				// input line under them, the scrollbar) would keep the desktop's 142-px area, which puts the input line
+				// below the chat's bottom edge, where the container clips it away. Only that subtree: the prompt layer,
+				// the area's other child, is laid by the game when it opens.
+				final Widget messages = c.getWidget(InterfaceID.Chatbox.MES_LAYER_HIDE);
+				if (messages != null)
+				{
+					messages.revalidateScroll();
+				}
+			}
+			// The prompt layer doesn't follow the area's width on its own.
 			if ((resized || rebuilt) && rowW > CHAT_DEFAULT_W)
 			{
-				forceWidth(c, InterfaceID.Chatbox.CHATDISPLAY, rowW - 14, 7);
 				forceWidth(c, InterfaceID.Chatbox.MES_LAYER, rowW - 14, 7);
-				forceWidth(c, InterfaceID.Chatbox.SCROLLAREA, rowW - 30, 0);
 			}
 		}
 		catch (RuntimeException ignore)

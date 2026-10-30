@@ -60,6 +60,78 @@ and an arm64 iPhone on **iOS 17.4+**.
    *Each time you play*). Launching without the attach just waits — that is the
    expected iOS constraint, not a bug.
 
+## Run in the iOS Simulator (no phone)
+
+For UI and feature work, the same app runs in the iOS Simulator on an Apple
+silicon Mac with the full JIT and no StikDebug. After steps 1–2 above:
+
+```sh
+ios/dev-tools/run-sim.sh                  # build, install, launch and press Play (CPU renderer)
+RENDERER=gpu ios/dev-tools/run-sim.sh     # cpu | gpu | 117hd
+ios/dev-tools/run-sim.sh --jars           # restage the jars first, after a Java change
+ios/dev-tools/run-sim.sh --from-phone     # start from a paired phone's settings
+ios/dev-tools/run-sim.sh --desktop-login  # log in with the desktop harness's Jagex session (--logout undoes it)
+ios/dev-tools/bridge-census/run-census-sim.sh --jars   # check every JNI lookup against the jars
+ios/dev-tools/sim-screens/sim-screens.py  # compare the native screens with their golden screenshots
+ios/dev-tools/sim-screens/plugin-sweep.py # open every plugin's settings screen and side panel
+ios/dev-tools/sim-gate.sh                 # all of the above, plus a boot on each renderer: one verdict
+```
+
+`--from-phone` copies the app's settings from a paired iPhone (cable or the
+same network) before launch: the native UI settings, the active RuneLite
+profile and the game's preferences, so the simulator starts the way the phone
+does. It never copies the login. The renderer follows the phone's unless
+`RENDERER` is set.
+
+`--desktop-login` logs the simulator in with the session that
+`dev-tools/fetch-shield-tokens.sh` saved for the desktop harness. It copies the
+session ID and the chosen character, not the launcher tokens. The simulator
+stays logged in across reinstalls until `--logout`. Use a throwaway account, and
+don't run the desktop harness on it at the same time: one session kicks the
+other.
+
+`run-census-sim.sh` is the iOS bridge census: it lists every class, method and
+field the native code looks up through JNI and resolves each one in the app's
+own VM ([`dev-tools/bridge-census/`](dev-tools/bridge-census/README.md)). Run it
+after a change to the shared bridge; a lookup that no longer resolves fails it.
+
+`sim-screens.py` opens each native screen (Settings, the plugin list, the
+control editor, the plugin side panels and so on) and compares a screenshot of
+it with a golden copy ([`dev-tools/sim-screens/`](dev-tools/sim-screens/README.md)).
+Run it after a UI change; a screen that changed fails it with a diff heatmap.
+The goldens are kept per Mac, outside git.
+
+`plugin-sweep.py` has no goldens. It opens every plugin's settings screen and
+every side panel on the rail, and fails one that doesn't open, shows nothing,
+or logs a bridge fault. It switches on what it needs to reach the panels the
+profile hides, and puts the profile back at the end.
+
+`sim-gate.sh` runs the census, the screens and the sweep, boots the app to the
+login screen on each renderer, and scans every launch's logs against a
+known-noise list. It ends with one verdict, `SIM_GATE_GREEN` or `_RED`, in
+about ten minutes ([`dev-tools/sim-gate/`](dev-tools/sim-gate/README.md)).
+Run it before a release, after an upstream merge, and after a shader or
+renderer change. The Python checks run under `/usr/bin/python3` and need
+Pillow and numpy.
+
+On 117 HD, the first entry into the world freezes the game for a minute or
+more, because Apple's software renderer compiles each shader the first time
+something is drawn with it. The freeze outlasts the server's timeout, so the
+connection drops once and the app logs back in. That is the simulator, not a
+bug; the gate only boots 117 HD to the login screen. To check the 117 HD
+shaders themselves without a phone, use
+[`tools/shader-matrix/`](../tools/shader-matrix/README.md).
+
+The simulator build retags the bundled JRE as a simulator binary
+(`app/scripts/resign-jre.sh`), and the app services HotSpot's code-cache
+breakpoint in-process instead of waiting for the debugger (`JVMLauncher.m`,
+`TARGET_OS_SIMULATOR` only). Device builds are unchanged.
+
+It is a UI and logic check, not a phone. It does not show performance, the
+StikDebug JIT path, the phone's GPU driver (the simulator draws GPU modes with
+Apple's software renderer), real multi-touch, or background/PiP behaviour.
+Check those on the device.
+
 ## Keeping current with upstream RuneLite
 
 ```sh

@@ -24,7 +24,7 @@ import kotlin.concurrent.thread
  * A3 on-device Jagex login — no computer required.
  *
  * Android's WebView is bot-blocked by Cloudflare at the Jagex *auth* step (the human check wants an Apple
- * device-attestation Private Access Token the embedded WebView can't produce — see ANDROID-LOGIN-DEEPDIVE.md;
+ * device-attestation Private Access Token the embedded WebView can't produce;
  * the partition test proved real Chrome passes where the WebView is blocked). And the consent OAuth client
  * accepts ONLY redirect_uri=http://localhost (loopback-port and custom-scheme redirects are rejected — proven
  * on-device), so the redirect can't be auto-routed back into the app. This flow therefore hands the auth to
@@ -52,6 +52,7 @@ class LoginActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        requestedOrientation = ScreenSetting.screenOrientation(this) // the game's side, so login doesn't turn the phone
         launched = savedInstanceState?.getBoolean("launched") ?: false
         // The consent URL was minted with THIS instance's nonce/state — restore them across an Activity
         // recreation (rotation/theme flip mid-browser-trip) or the returning link would fail the binding check.

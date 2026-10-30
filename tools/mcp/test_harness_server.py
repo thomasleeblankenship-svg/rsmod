@@ -512,5 +512,245 @@ class IosPullLogs(unittest.TestCase):
         self.assertEqual(list(pulls.iterdir()) if pulls.exists() else [], [])
 
 
+SIM_LOG = """\
+[boot] poll 0ms  draws=0 nullGraphics=0 frames=0 state=null
+2026-10-22 19:38:05 PDT [Client] INFO  n.r.client.headless.HeadlessCapture - [headless-capture] draw#1 nullGraphics=0 capturedFrames=0 state=null
+2026-10-22 19:38:05 PDT [Client] INFO  n.r.client.headless.HeadlessCapture - [headless-capture] gameState null -> LOGIN_SCREEN (draw#1 loginIndex=0 launcher=false)
+[boot] poll 250ms  draws=2 nullGraphics=0 frames=0 state=LOGIN_SCREEN
+2026-10-22 19:38:05 PDT [Client] INFO  n.r.client.headless.HeadlessCapture - [headless-capture] draw#10 nullGraphics=0 capturedFrames=0 state=LOGIN_SCREEN
+[boot] poll 500ms  draws=12 nullGraphics=1 frames=1 state=LOGIN_SCREEN
+[census] checked=196 missing=0 (first frame after 4795 ms, seq 1)
+"""
+
+CENSUS_GREEN = """\
+>> Census: 196 lookups, CPU renderer
+dev.audaro.runemobile: 70940
+   result after 9 s (the app keeps running)
+result=/repo/build/bridge-census/result.txt
+checked=196 missing=0 (list 196) first frame after 4795 ms, seq 1
+census_md5=43a95ea6f128bc3eb574fe2d8db2be20
+IOS_BRIDGE_CENSUS_GREEN md5=43a95ea6f128bc3eb574fe2d8db2be20
+VERDICT: IOS_BRIDGE_CENSUS_GREEN
+"""
+
+CENSUS_RED = """\
+   missing: smethod net/runelite/client/headless/JavaBridge noSuchMethod ()V java.lang.NoSuchMethodError: static Lnet/runelite/client/headless/JavaBridge;.noSuchMethod()V
+   missing: field org/lwjgl/opengl/GLCapabilities OpenGL99 Z java.lang.NoSuchFieldError: org.lwjgl.opengl.GLCapabilities.OpenGL99 Z
+!! 2 of 198 lookups did not resolve
+IOS_BRIDGE_CENSUS_RED
+VERDICT: IOS_BRIDGE_CENSUS_RED
+"""
+
+
+class SimProgress(unittest.TestCase):
+    def test_draws_state_and_transitions(self):
+        p = hs.parse_sim_progress(SIM_LOG)
+        self.assertEqual(p["draws"], 12)  # the highest count either line kind reports
+        self.assertEqual(p["nullGraphics"], 1)
+        self.assertEqual(p["state"], "LOGIN_SCREEN")
+        self.assertEqual(p["states"], ["LOGIN_SCREEN"])  # state=null is not a state
+        self.assertEqual(p["fatal"], [])
+        self.assertTrue(hs.sim_reached(p, "frame"))
+        self.assertTrue(hs.sim_reached(p, "LOGIN_SCREEN"))
+        self.assertFalse(hs.sim_reached(p, "LOGGED_IN"))
+
+    def test_states_reached_stay_reached(self):
+        p = hs.parse_sim_progress(INGAME_LOG)
+        self.assertEqual(p["states"], ["LOGIN_SCREEN", "LOGGING_IN", "LOADING", "LOGGED_IN"])
+        self.assertEqual(p["state"], "LOGGED_IN")
+        self.assertTrue(hs.sim_reached(p, "LOGGING_IN"))
+
+    def test_nothing_drawn_yet(self):
+        p = hs.parse_sim_progress("[boot] poll 0ms  draws=0 nullGraphics=0 frames=0 state=null\n")
+        self.assertFalse(hs.sim_reached(p, "frame"))
+        self.assertIsNone(p["state"])
+
+    def test_fatal_lines_from_the_shell_log(self):
+        p = hs.parse_sim_progress("[jvm] FATAL: embedded jre not found in bundle\n[jvm] boot ok\n")
+        self.assertEqual(p["fatal"], ["[jvm] FATAL: embedded jre not found in bundle"])
+
+
+class SimProcessOutput(unittest.TestCase):
+    def test_simctl_launch_pid(self):
+        self.assertEqual(hs.parse_simctl_launch_pid("dev.audaro.runemobile: 70940\n", hs.IOS_BUNDLE_ID), 70940)
+        self.assertIsNone(hs.parse_simctl_launch_pid("An error was encountered processing the command\n", hs.IOS_BUNDLE_ID))
+
+    def test_launchctl_pid(self):
+        listing = (
+            "PID\tStatus\tLabel\n"
+            "52185\t0\tUIKitApplication:com.apple.Spotlight[5b25][rb-legacy]\n"
+            "-\t0\tUIKitApplication:dev.audaro.runemobileX[1111][rb-legacy]\n"
+            "73260\t0\tUIKitApplication:dev.audaro.runemobile[ee3e][rb-legacy]\n"
+        )
+        self.assertEqual(hs.parse_launchctl_app_pid(listing, hs.IOS_BUNDLE_ID), 73260)
+        self.assertIsNone(hs.parse_launchctl_app_pid(listing.replace("73260", "-"), hs.IOS_BUNDLE_ID))
+        self.assertIsNone(hs.parse_launchctl_app_pid(listing.splitlines()[1], hs.IOS_BUNDLE_ID))
+
+    def test_census_green(self):
+        c = hs.parse_census_output(CENSUS_GREEN)
+        self.assertEqual((c["checked"], c["missing"], c["listed"]), (196, 0, 196))
+        self.assertEqual(c["md5"], "43a95ea6f128bc3eb574fe2d8db2be20")
+        self.assertEqual((c["missingLookups"], c["problems"]), ([], []))
+        self.assertEqual(hs.parse_verdict(CENSUS_GREEN), ("GREEN", "IOS_BRIDGE_CENSUS_GREEN"))
+
+    def test_census_red(self):
+        c = hs.parse_census_output(CENSUS_RED)
+        self.assertIsNone(c["checked"])
+        self.assertEqual(len(c["missingLookups"]), 2)
+        self.assertTrue(c["missingLookups"][0].startswith("smethod net/runelite/client/headless/JavaBridge noSuchMethod"))
+        self.assertEqual(c["problems"], ["2 of 198 lookups did not resolve"])
+        self.assertEqual(hs.parse_verdict(CENSUS_RED), ("RED", "IOS_BRIDGE_CENSUS_RED"))
+
+
+class SimIsland(unittest.TestCase):
+    """A raw portrait screenshot the size of an iPhone 17 Pro Max: the native rail (gray 39) runs along rows 18-140,
+    the letterbox (15) everywhere else, and the island sits over both."""
+
+    W, H = 1320, 2868
+
+    def shot(self, island=True):
+        import numpy as np
+
+        a = np.full((self.H, self.W, 3), 15, np.uint8)
+        a[18:141] = 39
+        self.background = a.copy()
+        if island:
+            x0, y0, x1, y1 = hs.sim_island_rect(self.W, self.H)
+            a[y0 : y1 + 1, x0 : x1 + 1] = 0
+        return a
+
+    def test_island_is_painted_with_what_lies_beside_it(self):
+        import numpy as np
+
+        out, info = hs.mask_sim_island(self.shot())
+        self.assertTrue(info["masked"], info)
+        self.assertTrue(np.array_equal(out, self.background))
+        self.assertEqual(info["rect"], [469, 39, 382, 116])
+
+    def test_no_island_no_change(self):
+        a = self.shot(island=False)
+        out, info = hs.mask_sim_island(a)
+        self.assertFalse(info["masked"])
+        self.assertIn("no island", info["reason"])
+        self.assertIs(out, a)
+
+    def test_an_icon_beside_the_island_stops_the_fill(self):
+        a = self.shot()
+        x0, y0, _x1, _y1 = hs.sim_island_rect(self.W, self.H)
+        a[y0 + 20, x0 - 8] = 200  # one bright pixel in the sample band
+        out, info = hs.mask_sim_island(a)
+        self.assertFalse(info["masked"])
+        self.assertIn(f"row {y0 + 20}", info["reason"])
+        self.assertIs(out, a)
+
+    def test_landscape_input_is_refused(self):
+        import numpy as np
+
+        _out, info = hs.mask_sim_island(np.zeros((1320, 2868, 3), np.uint8))
+        self.assertEqual(info, {"masked": False, "reason": "not a portrait screenshot"})
+
+
+
+def _load_sim_screens():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("sim_screens", hs.REPO_ROOT / "ios/dev-tools/sim-screens/sim-screens.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+class SimScreens(unittest.TestCase):
+    """sim-screens.py's reading of the app's [screen] lines and of screens.json, and the image_delta it gates on."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.ss = _load_sim_screens()
+
+    def log(self, text):
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d)
+        p = Path(d) / "hello-shell.log"
+        p.write_text(text)
+        return p
+
+    def test_ready_answers_only_its_own_command(self):
+        p = self.log("[screen] ready 1 settings\n[screen] ready 2 panel:Grand Exchange\n")
+        self.assertEqual(self.ss.screen_event(p, 2, "panel:Grand Exchange"), ("ready", ""))
+        self.assertEqual(self.ss.screen_event(p, 1, "settings"), ("ready", ""))
+        self.assertIsNone(self.ss.screen_event(p, 3, "about"))
+
+    def test_failed_carries_the_apps_reason(self):
+        p = self.log("[screen] failed 12 panel:World Hopper: no panel with that name on the rail\n")
+        self.assertEqual(self.ss.screen_event(p, 12, "panel:World Hopper"),
+                         ("failed", "no panel with that name on the rail"))
+
+    def test_ready_for_another_screen_is_a_failure(self):
+        p = self.log("[screen] ready 5 about\n")
+        ev = self.ss.screen_event(p, 5, "settings")
+        self.assertEqual(ev[0], "failed")
+        self.assertIn("about", ev[1])
+
+    def test_seq_is_matched_whole(self):
+        self.assertIsNone(self.ss.screen_event(self.log("[screen] ready 11 settings\n"), 1, "settings"))
+
+    def test_manifest_loads_with_unique_files(self):
+        screens = self.ss.load_manifest()
+        names = [s["name"] for s in screens]
+        self.assertIn("settings", names)
+        self.assertEqual(len({self.ss.slug(n) for n in names}), len(names))
+        for s in screens:
+            self.assertIn("settle", s)
+            self.assertIsInstance(s["network"], bool)
+        self.assertTrue(next(s for s in screens if s["name"] == "hub")["network"])
+
+    def test_slug(self):
+        self.assertEqual(self.ss.slug("panel:Grand Exchange"), "panel-grand-exchange")
+        self.assertEqual(self.ss.slug("edit-controls"), "edit-controls")
+
+    def test_image_delta_counts_pixels_over_the_threshold(self):
+        from PIL import Image
+
+        a = Image.new("RGB", (10, 10), (20, 20, 20))
+        b = a.copy()
+        b.putpixel((3, 4), (20, 30, 20))
+        b.putpixel((5, 5), (21, 20, 20))
+        same, _ = hs.image_delta(a, a.copy())
+        self.assertTrue(same["identical"])
+        d, heat = hs.image_delta(a, b)
+        self.assertEqual((d["maxChannelDelta"], d["pctPixelsDiffering"]), (10, 2.0))
+        self.assertEqual(hs.image_delta(a, b, 5)[0]["pctPixelsDiffering"], 1.0)
+        self.assertEqual(heat.shape[:2], (10, 10))
+
+    def test_tool_refuses_flags_as_screen_names(self):
+        with mock.patch.object(hs.shutil, "which", return_value="/usr/bin/xcrun"):
+            r = hs.tool_ios_sim_screens({"screens": ["--update"]})
+        self.assertTrue(r.get("isError"), r)
+
+
+class AndroidScreenshot(unittest.TestCase):
+    def shoot(self, proc):
+        def fake_run(cmd, **kw):
+            if kw.get("text"):  # like subprocess: decoding a PNG as text raises
+                return subprocess.CompletedProcess(cmd, proc.returncode, proc.stdout.decode(), proc.stderr.decode())
+            return proc
+
+        out = Path(tempfile.mkdtemp()) / "shot.png"
+        with mock.patch.object(hs, "find_adb", return_value="/usr/bin/adb"), \
+                mock.patch.object(hs.subprocess, "run", side_effect=fake_run):
+            return hs.tool_android_screenshot({"out": str(out)}), out
+
+    def test_png_bytes_are_written_as_is(self):
+        png = b"\x89PNG\r\n\x1a\n" + bytes(range(256))
+        r, out = self.shoot(subprocess.CompletedProcess([], 0, png, b""))
+        self.assertFalse(r["isError"], r)
+        self.assertEqual(out.read_bytes(), png)
+
+    def test_no_device_is_an_error(self):
+        r, out = self.shoot(subprocess.CompletedProcess([], 1, b"", b"error: no devices/emulators found"))
+        self.assertTrue(r["isError"], r)
+        self.assertFalse(out.exists())
+
+
 if __name__ == "__main__":
     unittest.main()

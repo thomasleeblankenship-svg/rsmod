@@ -32,18 +32,15 @@ import com.google.common.graph.Graphs;
 import com.google.common.graph.MutableGraph;
 import com.google.common.reflect.ClassPath;
 import com.google.common.reflect.ClassPath.ClassInfo;
+import com.google.inject.Binding;
 import com.google.inject.Injector;
 import com.google.inject.Key;
 import com.google.inject.Module;
+import com.google.inject.spi.Element;
+import com.google.inject.spi.Elements;
 import java.io.File;
 import java.io.IOException;
-import java.lang.invoke.CallSite;
-import java.lang.invoke.LambdaMetafactory;
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodType;
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -69,8 +66,6 @@ import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.PluginChanged;
 import net.runelite.client.events.ProfileChanged;
-import net.runelite.client.task.Schedule;
-import net.runelite.client.task.ScheduledMethod;
 import net.runelite.client.task.Scheduler;
 import net.runelite.client.ui.SplashScreen;
 import net.runelite.client.util.GameEventManager;
@@ -156,11 +151,12 @@ public class PluginManager
 		try
 		{
 			final Injector injector = plugin.getInjector();
+			final Set<Key<?>> shared = dependencyKeys(plugin);
 
 			for (Key<?> key : injector.getBindings().keySet())
 			{
 				Class<?> type = key.getTypeLiteral().getRawType();
-				if (Config.class.isAssignableFrom(type))
+				if (Config.class.isAssignableFrom(type) && !shared.contains(key))
 				{
 					return (Config) injector.getInstance(key);
 				}
@@ -175,6 +171,35 @@ public class PluginManager
 			log.error("Unable to get plugin config", e);
 		}
 		return null;
+	}
+
+	/**
+	 * The keys a plugin's dependencies bind into its injector through their public modules. Those are
+	 * installed ahead of the plugin's own module, so a dependency that shares its config (EntityHiderPlugin
+	 * does, for 117HD) would otherwise be taken for the dependent's config.
+	 */
+	private Set<Key<?>> dependencyKeys(Plugin plugin)
+	{
+		final Set<Key<?>> keys = new HashSet<>();
+		for (PluginDependency dependency : plugin.getClass().getAnnotationsByType(PluginDependency.class))
+		{
+			for (Plugin p : plugins)
+			{
+				final Module module = p.getClass() == dependency.value() ? p.getPublicModule() : null;
+				if (module == null)
+				{
+					continue;
+				}
+				for (Element element : Elements.getElements(module))
+				{
+					if (element instanceof Binding)
+					{
+						keys.add(((Binding<?>) element).getKey());
+					}
+				}
+			}
+		}
+		return keys;
 	}
 
 	public List<Config> getPluginConfigProxies(Collection<Plugin> plugins)
@@ -440,7 +465,7 @@ public class PluginManager
 			}
 
 			eventBus.register(plugin);
-			schedule(plugin);
+			scheduler.register(plugin);
 			eventBus.post(new PluginChanged(plugin, true));
 		}
 		catch (ThreadDeath e)
@@ -474,7 +499,7 @@ public class PluginManager
 			return false;
 		}
 
-		unschedule(plugin);
+		scheduler.unregister(plugin);
 		eventBus.unregister(plugin);
 
 		try
@@ -631,63 +656,6 @@ public class PluginManager
 	public Collection<Plugin> getPlugins()
 	{
 		return plugins;
-	}
-
-	private void schedule(Plugin plugin)
-	{
-		for (Method method : plugin.getClass().getMethods())
-		{
-			Schedule schedule = method.getAnnotation(Schedule.class);
-
-			if (schedule == null)
-			{
-				continue;
-			}
-
-			Runnable runnable = null;
-			try
-			{
-				final Class<?> clazz = method.getDeclaringClass();
-				final MethodHandles.Lookup caller = ReflectUtil.privateLookupIn(clazz);
-				final MethodType subscription = MethodType.methodType(method.getReturnType(), method.getParameterTypes());
-				final MethodHandle target = caller.findVirtual(clazz, method.getName(), subscription);
-				final CallSite site = LambdaMetafactory.metafactory(
-					caller,
-					"run",
-					MethodType.methodType(Runnable.class, clazz),
-					subscription,
-					target,
-					subscription);
-
-				final MethodHandle factory = site.getTarget();
-				runnable = (Runnable) factory.bindTo(plugin).invokeExact();
-			}
-			catch (Throwable e)
-			{
-				log.warn("Unable to create lambda for method {}", method, e);
-			}
-
-			ScheduledMethod scheduledMethod = new ScheduledMethod(schedule, method, plugin, runnable);
-			log.debug("Scheduled task {}", scheduledMethod);
-
-			scheduler.addScheduledMethod(scheduledMethod);
-		}
-	}
-
-	private void unschedule(Plugin plugin)
-	{
-		List<ScheduledMethod> methods = new ArrayList<>(scheduler.getScheduledMethods());
-
-		for (ScheduledMethod method : methods)
-		{
-			if (method.getObject() != plugin)
-			{
-				continue;
-			}
-
-			log.debug("Removing scheduled task {}", method);
-			scheduler.removeScheduledMethod(method);
-		}
 	}
 
 	/**

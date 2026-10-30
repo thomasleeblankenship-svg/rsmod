@@ -122,6 +122,11 @@ typedef void (^JVMLogSink)(NSString *line);
 /// real socket drop — exercises the overlay + snapshot path only. No-op before the bridge is up. Main thread.
 + (void)devSimulateReconnect:(int)seconds;
 
+/// The camera zoom the game draws with, or -1 while logged out (or on an older jar). Main thread only.
++ (int)cameraZoom;
+/// Ask for a camera zoom; the game applies it, clamped to its zoom limits, once logged in. Main thread only.
++ (void)setCameraZoom:(int)zoom;
+
 /// Developer test hook: publish a host-origin notification ("RuneLite" / "Notification delivery test") through
 /// the shared bridge, exercising the full delivery path (queue -> drain -> OS notification) without an in-game
 /// trigger. Mirrors Android's DEBUG Shift long-press. No-op before the bridge is up / on an older jar. Main thread.
@@ -130,6 +135,17 @@ typedef void (^JVMLogSink)(NSString *line);
 /// Pull the engine's latest composited frame as a UIImage (reverse JNI -> JavaBridge.getFramePixels).
 /// Returns nil before the first draw / if the VM isn't up yet. Call on the main thread.
 + (nullable UIImage *)latestFrame;
+
+/// Ask the game for a `w` x `h` canvas mid-session (the phone turned). It resizes on its next draw; before login it takes
+/// the size as the one to resize to at login. Only the newest request counts. NO before the bridge is up. Main thread only.
++ (BOOL)requestResizeWidth:(int)w height:(int)h;
+/// The canvas the game draws now, hidden strip included; 0 before the client is up. Main thread only.
++ (int)canvasWidth;
++ (int)canvasHeight;
+
+/// The canvas rows shown on screen: the frame and the Picture-in-Picture feed keep only the top `rows` rows, so the
+/// hidden strip below them (HudVeneerBridge.setHudStrip) never reaches the screen. 0 shows the whole canvas.
++ (void)setShownRows:(int)rows;
 
 /// The Picture-in-Picture frame feed's target layer (nil turns the feed off). Each new engine frame is copied into a
 /// 32BGRA CVPixelBuffer and enqueued on its sampleBufferRenderer, display-immediately. Never waits on the feed
@@ -254,6 +270,10 @@ typedef void (^JVMLogSink)(NSString *line);
 /// Polled by the shell to auto-raise/dismiss the soft keyboard. Call on the main thread.
 + (BOOL)textInputOpen;
 
+/// What the open game field takes: 0 none, 1 text, 2 a number (amount prompts, Grand Exchange quantity/price).
+/// Non-zero exactly when textInputOpen is YES. Call on the main thread.
++ (int)textInputKind;
+
 /// Direct-present reveal gate: YES once the world geometry is uploaded (the GPU layer can be revealed over the
 /// CPU loading-screen blit without a sky flash). YES if the bridge isn't available.
 + (BOOL)sceneWarmedUp;
@@ -367,6 +387,15 @@ typedef void (^JVMLogSink)(NSString *line);
 /// corner (e.g. Quest Helper's top-left guidance panel) clear the curved bezel + the chat. Main thread.
 + (void)setEngineOverlaySafeInsetsL:(int)l t:(int)t r:(int)r b:(int)b;
 
+/// The shell's own controls over the game, as `count` ints {x, y, w, h, ...} in canvas px
+/// (HudVeneerBridge.setOverlayKeepOut): plugin overlay boxes keep off them. Replaces the last list. Main thread.
++ (void)setEngineOverlayKeepOut:(const int *)rects count:(int)count;
+
+/// Large portrait (HudVeneerBridge.setHudStrip): the canvas rows on screen, with the chat and minimap drawn full size in
+/// the hidden rows below and copied back scaled; the game's windows open between `top` and `bottom` (canvas px).
+/// visibleRows <= 0 turns it off. Main thread.
++ (void)setEngineHudStripRows:(int)visibleRows windowTop:(int)top bottom:(int)bottom;
+
 /// W3 A3 (finger-scroll): scroll the chat by deltaCanvasPx (positive = toward newer/bottom) via the chatbox's own
 /// scroll layer — NOT a mouse wheel (a wheel over the transparent chat also zooms the camera). Main thread.
 + (void)scrollEngineChat:(int)deltaCanvasPx;
@@ -382,6 +411,10 @@ typedef void (^JVMLogSink)(NSString *line);
 /// W3 A3: collapse (hide) or expand the engine chat box — tapping the active native tab collapses it (OSRS-mobile
 /// behaviour), tapping any tab reopens it. The native tab row stays visible either way. Main thread.
 + (void)setEngineChatCollapsed:(BOOL)collapsed;
+
+/// Put the whole engine chat away, filter stones included, or bring it back: the speech-bubble stone by the door
+/// (the official app's "Toggle Chatbox"). A collapse leaves the stones up. Main thread.
++ (void)setEngineChatPutAway:(BOOL)putAway;
 
 /// W3 A3 (bigger chat tabs): live per-tab chat geometry/state (escaped JSON) the native enlarged tab veneer reads
 /// each tick — per-tab canvas bounds, selected/new-message flags, and the filter sub-label text + colour. Returns
@@ -428,6 +461,14 @@ typedef void (^JVMLogSink)(NSString *line);
 
 /// Reset an ENTIRE plugin's config to defaults + plugin.resetConfiguration (MobileUiBridge.resetPluginConfig). Ack JSON.
 + (nullable NSString *)mobileResetPluginConfig:(NSString *)group;
+
+/// The frame-rate cap and idle logout time for the native Game settings screen (MobileUiBridge.gameSettings):
+/// {"fpsCap":N,"idleLogoutMinutes":M}, fpsCap 0 = no cap. nil before the facade is up or on an older jar.
++ (nullable NSString *)gameSettings;
+/// Cap the frame rate through the FPS Control plugin (0 removes the cap). Ack JSON, nil if unavailable.
++ (nullable NSString *)setFpsCap:(int)fps;
+/// Set the idle logout time through the Logout Timer plugin, in minutes. Ack JSON, nil if unavailable.
++ (nullable NSString *)setIdleLogoutMinutes:(int)minutes;
 
 /// Fully-seeded default Notification JSON (MobileUiBridge.notificationDefaults) — base for the notification sub-editor.
 + (nullable NSString *)mobileNotificationDefaults;
@@ -484,10 +525,11 @@ typedef void (^JVMLogSink)(NSString *line);
 /// Highest processed write id (MobileUiBridge.getProcessedWriteId) — the fire-and-forget write ack.
 + (long long)mobileProcessedWriteId;
 
-/// Flush pending config to disk now (MobileUiBridge.flushConfig). iOS closes the app without running
-/// RuneLite's shutdown/periodic flush, so the shell calls this on config/panel close + app background so
-/// plugin toggles and config edits survive a relaunch.
-+ (void)mobileFlushConfig;
+/// Flush pending config to disk (MobileUiBridge.flushConfigQueued, behind the writes already queued). iOS closes
+/// the app without running RuneLite's shutdown/periodic flush, so the shell calls this on config/panel close + app
+/// background so plugin toggles and config edits survive a relaunch. Returns the flush's write id (0 when it
+/// couldn't be queued): once +mobileProcessedWriteId reaches it, the file is written.
++ (long long)mobileFlushConfig;
 
 /// Plugin-hub catalog JSON (MobileUiBridge.hubManifest). First call returns {"status":"loading"} while the
 /// signed manifest downloads on a background thread; poll until status is "ok" (plugins[]) or "error:*".
@@ -521,10 +563,16 @@ typedef void (^JVMLogSink)(NSString *line);
 /// falls back to the generic rendered-image panel.
 + (BOOL)questAvailable;
 
-/// Native XP Tracker panel (§3.4): whether the XP Tracker plugin is loaded, and its live per-skill session JSON
-/// ({available,totalGained,totalHr,skills:[{skill,gained,hr,left,actions,startLevel,endLevel,progress,icon}]}).
+/// Native XP Tracker panel (§3.4, XpTrackerBridge): whether the XP Tracker plugin is loaded + reflectable.
 + (BOOL)xpTrackerAvailable;
+/// Tell the bridge the native XP Tracker screen is open/closed (gates the client-thread snapshot refresh).
++ (void)xpTrackerSetUiOpen:(BOOL)open;
+/// The per-skill session JSON, snapshotted on the client thread about once a second while open:
+/// {available, skills:[{skill,xpGained,xpHr,xpLeft,actions,actionsLeft,actionsHr,timeToLevelSec,startLevel,
+/// endLevel,progress (0..1)}], overall:{the same fields}}. Only skills with XP gained this session are listed.
 + (nullable NSString *)xpTrackerJson;
+/// A skill's small icon (skill = the JSON's enum name, e.g. "ATTACK") as a base64 PNG; nil if none.
++ (nullable NSString *)xpTrackerSkillIcon:(NSString *)skill;
 
 /// Native Notes panel (§3.4): whether the Notes plugin is loaded, plus read/write of the single note string
 /// (config group "notes"/"notesData"). notesSet persists on the client-thread config lane.

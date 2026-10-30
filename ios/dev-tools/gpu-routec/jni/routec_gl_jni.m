@@ -187,7 +187,15 @@ static void rc_awt_create_context(JNIEnv *env)
     jclass jb = (*env)->FindClass(env, "net/runelite/client/headless/JavaBridge");
     if (jb) {
         jmethodID cw = (*env)->GetStaticMethodID(env, jb, "canvasWidth", "()I");
+        if ((*env)->ExceptionCheck(env)) {
+            (*env)->ExceptionClear(env);
+            cw = NULL;
+        }
         jmethodID ch = (*env)->GetStaticMethodID(env, jb, "canvasHeight", "()I");
+        if ((*env)->ExceptionCheck(env)) {
+            (*env)->ExceptionClear(env);
+            ch = NULL;
+        }
         if (cw && ch) {
             jint qw = (*env)->CallStaticIntMethod(env, jb, cw);
             jint qh = (*env)->CallStaticIntMethod(env, jb, ch);
@@ -210,11 +218,27 @@ static void rc_jb_cache(JNIEnv *env)
     jclass c = (*env)->FindClass(env, "net/runelite/client/headless/JavaBridge");
     if (!c) { (*env)->ExceptionClear(env); return; }
     s_jb  = (*env)->NewGlobalRef(env, c);
+    /* Clear after each lookup: HotSpot fails every lookup made while a NoSuchMethodError is pending. */
     s_bb  = (*env)->GetStaticMethodID(env, s_jb, "gpuFrameBackBuffer", "(II)[I");
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        s_bb = NULL;
+    }
     s_pub = (*env)->GetStaticMethodID(env, s_jb, "gpuPublish", "(II)V");
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        s_pub = NULL;
+    }
     s_cw  = (*env)->GetStaticMethodID(env, s_jb, "canvasWidth", "()I");
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        s_cw = NULL;
+    }
     s_ch  = (*env)->GetStaticMethodID(env, s_jb, "canvasHeight", "()I");
-    (*env)->ExceptionClear(env);
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        s_ch = NULL;
+    }
 }
 
 // Per-frame upkeep (called from getFramebuffer, early in each draw): re-bind the thread-affine EAGL context and
@@ -710,10 +734,19 @@ static JNIEXPORT void JNICALL rc_GL_glTexImage2D_0(JNIEnv *env, jclass cls, jint
     // store -> the shadow FBO is incomplete -> shadows.glsl's texelFetch(shadowMap) returns 0 -> EVERY fragment
     // reads as shadowed -> the whole scene is uniformly darkened with no distinct shadows (the observed symptom).
     // Remap the type so the texture allocates; 24-bit depth is plenty for the shadow map.
+    // GL_DEPTH_COMPONENT16 (0x81A5) + GL_FLOAT fails the same way: RLHD always allocates the terrain shadow map that
+    // way, and the main shadow map too when shadow transparency is off. 16 pairs with GL_UNSIGNED_SHORT.
     if ((GLenum)a2 == 0x81A6 /* GL_DEPTH_COMPONENT24 */ && (GLenum)a7 == GL_FLOAT) {
         a7 = GL_UNSIGNED_INT;
         static int once = 0; if (!once) { once = 1;
             rc_trace(@"[routec] SHADOW-FIX: shadow depth tex DEPTH_COMPONENT24 + GL_FLOAT -> GL_UNSIGNED_INT (ES3 strict)"); }
+    } else if ((GLenum)a2 == 0x81A5 /* GL_DEPTH_COMPONENT16 */ && (GLenum)a7 == GL_FLOAT) {
+        a7 = GL_UNSIGNED_SHORT;
+        static int once16 = 0;
+        if (!once16) {
+            once16 = 1;
+            rc_trace(@"[routec] SHADOW-FIX: shadow depth tex DEPTH_COMPONENT16 + GL_FLOAT -> GL_UNSIGNED_SHORT (ES3 strict)");
+        }
     }
     glTexImage2D((GLenum)a0,(GLint)a1,(GLint)a2,(GLsizei)a3,(GLsizei)a4,(GLint)a5,(GLenum)a6,(GLenum)a7,(const void *)(intptr_t)a8);
 }

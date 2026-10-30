@@ -22,6 +22,7 @@
 #   RETAIN         how many rolling prereleases to keep (default: 5; older ones + their tags are deleted)
 #   PRERELEASE     1 = mark prerelease (default: 1)
 #   BUILD_DATE     human timestamp for the notes (default: `date -u`)
+#   TARGET_COMMIT  commit the new tag points at (default: master; the workflow passes the commit it built)
 set -euo pipefail
 
 ROOT="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
@@ -31,12 +32,26 @@ TAG_PREFIX="${TAG_PREFIX:-master}"
 RETAIN="${RETAIN:-5}"
 PRERELEASE="${PRERELEASE:-1}"
 BUILD_DATE="${BUILD_DATE:-$(date -u '+%Y-%m-%d %H:%M UTC')}"
+TARGET_COMMIT="${TARGET_COMMIT:-master}"
 
 die() { printf '!! %s\n' "$*" >&2; exit 1; }
 
 [ -f "$DIST/manifest.env" ] || die "no manifest.env in $DIST — run build-release-artifacts.sh first"
-# shellcheck disable=SC1091
-. "$DIST/manifest.env"
+# Read manifest.env as data, never source it. In the hosted pipeline it comes from the build job, which runs
+# third-party build code, while this script holds a token that can write releases: sourcing the file would run
+# whatever that build wrote, with the token. Each value must match a strict pattern (printf %q, which wrote the
+# file, leaves such values unquoted); DIST is ignored, since it names the build runner's path.
+manifest_value() {	# <key> <extended regex>
+	local v
+	v="$(sed -n "s/^$1=//p" "$DIST/manifest.env" | head -1)"
+	[[ "$v" =~ $2 ]] || die "manifest.env: $1='$v' does not match $2"
+	printf '%s' "$v"
+}
+VERSION="$(manifest_value VERSION '^[0-9]+\.[0-9]+\.[0-9]+(-master\.[0-9]+)?$')"
+BUILD_NUMBER="$(manifest_value BUILD_NUMBER '^[0-9]+$')"
+GIT_SHA="$(manifest_value GIT_SHA '^([0-9a-f]{4,40}|unknown)$')"
+RUNELITE_VERSION="$(manifest_value RUNELITE_VERSION '^[0-9A-Za-z._+-]*$')"
+APK_FINGERPRINT="$(manifest_value APK_FINGERPRINT '^([0-9a-f]{64})?$')"
 
 export GH_TOKEN="${PUBLISH_TOKEN:-${GH_TOKEN:-}}"
 [ -n "$GH_TOKEN" ] || die "no PUBLISH_TOKEN / GH_TOKEN — need a token with contents:write on $PUBLISH_REPO"
@@ -51,6 +66,15 @@ for f in "RuneMobile-${VERSION}.apk" "RuneMobile-${VERSION}.ipa" "runelite-jit.j
 	[ -f "$DIST/$f" ] && ASSETS+=("$DIST/$f")
 done
 [ "${#ASSETS[@]}" -gt 0 ] || die "no assets found in $DIST for version $VERSION"
+# Same guard as publish-stable-release.sh: a team-signed IPA (IOS_ADHOC=0) embeds the developer's provisioning
+# profile (name, Apple ID email, team, device UDIDs), and a public release must never carry it.
+IPA="$DIST/RuneMobile-${VERSION}.ipa"
+if [ -f "$IPA" ]; then
+	IPA_FILES="$(unzip -Z1 "$IPA")" || die "cannot list $IPA"
+	if grep -q 'embedded\.mobileprovision$' <<<"$IPA_FILES"; then
+		die "$IPA embeds a provisioning profile — rebuild with IOS_ADHOC=1 (the default)"
+	fi
+fi
 
 FP_LINE=""
 # RuneLite base: present in manifests written by current build-release-artifacts.sh; older ones omit it,
@@ -83,7 +107,7 @@ fi
 
 # 1) Create as a DRAFT (invisible) and upload ALL assets to it.
 echo ">> creating draft $TAG on $PUBLISH_REPO and uploading ${#ASSETS[@]} assets"
-gh release create "$TAG" --repo "$PUBLISH_REPO" --target master --draft ${PRE_FLAG[@]+"${PRE_FLAG[@]}"} \
+gh release create "$TAG" --repo "$PUBLISH_REPO" --target "$TARGET_COMMIT" --draft ${PRE_FLAG[@]+"${PRE_FLAG[@]}"} \
 	--title "RuneMobile ${VERSION}" --notes "$NOTES"
 gh release upload "$TAG" --repo "$PUBLISH_REPO" "${ASSETS[@]}"
 

@@ -294,9 +294,12 @@ static std::string rc_downport(const std::string &src) {
     //     `\d+\.\d*[fF]` wrongly eats the `f` in `material1.flowMap` (matches "1.f") -> "material1.lowMap".
     body = std::regex_replace(body, std::regex("(\\d*\\.\\d+|\\d+\\.\\d*)[fF](?![a-zA-Z0-9_])"), "$1");
     for (auto &c : kSceneVertexCasts) rc_replace_all(body, c[0], c[1]);                // (5) explicit casts
+    // sampler2DShadow (RLHD v1.6 hardware shadow filtering) and samplerCube (the v1.6 nebula sky) are core ES 3.0
+    // types: sampler2DShadow has no default precision at all, and samplerCube's default is lowp.
     std::string precision =
         "precision highp float;\nprecision highp int;\n"
-        "precision highp sampler2DArray;\nprecision highp usampler2DArray;\nprecision highp sampler2D;\n";
+        "precision highp sampler2DArray;\nprecision highp usampler2DArray;\nprecision highp sampler2D;\n"
+        "precision highp sampler2DShadow;\nprecision highp samplerCube;\n";
     // GLSL ES needs a default precision for EVERY sampler type used. RLHD's Zone vertex/shadow shaders use a
     // texture-buffer sampler (isamplerBuffer textureFaces) — add its precision, but only when the shader actually
     // uses one (the buffer-sampler types are unknown on a driver without texture_buffer, so don't emit it otherwise).
@@ -572,6 +575,11 @@ static void rcProbePhase4Caps() {
 // are shimmed; the BGRA UI-texture upload is swizzled to RGBA (silently corrupts colour on GLES otherwise).
 // =============================================================================================================
 #define GLF static void JNICALL
+// RLHD v1.6.0.1's SkyRenderer toggles the desktop-only GL_PROGRAM_POINT_SIZE around its point-sprite stars. GLES
+// always takes gl_PointSize from the vertex shader and rejects the enum, so rc_glEnable/rc_glDisable drop it.
+#ifndef GL_PROGRAM_POINT_SIZE
+#define GL_PROGRAM_POINT_SIZE 0x8642
+#endif
 
 // LWJGL takes an NIO buffer argument as remaining() elements from position(), not capacity() from the base address.
 // Zone.drawOff/drawEnd are reused 512-entry IntBuffers flip()ed to the k ranges of one draw, so sizing by capacity
@@ -649,10 +657,16 @@ GLF rc_glDeleteVertexArrays(JNIEnv*, jclass, jint a0){ GLuint x=(GLuint)a0; glDe
 GLF rc_glDepthFunc(JNIEnv*, jclass, jint a0){ glDepthFunc(a0); }
 GLF rc_glDepthMask(JNIEnv*, jclass, jboolean a0){ glDepthMask(a0); }
 GLF rc_glDetachShader(JNIEnv*, jclass, jint a0, jint a1){ glDetachShader(a0,a1); }
-GLF rc_glDisable(JNIEnv*, jclass, jint a0){ glDisable(a0); }
+GLF rc_glDisable(JNIEnv *, jclass, jint a0) {
+    if (a0 != GL_PROGRAM_POINT_SIZE)
+        glDisable(a0);
+}
 GLF rc_glDrawArrays(JNIEnv*, jclass, jint a0, jint a1, jint a2){ if (sDrawCountOn) sDcDrawArrays++; glDrawArrays(a0,a1,a2); }
 GLF rc_glDrawElements(JNIEnv*, jclass, jint a0, jint a1, jint a2, jlong a3){ if (sDrawCountOn) sDcDrawElements++; glDrawElements(a0,a1,a2,(const void*)(intptr_t)a3); }
-GLF rc_glEnable(JNIEnv*, jclass, jint a0){ glEnable(a0); }
+GLF rc_glEnable(JNIEnv *, jclass, jint a0) {
+    if (a0 != GL_PROGRAM_POINT_SIZE)
+        glEnable(a0);
+}
 GLF rc_glEnableVertexAttribArray(JNIEnv*, jclass, jint a0){ glEnableVertexAttribArray(a0); }
 GLF rc_glFlushMappedBufferRange(JNIEnv*, jclass, jint a0, jlong a1, jlong a2){ glFlushMappedBufferRange(a0,(GLintptr)a1,(GLsizeiptr)a2); }
 GLF rc_glFramebufferRenderbuffer(JNIEnv*, jclass, jint a0, jint a1, jint a2, jint a3){ glFramebufferRenderbuffer(a0,a1,a2,a3); }
@@ -793,6 +807,17 @@ GLF rc_glShaderSource(JNIEnv* e, jclass, jint a0, jstring a1){
 GLF rc_glTexImage2D(JNIEnv*, jclass, jint a0, jint a1, jint a2, jint a3, jint a4, jint a5, jint a6, jint a7, jlong a8){
     if ((GLenum)a6==GL_BGRA){ a6=GL_RGBA; glTexImage2D((GLenum)a0,a1,a2,a3,a4,a5,(GLenum)a6,(GLenum)a7,(const void*)(intptr_t)a8);
         glTexParameteri((GLenum)a0, GL_TEXTURE_SWIZZLE_R, GL_BLUE); glTexParameteri((GLenum)a0, GL_TEXTURE_SWIZZLE_B, GL_RED); return; }
+    // RLHD allocates its shadow maps as DEPTH_COMPONENT24 (DEPTH_COMPONENT16 for the terrain map, or with shadow
+    // transparency off) with type GL_FLOAT. Desktop GL allows that; GLES 3 pairs DEPTH_COMPONENT16 with UNSIGNED_SHORT
+    // or UNSIGNED_INT, DEPTH_COMPONENT24 with UNSIGNED_INT, and only DEPTH_COMPONENT32F with FLOAT. Mali refuses the
+    // call (GL_INVALID_OPERATION), the shadow FBO stays incomplete, every shadow lookup reads depth 0 and the whole
+    // scene counts as shadowed: darker, with no sun shadows. No data is uploaded (null pointer), so only the type
+    // changes. iOS does the same in routec_gl_jni.m.
+    if ((GLenum)a6 == GL_DEPTH_COMPONENT && (GLenum)a7 == GL_FLOAT && a8 == 0 &&
+        ((GLenum)a2 == GL_DEPTH_COMPONENT16 || (GLenum)a2 == GL_DEPTH_COMPONENT24)) {
+        a7 = (GLenum)a2 == GL_DEPTH_COMPONENT16 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT;
+        LOGI("[shadowmap] depth texture 0x%x %dx%d: type GL_FLOAT -> 0x%x (GLES depth format/type pairing)", a2, a3, a4, a7);
+    }
     glTexImage2D((GLenum)a0,a1,a2,a3,a4,a5,(GLenum)a6,(GLenum)a7,(const void*)(intptr_t)a8);
 }
 GLF rc_glTexImage3D(JNIEnv*, jclass, jint a0, jint a1, jint a2, jint a3, jint a4, jint a5, jint a6, jint a7, jint a8, jlong a9){ glTexImage3D((GLenum)a0,a1,a2,a3,a4,a5,a6,(GLenum)a7,(GLenum)a8,(const void*)(intptr_t)a9); }
@@ -837,6 +862,15 @@ GLF rc_glClipControl(JNIEnv*, jclass, jint a0, jint a1){
 // gated OFF on Zone — present so the class graph is fully bound.
 // =============================================================================================================
 GLF rc_glCullFace(JNIEnv*, jclass, jint a0){ glCullFace((GLenum)a0); }
+// RLHD v1.6.0.1: the shadow pass's depth bias (RenderState.polygonOffset) and the star field's instanced quads.
+GLF rc_glPolygonOffset(JNIEnv *, jclass, jfloat a0, jfloat a1) {
+    glPolygonOffset(a0, a1);
+}
+GLF rc_glDrawArraysInstanced(JNIEnv *, jclass, jint a0, jint a1, jint a2, jint a3) {
+    if (sDrawCountOn)
+        sDcDrawArrays++;
+    glDrawArraysInstanced((GLenum)a0, a1, a2, a3);
+}
 GLF rc_glFinish(JNIEnv*, jclass){ glFinish(); }
 GLF rc_glFlush(JNIEnv*, jclass){ glFlush(); }
 GLF rc_glDrawBuffer(JNIEnv*, jclass, jint a0){ GLenum b=(GLenum)a0; glDrawBuffers(1,&b); }   // GLES has glDrawBuffers only
@@ -1098,6 +1132,13 @@ extern "C" void RouteC_setPresentCallbacks(void* (*acq)(uint64_t*), uint64_t (*g
     LOGI("present callbacks set — direct EGL window-surface present armed");
 }
 
+// Large portrait UI: jvm_bootstrap's map from the canvas height to the rows the screen shows (the top ones; the strip
+// below them holds the full-size chat and minimap the bridge copies back). Absent, every row shows.
+static int (*sCbShownRows)(int) = nullptr;
+extern "C" void RouteC_setShownRows(int (*rows)(int)) {
+    sCbShownRows = rows;
+}
+
 // Phase 3 (auto-GPU watchdog): frames presented so far on the direct path. jvm_bootstrap dlsym's this and exposes it
 // to Kotlin (JvmLauncher.nativeGpuFramesPresented) so the first-boot fallback can tell "renderer activated" from
 // "failed/black/crashed" without any per-frame plumbing.
@@ -1179,6 +1220,7 @@ static void JNICALL rc_AWT_swapBuffers(JNIEnv* env, jobject){
         // Publish the live canvas dims so touch->game mapping works (the CPU present thread that used to set them
         // is disabled in this mode).
         if (sCbSetFrameDims) sCbSetFrameDims(w, h);
+        const int rows = sCbShownRows ? sCbShownRows(h) : h;
         // Direct EGL present. If the Surface isn't ready yet, skip this frame (it stays in the FBO) — the CPU
         // present thread is disabled in this mode, so do NOT fall back to readback (nothing would consume it).
         if (rcEnsureWindowSurface()) {
@@ -1192,7 +1234,8 @@ static void JNICALL rc_AWT_swapBuffers(JNIEnv* env, jobject){
             glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);                       // the window surface's default framebuffer
             // Both src (FBO) and dst (window default fb) are GL bottom-left origin, so a 1:1 blit presents upright
             // (eglSwapBuffers maps GL bottom-left -> screen). If it shows inverted on device, swap the dst Y extents.
-            glBlitFramebuffer(0, 0, w, h,  0, 0, sw, sh,  GL_COLOR_BUFFER_BIT, GL_LINEAR);
+            // GL rows run bottom-up, so the canvas's top rows are the FBO's last ones.
+            glBlitFramebuffer(0, h - rows, w, h, 0, 0, sw, sh, GL_COLOR_BUFFER_BIT, GL_LINEAR);
             if (sPresentProbe < 0) {
                 sPresentProbe = rc_fpsprobe_armed(env) ? 1 : 0;
                 LOGI("[presentprobe] %s (-Drunelite.fpsprobe)", sPresentProbe ? "armed" : "off");
@@ -1380,6 +1423,8 @@ static const JNINativeMethod kGLALL[] = {
     {"glClipControl","(II)V",(void*)rc_glClipControl},
     // --- AG3 117HD (RLHD) Zone GL-delta (signatures match GLALL.java exactly) ---
     {"glCullFace","(I)V",(void*)rc_glCullFace},
+    {"glPolygonOffset","(FF)V",(void*)rc_glPolygonOffset},
+    {"glDrawArraysInstanced","(IIII)V",(void*)rc_glDrawArraysInstanced},
     {"glFinish","()V",(void*)rc_glFinish},
     {"glFlush","()V",(void*)rc_glFlush},
     {"glDrawBuffer","(I)V",(void*)rc_glDrawBuffer},

@@ -46,9 +46,14 @@ static jclass    gBridgeClass = NULL; // global ref to net.runelite.client.headl
 static jmethodID gMidW = NULL, gMidH = NULL, gMidSeq = NULL, gMidPixels = NULL;
 static jmethodID gMidGpuSeq = NULL;       // getGpuFrameSeq()I - base-GPU present proof (optional; older jars lack it)
 static jmethodID gMidInteractSeq = NULL;  // getInteractTapSeq()I — native haptic cue (optional; tolerate older jar)
+static jmethodID gMidInputKind = NULL;    // getTextInputKind()I — number pad vs text keyboard (optional)
 static jmethodID gMidLastTapKind = NULL;  // getLastTapKind()I — TAP_KIND_NONE/WALK/SCENE/WIDGET (optional)
 static jmethodID gMidHeapStats = NULL;    // heapStats()Ljava/lang/String; — dev diagnostics (optional)
 static jmethodID gMidSimReconnect = NULL; // devSimulateReconnect(I)V — dev "test reconnect" hook (optional)
+static jmethodID gMidCameraZoom = NULL;   // cameraZoom()I: the zoom the game draws with, -1 logged out (optional)
+static jmethodID gMidSetCameraZoom = NULL; // setCameraZoom(I)V: set it as the scroll wheel would (optional)
+static jmethodID gMidRequestResize = NULL; // requestResize(II)V: resize the canvas mid-session (optional)
+static jmethodID gMidCanvasW = NULL, gMidCanvasH = NULL; // canvasWidth()I / canvasHeight()I (optional)
 static jmethodID gMidTouch = NULL, gMidClick = NULL, gMidClickPrecise = NULL, gMidMove = NULL;
 static jmethodID gMidWheel = NULL, gMidCamera = NULL, gMidText = NULL, gMidKey = NULL;
 static jmethodID gMidCameraHold = NULL; // setCameraHold(II)V — a held arrow turns at a pixel RATE per second
@@ -92,9 +97,10 @@ static jmethodID gMuiHubManifest = NULL;  // hubManifest()Ljava/lang/String;
 static jmethodID gMuiHubInstall = NULL;   // hubInstall(Ljava/lang/String;)Ljava/lang/String;
 static jmethodID gMuiHubUninstall = NULL; // hubUninstall(Ljava/lang/String;)Ljava/lang/String;
 static jmethodID gMuiListPanels = NULL;   // listPanels()Ljava/lang/String;
-static jmethodID gMuiXpAvail = NULL;      // xpTrackerAvailable()Z  (native XP Tracker panel)
-static jmethodID gMuiXpJson = NULL;       // xpTrackerJson()Ljava/lang/String;
 static jmethodID gMuiNotesAvail = NULL;   // notesAvailable()Z  (native Notes panel)
+static jmethodID gMuiGameSettings = NULL; // gameSettings()Ljava/lang/String;  (native Game settings)
+static jmethodID gMuiSetFpsCap = NULL;    // setFpsCap(I)Ljava/lang/String;
+static jmethodID gMuiSetIdleLogout = NULL; // setIdleLogoutMinutes(I)Ljava/lang/String;
 static jmethodID gMuiNotesGet = NULL;     // notesGet()Ljava/lang/String;
 static jmethodID gMuiNotesSet = NULL;     // notesSet(Ljava/lang/String;)Ljava/lang/String;
 static jmethodID gMuiGeAvail = NULL;      // geAvailable()Z  (native Grand Exchange panel)
@@ -168,6 +174,13 @@ static jmethodID gLootAvail = NULL;   // isAvailable()Z
 static jmethodID gLootSetOpen = NULL; // setUiOpen(Z)V
 static jmethodID gLootJson = NULL;    // getLootJson()Ljava/lang/String;
 static jmethodID gLootReset = NULL;   // resetAll()Ljava/lang/String; (optional — older jars lack it)
+
+// Native XP Tracker reflow: the XpTrackerBridge facade (per-skill session snapshot, the one Android reads too).
+static jclass gXpClass = NULL;      // global ref to net.runelite.client.headless.XpTrackerBridge
+static jmethodID gXpAvail = NULL;   // isAvailable()Z
+static jmethodID gXpSetOpen = NULL; // setUiOpen(Z)V
+static jmethodID gXpJson = NULL;    // getXpJson()Ljava/lang/String;
+static jmethodID gXpIcon = NULL;    // getSkillIcon(Ljava/lang/String;)Ljava/lang/String; (optional, older jars lack it)
 
 // Native Time Tracking reflow — the TimeTrackingBridge facade (read-only farming/bird-house/timer snapshot).
 static jclass gTtClass = NULL;      // global ref to net.runelite.client.headless.TimeTrackingBridge
@@ -259,12 +272,9 @@ static BOOL ensureBridge(void) {
     gMidMove   = (*env)->GetStaticMethodID(env, global, "onMove", "(II)V");
     gMidWheel  = (*env)->GetStaticMethodID(env, global, "onWheel", "(III)V");
     gMidCamera = (*env)->GetStaticMethodID(env, global, "onCameraDrag", "(II)V");
-    gMidCameraHold = (*env)->GetStaticMethodID(env, global, "setCameraHold", "(II)V");
     gMidText   = (*env)->GetStaticMethodID(env, global, "onText", "(Ljava/lang/String;)V");
     gMidKey    = (*env)->GetStaticMethodID(env, global, "onKeyStroke", "(I)V");
     gMidInputOpen = (*env)->GetStaticMethodID(env, global, "isTextInputOpen", "()Z");
-    gMidWarmed = (*env)->GetStaticMethodID(env, global, "presentReady", "()Z");   // optional (not in the null-check below)
-    if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); }
     gMidClearHover = (*env)->GetStaticMethodID(env, global, "clearHover", "()V");
     if (!gMidW || !gMidH || !gMidSeq || !gMidPixels || !gMidTouch || !gMidClick || !gMidClickPrecise || !gMidMove
         || !gMidWheel || !gMidCamera || !gMidText || !gMidKey || !gMidInputOpen || !gMidClearHover) {
@@ -272,11 +282,28 @@ static BOOL ensureBridge(void) {
         (*env)->DeleteGlobalRef(env, global);   // don't leak the class ref on the retry path
         return NO;                              // retry next tick (the class may load just after bringup)
     }
-    // Optional (not in the mandatory set above, so an older jar without it still boots the bridge).
+    // Optional (not in the mandatory set above, so an older jar without it still boots the bridge). Each one clears
+    // its own miss: a NoSuchMethodError left pending makes every later JNI call illegal, so one missing optional
+    // method would otherwise fail the lookups after it and keep the bridge from ever coming up.
+    gMidCameraHold = (*env)->GetStaticMethodID(env, global, "setCameraHold", "(II)V");
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        gMidCameraHold = NULL;
+    }
+    gMidWarmed = (*env)->GetStaticMethodID(env, global, "presentReady", "()Z");
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        gMidWarmed = NULL;
+    }
     gMidInteractSeq = (*env)->GetStaticMethodID(env, global, "getInteractTapSeq", "()I");
     if ((*env)->ExceptionCheck(env)) {
         (*env)->ExceptionClear(env);
         gMidInteractSeq = NULL;
+    }
+    gMidInputKind = (*env)->GetStaticMethodID(env, global, "getTextInputKind", "()I");
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        gMidInputKind = NULL;
     }
     gMidLastTapKind = (*env)->GetStaticMethodID(env, global, "getLastTapKind", "()I");
     if ((*env)->ExceptionCheck(env)) {
@@ -297,6 +324,31 @@ static BOOL ensureBridge(void) {
     if ((*env)->ExceptionCheck(env)) {
         (*env)->ExceptionClear(env);
         gMidSimReconnect = NULL;
+    }
+    gMidCameraZoom = (*env)->GetStaticMethodID(env, global, "cameraZoom", "()I");
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        gMidCameraZoom = NULL;
+    }
+    gMidSetCameraZoom = (*env)->GetStaticMethodID(env, global, "setCameraZoom", "(I)V");
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        gMidSetCameraZoom = NULL;
+    }
+    gMidRequestResize = (*env)->GetStaticMethodID(env, global, "requestResize", "(II)V");
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        gMidRequestResize = NULL;
+    }
+    gMidCanvasW = (*env)->GetStaticMethodID(env, global, "canvasWidth", "()I");
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        gMidCanvasW = NULL;
+    }
+    gMidCanvasH = (*env)->GetStaticMethodID(env, global, "canvasHeight", "()I");
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        gMidCanvasH = NULL;
     }
     gMidMenuSelect = (*env)->GetStaticMethodID(env, global, "selectMenuPoint", "(II)V");
     if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); gMidMenuSelect = NULL; }
@@ -433,11 +485,14 @@ static jmethodID gMidScrollChat = NULL;      // scrollChat(I)V  (A3 — finger-s
 static jmethodID gMidScrollMapPanel = NULL;  // scrollMapPanel(I)V  (world map: finger-scroll the Key/maplist, no wheel/zoom)
 static jmethodID gMidSwitchChatTab = NULL;   // switchChatTab(I)V  (A3 — switch tab via op-replay, hidden tabs)
 static jmethodID gMidSetChatCollapsed = NULL; // setChatCollapsed(Z)V  (A3 — tap active tab hides the chat box)
+static jmethodID gMidSetChatPutAway = NULL;   // setChatPutAway(Z)V  (the speech-bubble stone puts the chat away)
 static jmethodID gMidGetChatSnap = NULL;     // getChatSnapshot()Ljava/lang/String;  (A3)
 static jmethodID gMidGetChatLines = NULL;    // getChatLines()Ljava/lang/String;  (native top-rendered chat)
 static jmethodID gMidGetDialogue = NULL;     // getDialogueJson()Ljava/lang/String;  (native-rendered dialogue)
 static jmethodID gMidGetDlgSeq = NULL;       // getDialogueSeq()J — bumped only when the dialogue CHANGES
 static jmethodID gMidSetOverlayInsets = NULL; // setOverlaySafeInsets(IIII)V (snap-corner safe frame)
+static jmethodID gMidSetOverlayKeepOut = NULL; // setOverlayKeepOut([I)V (the shell's controls, kept clear of overlays)
+static jmethodID gMidSetHudStrip = NULL;      // setHudStrip(III)V (large portrait: shown rows + window band)
 static jmethodID gMidPanMap = NULL;          // panWorldMap(II)V  (world map: finger pan -> map centre)
 static jmethodID gMidOpenWorldMap = NULL;    // openWorldMap()V  (world map: discoverable one-shot open)
 static jmethodID gMidSwitchLayout = NULL;    // switchToModernLayout()V  (one-tap game layout switch)
@@ -464,31 +519,103 @@ static BOOL ensureVeneer(void) {
         (*env)->DeleteGlobalRef(env, global);
         return NO;
     }
-    // A3 bigger-chat-tabs methods — OPTIONAL so an older bundled jar still loads the veneer (clear any pending
-    // NoSuchMethod and leave the ids NULL; the wrappers below no-op when absent).
+    // Optional methods, so an older bundled jar still loads the veneer (the wrappers below no-op on a NULL id).
+    // Each lookup clears its own miss: HotSpot fails every JNI lookup made while a NoSuchMethodError is pending,
+    // so one missing method would otherwise silently disable all the optional methods after it.
     gMidSetChatRowH = (*env)->GetStaticMethodID(env, global, "setChatTabRowHeight", "(I)V");
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        gMidSetChatRowH = NULL;
+    }
     gMidSetChatAreaW = (*env)->GetStaticMethodID(env, global, "setChatAreaWidth", "(I)V");
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        gMidSetChatAreaW = NULL;
+    }
     gMidScrollChat = (*env)->GetStaticMethodID(env, global, "scrollChat", "(I)V");
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        gMidScrollChat = NULL;
+    }
     gMidGetChatSnap = (*env)->GetStaticMethodID(env, global, "getChatSnapshot", "()Ljava/lang/String;");
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        gMidGetChatSnap = NULL;
+    }
     gMidGetChatLines = (*env)->GetStaticMethodID(env, global, "getChatLines", "()Ljava/lang/String;");
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        gMidGetChatLines = NULL;
+    }
     gMidGetDialogue = (*env)->GetStaticMethodID(env, global, "getDialogueJson", "()Ljava/lang/String;");
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        gMidGetDialogue = NULL;
+    }
     gMidGetDlgSeq = (*env)->GetStaticMethodID(env, global, "getDialogueSeq", "()J");
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        gMidGetDlgSeq = NULL;
+    }
     gMidSetMinimapScale = (*env)->GetStaticMethodID(env, global, "setMinimapScale", "(I)V");
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        gMidSetMinimapScale = NULL;
+    }
     gMidSwitchChatTab = (*env)->GetStaticMethodID(env, global, "switchChatTab", "(I)V");
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        gMidSwitchChatTab = NULL;
+    }
     gMidSetChatCollapsed = (*env)->GetStaticMethodID(env, global, "setChatCollapsed", "(Z)V");
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        gMidSetChatCollapsed = NULL;
+    }
     gMidSetOverlayInsets = (*env)->GetStaticMethodID(env, global, "setOverlaySafeInsets", "(IIII)V");
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        gMidSetOverlayInsets = NULL;
+    }
+    gMidSetOverlayKeepOut = (*env)->GetStaticMethodID(env, global, "setOverlayKeepOut", "([I)V");
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        gMidSetOverlayKeepOut = NULL;
+    }
+    gMidSetHudStrip = (*env)->GetStaticMethodID(env, global, "setHudStrip", "(III)V");
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        gMidSetHudStrip = NULL;
+    }
     gMidPanMap = (*env)->GetStaticMethodID(env, global, "panWorldMap", "(II)V");
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        gMidPanMap = NULL;
+    }
     gMidGetMapSnap = (*env)->GetStaticMethodID(env, global, "getMapSnapshot", "()Ljava/lang/String;");
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        gMidGetMapSnap = NULL;
+    }
     gMidGetOrbSnap = (*env)->GetStaticMethodID(env, global, "getOrbSnapshot", "()Ljava/lang/String;");
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        gMidGetOrbSnap = NULL;
+    }
     gMidTabSprites = (*env)->GetStaticMethodID(env, global, "tabSprites", "()Ljava/lang/String;");
-    if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); }
-    // The two newest optional veneer methods resolve AFTER the batch's clear, each with its own check/clear -
-    // an older jar missing one leaves a pending NoSuchMethodError, and we must not carry that into the next
-    // GetStaticMethodID (it would poison the resolution above, notably the critical getMapSnapshot).
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        gMidTabSprites = NULL;
+    }
     gMidScrollMapPanel = (*env)->GetStaticMethodID(env, global, "scrollMapPanel", "(I)V");
     if ((*env)->ExceptionCheck(env)) {
         (*env)->ExceptionClear(env);
         gMidScrollMapPanel = NULL;
+    }
+    gMidSetChatPutAway = (*env)->GetStaticMethodID(env, global, "setChatPutAway", "(Z)V");
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        gMidSetChatPutAway = NULL;
     }
     gMidOpenWorldMap = (*env)->GetStaticMethodID(env, global, "openWorldMap", "()V");
     if ((*env)->ExceptionCheck(env)) {
@@ -581,11 +708,10 @@ static BOOL ensureMui(void) {
     gMuiResetPlugin = (*env)->GetStaticMethodID(env, global, "resetPluginConfig", "(Ljava/lang/String;)Ljava/lang/String;");
     if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); gMuiResetPlugin = NULL; }
     gMuiNotifDefaults = (*env)->GetStaticMethodID(env, global, "notificationDefaults", "()Ljava/lang/String;");
-    if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); gMuiNotifDefaults = NULL; }
-    gMuiXpAvail = (*env)->GetStaticMethodID(env, global, "xpTrackerAvailable", "()Z");
-    if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); gMuiXpAvail = NULL; }
-    gMuiXpJson = (*env)->GetStaticMethodID(env, global, "xpTrackerJson", "()Ljava/lang/String;");
-    if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); gMuiXpJson = NULL; }
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        gMuiNotifDefaults = NULL;
+    }
     gMuiNotesAvail = (*env)->GetStaticMethodID(env, global, "notesAvailable", "()Z");
     if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); gMuiNotesAvail = NULL; }
     gMuiNotesGet = (*env)->GetStaticMethodID(env, global, "notesGet", "()Ljava/lang/String;");
@@ -623,6 +749,21 @@ static BOOL ensureMui(void) {
     }
     gMuiFireHotkey = (*env)->GetStaticMethodID(env, global, "fireHotkey", "(Ljava/lang/String;Ljava/lang/String;)V");
     if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); gMuiFireHotkey = NULL; }
+    gMuiGameSettings = (*env)->GetStaticMethodID(env, global, "gameSettings", "()Ljava/lang/String;");
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        gMuiGameSettings = NULL;
+    }
+    gMuiSetFpsCap = (*env)->GetStaticMethodID(env, global, "setFpsCap", "(I)Ljava/lang/String;");
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        gMuiSetFpsCap = NULL;
+    }
+    gMuiSetIdleLogout = (*env)->GetStaticMethodID(env, global, "setIdleLogoutMinutes", "(I)Ljava/lang/String;");
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        gMuiSetIdleLogout = NULL;
+    }
     gMuiPublishNotif = (*env)->GetStaticMethodID(env, global, "publishNotification", "(Ljava/lang/String;Ljava/lang/String;)V");
     if ((*env)->ExceptionCheck(env)) {
         (*env)->ExceptionClear(env);
@@ -763,6 +904,39 @@ static BOOL ensureLoot(void) {
         gLootReset = NULL;
     }
     gLootClass = global;
+    return YES;
+}
+
+static BOOL ensureXp(void) {
+    if (gXpClass)
+        return atomic_load(&gVM) != NULL;
+    if (!ensureBridge() || !gMainEnv)
+        return NO;
+    JNIEnv *env = gMainEnv;
+    jclass local = (*env)->FindClass(env, "net/runelite/client/headless/XpTrackerBridge");
+    if (!local || (*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        return NO;
+    }
+    jclass global = (*env)->NewGlobalRef(env, local);
+    (*env)->DeleteLocalRef(env, local);
+    if (!global)
+        return NO;
+    gXpAvail = (*env)->GetStaticMethodID(env, global, "isAvailable", "()Z");
+    gXpSetOpen = (*env)->GetStaticMethodID(env, global, "setUiOpen", "(Z)V");
+    gXpJson = (*env)->GetStaticMethodID(env, global, "getXpJson", "()Ljava/lang/String;");
+    if (!gXpAvail || !gXpSetOpen || !gXpJson) {
+        (*env)->ExceptionClear(env);
+        (*env)->DeleteGlobalRef(env, global);
+        return NO;
+    }
+    // Optional: the rows' skill icons; an older staged jar without it still serves the panel, iconless.
+    gXpIcon = (*env)->GetStaticMethodID(env, global, "getSkillIcon", "(Ljava/lang/String;)Ljava/lang/String;");
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        gXpIcon = NULL;
+    }
+    gXpClass = global;
     return YES;
 }
 
@@ -916,6 +1090,11 @@ static NSString *jstringToNS(JNIEnv *env, jstring js) {
 @implementation JVMLauncher
 
 + (BOOL)isDebuggerAttached {
+#if TARGET_OS_SIMULATOR
+    // What this gates is "the JVM can JIT", and in the simulator that always holds: it runs under macOS rules
+    // and services HotSpot's brk #0x69 in-process (simJitArm), so there is no attach to wait for.
+    return YES;
+#endif
     int flags = 0;
     if (csops(getpid(), CS_OPS_STATUS, &flags, sizeof(flags)) != 0) {
         return NO; // EPERM etc. -> treat as not-yet-debugged
@@ -1027,6 +1206,18 @@ static long xmsMarkerMb(NSString *v) {
 }
 
 + (NSString *)tokensPath {
+#if TARGET_OS_SIMULATOR
+    // -RMSkipLogin YES (the screen goldens, the bridge census): this launch reads and writes a tokens file of its
+    // own, emptied once per launch, so it starts logged out and leaves the simulator's real login alone.
+    if ([[NSUserDefaults standardUserDefaults] boolForKey:@"RMSkipLogin"]) {
+        NSString *skip = [[self appSupportDir] stringByAppendingPathComponent:@"tokens-skiplogin.json"];
+        static dispatch_once_t skipOnce;
+        dispatch_once(&skipOnce, ^{
+            [[NSFileManager defaultManager] removeItemAtPath:skip error:NULL];
+        });
+        return skip;
+    }
+#endif
     NSString *path = [[self appSupportDir] stringByAppendingPathComponent:@"tokens.json"];
     // One-time migration: older builds wrote the session bearer into the Files/USB-exposed Documents dir.
     // Relocate any legacy copy into Application Support and purge the exposed one, so the bearer stops being
@@ -1105,12 +1296,12 @@ static void resetSignalHandlers(void) {
 
 // ───────────────────── Same-session login-crash diagnostics (Phase 6) — STRIP AFTER DIAGNOSIS ─────────────────────
 // Symptom: opening the Jagex login WKWebView earlier in the SAME app session crashes the JVM natively
-// right after RuneLite init; a force-quit + relaunch before Start JVM reaches the game cleanly. The two
+// right after RuneLite init; a force-quit + relaunch before Tap to Play reaches the game cleanly. The two
 // obvious causes are ALREADY defended (resetSignalHandlers() wipes WebKit's POSIX SIGSEGV/SIGBUS handlers;
 // the §6.2 clear drops the task EXC_BAD_ACCESS Mach port), so this dumps the *actual* runtime state to the
 // crash-safe stderr fd (Documents/jvm-stdio.log — dup2'd UNBUFFERED, so it survives even a silent jetsam
-// kill). Run twice and diff: (A) fresh launch → Start JVM (clean baseline) vs (B) fresh launch → Log in →
-// Start JVM (the crash case). What differs pins the cause:
+// kill). Run twice and diff: (A) fresh launch → Tap to Play (clean baseline) vs (B) fresh launch → Log in →
+// Tap to Play (the crash case). What differs pins the cause:
 //   • a non-null BAD_ACCESS port (task or thread) in B → WebKit's JavaScriptCore is stealing HotSpot's
 //     null-check/safepoint faults (exception-port path) → the thread-level clear below should fix it;
 //   • a "custom" SIGSEGV handler surviving into B → a POSIX-handler shadow we're not resetting;
@@ -1297,6 +1488,242 @@ static void restoreBreakpointPortToDebugger(JVMLogSink log) {
     for (mach_msg_type_number_t i = 0; i < nb; i++) if (bp[i]) mach_port_deallocate(mach_task_self(), bp[i]);
 }
 
+#if TARGET_OS_SIMULATOR
+// Simulator stand-in for StikDebug's runelite-jit.js. CodeCache::initialize reserves the code cache with ONE
+// `brk #0x69` (BreakGetJITMapping: size in x0, RX address back in x0), and on a device the debugger answers it.
+// The simulator runs under macOS rules, where a process may map its own RX memory, so a SIGTRAP handler does
+// the debugger's part: vm_allocate + vm_protect(RX), what debugserver's `_M<size>,rx` does. HotSpot then makes
+// its own RW mirror. MAP_JIT does NOT work here: HotSpot can't remap a JIT region and dies at its first stub.
+// The handler and an empty task BREAKPOINT port (so no Mach handler can take the brk first) are in place only
+// for JNI_CreateJavaVM; a debugger that owned that port (Xcode's lldb) gets it back afterwards.
+#define SIM_BRK_JIT_MAPPING 0xD4200D20u // brk #0x69
+
+typedef struct {
+    exception_mask_t masks[EXC_TYPES_COUNT];
+    mach_port_t ports[EXC_TYPES_COUNT];
+    exception_behavior_t behs[EXC_TYPES_COUNT];
+    thread_state_flavor_t flavs[EXC_TYPES_COUNT];
+    mach_msg_type_number_t n;
+} SimBreakpointPorts;
+
+static struct sigaction sSimPrevTrap;
+// Written by the handler and logged after VM creation (no logging inside a signal handler).
+static volatile vm_size_t sSimJitSize;
+static volatile vm_address_t sSimJitAddr;
+static volatile kern_return_t sSimJitKr = KERN_FAILURE;
+
+static void simJitTrap(int sig, siginfo_t *info, void *ucv) {
+    (void)sig;
+    (void)info;
+    ucontext_t *uc = (ucontext_t *)ucv;
+    uint64_t pc = uc->uc_mcontext->__ss.__pc;
+    if (*(const uint32_t *)pc != SIM_BRK_JIT_MAPPING) {
+        sigaction(SIGTRAP, &sSimPrevTrap, NULL); // not ours: the trap re-runs under the previous disposition
+        return;
+    }
+    // Safe in a handler here: this trap is synchronous (one known HotSpot instruction, no lock held), and for our
+    // own task vm_allocate/vm_protect are direct Mach traps (_kernelrpc_mach_vm_*_trap), not MIG messages.
+    vm_size_t size = (vm_size_t)uc->uc_mcontext->__ss.__x[0];
+    vm_address_t addr = 0;
+    kern_return_t kr = vm_allocate(mach_task_self(), &addr, size, VM_FLAGS_ANYWHERE);
+    if (kr == KERN_SUCCESS) {
+        kr = vm_protect(mach_task_self(), addr, size, FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
+        if (kr != KERN_SUCCESS) {
+            vm_deallocate(mach_task_self(), addr, size);
+            addr = 0;
+        }
+    }
+    sSimJitSize = size;
+    sSimJitAddr = addr;
+    sSimJitKr = kr;
+    uc->uc_mcontext->__ss.__x[0] = addr; // 0 = failed; HotSpot reports the failed reservation itself
+    uc->uc_mcontext->__ss.__pc = pc + 4;
+}
+
+static void simJitArm(SimBreakpointPorts *saved, JVMLogSink log) {
+    struct sigaction sa;
+    memset(&sa, 0, sizeof sa);
+    sa.sa_sigaction = simJitTrap;
+    sa.sa_flags = SA_SIGINFO;
+    sigemptyset(&sa.sa_mask);
+    if (sigaction(SIGTRAP, &sa, &sSimPrevTrap) != 0)
+        log([NSString stringWithFormat:@"[jvm] sim JIT: SIGTRAP handler NOT armed (errno %d); the VM's brk#0x69 "
+                                       @"will kill the app",
+                                       errno]);
+
+    saved->n = EXC_TYPES_COUNT;
+    kern_return_t kr = task_get_exception_ports(mach_task_self(), EXC_MASK_BREAKPOINT, saved->masks, &saved->n,
+                                                saved->ports, saved->behs, saved->flavs);
+    if (kr != KERN_SUCCESS) {
+        // Without the old ports there would be nothing to put back, so leave them in place.
+        saved->n = 0;
+        log([NSString stringWithFormat:@"[jvm] sim JIT: task BREAKPOINT ports unreadable kr=%d; left as they are", kr]);
+        return;
+    }
+    kr = task_set_exception_ports(mach_task_self(), EXC_MASK_BREAKPOINT, MACH_PORT_NULL, EXCEPTION_DEFAULT,
+                                  MACHINE_THREAD_STATE);
+    log([NSString stringWithFormat:@"[jvm] sim JIT: SIGTRAP handler armed, task BREAKPOINT port cleared kr=%d "
+                                   @"(%u saved)",
+                                   kr, saved->n]);
+}
+
+static void simJitDisarm(SimBreakpointPorts *saved, JVMLogSink log) {
+    // Only while SIGTRAP is still ours: a handler the VM installed for itself during creation stays.
+    struct sigaction cur;
+    if (sigaction(SIGTRAP, NULL, &cur) == 0 && cur.sa_sigaction == simJitTrap)
+        sigaction(SIGTRAP, &sSimPrevTrap, NULL);
+    for (mach_msg_type_number_t i = 0; i < saved->n; i++) {
+        if (saved->ports[i] == MACH_PORT_NULL)
+            continue;
+        task_set_exception_ports(mach_task_self(), saved->masks[i], saved->ports[i], saved->behs[i],
+                                 saved->flavs[i]);
+        mach_port_deallocate(mach_task_self(), saved->ports[i]);
+    }
+    log([NSString stringWithFormat:@"[jvm] sim JIT: brk#0x69 size=0x%lx -> RX 0x%lx kr=%d; handler disarmed",
+                                   (unsigned long)sSimJitSize, (unsigned long)sSimJitAddr, sSimJitKr]);
+}
+
+// Bridge census (dev-tools/bridge-census/run-census-sim.sh). `-RMBridgeCensus <name>` names a list in Documents of
+// every class, method and field the native code looks up through JNI (bridge-census/extract-lookups.py). A thread
+// of its own waits for the client's first frame, resolves each entry against the running VM and writes
+// Documents/bridge-census-result.txt: an OK or MISSING line per entry, then a DONE line. A renamed or
+// re-signatured bridge method then fails here, not as a silent NULL on the phone. Every lookup clears its own
+// exception: HotSpot returns NULL for any lookup made while one is pending, so one miss would hide the next.
+static NSString *simCensusTakeException(JNIEnv *env) {
+    jthrowable exc = (*env)->ExceptionOccurred(env);
+    (*env)->ExceptionClear(env);
+    if (!exc)
+        return @"lookup returned NULL with no exception";
+    NSString *text = @"(exception without a readable toString)";
+    jclass oc = (*env)->FindClass(env, "java/lang/Object");
+    jmethodID ts = oc ? (*env)->GetMethodID(env, oc, "toString", "()Ljava/lang/String;") : NULL;
+    jstring js = ts ? (jstring)(*env)->CallObjectMethod(env, exc, ts) : NULL;
+    if (js && !(*env)->ExceptionCheck(env)) {
+        const char *c = (*env)->GetStringUTFChars(env, js, NULL);
+        NSString *s = c ? [NSString stringWithUTF8String:c] : nil;
+        if (c)
+            (*env)->ReleaseStringUTFChars(env, js, c);
+        if (s)
+            text = s;
+    }
+    (*env)->ExceptionClear(env);
+    if (js)
+        (*env)->DeleteLocalRef(env, js);
+    if (oc)
+        (*env)->DeleteLocalRef(env, oc);
+    (*env)->DeleteLocalRef(env, exc);
+    NSCharacterSet *breaks = [NSCharacterSet characterSetWithCharactersInString:@"\t\r\n"];
+    return [[text componentsSeparatedByCharactersInSet:breaks] componentsJoinedByString:@" "];
+}
+
+static void simBridgeCensusRun(NSString *listPath, NSString *resultPath, JVMLogSink log) {
+    NSString *list = [NSString stringWithContentsOfFile:listPath encoding:NSUTF8StringEncoding error:NULL];
+    JavaVM *vm = atomic_load(&gVM);
+    JNIEnv *env = NULL;
+    if (!list || !vm || (*vm)->AttachCurrentThreadAsDaemon(vm, (void **)&env, NULL) != JNI_OK || !env) {
+        NSString *why = list ? @"could not attach to the VM" : [@"could not read " stringByAppendingString:listPath];
+        [[NSString stringWithFormat:@"ERROR\t%@\n", why] writeToFile:resultPath
+                                                          atomically:YES
+                                                            encoding:NSUTF8StringEncoding
+                                                               error:NULL];
+        log([@"[census] ERROR " stringByAppendingString:why]);
+        return;
+    }
+
+    // Lookups initialize classes, so start once the client has drawn a frame: by then the bridge classes have
+    // initialized the way they do in a normal session. JavaBridge itself is touched from the first UI tick.
+    NSDate *start = [NSDate date];
+    int seq = 0;
+    jclass jb = (*env)->FindClass(env, "net/runelite/client/headless/JavaBridge");
+    jmethodID getSeq = jb ? (*env)->GetStaticMethodID(env, jb, "getFrameSeq", "()I") : NULL;
+    (*env)->ExceptionClear(env);
+    while (getSeq && seq <= 0 && -[start timeIntervalSinceNow] < 300.0) {
+        [NSThread sleepForTimeInterval:0.25];
+        seq = (*env)->CallStaticIntMethod(env, jb, getSeq);
+        if ((*env)->ExceptionCheck(env)) {
+            (*env)->ExceptionClear(env);
+            seq = 0;
+        }
+    }
+    if (jb)
+        (*env)->DeleteLocalRef(env, jb);
+    int waitedMs = (int)(-[start timeIntervalSinceNow] * 1000.0);
+
+    NSMutableString *out = [NSMutableString string];
+    int checked = 0, missing = 0;
+    for (NSString *line in [list componentsSeparatedByString:@"\n"]) {
+        @autoreleasepool {
+            if (line.length == 0)
+                continue;
+            checked++;
+            NSArray<NSString *> *f = [line componentsSeparatedByString:@"\t"];
+            NSString *entry = line, *problem = nil;
+            if (f.count < 4) {
+                problem = @"malformed list line";
+            } else {
+                entry = [[f subarrayWithRange:NSMakeRange(0, 4)] componentsJoinedByString:@"\t"];
+                NSString *kind = f[0];
+                const char *name = f[2].UTF8String, *sig = f[3].UTF8String;
+                jclass c = (*env)->FindClass(env, f[1].UTF8String);
+                if (!c || (*env)->ExceptionCheck(env)) {
+                    problem = simCensusTakeException(env);
+                } else {
+                    BOOL found = YES;
+                    if ([kind isEqualToString:@"smethod"])
+                        found = (*env)->GetStaticMethodID(env, c, name, sig) != NULL;
+                    else if ([kind isEqualToString:@"method"])
+                        found = (*env)->GetMethodID(env, c, name, sig) != NULL;
+                    else if ([kind isEqualToString:@"sfield"])
+                        found = (*env)->GetStaticFieldID(env, c, name, sig) != NULL;
+                    else if ([kind isEqualToString:@"field"])
+                        found = (*env)->GetFieldID(env, c, name, sig) != NULL;
+                    else if (![kind isEqualToString:@"class"])
+                        problem = [@"unknown kind " stringByAppendingString:kind];
+                    if (!problem && (!found || (*env)->ExceptionCheck(env)))
+                        problem = simCensusTakeException(env);
+                    (*env)->DeleteLocalRef(env, c);
+                }
+            }
+            if (problem) {
+                missing++;
+                [out appendFormat:@"MISSING\t%@\t%@\n", entry, problem];
+                log([NSString stringWithFormat:@"[census] MISSING %@ (%@)",
+                                               [entry stringByReplacingOccurrencesOfString:@"\t"
+                                                                                withString:@" "],
+                                               problem]);
+            } else {
+                [out appendFormat:@"OK\t%@\n", entry];
+            }
+        }
+    }
+    [out appendFormat:@"DONE\tchecked=%d\tmissing=%d\tframeSeq=%d\twaitedMs=%d\n", checked, missing, seq, waitedMs];
+    NSError *err = nil;
+    if (![out writeToFile:resultPath atomically:YES encoding:NSUTF8StringEncoding error:&err])
+        log([NSString stringWithFormat:@"[census] ERROR writing %@: %@", resultPath, err.localizedDescription]);
+    log([NSString stringWithFormat:@"[census] checked=%d missing=%d (first frame after %d ms, seq %d)", checked,
+                                   missing, waitedMs, seq]);
+    (*vm)->DetachCurrentThread(vm);
+}
+
+static void simBridgeCensusStart(JVMLogSink log) {
+    NSString *name = [[NSUserDefaults standardUserDefaults] stringForKey:@"RMBridgeCensus"].lastPathComponent;
+    if (name.length == 0)
+        return;
+    NSString *docs = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
+    NSString *list = [docs stringByAppendingPathComponent:name];
+    NSString *result = [docs stringByAppendingPathComponent:@"bridge-census-result.txt"];
+    [[NSFileManager defaultManager] removeItemAtPath:result error:NULL];
+    log([NSString stringWithFormat:@"[census] will check the lookups in %@ after the first frame", name]);
+    // Class initialization can run deep; give the thread a VM-sized stack rather than NSThread's 512 KB.
+    NSThread *t = [[NSThread alloc] initWithBlock:^{
+        simBridgeCensusRun(list, result, log);
+    }];
+    t.name = @"bridge-census";
+    t.stackSize = 4 << 20;
+    [t start];
+}
+#endif
+
 // Public wrapper (JVMLauncher.h): lets the shell re-run the repair after a MID-SESSION WebKit load (the
 // session-expired re-login) — the boot-time call above only protects VM creation.
 + (void)restoreBreakpointPortNow:(JVMLogSink)log {
@@ -1336,14 +1763,14 @@ static void callMain(JNIEnv *env, const char *className, NSArray<NSString *> *ar
     }
 }
 
-// Force the OSRS gamepack into the RESIZABLE - CLASSIC layout before the VM boots. The engine persists the
+// Force the OSRS gamepack into the resizable PRE_EOC layout (Resizable - Modern) before the VM boots. The engine persists the
 // display settings client-side in preferences.dat: byte[3] is the window mode (1 = fixed/classic,
-// 2 = resizable) and byte[1] is the resizable arrangement (0 = classic/PRE_EOC, 1 = modern/OSRS_STRETCH,
-// mirrored live by VarbitID.RESIZABLE_STONE_ARRANGEMENT; see MobileChromeBridge). Our entire native HUD is
-// gated on the resizable-Classic root (isResized() + PRE_EOC toplevel 164): an account last saved in the
-// desktop "Fixed - Classic" layout would boot pillarboxed (765x503, brown border), and one saved in
-// resizable-Modern lands on the unsupported 161/165 root. Pin BOTH control bytes each launch (leaving the
-// user's audio/brightness bytes untouched). Byte values verified against the Android classic seed vs a live
+// 2 = resizable) and byte[1] is the resizable arrangement (0 = PRE_EOC, the value pinned here; the game
+// reports the arrangement live as VarbitID.RESIZABLE_STONE_ARRANGEMENT, where 1 = PRE_EOC; see MobileChromeBridge).
+// Our entire native HUD is gated on the PRE_EOC root (isResized() + toplevel 164, Resizable - Modern): an account
+// last saved in the desktop "Fixed - Classic" layout would boot pillarboxed (765x503, brown border), and one
+// saved in Resizable - Classic lands on the unsupported 161/165 root. Pin BOTH control bytes each launch (leaving the
+// user's audio/brightness bytes untouched). Byte values verified against the Android seed vs a live
 // device pull. Mirrors the Android ensureResizableDisplayMode path. rlHome == user.home; the gamepack cache
 // lives at user.home/.runelite/jagexcache/oldschool/LIVE (see RuneLite.copyJagexCache).
 static void RMEnsureResizableDisplayMode(NSString *rlHome, JVMLogSink log) {
@@ -1359,7 +1786,7 @@ static void RMEnsureResizableDisplayMode(NSString *rlHome, JVMLogSink log) {
                 bytes[3] = 0x02;
                 changed = YES;
             }
-            if (bytes[1] != 0x00) { // arrangement -> classic (PRE_EOC)
+            if (bytes[1] != 0x00) { // arrangement -> PRE_EOC (Resizable - Modern)
                 bytes[1] = 0x00;
                 changed = YES;
             }
@@ -1374,8 +1801,8 @@ static void RMEnsureResizableDisplayMode(NSString *rlHome, JVMLogSink log) {
                                       withIntermediateDirectories:YES
                                                        attributes:nil
                                                             error:nil];
-            // Minimal valid OSRS preferences.dat: window mode = resizable (byte[3]=02), arrangement = classic
-            // (byte[1]=00). Matches the Android classic seed.
+            // Minimal valid OSRS preferences.dat: window mode = resizable (byte[3]=02), arrangement = PRE_EOC
+            // (byte[1]=00). Matches the Android seed.
             // clang-format off
             const uint8_t seed[] = {
                 0x0c, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x32, 0x00, 0x00,
@@ -1535,7 +1962,7 @@ static void RMEnsureResizableDisplayMode(NSString *rlHome, JVMLogSink log) {
         // 1.13.4-SNAPSHOT client certainly has, while a newer manifest can call API added after our merge base
         // and fail at load. check-hub-pin.sh holds this equal to runelite.properties; change both, and verify
         // the manifest answers 200 first.
-        @"-Drunelite.pluginhub.version=1.13.3",
+        @"-Drunelite.pluginhub.version=1.13.4",
         @"-Drunelite.rendererpanel=true", // arm RendererPanelStarter: load GPU + 117HD (no-start) into
                                           // the panel so both are selectable + configurable.
         @"-Drunelite.nosplash=true",      // no desktop Swing splash (its JFrame creation under CACIO
@@ -1687,19 +2114,19 @@ static void RMEnsureResizableDisplayMode(NSString *rlHome, JVMLogSink log) {
         [opts addObjectsFromArray:@[
             @"-Drunelite.headless.autologin=true",
             @"-Drunelite.headless.autologin.eula=true",
-            @"-Drunelite.headless.autologin.eula.point=302,312",  // EULA Accept centre (765x503 device frame)
-            @"-Drunelite.headless.autologin.eula.loginIndex=12",  // observed EULA sub-state on device
-            @"-Drunelite.headless.autologin.point=382,248",       // Play Now centre (desktop-proven)
-            @"-Drunelite.headless.autologin.world=301",           // F2P world (throwaway account)
+            @"-Drunelite.headless.autologin.eula.point=302,312", // EULA Accept centre (765x503 device frame)
+            @"-Drunelite.headless.autologin.eula.loginIndex=12", // observed EULA sub-state on device
+            @"-Drunelite.headless.autologin.point=382,248",      // Play Now centre (desktop-proven)
+            @"-Drunelite.headless.autologin.world=301",          // F2P world (throwaway account)
             @"-Drunelite.headless.autologin.worldAddress=oldschool1.runescape.com",
             // Play Now only crosses LOGIN_SCREEN -> LOGGED_IN; the gamepack then PARKS on the post-login
             // "Welcome to Gielinor / Click here to play" screen with the world NOT yet per-frame-rendered
-            // (viewport 0x0, topLevelIf 165). WelcomePlayProbe clicks the real WelcomeScreen.PLAY widget bounds
-            // to enter the world — WITHOUT it the engine never drives the scene render (the black-3D-scene
-            // blocker; reproduced + resolved on desktop, see ios/dev-tools/gpu-routec/BLACK-SCENE-DIAGNOSIS.md).
-            @"-Drunelite.headless.welcomeplay=true",
+            // (viewport 0x0, topLevelIf 165). HeadlessLogin clicks the real WelcomeScreen.PLAY widget bounds
+            // to enter the world after every login, reconnects and hops included - WITHOUT it the engine never
+            // drives the scene render (the black-3D-scene blocker; see
+            // ios/dev-tools/gpu-routec/BLACK-SCENE-DIAGNOSIS.md).
         ]];
-        log(@"[jvm] autologin ARMED: EULA 302,312 (idx 12) -> Play Now 382,248 -> WelcomePlay (enter world), world 301/oldschool1");
+        log(@"[jvm] autologin ARMED: EULA 302,312 (idx 12) -> Play Now 382,248 -> Click here to play (enter world), world 301/oldschool1");
     }
 
     JavaVMOption *vmopts = (JavaVMOption *)calloc(opts.count, sizeof(JavaVMOption));
@@ -1762,7 +2189,14 @@ static void RMEnsureResizableDisplayMode(NSString *rlHome, JVMLogSink log) {
 
     JavaVM *vm = NULL;
     JNIEnv *env = NULL;
+#if TARGET_OS_SIMULATOR
+    SimBreakpointPorts simPorts;
+    simJitArm(&simPorts, log);
+#endif
     jint rc = JNI_CreateJavaVM(&vm, (void **)&env, &vmArgs);
+#if TARGET_OS_SIMULATOR
+    simJitDisarm(&simPorts, log);
+#endif
     if (rc != JNI_OK || !vm || !env) { log([NSString stringWithFormat:@"[jvm] FATAL JNI_CreateJavaVM rc=%d", rc]); return -14; }
     // Publish the VM so the main thread's live-blit + touch bridge can attach into it (atomic store —
     // the main thread loads it with atomic_load in ensureBridge).
@@ -1807,6 +2241,10 @@ static void RMEnsureResizableDisplayMode(NSString *rlHome, JVMLogSink log) {
         }
     }
 
+#if TARGET_OS_SIMULATOR
+    if (!self.routecL1Mode)
+        simBridgeCensusStart(log);
+#endif
     if (self.routecL1Mode) {
         callMain(env, "RouteCL1Probe", @[], log);   // GPU Route C L1 kill-test (verdict -> jvm-stdio.log)
     } else {
@@ -1945,6 +2383,77 @@ static void RMEnsureResizableDisplayMode(NSString *rlHome, JVMLogSink log) {
     }
 }
 
+// The camera zoom the game draws with (JavaBridge.cameraZoom), or -1 while logged out, before the bridge is up or on
+// an older jar.
++ (int)cameraZoom {
+    if (!ensureBridge() || !gMidCameraZoom || !gMainEnv)
+        return -1;
+    JNIEnv *env = gMainEnv;
+    jint z = (*env)->CallStaticIntMethod(env, gBridgeClass, gMidCameraZoom);
+    if ((*env)->ExceptionCheck(env)) {
+        bridgeNoteClear(env, "JVMLauncher.cameraZoom");
+        return -1;
+    }
+    return (int)z;
+}
+
+// Ask for a camera zoom (JavaBridge.setCameraZoom); the game applies it, clamped to its limits, once logged in.
++ (void)setCameraZoom:(int)zoom {
+    if (!ensureBridge() || !gMidSetCameraZoom || !gMainEnv)
+        return;
+    JNIEnv *env = gMainEnv;
+    (*env)->CallStaticVoidMethod(env, gBridgeClass, gMidSetCameraZoom, (jint)zoom);
+    if ((*env)->ExceptionCheck(env))
+        bridgeNoteClear(env, "JVMLauncher.setCameraZoom");
+}
+
+// Ask for a w x h canvas (JavaBridge.requestResize): the game resizes on its next draw, or, before login, takes it as
+// the size to resize to at login. NO before the bridge is up or on an older jar.
++ (BOOL)requestResizeWidth:(int)w height:(int)h {
+    if (!ensureBridge() || !gMidRequestResize || !gMainEnv)
+        return NO;
+    JNIEnv *env = gMainEnv;
+    (*env)->CallStaticVoidMethod(env, gBridgeClass, gMidRequestResize, (jint)w, (jint)h);
+    if ((*env)->ExceptionCheck(env)) {
+        bridgeNoteClear(env, "JVMLauncher.requestResize");
+        return NO;
+    }
+    return YES;
+}
+
+// The canvas the game draws now, hidden strip included (JavaBridge.canvasWidth/canvasHeight); 0 before the client is up.
+static int canvasSide(jmethodID mid, const char *where) {
+    if (!ensureBridge() || !mid || !gMainEnv)
+        return 0;
+    JNIEnv *env = gMainEnv;
+    jint v = (*env)->CallStaticIntMethod(env, gBridgeClass, mid);
+    if ((*env)->ExceptionCheck(env)) {
+        bridgeNoteClear(env, where);
+        return 0;
+    }
+    return (int)v;
+}
+
++ (int)canvasWidth {
+    return canvasSide(gMidCanvasW, "JVMLauncher.canvasWidth");
+}
+
++ (int)canvasHeight {
+    return canvasSide(gMidCanvasH, "JVMLauncher.canvasHeight");
+}
+
+// The top rows of the canvas that reach the screen (+setShownRows:); 0 = all of them.
+static _Atomic int gShownRows = 0;
+
++ (void)setShownRows:(int)rows {
+    atomic_store(&gShownRows, rows > 0 ? rows : 0);
+}
+
+static jint shownRows(jint h) {
+    int rows = atomic_load(&gShownRows);
+    return rows > 0 && rows < h ? (jint)rows : h;
+}
+
 + (UIImage *)latestFrame {
     if (!ensureBridge()) return nil;
     JNIEnv *env = gMainEnv;
@@ -1970,6 +2479,8 @@ static void RMEnsureResizableDisplayMode(NSString *rlHome, JVMLogSink log) {
     jsize len = (*env)->GetArrayLength(env, arr);
     NSUInteger need = (NSUInteger)w * (NSUInteger)h;
     if ((NSUInteger)len < need) { (*env)->DeleteLocalRef(env, arr); return nil; }
+    h = shownRows(h);
+    need = (NSUInteger)w * (NSUInteger)h;
 
     // PERF-1: rotating scratch ring backing the CGImage DIRECTLY — the old path copied the frame twice
     // (Java array -> scratch, scratch -> CFData). Depth 3 means a buffer isn't rewritten until two more
@@ -2106,6 +2617,7 @@ static void pipFeedOnce(const PipFeedJni *j, AVSampleBufferDisplayLayer *layer, 
         (*env)->DeleteLocalRef(env, arr);
         return;
     }
+    h = shownRows(h);
 
     // Recycling pool (IOSurface-backed, what the video pipeline wants); rebuilt if the canvas resizes.
     static CVPixelBufferPoolRef pool = NULL;
@@ -2597,6 +3109,20 @@ static BOOL pipFeedMarkerSaysMain(void) {
     return r == JNI_TRUE;
 }
 
++ (int)textInputKind {
+    if (!ensureBridge())
+        return 0;
+    if (!gMidInputKind)
+        return [self textInputOpen] ? 1 : 0; // older jar: open means text
+    JNIEnv *env = gMainEnv;
+    jint r = (*env)->CallStaticIntMethod(env, gBridgeClass, gMidInputKind);
+    if ((*env)->ExceptionCheck(env)) {
+        bridgeNoteClear(env, "JVMLauncher.textInputKind");
+        return 0;
+    }
+    return (int)r;
+}
+
 // Direct-present reveal gate: YES once the world geometry is uploaded (JavaBridge.presentReady). Returns YES if
 // the bridge/method isn't available so it can never permanently block revealing the GPU layer.
 + (BOOL)sceneWarmedUp {
@@ -2789,6 +3315,34 @@ static BOOL pipFeedMarkerSaysMain(void) {
     if ((*env)->ExceptionCheck(env)) { bridgeNoteClear(env, "JVMLauncher.setEngineOverlaySafeInsets"); }
 }
 
++ (void)setEngineOverlayKeepOut:(const int *)rects count:(int)count {
+    if (!ensureVeneer() || !gMidSetOverlayKeepOut)
+        return;
+    JNIEnv *env = gMainEnv;
+    jintArray a = (*env)->NewIntArray(env, count);
+    if (a == NULL) {
+        bridgeNoteClear(env, "JVMLauncher.setEngineOverlayKeepOut");
+        return;
+    }
+    if (count > 0)
+        (*env)->SetIntArrayRegion(env, a, 0, count, (const jint *)rects);
+    (*env)->CallStaticVoidMethod(env, gVeneerClass, gMidSetOverlayKeepOut, a);
+    (*env)->DeleteLocalRef(env, a);
+    if ((*env)->ExceptionCheck(env)) {
+        bridgeNoteClear(env, "JVMLauncher.setEngineOverlayKeepOut");
+    }
+}
+
++ (void)setEngineHudStripRows:(int)visibleRows windowTop:(int)top bottom:(int)bottom {
+    if (!ensureVeneer() || !gMidSetHudStrip)
+        return;
+    JNIEnv *env = gMainEnv;
+    (*env)->CallStaticVoidMethod(env, gVeneerClass, gMidSetHudStrip, (jint)visibleRows, (jint)top, (jint)bottom);
+    if ((*env)->ExceptionCheck(env)) {
+        bridgeNoteClear(env, "JVMLauncher.setEngineHudStrip");
+    }
+}
+
 + (void)scrollEngineChat:(int)deltaCanvasPx {
     if (!ensureVeneer() || !gMidScrollChat) return;
     JNIEnv *env = gMainEnv;
@@ -2820,6 +3374,16 @@ static BOOL pipFeedMarkerSaysMain(void) {
     JNIEnv *env = gMainEnv;
     (*env)->CallStaticVoidMethod(env, gVeneerClass, gMidSetChatCollapsed, (jboolean)(collapsed ? JNI_TRUE : JNI_FALSE));
     if ((*env)->ExceptionCheck(env)) { bridgeNoteClear(env, "JVMLauncher.setEngineChatCollapsed"); }
+}
+
++ (void)setEngineChatPutAway:(BOOL)putAway {
+    if (!ensureVeneer() || !gMidSetChatPutAway)
+        return;
+    JNIEnv *env = gMainEnv;
+    (*env)->CallStaticVoidMethod(env, gVeneerClass, gMidSetChatPutAway, (jboolean)(putAway ? JNI_TRUE : JNI_FALSE));
+    if ((*env)->ExceptionCheck(env)) {
+        bridgeNoteClear(env, "JVMLauncher.setEngineChatPutAway");
+    }
 }
 
 + (NSString *)chatSnapshot {
@@ -2974,6 +3538,29 @@ static BOOL pipFeedMarkerSaysMain(void) {
     NSString *out = jstringToNS(env, (jstring)(*env)->CallStaticObjectMethod(env, gMuiClass, gMuiResetPlugin, jg));
     (*env)->DeleteLocalRef(env, jg);
     return out;
+}
+
+// Native Game settings: the frame-rate cap and idle logout time, which ride on the FPS Control and Logout Timer
+// plugins (MobileUiBridge.gameSettings / setFpsCap / setIdleLogoutMinutes).
++ (NSString *)gameSettings {
+    if (!ensureMui() || !gMuiGameSettings)
+        return nil;
+    JNIEnv *env = gMainEnv;
+    return jstringToNS(env, (jstring)(*env)->CallStaticObjectMethod(env, gMuiClass, gMuiGameSettings));
+}
+
++ (NSString *)setFpsCap:(int)fps {
+    if (!ensureMui() || !gMuiSetFpsCap)
+        return nil;
+    JNIEnv *env = gMainEnv;
+    return jstringToNS(env, (jstring)(*env)->CallStaticObjectMethod(env, gMuiClass, gMuiSetFpsCap, (jint)fps));
+}
+
++ (NSString *)setIdleLogoutMinutes:(int)minutes {
+    if (!ensureMui() || !gMuiSetIdleLogout)
+        return nil;
+    JNIEnv *env = gMainEnv;
+    return jstringToNS(env, (jstring)(*env)->CallStaticObjectMethod(env, gMuiClass, gMuiSetIdleLogout, (jint)minutes));
 }
 
 // Fully-seeded default Notification JSON (NOTIF-2): the base for a per-notification sub-editor.
@@ -3140,13 +3727,20 @@ static BOOL pipFeedMarkerSaysMain(void) {
 
 // Fire-and-forget config flush for the iOS UI paths (panel/overlay/config close, app background). gMuiFlush is
 // bound to Java flushConfigQueued (QA-P1-03), so this enqueues the fsync on the client thread and returns at once
-// without stalling the main thread.
-+ (void)mobileFlushConfig {
-    if (!ensureMui()) return;
+// without stalling the main thread. Callers that must know the file is written poll the returned write id.
++ (long long)mobileFlushConfig {
+    if (!ensureMui())
+        return 0;
     JNIEnv *env = gMainEnv;
     jstring js = (jstring)(*env)->CallStaticObjectMethod(env, gMuiClass, gMuiFlush);
-    if ((*env)->ExceptionCheck(env)) { bridgeNoteClear(env, "JVMLauncher.mobileFlushConfig"); return; }
-    if (js) (*env)->DeleteLocalRef(env, js);
+    if ((*env)->ExceptionCheck(env)) {
+        bridgeNoteClear(env, "JVMLauncher.mobileFlushConfig");
+        return 0;
+    }
+    NSString *out = js ? jstringToNS(env, js) : nil;
+    NSData *d = [out dataUsingEncoding:NSUTF8StringEncoding];
+    NSDictionary *r = d ? [NSJSONSerialization JSONObjectWithData:d options:0 error:NULL] : nil;
+    return [r isKindOfClass:[NSDictionary class]] && [r[@"ok"] boolValue] ? [r[@"writeId"] longLongValue] : 0;
 }
 
 + (NSString *)mobileHubManifest {
@@ -3175,19 +3769,49 @@ static BOOL pipFeedMarkerSaysMain(void) {
     return jstringToNS(env, (jstring)(*env)->CallStaticObjectMethod(env, gMuiClass, gMuiListPanels));
 }
 
-// Native XP Tracker panel (§3.4): availability gate + the live per-skill session JSON. nil/NO on an older jar.
+// Native XP Tracker panel (§3.4, XpTrackerBridge): availability gate, the open/closed bracket that gates the
+// client-thread snapshot refresh, the snapshot itself, and each skill's icon. nil/NO on an older jar.
 + (BOOL)xpTrackerAvailable {
-    if (!ensureMui() || !gMuiXpAvail) return NO;
+    if (!ensureXp())
+        return NO;
     JNIEnv *env = gMainEnv;
-    jboolean v = (*env)->CallStaticBooleanMethod(env, gMuiClass, gMuiXpAvail);
-    if ((*env)->ExceptionCheck(env)) { bridgeNoteClear(env, "JVMLauncher.xpTrackerAvailable"); return NO; }
+    jboolean v = (*env)->CallStaticBooleanMethod(env, gXpClass, gXpAvail);
+    if ((*env)->ExceptionCheck(env)) {
+        bridgeNoteClear(env, "JVMLauncher.xpTrackerAvailable");
+        return NO;
+    }
     return v ? YES : NO;
 }
 
-+ (NSString *)xpTrackerJson {
-    if (!ensureMui() || !gMuiXpJson) return nil;
++ (void)xpTrackerSetUiOpen:(BOOL)open {
+    if (!ensureXp())
+        return;
     JNIEnv *env = gMainEnv;
-    return jstringToNS(env, (jstring)(*env)->CallStaticObjectMethod(env, gMuiClass, gMuiXpJson));
+    (*env)->CallStaticVoidMethod(env, gXpClass, gXpSetOpen, (jboolean)(open ? 1 : 0));
+    if ((*env)->ExceptionCheck(env))
+        bridgeNoteClear(env, "JVMLauncher.xpTrackerSetUiOpen");
+}
+
++ (NSString *)xpTrackerJson {
+    if (!ensureXp())
+        return nil;
+    JNIEnv *env = gMainEnv;
+    return jstringToNS(env, (jstring)(*env)->CallStaticObjectMethod(env, gXpClass, gXpJson));
+}
+
++ (NSString *)xpTrackerSkillIcon:(NSString *)skill {
+    if (!ensureXp() || !gXpIcon || skill == nil)
+        return nil;
+    JNIEnv *env = gMainEnv;
+    jstring js = (*env)->NewStringUTF(env, skill.UTF8String ?: "");
+    NSString *out = jstringToNS(env, (jstring)(*env)->CallStaticObjectMethod(env, gXpClass, gXpIcon, js));
+    if ((*env)->ExceptionCheck(env)) {
+        bridgeNoteClear(env, "JVMLauncher.xpTrackerSkillIcon");
+        out = nil;
+    }
+    if (js)
+        (*env)->DeleteLocalRef(env, js);
+    return out;
 }
 
 // Native Notes panel (§3.4): availability + read/write the single note string. nil/NO on an older jar.

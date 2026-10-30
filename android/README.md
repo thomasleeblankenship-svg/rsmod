@@ -18,7 +18,7 @@ android/
       java/dev/audaro/runemobile/   # MainActivity, JvmLauncher (JNI facade), AssetInstaller
       cpp/                          # CMake + jvm_bootstrap.cpp (JNI_CreateJavaVM)
       assets/jvm/                   # staged jars + the JRE's non-native tree (gitignored, except hello.jar)
-      jniLibs/arm64-v8a/            # the JRE's .so libs (gitignored) — see "Why jniLibs" below
+      jniLibs/arm64-v8a/            # keep empty: never the JRE's .so (see below)
 ```
 
 ## The JRE goes in assets ONLY — do NOT mirror the .so into jniLibs
@@ -36,13 +36,15 @@ native-initiated absolute-path dlopen of the app's own data here.
 > non-absolute `dli_fname`; its `realpath()` then fails, the toolkit-path `malloc` is handed a garbage length,
 > and the VM aborts **`FATAL ERROR in native method: Could not allocate library name`** during
 > `java.awt.Toolkit.<clinit>` — before CACIO can take over. Symptom looked JRE-specific but reproduced
-> identically across two independent bionic jre21 builds; the cure is filesDir-only. `jniLibs/` should hold
-> only the CMake-built `librunemobile.so` (which Gradle places there automatically — not staged by hand).
+> identically across two independent bionic jre21 builds; the cure is filesDir-only. Leave `jniLibs/` empty:
+> Gradle packages the CMake-built `librunemobile.so` and `librlawt.so` from its own build output, not from there.
 
-## Prerequisites already set up on this Mac
-- SDK at `~/Library/Android/sdk` (platform-35, build-tools 35, platform-tools, emulator, arm64 system image).
-- NDK `27.0.12077973`. AVD `rl_arm64` (Android 35, google_apis, arm64-v8a).
-- `JAVA_HOME=/opt/homebrew/opt/openjdk@21` for Gradle/AGP.
+## Prerequisites
+- Android SDK with platform 35 (`compileSdk`/`targetSdk` 35, `minSdk` 28), build-tools and platform-tools; add the
+  emulator and an arm64 system image (e.g. an Android 35 google_apis arm64-v8a AVD) for emulator runs.
+- NDK + CMake: `ndkVersion` is not pinned, so the build uses the Android Gradle Plugin's default; install the
+  version Gradle asks for.
+- A JDK 21 for Gradle/AGP, e.g. `JAVA_HOME=/opt/homebrew/opt/openjdk@21`.
 
 Create `android/local.properties` with `sdk.dir=/Users/<you>/Library/Android/sdk` (gitignored).
 
@@ -77,8 +79,10 @@ cd android && ./gradlew :app:assembleRelease            # 7. never bare `assembl
 ```
 
 (Android deliberately does **not** stage `shaded.jar` — its boot classpath is `[gpu : rlhd : probes]` (SLM-JAR-01);
-the runtime stage still folds the shaded SHA into `runtime.tag` so a shared-Java change invalidates installs. Or
-run `./gradlew :app:stageBootAssets` to do steps 1–6 in one Gradle task — see below.)
+the runtime stage still folds the shaded SHA into `runtime.tag` so a shared-Java change invalidates installs.
+`./gradlew :app:stageBootAssets`, which every build runs first, also does steps 1–6, but each step runs only when
+its output is missing: it stages a fresh clone and never rebuilds a jar that is already there. After a shared-Java
+change or an upstream merge that keeps the version, rerun steps 2–6 by hand.)
 
 The two native libraries (`librunemobile.so`, `librlawt.so`) are **not** staged — Gradle's CMake
 `externalNativeBuild` builds them from tracked `cpp/` source automatically.
