@@ -330,6 +330,7 @@ public class HeadlessLoginTest
 		assertTrue(HeadlessLogin.requestRelogin(0, null, false));
 		assertTrue(HeadlessLogin.isLoginInProgress());
 		tickN(GameState.LOGIN_SCREEN, WELCOME_LOGIN_INDEX, 5);
+		HeadlessLogin.noteSceneDraw();   // RuneMobile 0.6.0: a login completes once the scene draws
 		tickN(GameState.LOGGED_IN, -1, 1);
 		assertFalse("the relogin completed", HeadlessLogin.isLoginInProgress());
 		assertFalse(HeadlessLogin.isLoginGivenUp());
