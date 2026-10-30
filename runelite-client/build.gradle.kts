@@ -206,6 +206,14 @@ tasks.pmdMain {
     exclude("**/net/runelite/client/plugins/microbot/Rs2Leprechaun.java")
     // Byte-identical copy of upstream Microbot a2114401's bank object id table (style flag is upstream's).
     exclude("**/net/runelite/client/plugins/microbot/util/gameobject/Rs2BankID.java")
+    // Upstream Microbot a2114401 copies (anti-ban, natural-mouse library, world and login utilities):
+    // their style flags (unnecessary casts and qualifiers, unused locals) are upstream's.
+    exclude("**/net/runelite/client/plugins/microbot/util/antiban/enums/PlayStyle.java")
+    exclude("**/net/runelite/client/plugins/microbot/util/mouse/naturalmouse/api/**")
+    exclude("**/net/runelite/client/plugins/microbot/util/mouse/naturalmouse/support/**")
+    exclude("**/net/runelite/client/plugins/microbot/util/mouse/naturalmouse/util/**")
+    exclude("**/net/runelite/client/plugins/microbot/util/security/Encryption.java")
+    exclude("**/net/runelite/client/plugins/microbot/util/world/Rs2WorldUtil.java")
     // KSP Chopper, byte-identical to KSPOG/ksppluginsrelease (see third_party/ksp/NOTICE.md): its style is the author's.
     exclude("**/net/runelite/client/plugins/microbot/kspwillowchopper/**")
 }

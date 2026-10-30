@@ -169,7 +169,15 @@ public class HubReadBatchTwelveTest
 		when(client.getCanvasWidth()).thenReturn(800);
 		when(client.getCanvasHeight()).thenReturn(600);
 		assertEquals(new Rectangle(1, 1, 800, 600), Rs2UiHelper.getDefaultRectangle());
-		assertEquals(new Point(15, 25), Rs2UiHelper.getClickingPoint(new Rectangle(10, 20, 10, 10), true));
+		assertEquals(new Point(15, 25), Rs2UiHelper.getClickingPoint(new Rectangle(10, 20, 10, 10), false));
+		java.util.Set<Point> seen = new java.util.HashSet<>();
+		for (int i = 0; i < 200; i++)
+		{
+			Point p = Rs2UiHelper.getClickingPoint(new Rectangle(10, 20, 10, 10), true);
+			assertTrue("a randomised point stays inside the rectangle", new Rectangle(10, 20, 10, 10).contains(p.getX(), p.getY()));
+			seen.add(p);
+		}
+		assertTrue("randomised clicks do not land on one pixel", seen.size() > 5);
 		assertNull(Rs2UiHelper.getClickingPoint(null, true));
 		assertNull("the fallback rectangle has no real target", Rs2UiHelper.getClickingPoint(Rs2UiHelper.getDefaultRectangle(), false));
 		assertEquals(new Point(401, 301), Rs2UiHelper.getClickingPoint(Rs2UiHelper.getDefaultRectangle(), false, false));

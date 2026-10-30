@@ -16,9 +16,8 @@ import net.runelite.client.plugins.microbot.util.Global;
  * position {@link #click()} uses, as a touchscreen has no pointer to move. A drag and a wheel
  * scroll are one script action each.
  * <p>
- * Not provided, so that code needing them does not compile rather than silently doing nothing:
- * right clicks and upstream's humanised
- * pointer movement (anti-detection behaviour, not ported).
+ * Clicking a rectangle picks a randomised point in it, as upstream. Not provided, so that code
+ * needing them does not compile rather than silently doing nothing: right clicks.
  */
 public final class Mouse
 {
@@ -48,10 +47,17 @@ public final class Mouse
 		return point == null ? this : click(point.getX(), point.getY());
 	}
 
-	/** As upstream: the centre of {@code rectangle}. */
+	/**
+	 * As upstream: a randomised point in {@code rectangle} ({@code Rs2UiHelper.getClickingPoint}), so
+	 * repeated clicks do not land on the same pixel; nothing for a fallback rectangle.
+	 */
 	public Mouse click(Rectangle rectangle)
 	{
-		return rectangle == null ? this : click((int) rectangle.getCenterX(), (int) rectangle.getCenterY());
+		if (net.runelite.client.plugins.microbot.util.misc.Rs2UiHelper.isFallbackRectangle(rectangle))
+		{
+			return this;
+		}
+		return click(net.runelite.client.plugins.microbot.util.misc.Rs2UiHelper.getClickingPoint(rectangle, true, false));
 	}
 
 	/** As upstream: two wheel notches down (10 units) at {@code point}, as one script action. */

@@ -163,6 +163,9 @@ public final class HeadlessLogin
 	private static int pendingHopWorldId;
 	private static String pendingHopWorldAddress;
 	private static boolean pendingHopMembers;
+	// Microbot auto-login (LoginManager): a relogin armed after a deliberate logout. Like a reconnect or a hop
+	// relog it starts from the resized in-world canvas, so its Play Now click is scaled too.
+	private static boolean reloginRequested;
 
 	static
 	{
@@ -303,6 +306,7 @@ public final class HeadlessLogin
 		pendingHopWorldId = 0;
 		pendingHopWorldAddress = null;
 		pendingHopMembers = false;
+		reloginRequested = false;
 		welcomeAttempts = 0;
 		lastWelcomeDraw = 0;
 		welcomeDone = false;
@@ -350,6 +354,67 @@ public final class HeadlessLogin
 		welcomeAttempts = 0;
 		welcomeGaveUp = false;
 		log.info("[headless-login] world-hop relog armed -> W{} ({}) members={}", worldId, address, members);
+	}
+
+	/**
+	 * Microbot auto-login ({@code LoginManager}): re-arms the login machine for a fresh Play Now after a
+	 * deliberate logout (the 6-hour logout, an idle logout, a scheduled break). {@link #tick} recovers a
+	 * CONNECTION_LOST by itself but stays {@code done} after any other logout. With {@code worldId > 0} and an
+	 * address, the client is pointed at that world on the login screen first, as a world-hop relog does.
+	 * Returns false (and does nothing) when autologin is disabled, i.e. there is no Jagex session to log in
+	 * with. Client thread.
+	 */
+	public static boolean requestRelogin(int worldId, String address, boolean members)
+	{
+		if (!ENABLED)
+		{
+			log.warn("[headless-login] relogin requested but autologin is disabled (no Jagex session) — ignoring");
+			return false;
+		}
+		pendingHopActive = worldId > 0 && address != null && !address.isEmpty();
+		pendingHopWorldId = pendingHopActive ? worldId : 0;
+		pendingHopWorldAddress = pendingHopActive ? address : null;
+		pendingHopMembers = pendingHopActive && members;
+		hopAwaitingLogin = false;
+		reloginRequested = true;
+		done = false;
+		gaveUp = false;
+		worldSelected = false;
+		playAttempts = 0;
+		lastPlayDraw = 0;
+		tryAgainAttempts = 0;
+		legacyWelcomeAttempts = 0;
+		legacySubmitAttempts = 0;
+		welcomeDone = false;
+		welcomeAttempts = 0;
+		welcomeGaveUp = false;
+		log.info("[headless-login] relogin armed{}", pendingHopActive ? " -> W" + worldId : "");
+		return true;
+	}
+
+	/** True while a login (initial, reconnect, hop or requested relogin) is still being driven. */
+	public static boolean isLoginInProgress()
+	{
+		return ENABLED && !done;
+	}
+
+	/** True once the login machine exhausted a stage's retries and parked on the login screen. */
+	public static boolean isLoginGivenUp()
+	{
+		return gaveUp;
+	}
+
+	/**
+	 * Taps the login screen at {@code (x, y)} in the 765x503 fixed-login space, scaled to the live canvas
+	 * (dismissing a dialog the login machine does not handle, such as the too-many-attempts lockout).
+	 */
+	public static void tapLoginScreen(Client client, int x, int y)
+	{
+		final Canvas canvas = client == null ? null : client.getCanvas();
+		if (canvas != null)
+		{
+			synthesizeClickScaled(canvas, x, y);
+		}
 	}
 
 	/**
@@ -463,6 +528,7 @@ public final class HeadlessLogin
 				sawConnectionLost = false;
 				reconnectAttempts = 0;
 				gaveUp = false;   // UX-LOGIN-01: a successful login clears any prior give-up
+				reloginRequested = false;
 				// Bug 4: a world-hop relogin completed — clear the pending target so later logins behave normally.
 				if (pendingHopActive)
 				{
@@ -611,7 +677,7 @@ public final class HeadlessLogin
 		// FIX-9: on a reconnect the canvas is the resized in-world size (not 765x503), so scale the click to it.
 		// Bug 4: a hop relog logs out from in-world, so its login canvas is the resized size too — scale there as
 		// well. Initial login (no reconnect, no hop) keeps the exact proven fixed coord — no regression there.
-		if (reconnectAttempts > 0 || pendingHopActive)
+		if (reconnectAttempts > 0 || pendingHopActive || reloginRequested)
 		{
 			synthesizeClickScaled(canvas, CLICK_X, CLICK_Y);
 		}

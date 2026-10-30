@@ -41,6 +41,22 @@ public class ConfigProfile
 	@Getter
 	@Setter(AccessLevel.PACKAGE)
 	private String name;
+	/** Microbot: membership days left when last read in game, and when (epoch millis) it was read. */
+	@Getter
+	@Setter
+	private long memberExpireDaysTimeStemp;
+	@Getter
+	@Setter
+	private long memberExpireDays;
+	/** Microbot: whether the account is a member, as last observed in game. */
+	@Getter
+	@Setter
+	private boolean isMember;
+	/** Microbot auto-login world: null = not set, -1 = random members, -2 = random F2P, positive = world ID. */
+	@Getter
+	@Setter
+	@Nullable
+	private Integer selectedWorld;
 	@Getter
 	@Setter
 	private boolean sync;

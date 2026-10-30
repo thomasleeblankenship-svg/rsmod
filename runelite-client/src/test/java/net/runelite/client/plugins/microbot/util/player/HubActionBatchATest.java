@@ -141,7 +141,7 @@ public class HubActionBatchATest
 	@Test
 	public void humanisedMouseStaysOffAndTheRunThresholdHasUpstreamsDefault()
 	{
-		assertNull("no humanised input: scripts skip their naturalMouse branches", Microbot.naturalMouse);
+		assertNotNull("the humanised mouse drives the anti-ban's random and off-screen moves", Microbot.naturalMouse);
 		assertEquals(1000, Microbot.runEnergyThreshold);
 	}
 }

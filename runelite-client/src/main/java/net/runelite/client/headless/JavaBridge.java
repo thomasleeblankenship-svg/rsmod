@@ -938,7 +938,9 @@ public final class JavaBridge
 			scriptWalkStatus = "Walk tile is outside the viewport";
 			return false;
 		}
-		if (!onScriptClick(point.getX(), point.getY(), owner))
+		final net.runelite.api.Point tap = jitterInTile(point, net.runelite.api.Perspective.getCanvasTilePoly(c, local),
+			new Rectangle(c.getViewportXOffset() + 4, c.getViewportYOffset() + 4, c.getViewportWidth() - 8, c.getViewportHeight() - 8));
+		if (!onScriptClick(tap.getX(), tap.getY(), owner))
 		{
 			scriptWalkStatus = "Walk input is busy or cancelled";
 			return false;
@@ -978,13 +980,46 @@ public final class JavaBridge
 			scriptWalkStatus = "Minimap point is outside the safe disc";
 			return false;
 		}
-		if (!onScriptClick(point.getX(), point.getY(), owner))
+		// Up to a pixel off the tile's centre (a minimap tile is ~4 px), so repeated walks do not tap one pixel.
+		int x = point.getX() + java.util.concurrent.ThreadLocalRandom.current().nextInt(-1, 2);
+		int y = point.getY() + java.util.concurrent.ThreadLocalRandom.current().nextInt(-1, 2);
+		if (!insideMinimapDisc(bounds, x, y))
+		{
+			x = point.getX();
+			y = point.getY();
+		}
+		if (!onScriptClick(x, y, owner))
 		{
 			scriptWalkStatus = "Walk input is busy or cancelled";
 			return false;
 		}
 		scriptWalkStatus = "Minimap walk to " + destination;
 		return true;
+	}
+
+	/**
+	 * A gaussian point around {@code centre} that stays inside the tile's canvas outline and
+	 * {@code allowed}, so repeated scene walks do not tap the same pixel; {@code centre} when the tile
+	 * has no outline or no sample fits.
+	 */
+	static net.runelite.api.Point jitterInTile(net.runelite.api.Point centre, java.awt.Polygon tile, Rectangle allowed)
+	{
+		if (tile == null)
+		{
+			return centre;
+		}
+		final Rectangle box = tile.getBounds();
+		final java.util.concurrent.ThreadLocalRandom random = java.util.concurrent.ThreadLocalRandom.current();
+		for (int attempt = 0; attempt < 8; attempt++)
+		{
+			final int x = (int) Math.round(centre.getX() + random.nextGaussian() * box.width / 8.0);
+			final int y = (int) Math.round(centre.getY() + random.nextGaussian() * box.height / 8.0);
+			if (tile.contains(x, y) && allowed.contains(x, y))
+			{
+				return new net.runelite.api.Point(x, y);
+			}
+		}
+		return centre;
 	}
 
 	/** Fraction of the minimap's half-size treated as safe to tap (keeps clear of the rim and orbs). */
@@ -1018,6 +1053,38 @@ public final class JavaBridge
 		discardCancelledScriptTap();
 		return tapState != TapState.IDLE || queuedTap || pressed || shiftHeld || ctrlHeld || altHeld
 			|| camHoldDxPerSec != 0 || camHoldDyPerSec != 0;
+	}
+
+	/**
+	 * One step of a script's pointer path (anti-ban mouse simulation): a {@code MOUSE_MOVED} to
+	 * {@code (x, y)}, or, for a point off the canvas, {@code MOUSE_EXITED} where the path left it. No
+	 * button, no game action, so it is not throttled to one per tick; refused while the user owns input
+	 * or any tap, drag or held key is in flight. Any thread.
+	 */
+	public static boolean onScriptPointerMove(int x, int y, ScriptInputSession owner)
+	{
+		final Canvas canvas = liveCanvas();
+		if (owner == null || !owner.isActive() || MicrobotRuntime.humanOwnsInput() || canvas == null
+			|| scriptDragging || scriptInputBusy())
+		{
+			return false;
+		}
+		final int width = canvas.getWidth();
+		final int height = canvas.getHeight();
+		if (x >= 0 && y >= 0 && x < width && y < height)
+		{
+			postMove(canvas, x, y);
+			return true;
+		}
+		if (entered)
+		{
+			final int edgeX = Math.max(0, Math.min(width - 1, x));
+			final int edgeY = Math.max(0, Math.min(height - 1, y));
+			final EventQueue q = Toolkit.getDefaultToolkit().getSystemEventQueue();
+			postPointer(q, new MouseEvent(canvas, MouseEvent.MOUSE_EXITED, System.currentTimeMillis(), 0, edgeX, edgeY, 0, false));
+			entered = false;
+		}
+		return true;
 	}
 
 	/** Script keyboard input never enters the native/manual-input path. */

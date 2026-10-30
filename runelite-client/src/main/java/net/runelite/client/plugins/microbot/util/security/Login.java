@@ -18,14 +18,51 @@ import net.runelite.http.api.worlds.WorldType;
  * {@code a2114401bbbc35e9762db9e8aa666d70ffcd24d8} (BSD 2-Clause): {@code getRandomWorld} and
  * {@code getNextWorld} keep upstream's filters (no PvP, high-risk, Deadman, beta, tournament,
  * skill-total or other special worlds; under 1,950 players; seasonal only from a seasonal world)
- * and fallbacks (world 360 members, 383 free). Not ported: logging in ({@code new Login(...)}),
- * which types stored credentials; RuneMobile's own login handles that.
+ * and fallbacks (world 360 members, 383 free). {@code new Login(...)} logs in as upstream, through
+ * {@link LoginManager}: on mobile that is the Jagex session's Play Now, so the username and password
+ * arguments are not used.
  */
-public final class Login
+public class Login
 {
 	private static final int MAX_PLAYER_COUNT = 1950;
 
-	private Login() { }
+	/** As upstream: logs in to the current world when it is a real one, else a random one matching the account. */
+	public Login()
+	{
+		this(defaultWorld());
+	}
+
+	public Login(int world)
+	{
+		LoginManager.login(world);
+	}
+
+	public Login(String username, String password)
+	{
+		this(username, password, 360);
+	}
+
+	public Login(String username, String password, int world)
+	{
+		LoginManager.login(username, password, world);
+	}
+
+	/** As upstream: points the next login at {@code worldNumber}. */
+	public void setWorld(int worldNumber)
+	{
+		LoginManager.setWorld(worldNumber);
+	}
+
+	private static int defaultWorld()
+	{
+		int current = currentWorld();
+		if (current > 300)
+		{
+			return current;
+		}
+		net.runelite.client.config.ConfigProfile profile = LoginManager.getActiveProfile();
+		return getRandomWorld(profile != null && profile.isMember());
+	}
 
 	public static int getRandomWorld(boolean isMembers)
 	{

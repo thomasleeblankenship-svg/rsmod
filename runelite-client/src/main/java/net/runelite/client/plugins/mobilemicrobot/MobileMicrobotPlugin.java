@@ -18,7 +18,9 @@ import net.runelite.client.headless.ScriptInputSession;
 import net.runelite.client.plugins.microbot.MicrobotRuntime;
 import net.runelite.client.plugins.microbot.MicrobotScriptAdapter;
 import net.runelite.client.plugins.microbot.api.MicrobotReadServices;
+import net.runelite.client.plugins.microbot.accountselector.AutoLoginSuppressionRequest;
 import net.runelite.client.plugins.microbot.mobile.MobileActions;
+import net.runelite.client.plugins.microbot.util.security.LoginManager;
 import net.runelite.client.plugins.microbot.statemachineexample.StateMachineExampleConfig;
 import net.runelite.client.plugins.microbot.statemachineexample.StateMachineExampleScript;
 import net.runelite.client.plugins.Plugin;
@@ -66,6 +68,11 @@ public class MobileMicrobotPlugin extends Plugin
 	private ScriptKind activeKind;
 	private int tickCount;
 	private final HubPluginHost hub = new HubPluginHost(net.runelite.client.plugins.microbot.Microbot::stopPlugin);
+	private final MobileAutoLogin autoLogin = new MobileAutoLogin(() -> enabled && config.autoLogin(),
+		() -> config.autoLoginWorld(), () -> client.getLoginIndex(), System::currentTimeMillis);
+	private java.util.concurrent.ScheduledExecutorService autoLoginExecutor;
+	private boolean membershipRefreshed;
+	private GameState previousGameState = GameState.UNKNOWN;
 
 	@Provides
 	MobileMicrobotConfig provideConfig(ConfigManager manager)
@@ -81,6 +88,22 @@ public class MobileMicrobotPlugin extends Plugin
 		commandGeneration.incrementAndGet();
 		// Never auto-resume on launch, even if a synced config previously had Run=true.
 		setRun(false);
+		autoLoginExecutor = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(runnable ->
+		{
+			Thread thread = new Thread(runnable, "mobile-auto-login");
+			thread.setDaemon(true);
+			return thread;
+		});
+		autoLogin.start(autoLoginExecutor);
+		net.runelite.client.plugins.microbot.breakhandler.BreakHandlerScript.start(breakSettings(), System.currentTimeMillis());
+		autoLoginExecutor.scheduleWithFixedDelay(this::tickBreakHandler, 600, 600, java.util.concurrent.TimeUnit.MILLISECONDS);
+		net.runelite.client.plugins.microbot.util.antiban.AntibanPlugin.start();
+		net.runelite.client.plugins.microbot.util.antiban.AntibanPlugin.setMasterEnabled(config.antiban());
+		// As upstream's MicrobotPlugin: the hop allowance survives restarts (per network).
+		autoLoginExecutor.execute(() -> net.runelite.client.plugins.microbot.util.security.HopBudget.getInstance().persistTo(
+			new java.io.File(net.runelite.client.RuneLite.RUNELITE_DIR,
+				net.runelite.client.plugins.microbot.util.security.HopBudget.FILE_NAME).toPath(),
+			net.runelite.client.plugins.microbot.util.security.HopBudget.networkKey()));
 		clientThread.invokeLater(() ->
 		{
 			if (lifecycle != lifecycleGeneration.get())
@@ -145,6 +168,14 @@ public class MobileMicrobotPlugin extends Plugin
 		setRun(false);
 		MobileScriptBridge.detach(this);
 		hub.end(true);
+		autoLogin.stop();
+		net.runelite.client.plugins.microbot.breakhandler.BreakHandlerScript.stop();
+		net.runelite.client.plugins.microbot.util.antiban.AntibanPlugin.stop();
+		if (autoLoginExecutor != null)
+		{
+			autoLoginExecutor.shutdownNow();
+			autoLoginExecutor = null;
+		}
 		clientThread.invokeLater(() ->
 		{
 			try
@@ -169,6 +200,8 @@ public class MobileMicrobotPlugin extends Plugin
 		{
 			tickCount = 0;
 			net.runelite.client.plugins.microbot.util.walker.Rs2Walker.setUsePathfinder(config.usePathfinder());
+			net.runelite.client.plugins.microbot.util.antiban.AntibanPlugin.setMasterEnabled(config.antiban());
+			net.runelite.client.plugins.microbot.breakhandler.BreakHandlerScript.settingsChanged();
 			if ("runScript".equals(event.getKey()))
 			{
 				if (!config.runScript())
@@ -185,6 +218,7 @@ public class MobileMicrobotPlugin extends Plugin
 					cancelInput();
 					// One script at a time: a mobile script start turns off an active Hub plugin.
 					hub.end(true);
+					autoLogin.resume();
 					inputSession = new ScriptInputSession();
 					restartRequested = true;
 				}
@@ -196,6 +230,19 @@ public class MobileMicrobotPlugin extends Plugin
 	public void onGameStateChanged(GameStateChanged event)
 	{
 		GameState state = event.getGameState();
+		if (isLoginServerRequest(previousGameState, state))
+		{
+			// As upstream: every login or hop the login server sees spends one of the hop allowance.
+			net.runelite.client.plugins.microbot.util.security.HopBudget.getInstance().recordHop();
+		}
+		previousGameState = state;
+		LoginManager.setLastKnownGameState(state);
+		autoLogin.observe(state);
+		net.runelite.client.plugins.microbot.util.antiban.AntibanPlugin.onGameStateChanged(state);
+		if (state == GameState.LOGGED_IN)
+		{
+			membershipRefreshed = false;
+		}
 		if (state == GameState.HOPPING && MobileActions.isExpectedHop())
 		{
 			// The running script asked for this hop (Microbot.hopToWorld); it keeps its session.
@@ -205,6 +252,16 @@ public class MobileMicrobotPlugin extends Plugin
 		}
 		if (state != GameState.LOGGED_IN && state != GameState.LOADING)
 		{
+			if (keepsScriptsThroughLogout() && (current != null || hub.isRunning()))
+			{
+				// Auto-login (or the break handler, after its break) signs back in; the script keeps its
+				// session and continues once logged in.
+				boolean onBreak = net.runelite.client.plugins.microbot.breakhandler.BreakHandlerScript.isBreakActive();
+				LOG.info("Logged out ({}); {} will sign back in and the script continues", state, onBreak ? "the break handler" : "auto-login");
+				MobileScriptBridge.update(onBreak ? "Paused: on a break; logs back in afterwards" : "Paused: logged out; auto-login is signing back in",
+					hub.isRunning() ? HubPluginHost.name(hub.activePlugin()) : activeKind == null ? "" : activeKind.name(), true);
+				return;
+			}
 			commandGeneration.incrementAndGet();
 			stopActive("Stopped: signed out, hopping or disconnected");
 			if (hub.end(true))
@@ -217,6 +274,12 @@ public class MobileMicrobotPlugin extends Plugin
 				setRun(false);
 			}
 		}
+	}
+
+	/** As upstream's {@code MicrobotPlugin.isLoginServerRequest}: a login or hop reaching the login server. */
+	static boolean isLoginServerRequest(GameState previous, GameState next)
+	{
+		return next == GameState.LOGGING_IN && previous != GameState.HOPPING && previous != GameState.LOGGING_IN;
 	}
 
 	/** Hub plugins: enabling one in the plugin list is the explicit start; see {@link HubPluginHost}. */
@@ -236,6 +299,7 @@ public class MobileMicrobotPlugin extends Plugin
 				setRun(false);
 				clientThread.invokeLater(() -> stopActive("Stopped: a Hub plugin was started"));
 			}
+			autoLogin.resume();
 			String status = hub.started(plugin, enabled && runtimeInstalled);
 			MobileScriptBridge.update(status, HubPluginHost.name(plugin), hub.isRunning());
 		}
@@ -251,6 +315,27 @@ public class MobileMicrobotPlugin extends Plugin
 				MobileScriptBridge.update("Hub plugin stopped: " + HubPluginHost.name(plugin)
 					+ (reason.isEmpty() ? "" : " - " + reason), "", false);
 			}
+		}
+	}
+
+	/**
+	 * As upstream's {@code AutoLoginPlugin}: a script's terminal logout ({@code Rs2Player.logoutWithoutAutoLogin})
+	 * holds auto-login off until a script starts again or the user logs in.
+	 */
+	@Subscribe
+	public void onAutoLoginSuppressionRequest(AutoLoginSuppressionRequest event)
+	{
+		if (event.isRenewal())
+		{
+			autoLogin.renewSuppression();
+		}
+		else if (event.isLoggedOut())
+		{
+			autoLogin.holdLoggedOut();
+		}
+		else
+		{
+			autoLogin.suppress();
 		}
 	}
 
@@ -273,15 +358,19 @@ public class MobileMicrobotPlugin extends Plugin
 	public void onStatChanged(StatChanged event)
 	{
 		net.runelite.client.plugins.microbot.Microbot.setIsGainingExp(true);
+		if (enabled)
+		{
+			net.runelite.client.plugins.microbot.util.antiban.AntibanPlugin.onStatChanged(event);
+		}
 	}
 
-	/** Feeds upstream's cooking-activity read ({@code AntibanPlugin.isCooking}). */
+	/** Feeds the anti-ban engine's cooking-activity read ({@code AntibanPlugin.isCooking}). */
 	@Subscribe
 	public void onChatMessage(net.runelite.api.events.ChatMessage event)
 	{
 		if (enabled)
 		{
-			net.runelite.client.plugins.microbot.util.antiban.Rs2Antiban.onChatMessage(event);
+			net.runelite.client.plugins.microbot.util.antiban.AntibanPlugin.onChatMessage(event);
 		}
 	}
 
@@ -292,8 +381,14 @@ public class MobileMicrobotPlugin extends Plugin
 		{
 			return;
 		}
-		// Upstream's idle-tick and mining tracking ({@code Category.isBusy}, {@code AntibanPlugin.isMining}).
-		net.runelite.client.plugins.microbot.util.antiban.Rs2Antiban.onGameTick();
+		if (!membershipRefreshed)
+		{
+			// The membership varp is loaded by the first tick in game; auto-login's world choice reads it.
+			membershipRefreshed = true;
+			LoginManager.refreshMembership();
+		}
+		// The anti-ban engine: idle and mining tracking, action cooldowns, micro-break release, play styles.
+		net.runelite.client.plugins.microbot.util.antiban.AntibanPlugin.onGameTick();
 		if (hub.checkSession())
 		{
 			MobileScriptBridge.update("Hub plugin stopped: input session cancelled (app backgrounded or input fault)", "", false);
@@ -323,7 +418,10 @@ public class MobileMicrobotPlugin extends Plugin
 		}
 		if (client.getGameState() != GameState.LOGGED_IN || client.getLocalPlayer() == null)
 		{
-			stopActive("Paused: not logged in");
+			if (!keepsScriptsThroughLogout())
+			{
+				stopActive("Paused: not logged in");
+			}
 			return;
 		}
 
@@ -426,6 +524,85 @@ public class MobileMicrobotPlugin extends Plugin
 		}
 	}
 
+	/** A logout only pauses the script: auto-login, or the break handler after its break, signs back in. */
+	private boolean keepsScriptsThroughLogout()
+	{
+		return autoLogin.keepsScriptsThroughLogout() || net.runelite.client.plugins.microbot.breakhandler.BreakHandlerScript.isBreakActive();
+	}
+
+	private void tickBreakHandler()
+	{
+		try
+		{
+			net.runelite.client.plugins.microbot.breakhandler.BreakHandlerScript.tick(System.currentTimeMillis());
+		}
+		catch (RuntimeException exception)
+		{
+			LOG.warn("Break handler step failed", exception);
+		}
+	}
+
+	/** The break handler reads the plugin's break settings live. */
+	private net.runelite.client.plugins.microbot.breakhandler.BreakHandlerScript.Settings breakSettings()
+	{
+		return new net.runelite.client.plugins.microbot.breakhandler.BreakHandlerScript.Settings()
+		{
+			@Override
+			public boolean scheduledBreaks()
+			{
+				return config.antiban() && config.breakHandler();
+			}
+
+			@Override
+			public int playMinutesMin()
+			{
+				return config.breakPlayMin();
+			}
+
+			@Override
+			public int playMinutesMax()
+			{
+				return config.breakPlayMax();
+			}
+
+			@Override
+			public int breakMinutesMin()
+			{
+				return config.breakLengthMin();
+			}
+
+			@Override
+			public int breakMinutesMax()
+			{
+				return config.breakLengthMax();
+			}
+
+			@Override
+			public boolean logoutOnBreak()
+			{
+				return config.breakLogout();
+			}
+
+			@Override
+			public boolean onlyMicroBreaks()
+			{
+				return config.breakOnlyMicro();
+			}
+
+			@Override
+			public boolean scriptRunning()
+			{
+				return inputActive();
+			}
+
+			@Override
+			public boolean loginHeld()
+			{
+				return autoLogin.loginHeld();
+			}
+		};
+	}
+
 	boolean inputActive()
 	{
 		ScriptInputSession session = inputSession;
@@ -470,6 +647,7 @@ public class MobileMicrobotPlugin extends Plugin
 		cancelInput();
 		hub.end(true);
 		final ScriptInputSession permission = new ScriptInputSession();
+		autoLogin.resume();
 		clientThread.invokeLater(() ->
 		{
 			if (!enabled || generation != commandGeneration.get() || !permission.isActive())

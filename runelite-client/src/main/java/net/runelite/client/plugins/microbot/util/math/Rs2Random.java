@@ -16,8 +16,8 @@ import net.runelite.client.plugins.microbot.util.Global;
  * chsami/Microbot {@code util/math/Rs2Random.java} at
  * {@code a2114401bbbc35e9762db9e8aa666d70ffcd24d8} (BSD 2-Clause); they only return numbers
  * (scripts use them for thresholds and wait lengths) and move no input. Waits are mobile: bounded,
- * cancellable, never on the client thread. Not ported: the skewed {@code EWaitDir} waits and
- * mouse-point randomisation.
+ * cancellable, never on the client thread. {@link #randomPointEx} picks script click points.
+ * Not ported: the skewed {@code EWaitDir} waits.
  */
 public final class Rs2Random
 {
@@ -222,6 +222,31 @@ public final class Rs2Random
 				return sample;
 			}
 		}
+	}
+
+	/**
+	 * As upstream: a point in {@code rect} for a click that comes from {@code from}. The mode is
+	 * pulled from {@code from} toward the centre by {@code force} (0 to 1), and each axis is a skewed
+	 * gaussian around it, so repeated clicks on the same target land on different pixels. Mobile:
+	 * the far edge is exclusive, so the point is always inside {@code rect}.
+	 */
+	public static net.runelite.api.Point randomPointEx(net.runelite.api.Point from, java.awt.Rectangle rect, double force)
+	{
+		int left = rect.x;
+		int top = rect.y;
+		int right = rect.x + Math.max(rect.width - 1, 0);
+		int bottom = rect.y + Math.max(rect.height - 1, 0);
+		int px = Math.min(Math.max(from.getX(), left), right);
+		int py = Math.min(Math.max(from.getY(), top), bottom);
+		double cx = rect.x + rect.width / 2.0;
+		double cy = rect.y + rect.height / 2.0;
+		double r = Math.hypot(px - cx, py - cy) * force;
+		double angle = Math.atan2(cy - py, cx - px);
+		long modeX = px + Math.round(Math.cos(angle) * r);
+		long modeY = py + Math.round(Math.sin(angle) * r);
+		int x = (int) Math.min(Math.max(skewedRand(modeX, left, right, GAUSS_CUTOFF), left), right);
+		int y = (int) Math.min(Math.max(skewedRand(modeY, top, bottom, GAUSS_CUTOFF), top), bottom);
+		return new net.runelite.api.Point(x, y);
 	}
 
 	public static boolean diceFractional(double fractionalChance)

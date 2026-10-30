@@ -4,6 +4,7 @@ import java.awt.Rectangle;
 import java.awt.Shape;
 import net.runelite.api.Actor;
 import net.runelite.client.plugins.microbot.mobile.MobileActions;
+import net.runelite.client.plugins.microbot.util.math.Rs2Random;
 import net.runelite.client.plugins.microbot.util.text.Rs2TextSanitizer;
 
 /** On-screen geometry and text helpers. Written for RuneMobile; reads happen on the client thread. */
@@ -114,10 +115,11 @@ public final class Rs2UiHelper
 	}
 
 	/**
-	 * The point to click in {@code rectangle}: its centre. RuneMobile adaptation: humanised input
-	 * stays inert by policy, so {@code randomize} does not jitter the point; a {@code null}
-	 * rectangle (or, with {@code resolveFallback}, the default canvas rectangle) gives {@code null}
-	 * instead of upstream's mouse resting point.
+	 * As upstream: the point to click in {@code rectangle}. With {@code randomize}, a skewed gaussian
+	 * point ({@link Rs2Random#randomPointEx}) pulled from the last click toward the centre by this
+	 * session's click force, so a script does not tap the same pixel every time; otherwise the centre.
+	 * RuneMobile adaptation: a {@code null} rectangle (or, with {@code resolveFallback}, the default
+	 * canvas rectangle) gives {@code null} instead of upstream's mouse resting point.
 	 */
 	public static net.runelite.api.Point getClickingPoint(Rectangle rectangle, boolean randomize, boolean resolveFallback)
 	{
@@ -126,7 +128,40 @@ public final class Rs2UiHelper
 		{
 			return null;
 		}
-		return new net.runelite.api.Point((int) rectangle.getCenterX(), (int) rectangle.getCenterY());
+		if (!randomize || rectangle.width <= 1 && rectangle.height <= 1)
+		{
+			return new net.runelite.api.Point((int) rectangle.getCenterX(), (int) rectangle.getCenterY());
+		}
+		net.runelite.api.Point from = net.runelite.client.plugins.microbot.Microbot.getMouse().getLastClick();
+		if (from == null || from.getX() < 0 || from.getY() < 0)
+		{
+			// No click yet this session: start from the centre, so the first point is still random.
+			from = new net.runelite.api.Point((int) rectangle.getCenterX(), (int) rectangle.getCenterY());
+		}
+		return Rs2Random.randomPointEx(from, rectangle, getSessionClickForce());
+	}
+
+	private static final double CLICK_FORCE_MIN = 0.55;
+	private static final double CLICK_FORCE_MAX = 0.95;
+	private static volatile double sessionClickForce;
+
+	/** As upstream: how strongly this session's clicks pull toward a target's centre, picked once. */
+	static double getSessionClickForce()
+	{
+		double cached = sessionClickForce;
+		if (cached != 0.0)
+		{
+			return cached;
+		}
+		synchronized (Rs2UiHelper.class)
+		{
+			if (sessionClickForce == 0.0)
+			{
+				sessionClickForce = CLICK_FORCE_MIN + java.util.concurrent.ThreadLocalRandom.current().nextDouble()
+					* (CLICK_FORCE_MAX - CLICK_FORCE_MIN);
+			}
+			return sessionClickForce;
+		}
 	}
 
 	/** As upstream: whether {@code rectangle} lies wholly on the canvas. */

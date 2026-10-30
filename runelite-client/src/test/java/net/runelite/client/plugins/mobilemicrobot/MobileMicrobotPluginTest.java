@@ -42,8 +42,10 @@ public class MobileMicrobotPluginTest
 	private static class Settings implements MobileMicrobotConfig
 	{
 		boolean run;
+		boolean autoLogin;
 		ScriptKind kind = ScriptKind.DIAGNOSTICS;
 		@Override public boolean runScript() { return run; }
+		@Override public boolean autoLogin() { return autoLogin; }
 		@Override public ScriptKind selectedScript() { return kind; }
 	}
 
@@ -232,6 +234,39 @@ public class MobileMicrobotPluginTest
 			plugin.onGameStateChanged(lost);
 			assertFalse(config.run);
 		}
+	}
+
+	@Test
+	public void withAutoLoginALogoutPausesTheScriptAndItContinuesAfterLogin()
+	{
+		config.autoLogin = true;
+		start("DIAGNOSTICS");
+		for (GameState state : new GameState[]{GameState.CONNECTION_LOST, GameState.LOGIN_SCREEN})
+		{
+			GameStateChanged event = new GameStateChanged();
+			event.setGameState(state);
+			plugin.onGameStateChanged(event);
+			assertTrue(state.name(), config.run);
+		}
+		assertTrue(MobileScriptBridge.statusJson().contains("auto-login is signing back in"));
+		GameStateChanged back = new GameStateChanged();
+		back.setGameState(GameState.LOGGED_IN);
+		plugin.onGameStateChanged(back);
+		plugin.onGameTick(new GameTick());
+		assertTrue(config.run);
+		assertTrue(MobileScriptBridge.statusJson().contains("\"running\":true"));
+	}
+
+	@Test
+	public void withAutoLoginATerminalLogoutStillStopsTheScript()
+	{
+		config.autoLogin = true;
+		start("DIAGNOSTICS");
+		plugin.onAutoLoginSuppressionRequest(new net.runelite.client.plugins.microbot.accountselector.AutoLoginSuppressionRequest());
+		GameStateChanged event = new GameStateChanged();
+		event.setGameState(GameState.LOGIN_SCREEN);
+		plugin.onGameStateChanged(event);
+		assertFalse(config.run);
 	}
 
 	@Test

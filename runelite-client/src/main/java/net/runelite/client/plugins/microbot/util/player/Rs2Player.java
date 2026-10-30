@@ -623,11 +623,16 @@ public final class Rs2Player
 	}
 
 	/**
-	 * As upstream: logs out (closing the bank first) and waits up to 5 s for the login screen.
-	 * Mobile adaptation: there is no auto-login to suppress, so no suppression request is posted.
+	 * As upstream: holds auto-login off ({@code AutoLoginSuppressionRequest}), logs out (closing the bank
+	 * first) and waits up to 5 s for the login screen.
 	 */
 	public static TerminalLogoutState logoutWithoutAutoLogin()
 	{
+		if (net.runelite.client.plugins.microbot.Microbot.getEventBus() != null)
+		{
+			net.runelite.client.plugins.microbot.Microbot.getEventBus().post(
+				new net.runelite.client.plugins.microbot.accountselector.AutoLoginSuppressionRequest());
+		}
 		TerminalLogoutState state = logoutWithoutAutoLoginStep();
 		if (state == TerminalLogoutState.BANK_CLOSING)
 		{

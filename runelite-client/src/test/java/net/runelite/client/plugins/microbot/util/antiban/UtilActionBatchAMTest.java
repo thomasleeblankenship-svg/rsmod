@@ -32,12 +32,12 @@ public class UtilActionBatchAMTest
 			microbot.when(Microbot::isLoggedIn).thenReturn(true);
 			player.when(Rs2Player::getAnimation).thenReturn(-1);
 			player.when(Rs2Player::isAnimating).thenReturn(true);
-			Rs2Antiban.onGameTick();
+			AntibanPlugin.onGameTick();
 			assertFalse(Rs2Antiban.isIdle());
 			assertTrue(Category.SKILLING_CRAFTING.isBusy());
 			player.when(Rs2Player::isAnimating).thenReturn(false);
-			Rs2Antiban.onGameTick();
-			Rs2Antiban.onGameTick();
+			AntibanPlugin.onGameTick();
+			AntibanPlugin.onGameTick();
 			assertTrue(AntibanPlugin.isIdle());
 			assertFalse(Category.SKILLING_CRAFTING.isBusy());
 			microbot.when(Microbot::isLoggedIn).thenReturn(false);
@@ -53,13 +53,13 @@ public class UtilActionBatchAMTest
 		{
 			player.when(Rs2Player::getAnimation).thenReturn(AnimationID.MINING_RUNE_PICKAXE);
 			assertTrue(Rs2Antiban.isMining());
-			Rs2Antiban.onGameTick();
+			AntibanPlugin.onGameTick();
 			player.when(Rs2Player::getAnimation).thenReturn(-1);
 			assertFalse(Rs2Antiban.isMining());
 			assertTrue("mining lingers 3 s", AntibanPlugin.isMining());
 			assertTrue(Rs2Antiban.checkForCookingEvent(chat(ChatMessageType.SPAM, "You successfully cook a lobster.")));
 			assertFalse(Rs2Antiban.checkForCookingEvent(chat(ChatMessageType.GAMEMESSAGE, "You successfully cook a lobster.")));
-			Rs2Antiban.onChatMessage(chat(ChatMessageType.SPAM, "You accidentally burn the lobster."));
+			AntibanPlugin.onChatMessage(chat(ChatMessageType.SPAM, "You accidentally burn the lobster."));
 			assertTrue(AntibanPlugin.isCooking());
 		}
 	}

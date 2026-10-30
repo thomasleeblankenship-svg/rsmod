@@ -17,6 +17,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.MockedStatic;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.*;
@@ -48,18 +49,25 @@ public class MouseTest
 	}
 
 	@Test
-	public void clicksTapThePointOrTheRectangleCentre()
+	public void clicksTapThePointOrARandomisedPointInTheRectangle()
 	{
 		Mouse mouse = new Mouse();
+		Rectangle target = new Rectangle(100, 200, 20, 10);
 		try (MockedStatic<MobileActions> actions = mockStatic(MobileActions.class, CALLS_REAL_METHODS))
 		{
 			actions.when(() -> MobileActions.tap(anyInt(), anyInt())).thenReturn(true);
 			actions.clearInvocations();
 			mouse.click(new Point(40, 50));
-			mouse.click(new Rectangle(100, 200, 20, 10));
 			actions.verify(() -> MobileActions.tap(40, 50));
-			actions.verify(() -> MobileActions.tap(110, 205));
-			assertEquals(new Point(110, 205), mouse.getLastClick());
+			java.util.Set<Point> taps = new java.util.HashSet<>();
+			for (int i = 0; i < 50; i++)
+			{
+				mouse.click(target);
+				Point tapped = mouse.getLastClick();
+				assertTrue(tapped + " is inside the rectangle", target.contains(tapped.getX(), tapped.getY()));
+				taps.add(tapped);
+			}
+			assertTrue("repeated clicks do not tap one pixel", taps.size() > 3);
 		}
 	}
 

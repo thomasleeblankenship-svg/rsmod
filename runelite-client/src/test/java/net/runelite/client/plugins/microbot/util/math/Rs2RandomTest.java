@@ -65,4 +65,21 @@ public class Rs2RandomTest
 		assertFalse(Rs2Random.diceFractional(0));
 		assertTrue(Rs2Random.diceFractional(1));
 	}
+
+	@Test
+	public void randomPointExStaysInsideAndSpreadsOut()
+	{
+		java.awt.Rectangle rect = new java.awt.Rectangle(100, 200, 24, 16);
+		java.util.Set<net.runelite.api.Point> seen = new java.util.HashSet<>();
+		for (int i = 0; i < 2_000; i++)
+		{
+			net.runelite.api.Point from = new net.runelite.api.Point(Rs2Random.between(-50, 400), Rs2Random.between(-50, 400));
+			net.runelite.api.Point p = Rs2Random.randomPointEx(from, rect, 0.75);
+			assertTrue(p + " is inside", rect.contains(p.getX(), p.getY()));
+			seen.add(p);
+		}
+		assertTrue(seen.size() > 50);
+		net.runelite.api.Point single = Rs2Random.randomPointEx(new net.runelite.api.Point(0, 0), new java.awt.Rectangle(5, 6, 1, 1), 0.5);
+		assertEquals(new net.runelite.api.Point(5, 6), single);
+	}
 }

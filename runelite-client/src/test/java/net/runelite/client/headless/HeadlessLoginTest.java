@@ -245,4 +245,34 @@ public class HeadlessLoginTest
 		verify(client, never()).changeWorld(any(World.class));
 		assertFalse("a cancelled hop must not decay into a give-up", HeadlessLogin.hasGivenUp());
 	}
+	@Test
+	public void aDeliberateLogoutStaysDoneUntilAReloginIsRequested()
+	{
+		driveToLoggedIn();
+		// A 6-hour or idle logout is not a CONNECTION_LOST: the machine does not recover it by itself.
+		tickN(GameState.LOGIN_SCREEN, WELCOME_LOGIN_INDEX, 5);
+		assertFalse(HeadlessLogin.isLoginInProgress());
+
+		assertTrue(HeadlessLogin.requestRelogin(0, null, false));
+		assertTrue(HeadlessLogin.isLoginInProgress());
+		tickN(GameState.LOGIN_SCREEN, WELCOME_LOGIN_INDEX, 5);
+		tickN(GameState.LOGGED_IN, -1, 1);
+		assertFalse("the relogin completed", HeadlessLogin.isLoginInProgress());
+		assertFalse(HeadlessLogin.isLoginGivenUp());
+		verify(client, never()).changeWorld(any(World.class));
+	}
+
+	@Test
+	public void aReloginToAWorldPointsTheClientThereFirst()
+	{
+		final World world = mock(World.class);
+		when(client.createWorld()).thenReturn(world);
+		driveToLoggedIn();
+		tickN(GameState.LOGIN_SCREEN, WELCOME_LOGIN_INDEX, 1);
+
+		assertTrue(HeadlessLogin.requestRelogin(420, "oldschool120.runescape.com", true));
+		tickN(GameState.LOGIN_SCREEN, WELCOME_LOGIN_INDEX, 5);
+		verify(world).setId(420);
+		verify(client).changeWorld(world);
+	}
 }

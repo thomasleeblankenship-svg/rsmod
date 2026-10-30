@@ -244,11 +244,6 @@ public class CannonballSmelterScript extends Script {
     }
 
     public void mouseOff() {
-        // Mobile: there is no natural mouse (Microbot.naturalMouse is null); upstream's move off screen would
-        // throw on every smelt, so it is skipped.
-        if (Microbot.naturalMouse == null) {
-            return;
-        }
         int horizontal = random.nextBoolean() ? -1 : client.getCanvasWidth() + 1;
         int vertical = random.nextBoolean() ? -1 : client.getCanvasHeight() + 1;
 

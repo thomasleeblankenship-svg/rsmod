@@ -168,9 +168,10 @@ public class Microbot {
     }
 
     /**
-     * As upstream: drags from the centre of {@code start} to the centre of {@code end} (both on the
-     * canvas), as one script action, then waits (at most 1 s) for the drag to finish so the next
-     * action is not refused. Nothing when either is missing or off the canvas.
+     * As upstream: drags from a randomised point in {@code start} to one in {@code end} (both on the
+     * canvas; see {@code Rs2UiHelper.getClickingPoint}), as one script action, then waits (at most
+     * 1 s) for the drag to finish so the next action is not refused. Nothing when either is missing
+     * or off the canvas.
      */
     public static void drag(java.awt.Rectangle start, java.awt.Rectangle end) {
         if (start == null || end == null
@@ -178,8 +179,9 @@ public class Microbot {
                 || !net.runelite.client.plugins.microbot.util.misc.Rs2UiHelper.isRectangleWithinCanvas(end)) {
             return;
         }
-        if (Global.sleepUntil(() -> MobileActions.drag((int) start.getCenterX(), (int) start.getCenterY(),
-                (int) end.getCenterX(), (int) end.getCenterY()), 2_000)) {
+        final net.runelite.api.Point from = net.runelite.client.plugins.microbot.util.misc.Rs2UiHelper.getClickingPoint(start, true, false);
+        final net.runelite.api.Point to = net.runelite.client.plugins.microbot.util.misc.Rs2UiHelper.getClickingPoint(end, true, false);
+        if (Global.sleepUntil(() -> MobileActions.drag(from.getX(), from.getY(), to.getX(), to.getY()), 2_000)) {
             Global.sleepUntil(() -> !net.runelite.client.headless.JavaBridge.isScriptDragging(), 1_000);
         }
     }
@@ -212,10 +214,11 @@ public class Microbot {
     }
 
     /**
-     * As upstream, but always {@code null}: humanised mouse movement is not ported (no
-     * anti-detection features), so scripts skip their {@code naturalMouse} branches.
+     * As upstream: the humanised mouse. On mobile it moves the game's synthetic pointer along a
+     * curved path (the anti-ban's random and off-screen moves); script clicks stay taps.
      */
-    public static final net.runelite.client.plugins.microbot.util.mouse.naturalmouse.NaturalMouse naturalMouse = null;
+    public static final net.runelite.client.plugins.microbot.util.mouse.naturalmouse.NaturalMouse naturalMouse =
+            new net.runelite.client.plugins.microbot.util.mouse.naturalmouse.NaturalMouse();
 
     /** As upstream: the run energy (0-10000) scripts compare against before toggling run or drinking stamina. */
     public static int runEnergyThreshold = 1000;
@@ -394,6 +397,9 @@ public class Microbot {
         if (MobileActions.read(c::getWorld, -1) == worldNumber) {
             return true;
         }
+        if (!awaitHopBudget(worldNumber)) {
+            return false;
+        }
         net.runelite.http.api.worlds.WorldResult worlds = worldService == null ? null : worldService.getWorlds();
         net.runelite.http.api.worlds.World target = worlds == null ? null : worlds.findWorld(worldNumber);
         if (target == null) {
@@ -432,6 +438,44 @@ public class Microbot {
             return landed;
         } finally {
             MobileActions.clearExpectedHop();
+        }
+    }
+
+    /**
+     * As upstream: waits until {@link net.runelite.client.plugins.microbot.util.security.HopBudget} allows
+     * another hop (Jagex locks an IP out after too many logins and hops), keeping the idle-logout timer
+     * fed meanwhile. False when logged out, the script's session ends or the wait is interrupted.
+     */
+    static boolean awaitHopBudget(int worldNumber) {
+        net.runelite.client.plugins.microbot.util.security.HopBudget budget =
+                net.runelite.client.plugins.microbot.util.security.HopBudget.getInstance();
+        long waitMs = budget.millisUntilHopAllowed();
+        if (waitMs <= 0) {
+            return true;
+        }
+        log.info("Hop limit reached - waiting {}s before hopping to world {}",
+                java.util.concurrent.TimeUnit.MILLISECONDS.toSeconds(waitMs), worldNumber);
+        String previousStatus = status;
+        try {
+            while (waitMs > 0) {
+                if (!isLoggedIn() || !MobileActions.active()) {
+                    log.info("Stopped waiting for the hop limit - not hopping to world {}", worldNumber);
+                    return false;
+                }
+                MobileActions.read(() -> {
+                    net.runelite.client.headless.JavaBridge.refreshScriptIdleTimer();
+                    return true;
+                }, false);
+                status = "Hop limit - next hop in " + java.util.concurrent.TimeUnit.MILLISECONDS.toSeconds(waitMs + 999) + "s";
+                Thread.sleep(Math.min(waitMs, 1000L));
+                waitMs = budget.millisUntilHopAllowed();
+            }
+            return true;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        } finally {
+            status = previousStatus;
         }
     }
 

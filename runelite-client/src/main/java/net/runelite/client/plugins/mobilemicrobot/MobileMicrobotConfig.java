@@ -34,6 +34,82 @@ public interface MobileMicrobotConfig extends AutoWoodcuttingConfig
 		return true;
 	}
 
+	@ConfigItem(keyName = "autoLogin", name = "Auto-login",
+		description = "Log the Jagex account back in after a disconnect, the 6-hour logout or an idle logout, and keep "
+			+ "the running script going once it is back. Off: a logout stops the script.", position = 5)
+	default boolean autoLogin()
+	{
+		return false;
+	}
+
+	@ConfigItem(keyName = "autoLoginWorld", name = "Auto-login world",
+		description = "World to log in to: 0 the last world, -1 a random members world, -2 a random free world, "
+			+ "or a world number", position = 6)
+	default int autoLoginWorld()
+	{
+		return 0;
+	}
+
+	@ConfigItem(keyName = "antiban", name = "Anti-ban",
+		description = "Let scripts use anti-ban: action cooldowns, micro-breaks, natural mouse movement and the "
+			+ "break handler, when the script turns them on. Off keeps all of them inactive.", position = 7)
+	default boolean antiban()
+	{
+		return true;
+	}
+
+	@ConfigItem(keyName = "breakHandler", name = "Break handler",
+		description = "Take scheduled breaks while a script runs: play for a random time, then pause (and log out, "
+			+ "when set) for a random time and carry on. Script micro-breaks run with Anti-ban on even when this is off.",
+		position = 8)
+	default boolean breakHandler()
+	{
+		return false;
+	}
+
+	@ConfigItem(keyName = "breakPlayMin", name = "Break: play minutes (min)",
+		description = "Shortest play time before a scheduled break, in minutes", position = 9)
+	default int breakPlayMin()
+	{
+		return 60;
+	}
+
+	@ConfigItem(keyName = "breakPlayMax", name = "Break: play minutes (max)",
+		description = "Longest play time before a scheduled break, in minutes", position = 10)
+	default int breakPlayMax()
+	{
+		return 120;
+	}
+
+	@ConfigItem(keyName = "breakLengthMin", name = "Break: break minutes (min)",
+		description = "Shortest scheduled break, in minutes", position = 11)
+	default int breakLengthMin()
+	{
+		return 5;
+	}
+
+	@ConfigItem(keyName = "breakLengthMax", name = "Break: break minutes (max)",
+		description = "Longest scheduled break, in minutes", position = 12)
+	default int breakLengthMax()
+	{
+		return 20;
+	}
+
+	@ConfigItem(keyName = "breakLogout", name = "Break: log out",
+		description = "Log out for a scheduled break and log back in to the same world afterwards (Jagex account "
+			+ "session). Off: the break is taken in game.", position = 13)
+	default boolean breakLogout()
+	{
+		return true;
+	}
+
+	@ConfigItem(keyName = "breakOnlyMicro", name = "Break: only micro-breaks",
+		description = "Take no scheduled breaks, only the micro-breaks scripts ask for", position = 14)
+	default boolean breakOnlyMicro()
+	{
+		return false;
+	}
+
 	/** Section key of the example woodcutting script's settings (see {@link ScriptKind}). */
 	String EXAMPLE_WOODCUTTING_SECTION = "exampleWoodcutting";
 

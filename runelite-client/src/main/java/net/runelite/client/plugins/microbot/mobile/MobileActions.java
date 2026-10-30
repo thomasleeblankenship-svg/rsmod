@@ -537,6 +537,17 @@ public final class MobileActions
 	}
 
 	/** One script tap at a canvas point (upstream mouse clicks); one script action. */
+	/**
+	 * Moves the game's pointer to {@code (x, y)} (off the canvas: the pointer leaves it) for the bound
+	 * script: one step of an anti-ban mouse path. Not a game action, so not limited to one per tick.
+	 */
+	public static boolean pointerMove(int x, int y)
+	{
+		final ScriptInputSession owner = permission;
+		return owner != null && owner.isActive() && MicrobotRuntime.isInstalled()
+			&& JavaBridge.onScriptPointerMove(x, y, owner);
+	}
+
 	public static boolean tap(int x, int y)
 	{
 		return perform(() -> JavaBridge.onScriptClick(x, y, permission));
