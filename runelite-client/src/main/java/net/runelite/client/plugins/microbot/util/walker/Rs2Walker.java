@@ -78,6 +78,16 @@ public final class Rs2Walker
 	static final int MINIMAP_MIN_STEPS = 4;
 	/** While moving, the next click waits until the player is this close to the last target. */
 	static final int RECLICK_DISTANCE = 4;
+	/** Extra random tiles added to {@link #RECLICK_DISTANCE} per click, so the next click lands before the player stops. */
+	static final int RECLICK_SPREAD = 3;
+	/** Route steps ahead of the player a walk click aims for (minimap range is about 16 tiles). */
+	static final int WAYPOINT_STEPS = 14;
+	/** Poll interval of the walk loop; the game moves the player every 600 ms. */
+	private static final long WALK_POLL_MILLIS = 300;
+	/** A click counts as accepted (no re-click) for this long, while the player starts moving. */
+	private static final long CLICK_SETTLE_MILLIS = 900;
+	/** Stairs are clicked from this many route steps away, so the player walks onto them without stopping first. */
+	static final int STAIRS_EARLY_STEPS = 10;
 	private static volatile long stallMillis = DEFAULT_STALL_MILLIS;
 	/** Plan with {@link MobilePathfinder} first (Microbot Mobile setting; on by default). */
 	private static volatile boolean usePathfinder = true;
@@ -327,6 +337,9 @@ public final class Rs2Walker
 			int acceptedWalks = 0;
 			int stalls = 0;
 			WorldPoint clicked = null;
+			long clickedAt = 0;
+			long lastMoveAt = System.currentTimeMillis();
+			int reclickDistance = RECLICK_DISTANCE;
 			while (System.currentTimeMillis() < deadline && GENERATION.get() == generation
 				&& MobileActions.active() && !Thread.currentThread().isInterrupted())
 			{
@@ -352,7 +365,8 @@ public final class Rs2Walker
 				}
 				// A way out of the house runs from wherever the player stands in it (its origin is synthetic).
 				if (leg.stairs != null && (arrived(scene.player, leg.destination, leg.radius)
-					|| (houseStep && net.runelite.client.plugins.microbot.util.poh.PohPresence.isInHouse())))
+					|| (houseStep && net.runelite.client.plugins.microbot.util.poh.PohPresence.isInHouse())
+					|| stairsInReach(scene, leg.stairs)))
 				{
 					if (!(leg.stairs.house != null && leg.stairs.house != net.runelite.client.plugins.microbot.shortestpath.PohDevice.FAIRY_RING
 						? useHouseDevice(leg.stairs, generation, deadline)
@@ -410,6 +424,7 @@ public final class Rs2Walker
 				{
 					previous = scene.player;
 					lastProgress = System.currentTimeMillis();
+					lastMoveAt = lastProgress;
 					// A recovery only shortens steps until the player is moving again.
 					recovered = false;
 				}
@@ -436,6 +451,8 @@ public final class Rs2Walker
 					List<WorldPoint> replanned = plan(scene, leg.destination, leg.radius);
 					if (!replanned.isEmpty()) { global = replanned; activeRoute = global; progress = 0; }
 					recovered = true;
+					// The last click went nowhere: the retry clicks afresh.
+					clicked = null;
 					lastStatus = "Walk stalled; retrying (" + stalls + ")";
 					long backoff = Math.min(STALL_RETRY_MAX_BACKOFF_MILLIS, STALL_RETRY_BACKOFF_MILLIS * stalls);
 					long remaining = deadline - System.currentTimeMillis();
@@ -452,20 +469,24 @@ public final class Rs2Walker
 				}
 				progress = nearestProgress(global, scene.player, progress);
 				WorldPoint waypoint = null;
-				for (int i = Math.min(global.size() - 1, progress + 18); i > progress; i--)
+				for (int i = Math.min(global.size() - 1, progress + 22); i > progress; i--)
 				{
 					WorldPoint candidate = global.get(i);
-					if (!scene.contains(candidate) || scene.player.distanceTo(candidate) > 12)
+					if (!scene.contains(candidate) || scene.player.distanceTo(candidate) > WAYPOINT_STEPS)
 					{
 						continue;
 					}
 					List<WorldPoint> local = MobileRoutePlanner.route(scene.player, candidate, 0, scene::canStep);
 					if (!local.isEmpty())
 					{
-						waypoint = local.get(Math.min(local.size() - 1, recovered ? 3 : 10));
+						waypoint = local.get(Math.min(local.size() - 1, recovered ? 3 : WAYPOINT_STEPS));
 						break;
 					}
 				}
+				long now = System.currentTimeMillis();
+				// Moving toward the last click: the poll may fall between game ticks, so "moving" is any step
+				// in the last tick or so, not only since the previous poll.
+				boolean walking = clicked != null && (now - clickedAt < CLICK_SETTLE_MILLIS || now - lastMoveAt < 1_200);
 				if (waypoint == null)
 				{
 					WorldPoint next = global.get(Math.min(global.size() - 1, progress + 1));
@@ -478,20 +499,20 @@ public final class Rs2Walker
 						lastStatus = "Waiting for a traversable route (door, obstacle or scene load)";
 					}
 				}
-				else if (moved && clicked != null && scene.player.distanceTo(clicked) > RECLICK_DISTANCE)
+				else if (walking && scene.player.distanceTo(clicked) > reclickDistance)
 				{
 					// Still heading for the last accepted target: do not re-click every tick.
 					lastStatus = "Walking to " + destination;
 				}
-				else if (!waypoint.equals(scene.player))
+				else if (!waypoint.equals(scene.player) && (!walking || !waypoint.equals(clicked)))
 				{
 					lastStatus = "Walking to " + destination;
 					List<WorldPoint> steps = MobileRoutePlanner.route(scene.player, waypoint, 0, scene::canStep);
+					WorldPoint accepted = null;
 					// Longer steps go through the minimap, which is visible whatever the camera does.
 					if (steps.size() - 1 >= MINIMAP_MIN_STEPS && MobileActions.walkMinimap(waypoint))
 					{
-						acceptedWalks++;
-						clicked = waypoint;
+						accepted = waypoint;
 					}
 					else
 					{
@@ -499,12 +520,19 @@ public final class Rs2Walker
 						// repeating an invisible destination.
 						for (int i = steps.size() - 1; i > 0; i--)
 						{
-							if (MobileActions.walk(steps.get(i))) { acceptedWalks++; clicked = steps.get(i); break; }
+							if (MobileActions.walk(steps.get(i))) { accepted = steps.get(i); break; }
 						}
+					}
+					if (accepted != null)
+					{
+						acceptedWalks++;
+						clicked = accepted;
+						clickedAt = System.currentTimeMillis();
+						reclickDistance = RECLICK_DISTANCE + java.util.concurrent.ThreadLocalRandom.current().nextInt(RECLICK_SPREAD + 1);
 					}
 				}
 				long remaining = deadline - System.currentTimeMillis();
-				if (remaining > 0) { Thread.sleep(Math.min(600, remaining)); }
+				if (remaining > 0) { Thread.sleep(Math.min(WALK_POLL_MILLIS, remaining)); }
 			}
 			return fail(GENERATION.get() != generation || !MobileActions.active()
 				? "Walking cancelled" : "Walking timed out");
@@ -1360,12 +1388,31 @@ public final class Rs2Walker
 		return null;
 	}
 
+	/**
+	 * A plain staircase, ladder or door step whose origin is a short open walk away: it is clicked from here and the
+	 * game walks the player onto it, instead of stopping beside it first.
+	 */
+	private static boolean stairsInReach(MobileRoutePlanner.Scene scene, ObjectTransports.Step stairs)
+	{
+		if (stairs.travel || stairs.item || stairs.spell || stairs.fairyRing || stairs.canoe || stairs.intoHouse
+			|| stairs.house != null || stairs.minigame || stairs.obelisk
+			|| scene.player.getPlane() != stairs.origin.getPlane()
+			|| scene.player.distanceTo(stairs.origin) > STAIRS_EARLY_STEPS || !scene.contains(stairs.origin))
+		{
+			return false;
+		}
+		List<WorldPoint> route = MobileRoutePlanner.route(scene.player, stairs.origin, 1, scene::canStep);
+		return !route.isEmpty() && route.size() - 1 <= STAIRS_EARLY_STEPS;
+	}
+
 	/** Dispatch exact live staircase actions, then require observed plane and landing-location changes. */
 	private static boolean useStairs(ObjectTransports.Step stairs, long generation, long walkDeadline) throws InterruptedException
 	{
 		long deadline = Math.min(walkDeadline, System.currentTimeMillis() + 20_000);
 		long lastAttempt = 0;
 		boolean dispatched = false;
+		WorldPoint lastPosition = null;
+		long lastMoveAt = System.currentTimeMillis();
 		lastStatus = "Using " + stairs.target + ": " + stairs.action;
 		int missingLookups = 0;
 		while (System.currentTimeMillis() < deadline && GENERATION.get() == generation
@@ -1390,8 +1437,24 @@ public final class Rs2Walker
 				lastStatus = "unexpected staircase plane or landing";
 				return false;
 			}
-			if (scene.player.getPlane() == stairs.origin.getPlane()
-				&& scene.player.distanceTo(stairs.origin) <= 2 && System.currentTimeMillis() - lastAttempt >= 1200)
+			if (!scene.player.equals(lastPosition))
+			{
+				lastPosition = scene.player;
+				lastMoveAt = System.currentTimeMillis();
+			}
+			int away = scene.player.distanceTo(stairs.origin);
+			if (dispatched && away > 2 && System.currentTimeMillis() - lastMoveAt >= 1_800
+				&& System.currentTimeMillis() - lastAttempt >= 1_800)
+			{
+				// The early click did not move the player toward the stairs: walk there, then click again up close.
+				lastAttempt = System.currentTimeMillis();
+				if (!MobileActions.walkMinimap(stairs.origin))
+				{
+					MobileActions.walk(stairs.origin);
+				}
+			}
+			// The first click may come from a short walk away (see stairsInReach); retries only from beside them.
+			else if (away <= (dispatched ? 2 : STAIRS_EARLY_STEPS) && System.currentTimeMillis() - lastAttempt >= 1200)
 			{
 				lastAttempt = System.currentTimeMillis();
 				Rs2TileObjectModel staircase = MobileActions.read(() ->

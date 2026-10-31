@@ -220,7 +220,7 @@ public class MobileWalkerIntegrationTest
 	public void walkWithStateUntilStopsTheRealWalkOnceTheConditionHolds()
 	{
 		position.set(new WorldPoint(3209, 3220, 0));
-		WorldPoint destination = new WorldPoint(3218, 3225, 0);
+		WorldPoint destination = new WorldPoint(3225, 3218, 0);
 		WalkerState state = Rs2Walker.walkWithStateUntil(destination, 0, () -> actions.contains("walk:0"));
 		assertEquals(Rs2Walker.getLastStatus(), WalkerState.ARRIVED, state);
 		assertEquals("Walk condition met", Rs2Walker.getLastStatus());
