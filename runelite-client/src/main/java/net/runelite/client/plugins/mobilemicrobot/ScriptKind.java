@@ -27,6 +27,7 @@ public enum ScriptKind
 	F2P_MUSEUM_CLEANER("F2P: Varrock Museum Cleaner", hub("varrockcleaner.VarrockCleanerPlugin", "varrockmuseum")),
 	F2P_FISHING("F2P: Auto Fishing", hub("autofishing.AutoFishingPlugin", "AutoFishing")),
 	F2P_BANK_SELLER("F2P: Bank Seller (GE)", hub("bankseller.BankSellerPlugin", "bankseller")),
+	F2P_DA_BRUTUS("F2P: Da Brutus (Brutus boss)", hub("dabrutus.DaBrutusPlugin", "dabrutus")),
 	// Members skilling Hub scripts (non-combat), ported for mobile like the free-to-play batch.
 	P2P_FLETCHING("Members: Fletcher", hub("fletching.FletchingPlugin", "Fletching")),
 	P2P_STALL_THIEVING("Members: Stall Thieving", hub("thievingstalls.StallThievingPlugin", "stallthieving")),
