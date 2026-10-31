@@ -1018,6 +1018,35 @@ public final class JavaBridge
 	}
 
 	/**
+	 * The camera follows a walking player, so the point a scene walk projected drifts off its tile while the gate
+	 * settles; at a phone's few frames a second the engine then selects a tile 1-9 away and the walk was dropped
+	 * ("Scene tile was not resolved", live 2026-10-31). While the selected tile is not the target, move the pointer to
+	 * the target's current projection (its centre, which stays inside the tile) and let the gate settle again there.
+	 */
+	private static void reaimScriptWalk(Client c, Canvas canvas, net.runelite.api.Tile selected)
+	{
+		final net.runelite.api.coords.WorldPoint target = scriptWalkTarget;
+		if (target == null || selected != null && target.equals(selected.getWorldLocation()))
+		{
+			return;
+		}
+		final net.runelite.api.coords.LocalPoint local = net.runelite.api.coords.LocalPoint.fromWorld(c.getTopLevelWorldView(), target.getX(), target.getY());
+		final net.runelite.api.Point point = local == null ? null : net.runelite.api.Perspective.localToCanvas(c, local, target.getPlane());
+		if (point == null || point.getX() < c.getViewportXOffset() + 4 || point.getY() < c.getViewportYOffset() + 4
+			|| point.getX() >= c.getViewportXOffset() + c.getViewportWidth() - 4
+			|| point.getY() >= c.getViewportYOffset() + c.getViewportHeight() - 4
+			|| Math.abs(point.getX() - tapX) + Math.abs(point.getY() - tapY) < 3)
+		{
+			return;
+		}
+		tapX = point.getX();
+		tapY = point.getY();
+		stableFrames = 0;
+		lastTailFp = null;
+		postMove(canvas, tapX, tapY);
+	}
+
+	/**
 	 * Script walk by tapping {@code destination} on the minimap, which stays visible however the
 	 * camera is placed (scene-tile walks need the tile on screen, so they are short on a phone).
 	 * Refused unless the point lies well inside the minimap disc: a tap outside it could hit the
@@ -1774,7 +1803,11 @@ public final class JavaBridge
 					scriptWalkStatus = "Scene walk dispatched to " + resolved;
 					finishTap();
 				}
-				else if (settleFrames >= MAX_SETTLE)
+				else if (settleFrames < MAX_SETTLE)
+				{
+					reaimScriptWalk(c, canvas, selected);
+				}
+				else
 				{
 					scriptWalkStatus = "Scene tile was not resolved: " + scriptWalkTarget;
 					log.info("[scriptwalk] {} selected={}", scriptWalkStatus, selected == null ? null : selected.getWorldLocation());
