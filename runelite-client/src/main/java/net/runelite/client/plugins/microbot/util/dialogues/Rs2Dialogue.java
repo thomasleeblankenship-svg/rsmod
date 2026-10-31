@@ -11,7 +11,13 @@ import net.runelite.client.plugins.microbot.util.widget.Rs2Widget;
 public final class Rs2Dialogue
 {
 	private Rs2Dialogue() { }
+	/** As upstream: a continue prompt, NPC text or a "Select an option" menu is showing. */
 	public static boolean isInDialogue()
+	{
+		return continueOrNpcText() || MobileActions.active() && hasSelectAnOption();
+	}
+
+	private static boolean continueOrNpcText()
 	{
 		if (!MobileActions.active()) { return false; }
 		return Rs2Widget.findWidget("click here to continue", null, false) != null
@@ -23,7 +29,7 @@ public final class Rs2Dialogue
 	}
 	public static boolean clickContinue()
 	{
-		if (!isInDialogue()) { return false; }
+		if (!continueOrNpcText()) { return false; }
 		boolean accepted = MobileActions.key(KeyEvent.VK_SPACE);
 		// Do not spin a background loop while the engine applies the continue event.
 		Rs2Random.waitEx(150, 20);

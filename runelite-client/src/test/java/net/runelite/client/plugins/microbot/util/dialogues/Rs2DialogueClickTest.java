@@ -99,4 +99,21 @@ public class Rs2DialogueClickTest
 			actions.verify(() -> MobileActions.key(anyInt()), never());
 		}
 	}
+
+	@Test
+	public void anOptionMenuIsADialogueButNotAContinue()
+	{
+		try (MockedStatic<MobileActions> actions = mockStatic(MobileActions.class, CALLS_REAL_METHODS))
+		{
+			actions.when(MobileActions::active).thenReturn(true);
+			actions.when(() -> MobileActions.key(anyInt())).thenReturn(true);
+			when(client.getWidgetRoots()).thenReturn(new Widget[0]);
+			actions.clearInvocations();
+			assertTrue("a quest-start Yes/No menu is a dialogue", Rs2Dialogue.isInDialogue());
+			assertFalse("Space does nothing on an option menu", Rs2Dialogue.clickContinue());
+			actions.verify(() -> MobileActions.key(anyInt()), never());
+			when(client.getWidget(ComponentID.DIALOG_OPTION_OPTIONS)).thenReturn(null);
+			assertFalse(Rs2Dialogue.isInDialogue());
+		}
+	}
 }
