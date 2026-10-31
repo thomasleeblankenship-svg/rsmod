@@ -13,24 +13,24 @@ how the bridge works, which thread each call runs on, and how to change it safel
 
 | Classes | Methods | JSON keys | System properties |
 |---:|---:|---:|---:|
-| 22 | 249 | 280 | 78 |
+| 22 | 271 | 280 | 78 |
 
 ## Classes
 
 - [`ConfigProfileBridge`](#configprofilebridge): 4 methods, 9 JSON keys
 - [`DeviceHeadlessBoot`](#deviceheadlessboot): 1 method, 7 properties
 - [`GrandExchangeBridge`](#grandexchangebridge): 6 methods, 16 JSON keys
-- [`HeadlessLogin`](#headlesslogin): 2 methods, 14 properties
+- [`HeadlessLogin`](#headlesslogin): 6 methods, 14 properties
 - [`HeadlessResize`](#headlessresize): 5 methods, 1 property
 - [`HeadlessSeams`](#headlessseams): 3 methods
 - [`HudDataBridge`](#huddatabridge): 4 methods, 27 JSON keys, 2 properties
 - [`HudVeneerBridge`](#hudveneerbridge): 39 methods, 77 JSON keys, 10 properties
 - [`InfoBoxBridge`](#infoboxbridge): 6 methods, 9 JSON keys
-- [`JavaBridge`](#javabridge): 55 methods, 14 properties
+- [`JavaBridge`](#javabridge): 70 methods, 14 properties
 - [`LootTrackerBridge`](#loottrackerbridge): 6 methods, 14 JSON keys
 - [`MenuPeekBridge`](#menupeekbridge): 5 methods, 23 JSON keys, 2 properties
 - [`MobileChromeBridge`](#mobilechromebridge): 5 methods, 22 JSON keys, 1 property
-- [`MobileUiBridge`](#mobileuibridge): 63 methods, 15 JSON keys, 1 property
+- [`MobileUiBridge`](#mobileuibridge): 66 methods, 15 JSON keys, 1 property
 - [`OverlayBridge`](#overlaybridge): 9 methods, 11 JSON keys
 - [`QuestHelperBridge`](#questhelperbridge): 8 methods, 10 JSON keys
 - [`RLHDStarter`](#rlhdstarter): 2 methods, 1 JSON key, 3 properties
@@ -101,6 +101,14 @@ Gate 1c-ii / Phase-4 spike: the minimal slice of input injection needed to cross
 **Methods**
 
 - `isEnabled()` → `boolean`
+- `isLoginGivenUp()` → `boolean`  
+  True once the login machine exhausted a stage's retries and parked on the login screen.
+- `isLoginInProgress()` → `boolean`  
+  True while a login (initial, reconnect, hop or requested relogin) is still being driven.
+- `requestRelogin(int worldId, String address, boolean members)` → `boolean`  
+  Microbot auto-login (`LoginManager`): re-arms the login machine for a fresh Play Now after a deliberate logout (the 6-hour logout, an idle logout, a scheduled break). `tick` recovers a CONNECTION_LOST by itself but stays `done` after any other logout. With `worldId > 0` and an address, the client is pointed at that world on the login screen first, as a world-hop relog does. Returns false (and does nothing) when autologin is disabled, i.e. there is no Jagex session to log in with. Client thread.
+- `tapLoginScreen(Client client, int x, int y)` → `void`  
+  Taps the login screen at `(x, y)` in the 765x503 fixed-login space, scaled to the live canvas (dismissing a dialog the login machine does not handle, such as the too-many-attempts lockout).
 - `tick(Client client, GameState state, int loginIndex)` → `void`  
   Called once per `Hooks.draw` (only when enabled). Drives the login as a two-stage machine: while the EULA dialog is up (stage 1, optional) it synthesizes an Accept click; once the gamepack reaches the authenticated welcome screen (stage 2) it synthesizes a Play Now click. Each stage re-arms until the state advances.
 
@@ -318,6 +326,7 @@ Phase-4 (W3) sub-goal B: the native&lt;->Java facade for a *real interactive* cl
   Native: the last WIDGET-kind tap's canvas-px bounds packed as `x<<48 | y<<32 | w<<16 | h` (each a 16-bit field; canvas coords never exceed that). Read after `getTapKindSeq` advances.
 - `getReorderPaneBounds()` → `int[]`  
   DRAG-1b: bounds of the visible drag-to-reorder panes, packed as `[x,y,w,h]` per pane in canvas px (Prayer / Spellbook / Bank, in that order, skipping any not on-screen). Empty = none visible. The native shell hit-tests a one-finger drag's start point against these to route it as an engine reorder drag (`onTouch`) rather than a camera pan.
+- `getScriptWalkStatus()` → `String`
 - `getScrollableRects()` → `int[]`  
   DRAG-2: bounds of all visible, overflowing scroll-layer widgets, packed as `[x,y,w,h]` per rect in canvas px (capped at `#MAX_SCROLLABLE_RECTS`). This is the Android-safe snapshot counterpart to `isEngineScrollableAt` (an off-thread point hit-test iOS calls synchronously per touch): Android's UI thread cannot make that per-touch JNI call into HotSpot, so it hit-tests this pre-snapshotted array lock-free (published in the getSnapshot payload as `scrollRects`), mirroring how DRAG-1b's `getReorderPaneBounds` is consumed. Empty = no scrollable interface visible, or the snapshot is not armed (`-Drunelite.bridge.scrollrects`, Android only). Refreshed at most every 100 ms.
 - `getTapKindSeq()` → `int`  
@@ -335,6 +344,8 @@ Phase-4 (W3) sub-goal B: the native&lt;->Java facade for a *real interactive* cl
 - `isEnabled()` → `boolean`
 - `isEngineScrollableAt(int shownX, int shownY)` → `boolean`  
   SCROLL-SPIKE: true if a scrollable engine interface widget is under the canvas point (x,y) — a visible widget whose scroll layer overflows (`getScrollHeight() > getHeight()`) and whose bounds contain the point. The native shell calls this at pan-begin to decide whether a one-finger drag should scroll an open interface (bank / GE / quest list / settings / collection log …) — emitted as wheel notches the engine routes to the hovered scrollable, exactly like the desktop mouse wheel — instead of rotating the camera. Returning false leaves the drag a camera pan, so a drag over the bare viewport never scroll-leaks into a zoom.
+- `isScriptDragging()` → `boolean`  
+  Whether a script drag is still running.
 - `isTextInputOpen()` → `boolean`  
   Whether the gamepack currently has a text field open and awaiting input — a search box (bank/GE/world map), a private-message recipient, an "enter amount/name" dialog, etc. (`VarClientInt.INPUT_TYPE` is non-zero), or the legacy login screen's credential/authenticator entry. The native shell polls this to auto-raise the soft keyboard when the game asks for text and dismiss it when the field closes, so typing is summoned from inside the game, not a chrome button.
 - `noteSceneDraw()` → `void`  
@@ -353,6 +364,26 @@ Phase-4 (W3) sub-goal B: the native&lt;->Java facade for a *real interactive* cl
   Middle-button (BUTTON2) click at `(x,y)` — a discrete press+release+click, the touch equivalent of a mouse middle-click. Posts through the same canvas path as `onClick`; the engine handles it per its own "middle mouse button" setting (opens-menu / camera). No client-thread aim-assist (unlike a left/right tap) — middle-click is a deliberate, literal-point action.
 - `onMove(int shownX, int shownY)` → `void`  
   Move the pointer to `(x,y)` with no button held — a plain `MOUSE_MOVED`. This is the "hover" primitive: it updates the gamepack's recorded mouse position so the open right-click menu highlights the entry under the finger as it slides. Distinct from a drag (which holds a button and posts `MOUSE_DRAGGED` via `onTouch`) so the menu-track gesture can't be confused for one.
+- `onScriptClick(int x, int y, ScriptInputSession session)` → `boolean`  
+  Submit one script-owned left tap through the existing engine settle gate. Client thread only; true means accepted for settling, NOT game action success. Refuses an open menu, held input/modifiers, or another tap already in flight.
+- `onScriptDrag(int x1, int y1, int x2, int y2, ScriptInputSession owner)` → `boolean`  
+  A script drag from `(x1,y1)` to `(x2,y2)`, as upstream's `Microbot.drag` (moving an inventory item, for example): press, hold past the engine's drag dead time, move in steps, release at the end point. Same guards as `onScriptClick`; while it runs, other script input is refused. If the session ends or real input arrives mid-drag, the press is released where the pointer is and the rest is dropped. Client thread only; true when started.
+- `onScriptKey(int keyCode, ScriptInputSession owner)` → `boolean`  
+  Script keyboard input never enters the native/manual-input path.
+- `onScriptKey(int keyCode, char typed, ScriptInputSession owner)` → `boolean`  
+  One script key press with an explicit typed character (for text prompts); `typed` may be `KeyEvent#CHAR_UNDEFINED` for a key without text. Same guards as `ScriptInputSession)`.
+- `onScriptKeyHold(int keyCode, ScriptInputSession owner)` → `boolean`  
+  One script key held down (KEY_PRESSED with no release) until `onScriptKeyRelease`, as upstream's `keyHold`: used for camera arrows and holding Space. Same guards as `char, ScriptInputSession)`. A held key is released by itself when its session ends or real input arrives (see `releaseStaleScriptKeys`), so a stopped script never leaves a key down. Client thread only; true when the key is (already) held.
+- `onScriptKeyRelease(int keyCode, ScriptInputSession owner)` → `boolean`  
+  Releases a key this session holds (upstream `keyRelease`). Never refused for a busy tick or a closed session: a release only ever ends a hold. False when this session holds no such key. Client thread only.
+- `onScriptMinimapWalk(net.runelite.api.coords.WorldPoint destination, ScriptInputSession owner)` → `boolean`  
+  Script walk by tapping `destination` on the minimap, which stays visible however the camera is placed (scene-tile walks need the tile on screen, so they are short on a phone). Refused unless the point lies well inside the minimap disc: a tap outside it could hit the game view or an orb, so the walker then falls back to a scene-tile walk. Same input guards as `onScriptClick`.
+- `onScriptPointerMove(int x, int y, ScriptInputSession owner)` → `boolean`  
+  One step of a script's pointer path (anti-ban mouse simulation): a `MOUSE_MOVED` to `(x, y)`, or, for a point off the canvas, `MOUSE_EXITED` where the path left it. No button, no game action, so it is not throttled to one per tick; refused while the user owns input or any tap, drag or held key is in flight. Any thread.
+- `onScriptScroll(int x, int y, int wheelRotation, int unitsToScroll, ScriptInputSession owner)` → `boolean`  
+  A script mouse-wheel turn at canvas point `(x,y)`, as upstream's `Mouse.scrollDown` and `scrollUp` (positive `wheelRotation` scrolls down): the pointer moves there, then one `MouseWheelEvent` of `unitsToScroll` units. Same guards as `onScriptDrag`, and refused while a script drag runs. Client thread only; true when posted.
+- `onScriptWalk(net.runelite.api.coords.WorldPoint destination, ScriptInputSession owner)` → `boolean`  
+  Scene walks must resolve the projected tile before WALK can arm engine movement.
 - `onTapMove(int x, int y)` → `void`  
   One sample of an armed contact's travel, at `(x,y)` (gamepack-canvas pixels). Both shells send every sample here and nothing is posted for any of them: no button is down before the lift, and a move during the settle would push the engine's cursor off the point the gate is resolving.
 - `onText(String s)` → `void`  
@@ -365,10 +396,14 @@ Phase-4 (W3) sub-goal B: the native&lt;->Java facade for a *real interactive* cl
   The finger is off the glass: post `MOUSE_EXITED` so the engine knows there is no pointer, and leave the recorded position where the finger actually left it.
 - `presentReady()` → `boolean`  
   Direct-present (no gpuPublish gate): the native shell polls this to know when the world is warmed up (geometry uploaded), so it can reveal the GPU layer over the CPU loading-screen blit without a sky flash.
+- `refreshScriptIdleTimer()` → `void`  
+  Keep the engine's idle-logout counter fed while a script plays. Script actions are exact menu dispatches, and the engine counts only canvas mouse/key events toward activity, so a script left running logs out as AFK five minutes after the last real touch, straight to the login screen (no CONNECTION_LOST, so `HeadlessLogin`'s reconnect never re-arms). Once the pointer has been still for `SCRIPT_IDLE_REFRESH_TICKS`, post one plain `MOUSE_MOVED` to the point the pointer already rests on, the event a desktop mouse produces with every script click. Never names a new coordinate, never marks manual input, and does nothing while a button is held or a tap is settling (a move then would push the engine's cursor off the point the gate is resolving, and the tap's own events reset the counter). Client thread.
 - `register(Client c)` → `void`  
   Called at the top of `Hooks.draw` each frame to keep the bridge pointed at the live client.
 - `requestResize(int w, int h)` → `void`  
   Resize the game canvas to `w x h` mid-session, for a host window that changed shape (a foldable opened or closed), so the game shows more or less of the world instead of being stretched. Any thread; the client thread applies it on its next draw. See `HeadlessResize#requestResize`.
+- `scriptInputBusy()` → `boolean`  
+  Called on the client thread before exact script menu actions.
 - `selectMenuPoint(int shownX, int shownY)` → `void`  
   Select an open right-click menu row by left-clicking its canvas point, then PARK the pointer one cycle AFTER the click so the engine doesn't leave the cursor sitting on that target. On a touchscreen there is no persistent cursor, so a stranded synthetic cursor would keep showing the selected object's action label and make the next tap re-resolve to it (the "stuck on the stairs" bug). The ordered invoke→invokeLater chain guarantees the park lands after the press/release/click, never before (which would cancel the selection). Used by the native menu's commit and cancel.
 - `setAltHeld(boolean held)` → `void`  
@@ -383,6 +418,8 @@ Phase-4 (W3) sub-goal B: the native&lt;->Java facade for a *real interactive* cl
   Sticky-Ctrl — same mechanism as `setShiftHeld`, for the Ctrl-gated surface (e.g. middle-click-style Ctrl interactions, plugins that read `isKeyPressed(KC_CONTROL)`). A native modifier toggle calls this.
 - `setMenuRenderSuppressed(boolean suppressed)` → `void`  
   Native control for the engine-menu raster gate (reverse JNI; see `menuRenderSuppressed`).
+- `setScriptInputSuspended(boolean suspended)` → `void`  
+  Native lifecycle bridge; resume permits explicit starts but never renews old sessions.
 - `setShiftHeld(boolean held)` → `void`  
   Sticky-Shift: hold (or release) the SHIFT modifier so the engine's `client.isKeyPressed(KC_SHIFT)` path reads true without a hardware key. On touch there is no physical shift, yet a large QoL surface gates on it — Menu Entry Swapper shift-to-customize, shift deposit/withdraw/shop-quantity swaps, Ground/Object/NPC "Shift + right-click to mark", overlay SHIFT+right-click "Configure". A native sticky-"Shift" toggle calls this; the gamepack's own `Canvas` KeyListener (which feeds its pressed-key array) receives the posted event, exactly as our text injection does. `held=true` posts ONE `KEY_PRESSED VK_SHIFT` (no release); `held=false` posts the matching `KEY_RELEASED`. Transition-gated so a held toggle isn't re-posted every frame. (Proven on the live engine by `ShiftFeedSpike`: a single held press flips `isKeyPressed(KC_SHIFT)` true and a release clears it; if a long hold is ever observed to clear — e.g. on a focus change — a per-frame re-assert from `register` is the fix.) No `KEY_TYPED`: a modifier produces none.
 - `snapshot(MainBufferProvider b)` → `void`  
@@ -525,6 +562,12 @@ Phase-6 (W3): the second reverse-JNI facade — the *Java-owned* mobile-UI contr
   Track G AG3-b — load a plugin that is NOT in the `net.runelite.client.plugins` core scan (e.g. RLHD's `rs117.hd.HdPlugin`, which ships in the staged rlhd jar on the classpath) and start it. Mirrors `PluginListPanel`'s lifecycle but adds the `PluginManager.loadPlugins(List<Class>)` step the core scan would normally do. Idempotent: if the class is already loaded it just (re-)enables it. Runs the whole load+enable+start sequence on the EDT (`loadPlugins`/`startPlugin` touch plugin state + assert it). `loadPlugins` resolves the plugin's `@PluginDependency` from the already-loaded core set.
 - `loadPluginNoStart(String className)` → `String`  
   Load a plugin (if not already) WITHOUT starting it, so it appears in `listPlugins()` with an editable config but does not run. Same `pm.loadPlugins(List<Class>)` + `loadDefaultPluginConfiguration` as `loadAndStartPlugin` but with no `setPluginEnabled`/`startPlugin`. Used to surface the renderer plugins (GPU / 117HD) in the native panel even when they are not the active renderer — the native side then drives the actual activation via a launch-time preference (it can't hot-swap the iOS GL bridge/present). Idempotent.
+- `microbotStart(String kind)` → `String`  
+  Microbot screen Start: starts script `kind` (a ScriptKind name) as the user's explicit request. The Microbot Mobile plugin is off by default and the screen has no switch for it, so when it is off this turns it on; the plugin runs the queued start once its runtime is installed.
+- `microbotStatus()` → `String`  
+  Microbot Mobile's live status for the native Microbot screen (polled about once a second while it is open): ready, running, script, status and the script list. Pure read of volatile fields, so it is safe off the client thread.
+- `microbotStop()` → `String`  
+  Microbot screen Stop: stops whichever script is running.
 - `nextLink()` → `String`  
   Drain the oldest pending outbound URL, or `null` if none. Native polls this.
 - `nextNotification()` → `String`  
