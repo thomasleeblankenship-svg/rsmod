@@ -1565,6 +1565,10 @@ public class DaBrutusScript extends Script
 			return;
 		}
 		inPenCached = false;
+		if (shopping())
+		{
+			return;
+		}
 		if (food() < 4 && !stocked)
 		{
 			bank(false);
@@ -1663,6 +1667,33 @@ public class DaBrutusScript extends Script
 		return false;
 	}
 
+	/**
+	 * One step of a loot sale or GE restock the bank step started; true while one runs. Both bank paths (the trip's and
+	 * the quest bull's) must check this first: the quest's bank(false) skipped it, so the bank deposited the coins the
+	 * GE plan had just taken and planned again, round and round (mobile, live 2026-10-31).
+	 */
+	private boolean shopping()
+	{
+		if (selling)
+		{
+			status("selling loot for GE money");
+			if (seller.tick() == LootSeller.Result.DONE)
+			{
+				selling = false;
+				geSkipCoins = -1; // new coins: plan the food buy again
+				stocked = false;
+				bankTried.clear();
+			}
+			return true;
+		}
+		if (orders != null)
+		{
+			restock();
+			return true;
+		}
+		return false;
+	}
+
 	private void outside()
 	{
 		if (Rs2Prayer.isPrayerActive(Rs2PrayerEnum.PROTECT_MELEE))
@@ -1674,21 +1705,8 @@ public class DaBrutusScript extends Script
 		{
 			return;
 		}
-		if (selling)
+		if (shopping())
 		{
-			status("selling loot for GE money");
-			if (seller.tick() == LootSeller.Result.DONE)
-			{
-				selling = false;
-				geSkipCoins = -1; // new coins: plan the food buy again
-				stocked = false;
-				bankTried.clear();
-			}
-			return;
-		}
-		if (orders != null)
-		{
-			restock();
 			return;
 		}
 		if (bury())
