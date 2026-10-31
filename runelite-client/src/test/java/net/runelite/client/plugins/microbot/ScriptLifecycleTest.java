@@ -72,6 +72,19 @@ public class ScriptLifecycleTest {
     }
 
     @Test
+    public void guardHoldsStillThroughDeathsTutorial() {
+        new RuntimeFixture().installLoggedIn();
+        TestScript script = new TestScript();
+        try (org.mockito.MockedStatic<net.runelite.client.plugins.microbot.util.events.DeathEvent> death =
+                 org.mockito.Mockito.mockStatic(net.runelite.client.plugins.microbot.util.events.DeathEvent.class)) {
+            death.when(net.runelite.client.plugins.microbot.util.events.DeathEvent::inTutorial).thenReturn(true);
+            assertFalse("a loop between the death event's steps stopped scripts on a missing tool", script.run());
+            death.when(net.runelite.client.plugins.microbot.util.events.DeathEvent::inTutorial).thenReturn(false);
+            assertTrue(script.run());
+        }
+    }
+
+    @Test
     public void guardBlocksWhileBlockingEventRuns() throws Exception {
         new RuntimeFixture().installLoggedIn();
         CountDownLatch executing = new CountDownLatch(1);

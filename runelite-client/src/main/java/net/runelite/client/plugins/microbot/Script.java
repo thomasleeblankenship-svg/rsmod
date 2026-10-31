@@ -151,6 +151,11 @@ public abstract class Script extends Global implements IScript {
             // A blocking event was found & is executing
             return false;
         }
+        // Mobile: Death's tutorial runs as several event steps; the loop must not run between them.
+        if (net.runelite.client.plugins.microbot.util.events.DeathEvent.inTutorial()) {
+            Microbot.status = "Paused: Death's tutorial";
+            return false;
+        }
         boolean humanOwnsInput = MicrobotRuntime.humanOwnsInput();
         if (Microbot.pauseAllScripts.get() || humanOwnsInput)
             return false;

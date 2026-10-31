@@ -30,7 +30,18 @@ public class DeathEvent implements BlockingEvent
 	@Override
 	public boolean validate()
 	{
-		if (!MobileActions.active() || !Microbot.isLoggedIn() || Microbot.getVarbitPlayerValue(DEATH_COUNTER_VARP) != 1) return false;
+		return MobileActions.active() && inTutorial();
+	}
+
+	/**
+	 * Mobile: the player is in the first-death tutorial. Scripts hold still while it lasts
+	 * ({@code Script.run}): between this event's steps a script loop would otherwise run, and one
+	 * that stops on a missing tool (the items are gone at death) took the event's input with it.
+	 */
+	public static boolean inTutorial()
+	{
+		// The cached varp first: the location is a client-thread read.
+		if (!Microbot.isLoggedIn() || Microbot.getVarbitPlayerValue(DEATH_COUNTER_VARP) != 1) return false;
 		WorldPoint location = Rs2Player.getWorldLocation();
 		return location != null && location.getRegionID() == DEATH_DOMAIN_REGION_ID;
 	}
