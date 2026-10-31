@@ -13,12 +13,16 @@ public final class Rs2Combat
 	/**
 	 * As upstream: clicks the combat-tab attack style button {@code style} (for example
 	 * {@code WidgetInfo.COMBAT_STYLE_ONE}). False when the button is not loaded or the click
-	 * was not dispatched.
+	 * was not dispatched. Mobile allows one script action per tick, and callers open the combat tab
+	 * just before (also an action), so a click in that same tick was refused and the style never
+	 * changed; the click is retried for up to 2 s.
 	 */
 	@SuppressWarnings("deprecation")
 	public static boolean setAttackStyle(net.runelite.api.widgets.WidgetInfo style)
 	{
-		return style != null && Rs2Widget.getWidget(style.getId()) != null && Rs2Widget.clickWidget(style.getId());
+		return style != null && Rs2Widget.getWidget(style.getId()) != null
+			&& (Rs2Widget.clickWidget(style.getId())
+			|| net.runelite.client.plugins.microbot.util.Global.sleepUntil(() -> Rs2Widget.clickWidget(style.getId()), 2_000));
 	}
 
 	public static boolean getSpecState()
