@@ -1381,6 +1381,10 @@ public final class Rs2Walker
 			{
 				return true;
 			}
+			if (dispatched && acceptWarning())
+			{
+				continue;
+			}
 			if (scene.player.getPlane() != stairs.origin.getPlane())
 			{
 				lastStatus = "unexpected staircase plane or landing";
@@ -1420,6 +1424,30 @@ public final class Rs2Walker
 		}
 		lastStatus = !MobileActions.active() || GENERATION.get() != generation
 			? "staircase cancelled" : dispatched ? "plane change was not observed" : STAIRS_UNAVAILABLE;
+		return false;
+	}
+
+	/** The "are you sure" warnings some entrances raise (desert heat, Stronghold of Security ladders). */
+	private static final int[] WARNING_GROUPS = {InterfaceID.CWS_WARNING_10, InterfaceID.CWS_WARNING_4};
+	/** The warning's proceed button. */
+	private static final int WARNING_PROCEED_CHILD = 17;
+
+	/**
+	 * As upstream 2.6.47 ({@code acceptCwsWarning}), inside the transport so it does not time out first: presses
+	 * proceed on a visible warning. Mobile: the "don't ask again" box is left as the player set it.
+	 */
+	static boolean acceptWarning()
+	{
+		for (int group : WARNING_GROUPS)
+		{
+			int proceed = group << 16 | WARNING_PROCEED_CHILD;
+			if (net.runelite.client.plugins.microbot.util.widget.Rs2Widget.isWidgetVisible(group, WARNING_PROCEED_CHILD)
+				&& Global.sleepUntil(() -> MobileActions.widget(proceed, -1, ""), 2_000))
+			{
+				Global.sleepUntil(() -> !net.runelite.client.plugins.microbot.util.widget.Rs2Widget.isWidgetVisible(group, WARNING_PROCEED_CHILD), 3_000);
+				return true;
+			}
+		}
 		return false;
 	}
 

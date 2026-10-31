@@ -164,6 +164,18 @@ public class Rs2GrandExchangeReadTest
 	}
 
 	@Test
+	public void offerPriceFallsBackToTheIntVarpWhenTheLongReadIsRefused()
+	{
+		when(client.getVarpLongValue(Rs2GrandExchange.GE_NEWOFFER_PRICE_VARP)).thenAnswer(c ->
+		{
+			onClientThread(0L);
+			throw new IllegalArgumentException("varp is an int");
+		});
+		when(client.getVarpValue(Rs2GrandExchange.GE_NEWOFFER_PRICE_VARP)).thenReturn(1175);
+		assertEquals(1175L, Rs2GrandExchange.getOfferPrice());
+	}
+
+	@Test
 	public void offerSetupStateFollowsTheSetupPanelNotTheDetailsPanel()
 	{
 		Widget setup = mock(Widget.class);

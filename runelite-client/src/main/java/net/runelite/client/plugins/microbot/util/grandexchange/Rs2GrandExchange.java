@@ -215,7 +215,18 @@ public final class Rs2GrandExchange
 	/** The new offer's price per item, 0 when unreadable. */
 	static long getOfferPrice()
 	{
-		return MobileActions.read(() -> Microbot.getClient().getVarpLongValue(GE_NEWOFFER_PRICE_VARP), 0L);
+		return MobileActions.read(() ->
+		{
+			try
+			{
+				return Microbot.getClient().getVarpLongValue(GE_NEWOFFER_PRICE_VARP);
+			}
+			catch (IllegalArgumentException e)
+			{
+				// Upstream 2.6.47: some sessions store this varp as an int, which the long read rejects.
+				return (long) Microbot.getClient().getVarpValue(GE_NEWOFFER_PRICE_VARP);
+			}
+		}, 0L);
 	}
 
 	/** The first free slot, or {@code null}. */

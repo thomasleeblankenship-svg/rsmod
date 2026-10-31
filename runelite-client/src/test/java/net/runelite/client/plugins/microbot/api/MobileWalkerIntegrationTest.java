@@ -60,7 +60,6 @@ public class MobileWalkerIntegrationTest
 		permission = new ScriptInputSession();
 		MobileActions.bind(permission);
 		sceneWalk = new SceneWalkFixture(fixture);
-		sceneWalk.animate();
 		position.set(new WorldPoint(3209, 3220, 2));
 		doAnswer(call -> fixture.onClientThread(position.get())).when(fixture.localPlayer).getWorldLocation();
 		// Deliberately stale: routing, collision and object capture must use the actual player's floor.
@@ -110,6 +109,8 @@ public class MobileWalkerIntegrationTest
 			fixture.tick++;
 			return null;
 		}).when(fixture.client).menuAction(anyInt(), anyInt(), any(), anyInt(), anyInt(), anyString(), anyString());
+		// Frames start only once every client stub is in place: a tick mid-stubbing breaks Mockito.
+		sceneWalk.animate();
 	}
 
 	private void staircase(int id, int plane, String[] choices)

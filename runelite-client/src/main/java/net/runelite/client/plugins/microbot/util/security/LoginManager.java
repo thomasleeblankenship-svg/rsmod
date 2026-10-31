@@ -230,9 +230,11 @@ public final class LoginManager
 			LAST_LOGIN_ATTEMPT.set(now);
 		}
 		World world = worldId > 0 ? findWorld(worldId) : null;
-		if (worldId > 0 && world == null)
+		if (worldId > 0 && world == null && MobileActions.read(client::getWorld, -1) != worldId)
 		{
-			log.warn("Login world {} not in the world list; logging in to the current world", worldId);
+			// Upstream 2.6.47: never log in to another world than the one asked for; callers retry.
+			log.warn("Login aborted - could not select world {} (not in the world list)", worldId);
+			return false;
 		}
 		boolean armed = MobileActions.read(() -> HeadlessLogin.requestRelogin(world == null ? 0 : world.getId(),
 			world == null ? null : world.getAddress(),
@@ -312,12 +314,10 @@ public final class LoginManager
 	 * Upstream points the client at a world on the login screen. Mobile does that as part of
 	 * {@link #login(int)}; logged out, this starts that login.
 	 */
-	public static void setWorld(int worldNumber)
+	/** As upstream 2.6.47: true when the change was made (on mobile, a login to that world was started). */
+	public static boolean setWorld(int worldNumber)
 	{
-		if (!isLoggedIn())
-		{
-			login(worldNumber);
-		}
+		return !isLoggedIn() && login(worldNumber);
 	}
 
 	private static World findWorld(int worldId)
