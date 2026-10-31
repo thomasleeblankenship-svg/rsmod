@@ -302,6 +302,9 @@ public class Rs2AntibanSettings {
     public static double microBreakChance = 0.1; // 10% chance of taking a micro break by default
     public static double moveMouseRandomlyChance = 0.1; // 10% chance of moving the mouse randomly by default
     public static double moveMouseOffScreenChance = 0.1; // 10% chance of moving the mouse off screen by default
+    // Mobile addition: nudge the camera's yaw (and sometimes pitch) during an action cooldown.
+    public static boolean moveCameraRandomly = false;
+    public static double moveCameraRandomlyChance = 0.1; // 10% chance of moving the camera by default
 
     // reset method to reset all settings to default values
     public static void reset() {
@@ -333,5 +336,7 @@ public class Rs2AntibanSettings {
         microBreakChance = 0.1;
         moveMouseRandomlyChance = 0.1;
         moveMouseOffScreenChance = 0.1;
+        moveCameraRandomly = false;
+        moveCameraRandomlyChance = 0.1;
     }
 }

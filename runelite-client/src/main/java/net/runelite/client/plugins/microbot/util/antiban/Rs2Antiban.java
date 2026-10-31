@@ -10,6 +10,7 @@ import net.runelite.client.plugins.microbot.util.antiban.enums.Activity;
 import net.runelite.client.plugins.microbot.util.antiban.enums.ActivityIntensity;
 import net.runelite.client.plugins.microbot.util.antiban.enums.Category;
 import net.runelite.client.plugins.microbot.util.antiban.enums.PlayStyle;
+import net.runelite.client.plugins.microbot.util.camera.Rs2Camera;
 import net.runelite.client.plugins.microbot.util.math.Rs2Random;
 import net.runelite.client.plugins.microbot.util.player.Rs2Player;
 import net.runelite.client.ui.overlay.components.*;
@@ -126,6 +127,8 @@ public class Rs2Antiban {
     @Getter
     @Setter
     public static int TIMEOUT = 0;
+    /** Lowest pitch a random camera move tilts to (legacy units, 128..383): lower hides the scene. */
+    static final int CAMERA_MIN_PITCH = 220;
     @Getter
     private static Activity activity;
     @Getter
@@ -329,6 +332,9 @@ public class Rs2Antiban {
 
         if (Rs2AntibanSettings.moveMouseOffScreen)
             moveMouseOffScreen((Rs2AntibanSettings.moveMouseOffScreenChance*100));
+
+        if (Rs2AntibanSettings.moveCameraRandomly && Rs2Random.diceFractional(Rs2AntibanSettings.moveCameraRandomlyChance))
+            moveCameraRandomly();
     }
 
 
@@ -558,6 +564,21 @@ public class Rs2Antiban {
     public static void moveMouseRandomly() {
         if (!AntibanPlugin.isMasterEnabled() || Microbot.naturalMouse == null) return;
         Microbot.naturalMouse.moveRandom();
+    }
+
+    /**
+     * <h1>Move Camera Randomly</h1>
+     * Mobile addition: turns the camera 15-60 degrees either way and, a third of the time, tilts it a
+     * little, staying high enough that the scene stays readable. The engine eases to the new angle.
+     */
+    public static void moveCameraRandomly() {
+        if (!AntibanPlugin.isMasterEnabled()) return;
+        int turn = Rs2Random.between(85, 341) * (Rs2Random.diceFractional(0.5) ? 1 : -1);
+        Rs2Camera.setYaw(Math.floorMod(Rs2Camera.getYaw() + turn, 2048));
+        if (Rs2Random.diceFractional(0.33)) {
+            int tilt = Rs2Random.between(10, 40) * (Rs2Random.diceFractional(0.5) ? 1 : -1);
+            Rs2Camera.setPitch(Math.max(CAMERA_MIN_PITCH, Rs2Camera.getPitch() + tilt));
+        }
     }
 
     public static void activateAntiban() {

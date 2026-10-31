@@ -17,6 +17,7 @@ import net.runelite.client.plugins.microbot.util.antiban.Rs2Antiban;
 import net.runelite.client.plugins.microbot.util.antiban.Rs2AntibanSettings;
 import net.runelite.client.plugins.microbot.util.bank.Rs2Bank;
 import net.runelite.client.plugins.microbot.util.bank.enums.BankLocation;
+import net.runelite.client.plugins.microbot.util.camera.Rs2Camera;
 import net.runelite.client.plugins.microbot.util.combat.Rs2Combat;
 import net.runelite.client.plugins.microbot.util.equipment.Rs2Equipment;
 import net.runelite.client.plugins.microbot.util.gameobject.Rs2GameObject;
@@ -149,6 +150,7 @@ public class AutoWoodcuttingScript extends Script {
         Rs2Antiban.antibanSetupTemplates.applyWoodcuttingSetup();
         Rs2AntibanSettings.dynamicActivity = true;
         Rs2AntibanSettings.dynamicIntensity = true;
+        applyMobileAntibanExtras();
         activeTree = config.TREE();
         activeLocation = null;
         resetProgressiveSelection();
@@ -188,6 +190,30 @@ public class AutoWoodcuttingScript extends Script {
         return true;
     }
 
+    /** Chance of facing an off-screen tree before clicking it (the click itself needs no camera). */
+    private static final double TURN_TO_TREE_CHANCE = 0.6;
+
+    /**
+     * Mobile: the whole anti-ban set on top of upstream's woodcutting template, all behind the
+     * plugin's "Anti-ban" switch: micro-breaks, random and off-screen mouse moves and random camera
+     * turns during action cooldowns. A player's own override ({@code overwriteScriptSettings}) wins.
+     */
+    static void applyMobileAntibanExtras() {
+        if (Rs2AntibanSettings.overwriteScriptSettings) {
+            return;
+        }
+        Rs2AntibanSettings.takeMicroBreaks = true;
+        Rs2AntibanSettings.microBreakChance = 0.05;
+        Rs2AntibanSettings.microBreakDurationLow = 3;
+        Rs2AntibanSettings.microBreakDurationHigh = 8;
+        Rs2AntibanSettings.moveMouseRandomly = true;
+        Rs2AntibanSettings.moveMouseRandomlyChance = 0.15;
+        Rs2AntibanSettings.moveMouseOffScreen = true;
+        Rs2AntibanSettings.moveMouseOffScreenChance = 0.05;
+        Rs2AntibanSettings.moveCameraRandomly = true;
+        Rs2AntibanSettings.moveCameraRandomlyChance = 0.15;
+    }
+
     private void handleWoodcutting(AutoWoodcuttingConfig config) {
         WoodcuttingTree treeType = getActiveTree();
         Rs2TileObjectModel tree = null;
@@ -208,9 +234,13 @@ public class AutoWoodcuttingScript extends Script {
         }
 
         if (tree != null) {
+            if (!Rs2Camera.isTileOnScreen(tree) && Rs2Random.diceFractional(TURN_TO_TREE_CHANCE)) {
+                Rs2Camera.turnTo(tree);
+            }
             if (tree.click(treeType.getAction())) {
                 Rs2Player.waitForAnimation();
                 Rs2Antiban.actionCooldown();
+                Rs2Antiban.takeMicroBreakByChance();
 
                 if (config.walkBack().equals(WoodcuttingWalkBack.LAST_LOCATION)) {
                     returnPoint = Rs2Player.getWorldLocation();

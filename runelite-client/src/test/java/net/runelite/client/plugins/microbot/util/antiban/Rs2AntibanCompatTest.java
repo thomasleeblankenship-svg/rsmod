@@ -112,4 +112,39 @@ public class Rs2AntibanCompatTest
 		assertEquals(AntibanPlugin.MICRO_BREAK_DURATION_LOW_DEFAULT, Rs2AntibanSettings.microBreakDurationLow);
 		assertEquals(AntibanPlugin.MICRO_BREAK_DURATION_HIGH_DEFAULT, Rs2AntibanSettings.microBreakDurationHigh);
 	}
+
+	@Test
+	public void aCameraMoveTurnsTheYawWithinRangeAndNeverTiltsTooLow()
+	{
+		try (MockedStatic<net.runelite.client.plugins.microbot.util.camera.Rs2Camera> camera =
+			mockStatic(net.runelite.client.plugins.microbot.util.camera.Rs2Camera.class))
+		{
+			camera.when(net.runelite.client.plugins.microbot.util.camera.Rs2Camera::getYaw).thenReturn(2000);
+			camera.when(net.runelite.client.plugins.microbot.util.camera.Rs2Camera::getPitch).thenReturn(Rs2Antiban.CAMERA_MIN_PITCH);
+			java.util.List<Integer> yaws = new java.util.ArrayList<>();
+			camera.when(() -> net.runelite.client.plugins.microbot.util.camera.Rs2Camera.setYaw(org.mockito.ArgumentMatchers.anyInt()))
+				.thenAnswer(call -> yaws.add(call.getArgument(0)));
+			camera.when(() -> net.runelite.client.plugins.microbot.util.camera.Rs2Camera.setPitch(org.mockito.ArgumentMatchers.anyInt()))
+				.thenAnswer(call ->
+				{
+					assertTrue((int) call.getArgument(0) >= Rs2Antiban.CAMERA_MIN_PITCH);
+					return null;
+				});
+			for (int i = 0; i < 200; i++)
+			{
+				Rs2Antiban.moveCameraRandomly();
+			}
+			assertEquals(200, yaws.size());
+			for (int yaw : yaws)
+			{
+				assertTrue(yaw >= 0 && yaw < 2048);
+				int turn = Math.abs(((yaw - 2000 + 1024 + 2048) % 2048) - 1024);
+				assertTrue("15..60 degrees: " + turn, turn >= 85 && turn <= 341);
+			}
+
+			AntibanPlugin.setMasterEnabled(false);
+			Rs2Antiban.moveCameraRandomly();
+			assertEquals("the master switch stops camera moves", 200, yaws.size());
+		}
+	}
 }
