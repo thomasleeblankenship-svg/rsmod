@@ -103,7 +103,7 @@ final class Act
 			walk(where, 3);
 			return false;
 		}
-		if (openDoorTo(n.getWorldLocation()))
+		if (openDoorTo(n.getWorldLocation()) || walkIfBlocked(n.getWorldLocation()))
 		{
 			return false;
 		}
@@ -124,7 +124,7 @@ final class Act
 			walk(where, 2);
 			return false;
 		}
-		if (!o.isReachable() && openDoorTo(o.getWorldLocation()))
+		if (!o.isReachable() && (openDoorTo(o.getWorldLocation()) || walkIfBlocked(o.getWorldLocation())))
 		{
 			return false;
 		}
@@ -156,7 +156,8 @@ final class Act
 		Rs2TileObjectModel best = null;
 		for (Rs2TileObjectModel d : doors)
 		{
-			if (d.getPlane() != t.getPlane() || !hasAction(d, "Open"))
+			// Mobile: a door the player can't walk to (say, from inside a fenced pen) is never opened by a click.
+			if (d.getPlane() != t.getPlane() || !hasAction(d, "Open") || !reachableAt(d.getWorldLocation()))
 			{
 				continue;
 			}
@@ -175,7 +176,32 @@ final class Act
 			waitArrive();
 			Global.sleep(600, 1000);
 		}
+		else
+		{
+			Microbot.log(DaBrutusScript.tag() + "the door at " + best.getWorldLocation() + " did not take the click");
+		}
 		return true;
+	}
+
+	/**
+	 * Mobile: when {@code t} is close but can't be walked to and no reachable door leads to it, walks there with the
+	 * web walker, which opens gates and doors on its route. True when it walked (the step is retried next loop).
+	 */
+	static boolean walkIfBlocked(WorldPoint t)
+	{
+		WorldPoint me = me();
+		if (t == null || me == null || me.getPlane() != t.getPlane() || reachableAt(t))
+		{
+			return false;
+		}
+		Microbot.log(DaBrutusScript.tag() + "can't reach " + t + " and no door to open here; walking round");
+		Rs2Walker.walkTo(t, 1);
+		return true;
+	}
+
+	private static boolean reachableAt(WorldPoint t)
+	{
+		return net.runelite.client.plugins.microbot.util.tile.Rs2Tile.isTileReachable(t) || reachableNextTo(t);
 	}
 
 	/** An NPC stands on its tile, which pathing may count as blocked: a free tile next to it is enough. */
